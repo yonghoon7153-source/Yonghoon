@@ -331,20 +331,18 @@ def _generate_particle_info(all_data, ps_labels, case_names, outdir):
 
     # Particle counts
     for ptype in ['AM_P', 'AM_S', 'SE']:
-        row = [f'{ptype} 입자수']
+        row = [f'{ptype} Count']
         for d in all_data:
-            # Try to find count from metrics or approximate
-            # Not stored in full_metrics, so we show '-' or derive
             key = f'n_{ptype}'
             val = d.get(key, '-')
-            row.append(str(val) if val != '-' else '-')
+            row.append(str(int(val)) if val != '-' else '-')
         rows_data.append(row)
 
-    # Radii (from metrics if available)
-    for ptype, r_key in [('AM_P', 'r_AM_P'), ('AM_S', 'r_AM_S'), ('SE', 'r_SE')]:
-        row = [f'{ptype} 반지름(μm)']
+    # Radii
+    for ptype in ['AM_P', 'AM_S', 'SE']:
+        row = [f'{ptype} R (um)']
         for d in all_data:
-            val = d.get(r_key, '-')
+            val = d.get(f'r_{ptype}', '-')
             row.append(str(val) if val != '-' else '-')
         rows_data.append(row)
 

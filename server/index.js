@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { Client } from '@notionhq/client';
 import Anthropic from '@anthropic-ai/sdk';
@@ -24,16 +25,50 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const DATABASE_ID = process.env.NOTION_DATABASE_ID || '7b5d9b8c069c4f3bbe40b25f55afdf96';
 
-// Cache for Notion pages
+// Local JSON cache file
+const CACHE_FILE = path.join(__dirname, 'cache.json');
+
+// In-memory cache
 let cachedPages = [];
 let lastFetchTime = 0;
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 let cachedDataSourceId = null;
 
 // Auto-sync: poll for new/updated pages every 2 minutes
 const SYNC_INTERVAL = 2 * 60 * 1000;
 let lastSyncEditTime = null;
 
+// --- Local file cache ---
+function loadCacheFromDisk() {
+  try {
+    if (fs.existsSync(CACHE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf-8'));
+      cachedPages = data.pages || [];
+      lastFetchTime = data.lastFetchTime || 0;
+      lastSyncEditTime = data.lastSyncEditTime || null;
+      console.log(`[Cache] Loaded ${cachedPages.length} pages from disk cache.`);
+      return true;
+    }
+  } catch (e) {
+    console.log('[Cache] Failed to load disk cache:', e.message);
+  }
+  return false;
+}
+
+function saveCacheToDisk() {
+  try {
+    fs.writeFileSync(CACHE_FILE, JSON.stringify({
+      pages: cachedPages,
+      lastFetchTime,
+      lastSyncEditTime,
+      savedAt: new Date().toISOString(),
+    }));
+    console.log(`[Cache] Saved ${cachedPages.length} pages to disk.`);
+  } catch (e) {
+    console.log('[Cache] Failed to save disk cache:', e.message);
+  }
+}
+
+// --- Notion API ---
 async function getPageMarkdown(pageId) {
   try {
     const response = await notion.pages.retrieveMarkdown({ page_id: pageId });
@@ -68,21 +103,10 @@ async function getDataSourceId() {
   return cachedDataSourceId;
 }
 
-async function fetchAllPages() {
-  const now = Date.now();
-  if (cachedPages.length > 0 && now - lastFetchTime < CACHE_TTL) {
-    return cachedPages;
-  }
-
-  console.log('Fetching all pages from Notion database...');
-
-  // First, get the data source ID from the database
+async function fetchPageList() {
   const dataSourceId = await getDataSourceId();
-  console.log(`Using data source ID: ${dataSourceId}`);
-
   const pages = [];
   let cursor;
-
   do {
     const response = await notion.dataSources.query({
       data_source_id: dataSourceId,
@@ -92,18 +116,27 @@ async function fetchAllPages() {
     pages.push(...response.results);
     cursor = response.has_more ? response.next_cursor : undefined;
   } while (cursor);
+  return pages;
+}
 
-  console.log(`Found ${pages.length} pages. Fetching content...`);
+async function fetchAllPages(force = false) {
+  if (!force && cachedPages.length > 0) {
+    return cachedPages;
+  }
 
-  // Fetch content for each page (with rate limiting)
+  console.log('[Fetch] Full fetch from Notion...');
+  const pages = await fetchPageList();
+  console.log(`[Fetch] Found ${pages.length} pages. Fetching content...`);
+
   const enrichedPages = [];
+  let count = 0;
   for (const page of pages) {
     const props = extractPageProperties(page);
     let content = '';
     try {
       content = await getPageMarkdown(page.id);
     } catch (e) {
-      console.log(`Failed to fetch content for: ${props.title}`);
+      // skip
     }
 
     enrichedPages.push({
@@ -113,16 +146,82 @@ async function fetchAllPages() {
       content: content.slice(0, 3000),
     });
 
-    // Rate limit: small delay between requests
-    await new Promise(r => setTimeout(r, 100));
+    count++;
+    if (count % 50 === 0) console.log(`[Fetch] Progress: ${count}/${pages.length}`);
+
+    // Rate limit
+    await new Promise(r => setTimeout(r, 50));
   }
 
   cachedPages = enrichedPages;
-  lastFetchTime = now;
-  console.log(`Fetched ${enrichedPages.length} pages from Notion.`);
+  lastFetchTime = Date.now();
+  console.log(`[Fetch] Done! ${enrichedPages.length} pages loaded.`);
+
+  saveCacheToDisk();
   return enrichedPages;
 }
 
+// Incremental sync: only fetch new/updated pages
+async function incrementalSync() {
+  try {
+    const dataSourceId = await getDataSourceId();
+    const response = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      page_size: 100,
+      sorts: [{ property: '생성 일자', direction: 'descending' }],
+    });
+
+    if (response.results.length === 0) return;
+
+    const latestEditTime = response.results[0].last_edited_time;
+
+    if (lastSyncEditTime && latestEditTime === lastSyncEditTime) {
+      return; // No changes
+    }
+
+    console.log('[Sync] Changes detected! Updating...');
+
+    // Find pages edited after last sync
+    let updatedCount = 0;
+    for (const page of response.results) {
+      const editTime = page.last_edited_time;
+      if (lastSyncEditTime && editTime <= lastSyncEditTime) break;
+
+      const props = extractPageProperties(page);
+      let content = '';
+      try {
+        content = await getPageMarkdown(page.id);
+      } catch (e) {
+        // skip
+      }
+
+      const enriched = {
+        id: page.id,
+        url: page.url,
+        ...props,
+        content: content.slice(0, 3000),
+      };
+
+      // Update or add
+      const existingIdx = cachedPages.findIndex(p => p.id === page.id);
+      if (existingIdx >= 0) {
+        cachedPages[existingIdx] = enriched;
+      } else {
+        cachedPages.push(enriched);
+      }
+      updatedCount++;
+    }
+
+    lastSyncEditTime = latestEditTime;
+    lastFetchTime = Date.now();
+    saveCacheToDisk();
+    console.log(`[Sync] Updated ${updatedCount} pages. Total: ${cachedPages.length}`);
+  } catch (e) {
+    console.error('[Sync] Error:', e.message);
+  }
+}
+
+// --- Search ---
 function searchPages(pages, query) {
   const queryLower = query.toLowerCase();
   const queryTerms = queryLower.split(/\s+/).filter(t => t.length > 1);
@@ -131,18 +230,13 @@ function searchPages(pages, query) {
     const searchText = `${page.title} ${page.description} ${page.category} ${page.content}`.toLowerCase();
     let score = 0;
 
-    // Full query match
     if (searchText.includes(queryLower)) score += 10;
 
-    // Individual term matches
     for (const term of queryTerms) {
       const regex = new RegExp(term, 'gi');
       const matches = searchText.match(regex);
       if (matches) score += matches.length;
-
-      // Title match gets bonus
       if (page.title.toLowerCase().includes(term)) score += 5;
-      // Description match gets bonus
       if (page.description.toLowerCase().includes(term)) score += 3;
     }
 
@@ -155,20 +249,18 @@ function searchPages(pages, query) {
     .slice(0, 8);
 }
 
-// API: Chat endpoint
+// --- API Routes ---
 app.post('/api/chat', async (req, res) => {
   try {
     const { message, history = [] } = req.body;
+    if (!message) return res.status(400).json({ error: 'Message is required' });
 
-    if (!message) {
-      return res.status(400).json({ error: 'Message is required' });
+    if (cachedPages.length === 0) {
+      return res.status(503).json({ error: 'Server is still loading data. Please wait a moment.' });
     }
 
-    // Fetch and search pages
-    const allPages = await fetchAllPages();
-    const relevantPages = searchPages(allPages, message);
+    const relevantPages = searchPages(cachedPages, message);
 
-    // Build context from relevant pages
     const context = relevantPages.map((page, i) => {
       return `[Page ${i + 1}] Title: ${page.title}
 Category: ${page.category}
@@ -178,7 +270,6 @@ Content: ${page.content.slice(0, 1500)}
 URL: ${page.url}`;
     }).join('\n\n---\n\n');
 
-    // Build conversation history
     const messages = [];
     for (const h of history.slice(-6)) {
       messages.push({ role: h.role, content: h.content });
@@ -213,7 +304,6 @@ ${context || 'No relevant pages found for this query.'}
 
     const answer = response.content[0].text;
 
-    // Return answer with referenced pages
     const references = relevantPages.map(p => ({
       id: p.id,
       title: p.title,
@@ -230,101 +320,56 @@ ${context || 'No relevant pages found for this query.'}
   }
 });
 
-// API: Get all page summaries (for browsing)
-app.get('/api/pages', async (req, res) => {
-  try {
-    const pages = await fetchAllPages();
-    const summaries = pages.map(p => ({
+app.get('/api/pages', (req, res) => {
+  const summaries = cachedPages.map(p => ({
+    id: p.id,
+    title: p.title,
+    url: p.url,
+    category: p.category,
+    importance: p.importance,
+    description: p.description,
+    lastEdited: p.lastEdited,
+  }));
+  res.json({ pages: summaries, total: summaries.length });
+});
+
+app.get('/api/search', (req, res) => {
+  const { q } = req.query;
+  if (!q) return res.json({ results: [] });
+  const results = searchPages(cachedPages, q);
+  res.json({
+    results: results.map(p => ({
       id: p.id,
       title: p.title,
       url: p.url,
       category: p.category,
       importance: p.importance,
       description: p.description,
-      lastEdited: p.lastEdited,
-    }));
-    res.json({ pages: summaries, total: summaries.length });
-  } catch (error) {
-    console.error('Pages error:', error);
-    res.status(500).json({ error: error.message });
-  }
+      score: p.score,
+    })),
+  });
 });
 
-// API: Search pages
-app.get('/api/search', async (req, res) => {
-  try {
-    const { q } = req.query;
-    if (!q) return res.json({ results: [] });
-
-    const pages = await fetchAllPages();
-    const results = searchPages(pages, q);
-    res.json({
-      results: results.map(p => ({
-        id: p.id,
-        title: p.title,
-        url: p.url,
-        category: p.category,
-        importance: p.importance,
-        description: p.description,
-        score: p.score,
-      })),
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// API: Force refresh cache
 app.post('/api/refresh', async (req, res) => {
   try {
-    cachedPages = [];
-    lastFetchTime = 0;
-    const pages = await fetchAllPages();
+    const pages = await fetchAllPages(true);
     res.json({ message: `Refreshed ${pages.length} pages` });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// API: Get sync status
 app.get('/api/status', (req, res) => {
   res.json({
     totalPages: cachedPages.length,
     lastFetchTime: lastFetchTime ? new Date(lastFetchTime).toISOString() : null,
+    cacheFileExists: fs.existsSync(CACHE_FILE),
     autoSyncEnabled: true,
     syncIntervalMs: SYNC_INTERVAL,
   });
 });
 
-// Auto-sync: check for new/updated pages periodically
-async function autoSync() {
-  try {
-    const dataSourceId = await getDataSourceId();
-    // Query pages sorted by last edited time, get most recent
-    const response = await notion.dataSources.query({
-      data_source_id: dataSourceId,
-      page_size: 5,
-      sorts: [{ property: '생성 일자', direction: 'descending' }],
-    });
-
-    if (response.results.length === 0) return;
-
-    const latestEditTime = response.results[0].last_edited_time;
-
-    // If we have new edits since last sync, refresh cache
-    if (lastSyncEditTime && latestEditTime !== lastSyncEditTime) {
-      console.log(`[Auto-sync] Changes detected. Refreshing...`);
-      cachedPages = [];
-      lastFetchTime = 0;
-      await fetchAllPages();
-    }
-    lastSyncEditTime = latestEditTime;
-  } catch (e) {
-    console.error('[Auto-sync] Error:', e.message);
-  }
-}
-
-// SPA fallback: serve index.html for all non-API routes
+// SPA fallback
 app.use((req, res, next) => {
   if (req.path.startsWith('/api')) return next();
   res.sendFile(path.join(distPath, 'index.html'));
@@ -333,17 +378,21 @@ app.use((req, res, next) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on http://localhost:${PORT}`);
-  // Pre-fetch pages on startup
-  fetchAllPages().then(() => {
-    // Set initial sync time
-    if (cachedPages.length > 0) {
-      const sorted = [...cachedPages].sort((a, b) =>
-        new Date(b.lastEdited) - new Date(a.lastEdited)
-      );
-      lastSyncEditTime = sorted[0]?.lastEdited;
-    }
-    // Start auto-sync polling
-    setInterval(autoSync, SYNC_INTERVAL);
-    console.log(`[Auto-sync] Enabled. Checking every ${SYNC_INTERVAL / 1000}s for changes.`);
-  }).catch(console.error);
+
+  // 1. Try loading from disk cache (instant)
+  const hasCache = loadCacheFromDisk();
+
+  if (hasCache) {
+    // Start incremental sync immediately
+    console.log('[Startup] Using disk cache. Starting incremental sync...');
+    incrementalSync().catch(console.error);
+  } else {
+    // First time: full fetch
+    console.log('[Startup] No cache found. Doing full fetch...');
+    fetchAllPages().catch(console.error);
+  }
+
+  // Start periodic sync
+  setInterval(incrementalSync, SYNC_INTERVAL);
+  console.log(`[Sync] Auto-sync every ${SYNC_INTERVAL / 1000}s`);
 });

@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% set active = "archive" %}
+{% block title %}보관함 - DEM Analyzer{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <h2>보관함</h2>
+      <p>분석 결과를 폴더별로 정리하고 관리합니다</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-primary" onclick="showNewFolder()">새 폴더</button>
+    </div>
+  </div>
+</div>
+
+<!-- Breadcrumb -->
+<div class="breadcrumb">
+  <a href="/archive" class="bc-item {% if not current %}bc-active{% endif %}">보관함</a>
+  {% for bc in breadcrumb %}
+  <span class="bc-sep">/</span>
+  <a href="/archive?folder={{ bc.path }}" class="bc-item {% if loop.last %}bc-active{% endif %}">{{ bc.name }}</a>
+  {% endfor %}
+</div>
+
+<!-- Content -->
+<div class="archive-layout">
+  <!-- Sidebar Tree -->
+  <div class="archive-tree card">
+    <h4>폴더 구조</h4>
+    <div class="tree-root">
+      <a href="/archive" class="tree-item {% if not current %}tree-active{% endif %}">
+        <span class="tree-icon">&#x1F4E6;</span> 보관함
+      </a>
+      {% macro render_tree(items, depth=0) %}
+      {% for item in items %}
+        {% if item.type == 'folder' %}
+        <div class="tree-folder" style="padding-left:{{ (depth+1)*16 }}px">
+          <a href="/archive?folder={{ item.path }}" class="tree-item {% if current == item.path %}tree-active{% endif %}">
+            <span class="tree-icon">&#x1F4C1;</span>
+            {{ item.name }}
+            <span class="tree-count">{{ item.file_count }}</span>
+          </a>
+          {{ render_tree(item.children, depth+1) }}
+        </div>
+        {% endif %}
+      {% endfor %}
+      {% endmacro %}
+      {{ render_tree(tree) }}
+    </div>
+  </div>
+
+  <!-- File List -->
+  <div class="archive-files">
+    {% if folders %}
+    <div class="card">
+      <h4>폴더</h4>
+      <div class="folder-grid">
+        {% for f in folders %}
+        <a href="/archive?folder={{ f.path }}" class="folder-card">
+          <span class="folder-icon">&#x1F4C1;</span>
+          <div class="folder-info">
+            <strong>{{ f.name }}</strong>
+            <small>{{ f.file_count }} 파일{% if f.subfolder_count %}, {{ f.subfolder_count }} 하위폴더{% endif %}</small>
+          </div>
+          <div class="folder-actions" onclick="event.preventDefault();event.stopPropagation()">
+            <button class="btn-icon" onclick="renameItem('{{ f.path }}', '{{ f.name }}')" title="이름 변경">&#x270F;</button>
+            <button class="btn-icon btn-icon-del" onclick="deleteItem('{{ f.path }}')" title="삭제">&#x1F5D1;</button>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if files %}
+    <div class="card">
+      <h4>파일</h4>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>파일명</th>
+            <th>크기</th>
+            <th>액션</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in files %}
+          <tr>
+            <td>
+              <span class="file-ext-icon
+                {% if f.ext == '.png' %}ext-img
+                {% elif f.ext == '.md' %}ext-md
+                {% elif f.ext == '.csv' %}ext-csv
+                {% else %}ext-other{% endif %}">
+                {{ f.ext or '?' }}
+              </span>
+              <span class="file-name-text">{{ f.name }}</span>
+            </td>
+            <td class="dim">{{ "%.1f"|format(f.size/1024) }} KB</td>
+            <td class="actions">
+              {% if f.ext == '.png' %}
+              <button class="btn btn-sm btn-view" onclick="previewImage('/archive/preview/{{ f.path }}', '{{ f.name }}')">미리보기</button>
+              {% elif f.ext in ['.md', '.csv', '.json'] %}
+              <button class="btn btn-sm btn-view" onclick="previewFile('{{ f.path }}')">미리보기</button>
+              {% endif %}
+              <a href="/archive/download/{{ f.path }}" class="btn btn-sm btn-dl">다운로드</a>
+              <button class="btn btn-sm btn-del" onclick="deleteItem('{{ f.path }}')">삭제</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {% if not folders and not files %}
+    <div class="card">
+      <p class="empty-state">이 폴더는 비어있습니다.<br>Dashboard에서 분석 결과를 보관함에 저장하거나, 새 폴더를 만드세요.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- New Folder Dialog -->
+<div id="new-folder-dialog" class="modal" onclick="this.classList.remove('open')">
+  <div class="save-dialog-inner" onclick="event.stopPropagation()">
+    <h3>새 폴더 만들기</h3>
+    <div class="form-group" style="margin:16px 0">
+      <label>폴더 이름</label>
+      <input type="text" id="new-folder-name" class="input" placeholder="예: SE_1.5um">
+    </div>
+    <p class="dim" style="font-size:.8rem;margin-bottom:16px">현재 위치: <strong>{{ current or '보관함 (최상위)' }}</strong></p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="document.getElementById('new-folder-dialog').classList.remove('open')">취소</button>
+      <button class="btn btn-primary" onclick="createFolder()">만들기</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rename Dialog -->
+<div id="rename-dialog" class="modal" onclick="this.classList.remove('open')">
+  <div class="save-dialog-inner" onclick="event.stopPropagation()">
+    <h3>이름 변경</h3>
+    <input type="hidden" id="rename-path">
+    <div class="form-group" style="margin:16px 0">
+      <label>새 이름</label>
+      <input type="text" id="rename-new" class="input">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="document.getElementById('rename-dialog').classList.remove('open')">취소</button>
+      <button class="btn btn-primary" onclick="doRename()">변경</button>
+    </div>
+  </div>
+</div>
+
+<!-- Preview Modal -->
+<div id="preview-modal" class="modal" onclick="this.classList.remove('open')">
+  <div class="preview-inner" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="document.getElementById('preview-modal').classList.remove('open')">&times;</button>
+    <div id="preview-content"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const currentFolder = '{{ current }}';
+
+function showNewFolder() {
+  document.getElementById('new-folder-dialog').classList.add('open');
+  document.getElementById('new-folder-name').focus();
+}
+
+async function createFolder() {
+  const name = document.getElementById('new-folder-name').value.trim();
+  if (!name) return alert('폴더 이름을 입력하세요.');
+  const form = new FormData();
+  form.append('parent', currentFolder);
+  form.append('name', name);
+  const res = await fetch('/archive/create-folder', { method: 'POST', body: form });
+  const data = await res.json();
+  if (data.success) location.reload();
+  else alert(data.error);
+}
+
+async function deleteItem(path) {
+  if (!confirm('삭제할까요? ' + path)) return;
+  const form = new FormData();
+  form.append('path', path);
+  await fetch('/archive/delete', { method: 'POST', body: form });
+  location.reload();
+}
+
+function renameItem(path, oldName) {
+  document.getElementById('rename-path').value = path;
+  document.getElementById('rename-new').value = oldName;
+  document.getElementById('rename-dialog').classList.add('open');
+  document.getElementById('rename-new').focus();
+}
+
+async function doRename() {
+  const path = document.getElementById('rename-path').value;
+  const newName = document.getElementById('rename-new').value.trim();
+  if (!newName) return;
+  const form = new FormData();
+  form.append('path', path);
+  form.append('new_name', newName);
+  const res = await fetch('/archive/rename', { method: 'POST', body: form });
+  const data = await res.json();
+  if (data.success) location.reload();
+  else alert(data.error);
+}
+
+function previewImage(url, title) {
+  const content = document.getElementById('preview-content');
+  content.innerHTML = `<img src="${url}" style="max-width:100%;max-height:80vh;border-radius:8px"><p style="text-align:center;color:var(--dim);margin-top:8px">${title}</p>`;
+  document.getElementById('preview-modal').classList.add('open');
+}
+
+async function previewFile(path) {
+  const res = await fetch('/archive/preview/' + path);
+  const data = await res.json();
+  const content = document.getElementById('preview-content');
+
+  if (data.type === 'markdown' || data.type === 'json') {
+    content.innerHTML = `<pre class="preview-text">${data.content}</pre>`;
+  } else if (data.type === 'csv') {
+    let html = '<div class="table-scroll"><table class="data-table compact"><thead><tr>';
+    data.columns.forEach(c => html += `<th>${c}</th>`);
+    html += '</tr></thead><tbody>';
+    data.data.forEach(row => {
+      html += '<tr>';
+      row.forEach(v => html += `<td>${v}</td>`);
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    content.innerHTML = html;
+  } else {
+    content.innerHTML = `<p>${data.message || '미리보기 불가'}</p>`;
+  }
+  document.getElementById('preview-modal').classList.add('open');
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal').forEach(m => m.classList.remove('open'));
+  }
+});
+</script>
+{% endblock %}

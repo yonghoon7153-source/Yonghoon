@@ -22,9 +22,11 @@ app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
 app.config['RESULTS_FOLDER'] = os.path.join(os.path.dirname(__file__), 'results')
 app.config['SCRIPTS_FOLDER'] = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scripts')
+app.config['ARCHIVE_FOLDER'] = os.path.join(os.path.dirname(__file__), 'archive')
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['RESULTS_FOLDER'], exist_ok=True)
+os.makedirs(app.config['ARCHIVE_FOLDER'], exist_ok=True)
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -476,6 +478,189 @@ def delete_case(case_id):
     if os.path.exists(results_dir):
         shutil.rmtree(results_dir)
     return jsonify({'success': True})
+
+# ─── Archive (보관함) ───────────────────────────────────────────────────────
+
+def _archive_root():
+    return app.config['ARCHIVE_FOLDER']
+
+def _safe_path(rel):
+    """Prevent path traversal."""
+    base = os.path.realpath(_archive_root())
+    target = os.path.realpath(os.path.join(base, rel))
+    if not target.startswith(base):
+        return None
+    return target
+
+def _scan_folder(abs_path, rel_prefix=''):
+    """Recursively scan a folder and return tree structure."""
+    items = []
+    if not os.path.isdir(abs_path):
+        return items
+    for name in sorted(os.listdir(abs_path)):
+        full = os.path.join(abs_path, name)
+        rel = os.path.join(rel_prefix, name) if rel_prefix else name
+        if os.path.isdir(full):
+            children = _scan_folder(full, rel)
+            file_count = sum(1 for c in children if c['type'] == 'file') + \
+                         sum(c.get('file_count', 0) for c in children if c['type'] == 'folder')
+            items.append({
+                'type': 'folder', 'name': name, 'path': rel,
+                'children': children, 'file_count': file_count
+            })
+        else:
+            size = os.path.getsize(full)
+            items.append({
+                'type': 'file', 'name': name, 'path': rel,
+                'size': size, 'ext': os.path.splitext(name)[1].lower()
+            })
+    return items
+
+@app.route('/archive')
+def archive():
+    tree = _scan_folder(_archive_root())
+    current = request.args.get('folder', '')
+    # List files in current folder
+    if current:
+        target = _safe_path(current)
+        if not target or not os.path.isdir(target):
+            current = ''
+    folder_path = _safe_path(current) if current else _archive_root()
+    files = []
+    folders = []
+    for name in sorted(os.listdir(folder_path)):
+        full = os.path.join(folder_path, name)
+        rel = os.path.join(current, name) if current else name
+        if os.path.isdir(full):
+            cnt = len([f for f in os.listdir(full) if os.path.isfile(os.path.join(full, f))])
+            sub = len([f for f in os.listdir(full) if os.path.isdir(os.path.join(full, f))])
+            folders.append({'name': name, 'path': rel, 'file_count': cnt, 'subfolder_count': sub})
+        else:
+            size = os.path.getsize(full)
+            files.append({'name': name, 'path': rel, 'size': size,
+                         'ext': os.path.splitext(name)[1].lower()})
+
+    # Breadcrumb
+    breadcrumb = []
+    if current:
+        parts = current.split(os.sep)
+        for i, p in enumerate(parts):
+            breadcrumb.append({'name': p, 'path': os.sep.join(parts[:i+1])})
+
+    return render_template('archive.html', tree=tree, folders=folders, files=files,
+                         current=current, breadcrumb=breadcrumb)
+
+@app.route('/archive/create-folder', methods=['POST'])
+def archive_create_folder():
+    parent = request.form.get('parent', '')
+    name = request.form.get('name', '').strip()
+    if not name:
+        return jsonify({'error': '폴더 이름을 입력하세요.'}), 400
+    # Sanitize
+    name = name.replace('/', '_').replace('\\', '_').replace('..', '')
+    base = _safe_path(parent) if parent else _archive_root()
+    if not base:
+        return jsonify({'error': '잘못된 경로입니다.'}), 400
+    target = os.path.join(base, name)
+    os.makedirs(target, exist_ok=True)
+    return jsonify({'success': True, 'path': os.path.join(parent, name) if parent else name})
+
+@app.route('/archive/delete', methods=['POST'])
+def archive_delete():
+    path = request.form.get('path', '')
+    target = _safe_path(path)
+    if not target or target == os.path.realpath(_archive_root()):
+        return jsonify({'error': '삭제할 수 없습니다.'}), 400
+    if os.path.isdir(target):
+        shutil.rmtree(target)
+    elif os.path.isfile(target):
+        os.remove(target)
+    return jsonify({'success': True})
+
+@app.route('/archive/rename', methods=['POST'])
+def archive_rename():
+    old_path = request.form.get('path', '')
+    new_name = request.form.get('new_name', '').strip()
+    if not new_name:
+        return jsonify({'error': '새 이름을 입력하세요.'}), 400
+    new_name = new_name.replace('/', '_').replace('\\', '_').replace('..', '')
+    target = _safe_path(old_path)
+    if not target:
+        return jsonify({'error': '잘못된 경로입니다.'}), 400
+    parent = os.path.dirname(target)
+    new_full = os.path.join(parent, new_name)
+    os.rename(target, new_full)
+    return jsonify({'success': True})
+
+@app.route('/archive/move', methods=['POST'])
+def archive_move():
+    src = request.form.get('src', '')
+    dst_folder = request.form.get('dst', '')
+    src_full = _safe_path(src)
+    dst_full = _safe_path(dst_folder) if dst_folder else _archive_root()
+    if not src_full or not dst_full:
+        return jsonify({'error': '잘못된 경로입니다.'}), 400
+    name = os.path.basename(src_full)
+    shutil.move(src_full, os.path.join(dst_full, name))
+    return jsonify({'success': True})
+
+@app.route('/archive/save-case', methods=['POST'])
+def archive_save_case():
+    """Save a case's results to archive folder."""
+    case_id = request.form.get('case_id', '')
+    folder = request.form.get('folder', '')
+    results_dir = get_results_dir(case_id)
+    case_dir = get_case_dir(case_id)
+    meta_file = os.path.join(case_dir, 'meta.json')
+
+    if not os.path.exists(meta_file):
+        return jsonify({'error': '케이스를 찾을 수 없습니다.'}), 404
+
+    with open(meta_file) as f:
+        meta = json.load(f)
+
+    case_name = meta.get('name', case_id)
+    dst = _safe_path(folder) if folder else _archive_root()
+    if not dst:
+        return jsonify({'error': '잘못된 경로입니다.'}), 400
+
+    save_dir = os.path.join(dst, case_name)
+    if os.path.exists(save_dir):
+        save_dir = save_dir + '_' + datetime.now().strftime('%H%M%S')
+    shutil.copytree(results_dir, save_dir, dirs_exist_ok=True)
+    # Also copy meta
+    shutil.copy2(meta_file, os.path.join(save_dir, 'meta.json'))
+    return jsonify({'success': True, 'saved_to': save_dir})
+
+@app.route('/archive/download/<path:filepath>')
+def archive_download(filepath):
+    target = _safe_path(filepath)
+    if not target or not os.path.isfile(target):
+        return 'File not found', 404
+    return send_file(target, as_attachment=True)
+
+@app.route('/archive/preview/<path:filepath>')
+def archive_preview(filepath):
+    target = _safe_path(filepath)
+    if not target or not os.path.isfile(target):
+        return 'File not found', 404
+    ext = os.path.splitext(target)[1].lower()
+    if ext == '.md':
+        with open(target) as f:
+            content = f.read()
+        return jsonify({'type': 'markdown', 'content': content})
+    elif ext == '.csv':
+        import pandas as pd
+        df = pd.read_csv(target)
+        return jsonify({'type': 'csv', 'columns': df.columns.tolist(),
+                       'data': df.head(100).values.tolist()})
+    elif ext == '.png':
+        return send_file(target, mimetype='image/png')
+    elif ext == '.json':
+        with open(target) as f:
+            content = f.read()
+        return jsonify({'type': 'json', 'content': content})
+    return jsonify({'type': 'unknown', 'message': '미리보기를 지원하지 않는 파일 형식입니다.'})
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

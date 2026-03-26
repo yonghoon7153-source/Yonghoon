@@ -87,7 +87,7 @@
         </td>
         <td>
           {% if case.files %}
-          <button class="btn btn-sm btn-secondary" onclick="showFiles('{{ case.id }}', {{ case.files | tojson }})">{{ case.files|length }} 파일</button>
+          <button class="btn btn-sm btn-secondary" onclick="showFiles('{{ case.id }}')">{{ case.files|length }} 파일</button>
           {% else %}-{% endif %}
         </td>
         <td class="actions">
@@ -236,15 +236,26 @@ async function deleteCase(caseId) {
   location.reload();
 }
 
+// Case files data
+const caseFiles = {
+  {% for case in cases %}
+  '{{ case.id }}': {{ case.files | default([]) | tojson }},
+  {% endfor %}
+};
+
 // Show uploaded files
-function showFiles(caseId, files) {
+function showFiles(caseId) {
+  const files = caseFiles[caseId] || [];
   const list = document.getElementById('files-list');
   list.innerHTML = files.map(f => `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
       <span style="font-family:var(--mono);font-size:.85rem">${f}</span>
-      <a href="/download-file/${caseId}/${f}" class="btn btn-sm btn-dl" download>다운로드</a>
+      <div style="display:flex;gap:6px">
+        <a href="/download-file/${caseId}/${f}" class="btn btn-sm btn-dl" download>다운로드</a>
+      </div>
     </div>
   `).join('');
+  if (!files.length) list.innerHTML = '<p class="dim" style="text-align:center;padding:20px">파일 없음</p>';
   document.getElementById('files-modal').classList.add('open');
 }
 

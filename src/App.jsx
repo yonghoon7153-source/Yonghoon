@@ -7,6 +7,7 @@ import PostProcessing from './components/PostProcessing';
 import ParameterSettings from './components/ParameterSettings';
 import GenerateButton from './components/GenerateButton';
 import DependencyInfo from './components/DependencyInfo';
+import NotionChatbot from './components/NotionChatbot';
 import './App.css';
 
 const DEFAULT_PARAMS = {
@@ -39,9 +40,35 @@ function App() {
   const [calcTypes, setCalcTypes] = useState(['scf']);
   const [postProcessing, setPostProcessing] = useState([]);
   const [params, setParams] = useState(DEFAULT_PARAMS);
+  const [currentPage, setCurrentPage] = useState('generator');
+
+  if (currentPage === 'chatbot') {
+    return (
+      <div className="app">
+        <nav className="app-nav">
+          <button className={currentPage === 'generator' ? 'active' : ''} onClick={() => setCurrentPage('generator')}>
+            Script Generator
+          </button>
+          <button className={currentPage === 'chatbot' ? 'active' : ''} onClick={() => setCurrentPage('chatbot')}>
+            Research Chatbot
+          </button>
+        </nav>
+        <NotionChatbot />
+      </div>
+    );
+  }
 
   return (
     <div className="app">
+      <nav className="app-nav">
+        <button className={currentPage === 'generator' ? 'active' : ''} onClick={() => setCurrentPage('generator')}>
+          Script Generator
+        </button>
+        <button className={currentPage === 'chatbot' ? 'active' : ''} onClick={() => setCurrentPage('chatbot')}>
+          Research Chatbot
+        </button>
+      </nav>
+
       <header className="app-header">
         <div className="header-content">
           <h1>DFT / MLIP Script Generator</h1>

@@ -1,3 +1,32 @@
+/* === Navigation === */
+.app-nav {
+  display: flex;
+  background: #0f1629;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0 16px;
+}
+
+.app-nav button {
+  padding: 12px 24px;
+  border: none;
+  background: none;
+  color: #888;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.app-nav button:hover {
+  color: #ccc;
+}
+
+.app-nav button.active {
+  color: #5378ff;
+  border-bottom-color: #5378ff;
+}
+
 /* === Layout === */
 .app {
   min-height: 100vh;

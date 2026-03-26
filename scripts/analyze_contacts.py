@@ -150,20 +150,25 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         rows.append({'지표': f'Coverage {lbl} std', '값': round(v['std'], 1)})
     pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'network_summary.csv'), index=False)
 
-    # Auto-detect P:S ratio from atom counts
-    am_p_count = sum(1 for a in atoms_raw.values() if type_map.get(a['type']) == 'AM_P')
-    am_s_count = sum(1 for a in atoms_raw.values() if type_map.get(a['type']) == 'AM_S')
-    am_count = sum(1 for a in atoms_raw.values() if 'AM' in type_map.get(a['type'], ''))
-    se_count = sum(1 for a in atoms_raw.values() if type_map.get(a['type']) == 'SE')
+    # Auto-detect P:S ratio from mass (count × volume × density)
+    # NCM811 density = 4800 kg/m³ for both AM_P and AM_S
+    am_density = 4800  # kg/m³ (NCM811)
+    am_p_atoms = [a for a in atoms_raw.values() if type_map.get(a['type']) == 'AM_P']
+    am_s_atoms = [a for a in atoms_raw.values() if type_map.get(a['type']) == 'AM_S']
 
-    if am_p_count > 0 and am_s_count > 0:
-        total_am = am_p_count + am_s_count
-        p_pct = round(am_p_count / total_am * 10)
+    am_p_mass = sum(am_density * 4/3 * np.pi * a['radius']**3 for a in am_p_atoms)
+    am_s_mass = sum(am_density * 4/3 * np.pi * a['radius']**3 for a in am_s_atoms)
+
+    if am_p_mass > 0 and am_s_mass > 0:
+        total_am_mass = am_p_mass + am_s_mass
+        p_frac = am_p_mass / total_am_mass
+        # Round to nearest 10% step: 0.3 → 3:7, 0.5 → 5:5, 0.7 → 7:3
+        p_pct = round(p_frac * 10)
         s_pct = 10 - p_pct
         ps_ratio = f"{p_pct}:{s_pct}"
-    elif am_p_count > 0 and am_s_count == 0:
+    elif am_p_mass > 0 and am_s_mass == 0:
         ps_ratio = "P only"
-    elif am_s_count > 0 and am_p_count == 0:
+    elif am_s_mass > 0 and am_p_mass == 0:
         ps_ratio = "S only"
     else:
         ps_ratio = ""

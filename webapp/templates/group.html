@@ -179,6 +179,7 @@ async function generatePlots() {
             <summary>Origin 설정</summary>
             <pre>${p.origin_tip}</pre>
           </details>
+          ${p.csv ? `<a href="/group/plot-image/${data.session}/${p.csv}" class="btn btn-sm btn-dl" style="margin-top:10px;display:inline-block" download>CSV 다운로드</a>` : ''}
         </div>`;
       grid.appendChild(item);
     });

@@ -50,9 +50,9 @@ def _apply_style(ax, ylabel, names):
 
 
 def _save(fig, outdir, fname):
-    fig.tight_layout()
+    fig.tight_layout(pad=1.5)
     path = os.path.join(outdir, fname)
-    fig.savefig(path, dpi=DPI, bbox_inches="tight", facecolor='white')
+    fig.savefig(path, dpi=DPI, bbox_inches="tight", facecolor='white', pad_inches=0.15)
     plt.close(fig)
     return path
 
@@ -282,6 +282,24 @@ def plot_coverage(all_data, names, ax=None):
     return ax
 
 
+def _save_csv(outdir, fname, names, all_data, keys):
+    """Save plot data as CSV for download."""
+    import csv
+    path = os.path.join(outdir, fname)
+    with open(path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Case'] + [k for k, _ in keys])
+        for i, name in enumerate(names):
+            row = [name]
+            for key, transform in keys:
+                val = _get(all_data[i], key)
+                if transform:
+                    val = transform(all_data[i])
+                row.append(val)
+            writer.writerow(row)
+    return fname
+
+
 # ─── Four-panel composite ────────────────────────────────────────────────────
 
 def plot_four_panel(all_data, names, outdir):
@@ -378,6 +396,46 @@ def main():
     os.makedirs(args.output, exist_ok=True)
     plot_info = {}
 
+    # Generate CSV for each plot type
+    csv_map = {
+        'porosity': [('Case', None), ('Porosity(%)', lambda d: _get(d, 'porosity'))],
+        'am_se_interface': [('Case', None),
+            ('AM_P-SE(μm²)', lambda d: _resolve_am_se(d)[0]),
+            ('AM_S-SE(μm²)', lambda d: _resolve_am_se(d)[1]),
+            ('Total(μm²)', lambda d: _get(d, 'area_AM전체_SE_total') or sum(_resolve_am_se(d)))],
+        'se_se_tradeoff': [('Case', None),
+            ('SE-SE Count', lambda d: _get(d, 'area_SE_SE_n')),
+            ('SE-SE Mean Area(μm²)', lambda d: _get(d, 'area_SE_SE_mean'))],
+        'se_se_total': [('Case', None),
+            ('SE-SE Total(μm²)', lambda d: _get(d, 'area_SE_SE_total'))],
+        'percolation_tortuosity': [('Case', None),
+            ('Percolation(%)', lambda d: _get(d, 'percolation_pct')),
+            ('Tortuosity', lambda d: _get(d, 'tortuosity_mean'))],
+        'ionic_active': [('Case', None),
+            ('Ionic Active AM(%)', lambda d: _get(d, 'ionic_active_pct'))],
+        'coverage': [('Case', None),
+            ('Coverage AM_P(%)', lambda d: _resolve_coverage(d)[0]),
+            ('Coverage AM_P std', lambda d: _resolve_coverage(d)[1]),
+            ('Coverage AM_S(%)', lambda d: _resolve_coverage(d)[2]),
+            ('Coverage AM_S std', lambda d: _resolve_coverage(d)[3])],
+    }
+
+    import csv
+    for pname, cols in csv_map.items():
+        if pname in args.plots:
+            csv_path = os.path.join(args.output, f"{pname}.csv")
+            with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow([c[0] for c in cols])
+                for i, name in enumerate(args.names):
+                    row = []
+                    for col_name, fn in cols:
+                        if fn is None:
+                            row.append(name)
+                        else:
+                            row.append(round(fn(all_data[i]), 4))
+                    writer.writerow(row)
+
     for plot_name in args.plots:
         if plot_name == "four_panel":
             outpath = plot_four_panel(all_data, args.names, args.output)
@@ -399,8 +457,10 @@ def main():
         entry["func"](all_data, args.names, ax=ax)
         outpath = _save(fig, args.output, entry["file"])
 
+        csv_file = f"{plot_name}.csv" if plot_name in csv_map else None
         plot_info[plot_name] = {
             "file": entry["file"],
+            "csv": csv_file,
             "title": entry["title"],
             "description": entry["description"],
             "origin_tip": entry["origin_tip"],

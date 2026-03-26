@@ -95,6 +95,63 @@
   font-weight: 500;
 }
 
+/* === Structure Viewer === */
+.viewer-card {
+  padding: 20px;
+}
+
+.viewer-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.viewer-controls select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.viewer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.viewer-hint {
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin-left: auto;
+}
+
+.viewer-canvas {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  cursor: grab;
+  display: block;
+}
+
+.viewer-canvas:active {
+  cursor: grabbing;
+}
+
+.viewer-info {
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--text-light);
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+}
+
 .pp-item.recommended {
   border-color: #fca5a5;
   background: rgba(239, 68, 68, 0.05);

@@ -7,6 +7,7 @@ import PostProcessing from './components/PostProcessing';
 import ParameterSettings from './components/ParameterSettings';
 import GenerateButton from './components/GenerateButton';
 import DependencyInfo from './components/DependencyInfo';
+import StructureViewer from './components/StructureViewer';
 import { parseCIF } from './utils/cifParser';
 import { analyzeStructure } from './utils/structureAnalyzer';
 import './App.css';
@@ -42,6 +43,7 @@ function App() {
   const [postProcessing, setPostProcessing] = useState([]);
   const [params, setParams] = useState(DEFAULT_PARAMS);
   const [analysis, setAnalysis] = useState(null);
+  const [parsedCIF, setParsedCIF] = useState(null);
   const prevCifRef = useRef('');
 
   // Analyze CIF when it changes
@@ -53,9 +55,11 @@ function App() {
       const parsed = parseCIF(cifText);
       if (parsed.atoms.length === 0) {
         setAnalysis(null);
+        setParsedCIF(null);
         return;
       }
 
+      setParsedCIF(parsed);
       const result = analyzeStructure(parsed);
       setAnalysis(result);
 
@@ -92,6 +96,8 @@ function App() {
 
       <main className="main-content">
         <CifUploader cifText={cifText} setCifText={setCifText} />
+
+        <StructureViewer cifText={cifText} parsed={parsedCIF} />
 
         {analysis && (
           <div className="analysis-banner">

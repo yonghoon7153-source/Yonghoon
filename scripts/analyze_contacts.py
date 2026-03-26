@@ -133,21 +133,28 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     cn = results['se_se_cn']
     tau = results['tortuosity']
     ionic = results['ionic_active']
+    # 구조 → 계면 → 이온경로 → 활성도 순서
     rows = [
+        # 1. 구조 (전극 기본 정보)
         {'지표': 'Porosity(%)', '값': round(results['porosity'], 2)},
         {'지표': '전극두께(μm)', '값': round(results['thickness_um'], 2)},
-        {'지표': '두께기준', '값': results['plate_z_source']},
-        {'지표': 'SE-SE CN mean', '값': round(cn['mean'], 2)},
-        {'지표': 'SE Percolation(%)', '값': round(perc['percolation_pct'], 1)},
-        {'지표': 'Top Reachable(%)', '값': round(perc['top_reachable_pct'], 1)},
-        {'지표': '네트워크 수', '값': perc['n_components']},
-        {'지표': 'Tortuosity mean', '값': round(tau['mean'], 2) if tau['mean'] else 'N/A'},
-        {'지표': 'Tortuosity std', '값': round(tau['std'], 2) if tau['std'] else 'N/A'},
-        {'지표': 'Ionic Active AM(%)', '값': round(ionic['active_pct'], 1)},
+        # 2. 계면 (반응 면적)
+        {'지표': 'AM-SE Total(μm²)', '값': round(results['interface'].get('AM전체-SE', {}).get('total_area', 0), 2)},
+        {'지표': 'SE-SE Total(μm²)', '값': round(results['interface'].get('SE-SE', {}).get('total_area', 0), 2)},
     ]
     for lbl, v in results['coverage'].items():
         rows.append({'지표': f'Coverage {lbl}(%)', '값': round(v['mean'], 1)})
-        rows.append({'지표': f'Coverage {lbl} std', '값': round(v['std'], 1)})
+    rows += [
+        # 3. 이온경로 (SE 네트워크)
+        {'지표': 'SE-SE CN mean', '값': round(cn['mean'], 2)},
+        {'지표': 'SE Cluster 수', '값': perc['n_components']},
+        {'지표': 'SE Percolation(%)', '값': round(perc['percolation_pct'], 1)},
+        {'지표': 'Top Reachable(%)', '값': round(perc['top_reachable_pct'], 1)},
+        {'지표': 'Tortuosity mean', '값': round(tau['mean'], 2) if tau['mean'] else 'N/A'},
+        {'지표': 'Tortuosity std', '값': round(tau['std'], 2) if tau['std'] else 'N/A'},
+        # 4. 활성도 (최종 성능)
+        {'지표': 'Ionic Active AM(%)', '값': round(ionic['active_pct'], 1)},
+    ]
     pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'network_summary.csv'), index=False)
 
     # Auto-detect P:S ratio from mass (count × volume × density)

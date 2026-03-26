@@ -74,6 +74,23 @@
 .save-spinner { width: 12px; height: 12px; border: 2px solid rgba(83, 120, 255, 0.3); border-top-color: #5378ff; border-radius: 50%; animation: spin 0.6s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+.add-note-btn { width: 36px; height: 36px; border: 1px solid rgba(83, 120, 255, 0.3); border-radius: 8px; background: rgba(83, 120, 255, 0.1); color: #5378ff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
+.add-note-btn:hover { background: rgba(83, 120, 255, 0.25); border-color: #5378ff; }
+
+.note-panel { padding: 12px 20px; background: #16213e; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; flex-direction: column; gap: 8px; animation: fadeIn 0.2s ease; }
+.note-title-input { padding: 8px 12px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; background: #1a1a2e; color: #e0e0e0; font-size: 14px; font-weight: 600; outline: none; }
+.note-title-input:focus { border-color: #5378ff; }
+.note-title-input::placeholder { color: #555; }
+.note-content-input { padding: 8px 12px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; background: #1a1a2e; color: #e0e0e0; font-size: 13px; font-family: inherit; resize: vertical; outline: none; min-height: 80px; }
+.note-content-input:focus { border-color: #5378ff; }
+.note-content-input::placeholder { color: #555; }
+.note-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.note-cancel { padding: 6px 14px; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px; background: transparent; color: #888; font-size: 12px; cursor: pointer; }
+.note-cancel:hover { color: #ccc; border-color: rgba(255, 255, 255, 0.3); }
+.note-save { padding: 6px 14px; border: none; border-radius: 6px; background: #5378ff; color: #fff; font-size: 12px; cursor: pointer; transition: all 0.2s; }
+.note-save:hover:not(:disabled) { background: #3d5afe; }
+.note-save:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .message-references { margin-top: 8px; }
 .ref-toggle { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid rgba(83, 120, 255, 0.3); border-radius: 8px; background: rgba(83, 120, 255, 0.08); color: #8aa4ff; font-size: 13px; cursor: pointer; transition: all 0.2s; }
 .ref-toggle:hover { background: rgba(83, 120, 255, 0.15); }

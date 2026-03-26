@@ -81,6 +81,22 @@ def plot_porosity(all_data, names, ax=None):
     return ax
 
 
+def _resolve_am_se(d):
+    """Standard 케이스에서 AM-SE를 P:S에 맞게 AM_P-SE 또는 AM_S-SE로 분배."""
+    am_p = _get(d, "area_AM_P_SE_total")
+    am_s = _get(d, "area_AM_S_SE_total")
+    # Standard mode: area_AM_SE_total만 있고 AM_P/AM_S 분리 안 됨
+    if am_p == 0 and am_s == 0:
+        total = _get(d, "area_AM_SE_total") or _get(d, "area_AM전체_SE_total")
+        ps = d.get("ps_ratio", "")
+        if ps == "P only" or "AM_P" in str(d.get("plate_z_source", "")):
+            return total, 0
+        else:
+            # S only 또는 기본 → AM_S
+            return 0, total
+    return am_p, am_s
+
+
 def plot_am_se_interface(all_data, names, ax=None):
     standalone = ax is None
     if standalone:
@@ -88,22 +104,14 @@ def plot_am_se_interface(all_data, names, ax=None):
     xs = np.arange(len(names))
     width = 0.5
 
-    am_p = [_get(d, "area_AM_P_SE_total") for d in all_data]
-    am_s = [_get(d, "area_AM_S_SE_total") for d in all_data]
-    has_both = any(v > 0 for v in am_p) and any(v > 0 for v in am_s)
+    resolved = [_resolve_am_se(d) for d in all_data]
+    am_p = [r[0] for r in resolved]
+    am_s = [r[1] for r in resolved]
 
-    if has_both:
-        ax.bar(xs, am_p, width, label="AM_P-SE", color=GREEN, zorder=3)
-        ax.bar(xs, am_s, width, bottom=am_p, label="AM_S-SE",
-               color=LIGHT_GREEN, zorder=3)
-        ax.legend(fontsize=9, frameon=False)
-    else:
-        # Single AM type - use total
-        totals = [_get(d, "area_AM전체_SE_total",
-                       default=_get(d, "area_AM_P_SE_total") + _get(d, "area_AM_S_SE_total"))
-                  for d in all_data]
-        ax.bar(xs, totals, width, label="AM-SE", color=GREEN, zorder=3)
-        ax.legend(fontsize=9, frameon=False)
+    ax.bar(xs, am_p, width, label="AM_P-SE", color=GREEN, zorder=3)
+    ax.bar(xs, am_s, width, bottom=am_p, label="AM_S-SE",
+           color=LIGHT_GREEN, zorder=3)
+    ax.legend(fontsize=9, frameon=False)
 
     _apply_style(ax, r"Interface Area ($\mu m^2$)", names)
     ax.set_title("AM-SE Interface Area", fontsize=12, fontweight="bold")

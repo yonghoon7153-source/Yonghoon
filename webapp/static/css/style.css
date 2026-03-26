@@ -178,7 +178,7 @@ select.input { cursor: pointer; }
 }
 .data-table th {
   color: var(--dim); font-weight: 600; font-size: .75rem;
-  text-transform: uppercase; letter-spacing: .5px;
+  letter-spacing: .3px;
 }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tr:hover { background: rgba(255,255,255,.02); }

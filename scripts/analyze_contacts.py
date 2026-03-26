@@ -58,12 +58,23 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
 
     # Contact Summary
     rows = []
+    total_n = 0
+    total_area = 0
     for ct, v in results['interface'].items():
         rows.append({
             '접촉유형': ct, '접촉수': v['n_contacts'],
             '접촉면적_mean(μm²)': round(v['mean_area'], 4),
             '접촉면적_total(μm²)': round(v['total_area'], 2),
         })
+        if ct != 'AM전체-SE':
+            total_n += v['n_contacts']
+            total_area += v['total_area']
+    rows.append({
+        '접촉유형': 'All',
+        '접촉수': total_n,
+        '접촉면적_mean(μm²)': round(total_area / total_n, 4) if total_n > 0 else 0,
+        '접촉면적_total(μm²)': round(total_area, 2),
+    })
     pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'contact_summary.csv'), index=False)
 
     # Atom Statistics (입자수, 반지름, 영률)

@@ -126,25 +126,22 @@
 
 <!-- Report Generation -->
 <div class="card">
-  <h3>비교 리포트 생성</h3>
-  <form id="report-form">
-    <div class="form-row">
-      <div class="form-group">
-        <label>리포트 제목</label>
-        <input type="text" name="title" placeholder="예: SE_Contact_Network_TradeOff" class="input">
-      </div>
-      <div class="form-group" style="flex:2">
-        <label>메모</label>
-        <input type="text" name="notes" placeholder="주제, 데이터 설명 등" class="input">
-      </div>
+  <div class="card-header-row">
+    <h3>분석 리포트</h3>
+    <button class="btn btn-primary" onclick="generateReport()">MD 리포트 생성</button>
+  </div>
+  <div class="form-row" style="margin-bottom:12px">
+    <div class="form-group">
+      <label>제목</label>
+      <input type="text" id="report-title" placeholder="SE_Contact_Network_TradeOff" class="input">
     </div>
-    {% for cid in selected %}
-    <input type="hidden" name="cases" value="{{ cid }}">
-    {% endfor %}
-    <button type="submit" class="btn btn-primary">MD Report 생성</button>
-  </form>
+    <div class="form-group" style="flex:2">
+      <label>메모</label>
+      <input type="text" id="report-notes" placeholder="주제, 데이터 설명 등" class="input">
+    </div>
+  </div>
   <div id="report-output" style="display:none">
-    <div class="card-header-row" style="margin-top:16px">
+    <div class="card-header-row">
       <h4>생성된 리포트</h4>
       <button class="btn btn-sm btn-copy" onclick="copyGroupReport()">복사</button>
     </div>
@@ -267,16 +264,17 @@ document.addEventListener('DOMContentLoaded', () => {
   updateOrderNums();
 });
 
-document.getElementById('report-form')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const form = new FormData(e.target);
+async function generateReport() {
+  const form = new FormData();
+  caseOrder.forEach(cid => form.append('cases', cid));
+  form.append('title', document.getElementById('report-title').value || 'DEM_Comparison');
+  form.append('notes', document.getElementById('report-notes').value);
   const res = await fetch('/group/report', { method: 'POST', body: form });
   const data = await res.json();
-
   const output = document.getElementById('report-output');
   output.style.display = 'block';
   output.querySelector('pre').textContent = data.report;
-});
+}
 
 async function generatePlots() {
   const checks = document.querySelectorAll('.plot-checkbox input:checked');

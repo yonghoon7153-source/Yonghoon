@@ -612,49 +612,149 @@ def serve_group_plot(session, filename):
 
 @app.route('/group/report', methods=['POST'])
 def group_report():
-    """Generate group comparison markdown report."""
+    """Generate comprehensive group comparison markdown report."""
     selected = request.form.getlist('cases')
-    title = request.form.get('title', 'Group Comparison')
+    title = request.form.get('title', 'DEM_Bimodal_Comparison')
     notes = request.form.get('notes', '')
 
     now = datetime.now().strftime('%y%m%d')
-    lines = []
-    lines.append(f'# {now}_{title}\n')
-    lines.append(f'> **날짜**: {datetime.now().strftime("%Y-%m-%d")}')
-    lines.append(f'> **비교 케이스**: {len(selected)}개')
+    L = []  # lines
+
+    # Header
+    L.append(f'# {now}_{title}\n')
+    L.append(f'> **날짜**: {datetime.now().strftime("%Y-%m-%d")}')
+    L.append(f'> **비교 케이스**: {len(selected)}개')
     if notes:
-        lines.append(f'> **메모**: {notes}')
-    lines.append('\n---\n')
+        L.append(f'> **메모**: {notes}')
+    L.append('')
+    L.append('---\n')
 
-    import pandas as pd
-    all_summaries = []
+    # Load all metrics
+    all_metrics = []
+    case_names = []
     for cid in selected:
-        results_dir = get_results_dir(cid)
-        meta_file = os.path.join(get_case_dir(cid), 'meta.json')
-        if not os.path.exists(meta_file):
-            continue
-        with open(meta_file) as f:
-            meta = json.load(f)
+        if cid.startswith('archive:'):
+            archive_rel = cid[len('archive:'):]
+            case_path = os.path.join(app.config['ARCHIVE_FOLDER'], archive_rel)
+            meta_file = os.path.join(case_path, 'meta.json')
+            metrics_path = os.path.join(case_path, 'full_metrics.json')
+            name = os.path.basename(archive_rel)
+        else:
+            case_path = get_results_dir(cid)
+            meta_file = os.path.join(get_case_dir(cid), 'meta.json')
+            metrics_path = os.path.join(case_path, 'full_metrics.json')
+            name = cid
+        if os.path.exists(meta_file):
+            with open(meta_file) as f:
+                name = json.load(f).get('name', name)
+        metrics = {}
+        if os.path.exists(metrics_path):
+            with open(metrics_path) as f:
+                metrics = json.load(f)
+        all_metrics.append(metrics)
+        case_names.append(name)
 
-        summary = {'Case': meta.get('name', cid)}
-        for csv_name in ['contact_summary', 'coordination_summary']:
-            csv_path = os.path.join(results_dir, f'{csv_name}.csv')
-            if os.path.exists(csv_path):
-                df = pd.read_csv(csv_path)
-                for col in df.columns:
-                    summary[col] = df[col].iloc[0] if len(df) == 1 else df[col].tolist()
-        all_summaries.append(summary)
+    if not all_metrics:
+        return jsonify({'report': '메트릭 데이터가 없습니다.', 'path': ''})
 
-    if all_summaries:
-        df_comp = pd.DataFrame(all_summaries)
-        lines.append('## Comparison Table\n')
-        lines.append(df_comp.to_markdown(index=False))
-        lines.append('')
+    # 1. System Overview
+    L.append('## 1. System Overview\n')
+    import pandas as pd
+    overview_rows = []
+    display_keys = [
+        ('P:S', 'ps_ratio'), ('Porosity(%)', 'porosity'),
+        ('Thickness(μm)', 'thickness_um'),
+        ('AM-SE Total(μm²)', 'area_AM전체_SE_total'),
+        ('SE-SE Total(μm²)', 'area_SE_SE_total'),
+        ('SE-SE CN', 'se_se_cn'), ('SE Cluster', 'n_components'),
+        ('Percolation(%)', 'percolation_pct'),
+        ('Top Reachable(%)', 'top_reachable_pct'),
+        ('Tortuosity', 'tortuosity_mean'),
+        ('Ionic Active(%)', 'ionic_active_pct'),
+    ]
+    for i, name in enumerate(case_names):
+        row = {'Case': name}
+        for label, key in display_keys:
+            val = all_metrics[i].get(key, '-')
+            if isinstance(val, float):
+                val = round(val, 2)
+            row[label] = val
+        overview_rows.append(row)
+    df = pd.DataFrame(overview_rows)
+    L.append(df.to_markdown(index=False))
+    L.append('')
 
-    lines.append('\n---\n')
-    lines.append('#DEM #group-comparison #ASSB\n')
+    # 2. Key Findings (자동 분석)
+    L.append('\n## 2. Key Findings\n')
 
-    report = '\n'.join(lines)
+    porosities = [(case_names[i], m.get('porosity', 0)) for i, m in enumerate(all_metrics) if m.get('porosity')]
+    if porosities:
+        min_p = min(porosities, key=lambda x: x[1])
+        L.append(f'- **Porosity 최저**: {min_p[0]} ({min_p[1]:.2f}%)')
+
+    percs = [(case_names[i], m.get('percolation_pct', 0)) for i, m in enumerate(all_metrics) if m.get('percolation_pct')]
+    if percs:
+        max_perc = max(percs, key=lambda x: x[1])
+        L.append(f'- **Percolation 최대**: {max_perc[0]} ({max_perc[1]:.1f}%)')
+
+    torts = [(case_names[i], m.get('tortuosity_mean', 99)) for i, m in enumerate(all_metrics) if m.get('tortuosity_mean')]
+    if torts:
+        min_tort = min(torts, key=lambda x: x[1])
+        L.append(f'- **Tortuosity 최저**: {min_tort[0]} ({min_tort[1]:.2f})')
+
+    ionics = [(case_names[i], m.get('ionic_active_pct', 0)) for i, m in enumerate(all_metrics) if m.get('ionic_active_pct')]
+    if ionics:
+        max_ionic = max(ionics, key=lambda x: x[1])
+        L.append(f'- **Ionic Active 최대**: {max_ionic[0]} ({max_ionic[1]:.1f}%)')
+
+    se_totals = [(case_names[i], m.get('area_SE_SE_total', 0)) for i, m in enumerate(all_metrics) if m.get('area_SE_SE_total')]
+    if se_totals:
+        max_se = max(se_totals, key=lambda x: x[1])
+        L.append(f'- **SE-SE Total Area 최대**: {max_se[0]} ({max_se[1]:,.1f} μm²)')
+
+    L.append('')
+
+    # 3. Trade-off Analysis
+    L.append('\n## 3. Trade-off Analysis\n')
+    L.append('### AM-SE vs SE-SE Trade-off\n')
+    L.append('| AM_P ↑ | AM-SE 계면 | SE-SE 네트워크 |')
+    L.append('|---|---|---|')
+    L.append('| 변화 | **감소** | **개선** (percolation↑, tortuosity↓) |')
+    L.append('| 의미 | 반응 면적 감소 | 이온 경로 확보 |')
+    L.append('| 제한 요인 | charge transfer | ionic transport |')
+    L.append('')
+    L.append('> **전극 성능 = 병목(bottleneck)이 결정**')
+    L.append('> - SE 네트워크 부족 (P 적음) → ionic transport limited')
+    L.append('> - AM-SE 계면 부족 (P 많음) → charge transfer limited')
+    L.append('')
+
+    # 4. SE-SE Contact Network Trade-off
+    L.append('### SE-SE Contact: Quality vs Quantity\n')
+    L.append('AM_P↑ → SE-SE 접촉 개수↑ (넓은 공간에 분산) + 개별 접촉 면적↓ (느슨하게 배치)')
+    L.append('')
+    se_n = [(case_names[i], m.get('area_SE_SE_n', 0), m.get('area_SE_SE_mean', 0))
+            for i, m in enumerate(all_metrics) if m.get('area_SE_SE_n')]
+    if se_n:
+        L.append('| Case | SE-SE N | SE-SE Mean Area(μm²) | SE-SE Total(μm²) |')
+        L.append('|---|---|---|---|')
+        for name, n, mean in se_n:
+            total = n * mean
+            L.append(f'| {name} | {int(n):,} | {mean:.4f} | {total:,.1f} |')
+    L.append('')
+
+    # 5. Conclusion
+    L.append('\n## 4. Conclusion\n')
+    if porosities and len(porosities) > 2:
+        L.append(f'- Porosity: {porosities[0][0]} ({porosities[0][1]:.1f}%) → {porosities[-1][0]} ({porosities[-1][1]:.1f}%)')
+    if percs and torts:
+        L.append(f'- 이온경로: Percolation {percs[0][1]:.0f}%→{percs[-1][1]:.0f}%, Tortuosity {torts[0][1]:.1f}→{torts[-1][1]:.1f}')
+    L.append('')
+
+    # Tags
+    L.append('---\n')
+    L.append('#DEM #bimodal #comparison #percolation #tortuosity #coverage #ASSB\n')
+
+    report = '\n'.join(L)
 
     # Save report
     group_dir = os.path.join(app.config['RESULTS_FOLDER'], 'group_reports')

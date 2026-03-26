@@ -6,7 +6,7 @@
 <div class="page-header">
   <div class="page-header-row">
     <div>
-      <h2>{{ case.name }}</h2>
+      <h2 class="case-name" ondblclick="editName(this)" title="더블클릭으로 이름 변경" style="cursor:pointer">{{ case.name }}</h2>
       <p>
         <span class="badge badge-{{ case.mode }}">{{ case.mode }}</span>
         <span class="badge badge-scale">Scale: {{ case.scale }}x</span>
@@ -145,6 +145,33 @@ function copyReport() {
     const btn = document.querySelector('.btn-copy');
     btn.textContent = '복사됨!';
     setTimeout(() => btn.textContent = '복사', 1500);
+  });
+}
+
+function editName(el) {
+  const oldName = el.textContent.trim();
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = oldName;
+  input.className = 'input';
+  input.style.cssText = 'font-size:1.6rem;font-weight:700;padding:2px 8px;width:400px';
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+
+  async function save() {
+    const newName = input.value.trim();
+    if (newName && newName !== oldName) {
+      const form = new FormData();
+      form.append('name', newName);
+      await fetch('/rename/{{ case.id }}', { method: 'POST', body: form });
+    }
+    location.reload();
+  }
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') location.reload();
   });
 }
 

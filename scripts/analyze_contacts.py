@@ -221,18 +221,18 @@ def main():
     for ct in df_contact['contact_type'].unique():
         subset = df_contact[df_contact['contact_type'] == ct]
         row = {
-            'contact_type': ct,
-            'count': len(subset),
-            'pct': f"{100*len(subset)/len(df_contact):.1f}",
+            '접촉유형': ct,
+            '접촉수': len(subset),
+            '비율(%)': f"{100*len(subset)/len(df_contact):.1f}",
         }
         if 'fn_mag' in subset.columns:
-            row['fn_mean'] = f"{subset['fn_mag'].mean():.2f}"
-            row['fn_max'] = f"{subset['fn_mag'].max():.2f}"
+            row['수직력_mean(μN)'] = f"{subset['fn_mag'].mean():.2f}"
+            row['수직력_max(μN)'] = f"{subset['fn_mag'].max():.2f}"
         if 'contact_area' in subset.columns:
-            row['area_mean'] = f"{subset['contact_area'].mean():.4f}"
-            row['area_total'] = f"{subset['contact_area'].sum():.2f}"
+            row['접촉면적_mean(μm²)'] = f"{subset['contact_area'].mean():.4f}"
+            row['접촉면적_total(μm²)'] = f"{subset['contact_area'].sum():.2f}"
         if 'delta' in subset.columns:
-            row['delta_mean'] = f"{subset['delta'].mean():.4f}"
+            row['겹침량_mean(μm)'] = f"{subset['delta'].mean():.4f}"
         contact_summary.append(row)
     pd.DataFrame(contact_summary).to_csv(
         os.path.join(args.output, 'contact_summary.csv'), index=False)
@@ -242,12 +242,12 @@ def main():
     for tn in type_names:
         sub = df_atom[df_atom['type_name'] == tn]
         coord_summary.append({
-            'type': tn,
-            'count': len(sub),
-            'coord_mean': f"{sub['coordination'].mean():.1f}",
-            'coord_std': f"{sub['coordination'].std():.1f}",
-            'coord_min': sub['coordination'].min(),
-            'coord_max': sub['coordination'].max(),
+            '입자유형': tn,
+            '입자수': len(sub),
+            '배위수_mean': f"{sub['coordination'].mean():.1f}",
+            '배위수_std': f"{sub['coordination'].std():.1f}",
+            '배위수_min': sub['coordination'].min(),
+            '배위수_max': sub['coordination'].max(),
         })
     pd.DataFrame(coord_summary).to_csv(
         os.path.join(args.output, 'coordination_summary.csv'), index=False)
@@ -256,13 +256,13 @@ def main():
     net_rows = []
     for tn, data in network_results.items():
         net_rows.append({
-            'type': tn,
-            'total': data['total'],
-            'connected': data['connected'],
-            'connected_pct': f"{data['connected_pct']:.1f}",
-            'components': data['components'],
-            'largest_pct': f"{data['largest_pct']:.1f}",
-            'percolation_pct': f"{data['percolation_pct']:.1f}",
+            '입자유형': tn,
+            '전체수': data['total'],
+            '연결된수': data['connected'],
+            '연결비율(%)': f"{data['connected_pct']:.1f}",
+            '네트워크수': data['components'],
+            '최대네트워크(%)': f"{data['largest_pct']:.1f}",
+            'Percolation(%)': f"{data['percolation_pct']:.1f}",
         })
     pd.DataFrame(net_rows).to_csv(
         os.path.join(args.output, 'network_summary.csv'), index=False)
@@ -271,16 +271,16 @@ def main():
     force_summary = []
     for ct in df_contact['contact_type'].unique():
         subset = df_contact[df_contact['contact_type'] == ct]
-        row = {'contact_type': ct}
+        row = {'접촉유형': ct}
         if 'fn_mag' in subset.columns:
-            row['fn_mean_uN'] = f"{subset['fn_mag'].mean():.2f}"
-            row['fn_median_uN'] = f"{subset['fn_mag'].median():.2f}"
-            row['fn_max_uN'] = f"{subset['fn_mag'].max():.2f}"
+            row['수직력_mean(μN)'] = f"{subset['fn_mag'].mean():.2f}"
+            row['수직력_median(μN)'] = f"{subset['fn_mag'].median():.2f}"
+            row['수직력_max(μN)'] = f"{subset['fn_mag'].max():.2f}"
         if 'ft_mag' in subset.columns:
-            row['ft_mean_uN'] = f"{subset['ft_mag'].mean():.2f}"
+            row['전단력_mean(μN)'] = f"{subset['ft_mag'].mean():.2f}"
         if 'ft_fn_ratio' in subset.columns:
             valid = subset['ft_fn_ratio'].dropna()
-            row['ft_fn_median'] = f"{valid.median():.3f}" if len(valid) > 0 else 'N/A'
+            row['전단/수직_median'] = f"{valid.median():.3f}" if len(valid) > 0 else 'N/A'
         force_summary.append(row)
     pd.DataFrame(force_summary).to_csv(
         os.path.join(args.output, 'force_summary.csv'), index=False)
@@ -290,14 +290,14 @@ def main():
     for tn in type_names:
         sub = df_atom[df_atom['type_name'] == tn]
         row = {
-            'type': tn,
-            'count': len(sub),
-            'radius_um': f"{sub['radius'].mean():.2f}" if 'radius' in sub.columns else 'N/A',
-            'z_min_um': f"{sub['z'].min():.1f}",
-            'z_max_um': f"{sub['z'].max():.1f}",
+            '입자유형': tn,
+            '입자수': len(sub),
+            '반지름(μm)': f"{sub['radius'].mean():.2f}" if 'radius' in sub.columns else 'N/A',
+            'Z_min(μm)': f"{sub['z'].min():.1f}",
+            'Z_max(μm)': f"{sub['z'].max():.1f}",
         }
         if 'sigma_zz' in sub.columns:
-            row['sigma_zz_mean_MPa'] = f"{sub['sigma_zz'].mean():.1f}"
+            row['σ_zz_mean(MPa)'] = f"{sub['sigma_zz'].mean():.1f}"
         atom_stats.append(row)
     pd.DataFrame(atom_stats).to_csv(
         os.path.join(args.output, 'atom_statistics.csv'), index=False)

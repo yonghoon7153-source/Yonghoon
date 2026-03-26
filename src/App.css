@@ -145,17 +145,25 @@
   font-size: 0.82rem;
   line-height: 1.5;
   padding: 14px;
-  border: 1px solid var(--border);
+  border: 2px dashed var(--border);
   border-radius: var(--radius);
   background: var(--code-bg);
   color: var(--text);
   resize: vertical;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.15s;
+  min-height: 12em;
+  box-sizing: border-box;
 }
 
 .cif-textarea:focus {
   border-color: var(--primary);
+  border-style: solid;
+}
+
+.cif-textarea.dragging {
+  border-color: var(--primary);
+  background: var(--primary-light);
 }
 
 .cif-preview {

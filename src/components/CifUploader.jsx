@@ -1,14 +1,38 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 
 export default function CifUploader({ cifText, setCifText }) {
   const fileInput = useRef(null);
+  const [dragging, setDragging] = useState(false);
 
-  const handleFile = (e) => {
-    const file = e.target.files[0];
+  const readFile = (file) => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => setCifText(ev.target.result);
     reader.readAsText(file);
+  };
+
+  const handleFile = (e) => {
+    readFile(e.target.files[0]);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) readFile(file);
   };
 
   return (
@@ -21,22 +45,25 @@ export default function CifUploader({ cifText, setCifText }) {
         <input
           ref={fileInput}
           type="file"
-          accept=".cif"
+          accept=".cif,.txt"
           onChange={handleFile}
           style={{ display: 'none' }}
         />
-        <span className="or-divider">or paste below</span>
+        <span className="or-divider">or drag &amp; drop / paste below</span>
       </div>
       <textarea
-        className="cif-textarea"
-        rows={12}
-        placeholder="Paste your CIF file content here..."
+        className={`cif-textarea${dragging ? ' dragging' : ''}`}
+        placeholder="Paste your CIF file content here, or drag & drop a file..."
         value={cifText}
         onChange={(e) => setCifText(e.target.value)}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        style={{ height: cifText ? `${Math.min(Math.max(cifText.split('\n').length * 1.5, 12), 40)}em` : undefined }}
       />
       {cifText && (
         <div className="cif-preview">
-          {cifText.length > 0 && `${cifText.split('\n').length} lines loaded`}
+          {cifText.split('\n').length} lines loaded
         </div>
       )}
     </section>

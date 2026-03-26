@@ -6,3 +6,4 @@ scipy
 networkx
 markdown
 anthropic
+tabulate

@@ -44,11 +44,14 @@ function extractPageProperties(page) {
 
 async function getDataSourceId() {
   const db = await notion.databases.retrieve({ database_id: DATABASE_ID });
-  // In v5, database has data_sources array
+  console.log('Database keys:', Object.keys(db));
+  // Try multiple possible locations for data source ID
   if (db.data_sources && db.data_sources.length > 0) {
-    return db.data_sources[0].data_source_id;
+    const ds = db.data_sources[0];
+    return ds.data_source_id || ds.id;
   }
-  // Fallback: use database ID itself
+  if (db.data_source_id) return db.data_source_id;
+  if (db.id) return db.id;
   return DATABASE_ID;
 }
 

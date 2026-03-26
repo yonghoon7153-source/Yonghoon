@@ -8,6 +8,8 @@ function NotionChatbot() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [expandedRefs, setExpandedRefs] = useState({});
+  const [savingIdx, setSavingIdx] = useState(null);
+  const [savedIdx, setSavedIdx] = useState(new Set());
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -74,6 +76,38 @@ function NotionChatbot() {
     }
   };
 
+  const saveToNotion = async (msgIdx) => {
+    const msg = messages[msgIdx];
+    if (!msg || msg.role !== 'assistant') return;
+
+    setSavingIdx(msgIdx);
+    try {
+      const userMsg = messages[msgIdx - 1];
+      const question = userMsg ? userMsg.content : '';
+      const title = question.length > 50 ? question.slice(0, 50) + '...' : question || 'Notion Chat Answer';
+      const content = 'Q: ' + question + '\n\nA: ' + msg.content;
+
+      const res = await fetch(API_BASE + '/api/save-to-notion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to save');
+      }
+
+      const data = await res.json();
+      setSavedIdx(prev => new Set([...prev, msgIdx]));
+      window.open(data.url, '_blank');
+    } catch (error) {
+      alert('Notion save failed: ' + error.message);
+    } finally {
+      setSavingIdx(null);
+    }
+  };
+
   const importanceStars = (importance) => {
     if (!importance) return null;
     return <span className="ref-importance">{importance}</span>;
@@ -97,10 +131,10 @@ function NotionChatbot() {
   };
 
   const suggestions = [
-    '전고체 배터리에서 pressure가 중요한 이유는?',
-    'Ag-C anode interlayer에 대해 설명해줘',
-    'DEM simulation이란 무엇인가?',
-    'NCM cathode의 degradation 메커니즘은?',
+    '\uc804\uace0\uccb4 \ubc30\ud130\ub9ac\uc5d0\uc11c pressure\uac00 \uc911\uc694\ud55c \uc774\uc720\ub294?',
+    'Ag-C anode interlayer\uc5d0 \ub300\ud574 \uc124\uba85\ud574\uc918',
+    'DEM simulation\uc774\ub780 \ubb34\uc5c7\uc778\uac00?',
+    'NCM cathode\uc758 degradation \uba54\ucee4\ub2c8\uc998\uc740?',
   ];
 
   return (
@@ -150,7 +184,24 @@ function NotionChatbot() {
             </div>
             <div className="message-content">
               {msg.role === 'assistant' ? (
-                <div className="message-text" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+                <>
+                  <div className="message-text" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+                  <button
+                    className={'save-to-notion-btn' + (savedIdx.has(idx) ? ' saved' : '')}
+                    onClick={() => saveToNotion(idx)}
+                    disabled={savingIdx === idx || savedIdx.has(idx)}
+                    title="Save to Notion"
+                  >
+                    {savingIdx === idx ? (
+                      <span className="save-spinner"></span>
+                    ) : savedIdx.has(idx) ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
+                    )}
+                    {savedIdx.has(idx) ? 'Saved' : 'Save to Notion'}
+                  </button>
+                </>
               ) : (
                 <div className="message-text">{msg.content}</div>
               )}

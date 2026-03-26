@@ -140,9 +140,9 @@ export function analyzeStructure(parsed) {
   // k-points: based on cell size (a, b, c)
   // Rule of thumb: k * a ≈ 30-40 Å for good convergence
   const kTarget = nat > 50 ? 25 : 35;
-  result.paramRecommendations.kx = Math.max(2, Math.round(kTarget / a));
-  result.paramRecommendations.ky = Math.max(2, Math.round(kTarget / b));
-  result.paramRecommendations.kz = Math.max(1, Math.round(kTarget / c));
+  result.paramRecommendations.kx = a > 0.1 ? Math.max(2, Math.round(kTarget / a)) : 4;
+  result.paramRecommendations.ky = b > 0.1 ? Math.max(2, Math.round(kTarget / b)) : 4;
+  result.paramRecommendations.kz = c > 0.1 ? Math.max(1, Math.round(kTarget / c)) : 4;
 
   // Smearing
   if (isMagnetic || hasTM) {

@@ -74,6 +74,8 @@ export default function GenerateButton({
 
     zip.generateAsync({ type: 'blob' }).then((blob) => {
       saveAs(blob, `${selectedCode}_workflow.zip`);
+    }).catch((err) => {
+      alert('Error generating ZIP: ' + err.message);
     });
   };
 

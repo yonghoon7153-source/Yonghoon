@@ -66,7 +66,7 @@ export function parseCIF(cifText) {
         const y = parseFloat(getVal('_atom_site_fract_y')) || 0;
         const z = parseFloat(getVal('_atom_site_fract_z')) || 0;
 
-        result.atoms.push({ label, symbol: symbol.replace(/[0-9+\-]/g, ''), x, y, z });
+        result.atoms.push({ label, symbol, x, y, z });
       } else if (parts.length < 3) {
         inAtomLoop = false;
       }

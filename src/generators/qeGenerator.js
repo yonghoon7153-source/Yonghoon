@@ -11,11 +11,11 @@ export function generateQEScripts(parsed, params, calcTypes, postProcessing) {
   const needVCRelax = calcTypes.includes('vc-relax');
   const needBands = postProcessing.includes('bands') || postProcessing.includes('effmass');
 
-  const kx = params.kx || 4;
-  const ky = params.ky || 4;
-  const kz = params.kz || 4;
-  const ecutwfc = params.ecutwfc || 60;
-  const ecutrho = params.ecutrho || 480;
+  const kx = params.kx ?? 4;
+  const ky = params.ky ?? 4;
+  const kz = params.kz ?? 4;
+  const ecutwfc = params.ecutwfc ?? 60;
+  const ecutrho = params.ecutrho ?? 480;
   const smearing = params.smearing || 'gaussian';
   const degauss = params.degauss || 0.02;
   const functional = params.functional || 'pbe';
@@ -78,7 +78,9 @@ K_POINTS automatic
 
   // --- NSCF ---
   if (needNSCF) {
-    const nscfK = Math.max(kx * 2, 8);
+    const nscfKx = Math.min(kx * 2, 12);
+    const nscfKy = Math.min(ky * 2, 12);
+    const nscfKz = Math.min(kz * 2, 12);
     files['nscf.in'] = `&CONTROL
   calculation = 'nscf',
   prefix = 'calc',
@@ -101,7 +103,7 @@ ${formatAtomicPositions(parsed)}
 ${formatCellParameters(parsed)}
 
 K_POINTS automatic
-  ${nscfK} ${nscfK} ${nscfK} 0 0 0
+  ${nscfKx} ${nscfKy} ${nscfKz} 0 0 0
 `;
   }
 
@@ -493,8 +495,8 @@ K_POINTS automatic
   prefix = 'aimd',
   outdir = './tmp',
   pseudo_dir = '${ppPath}',
-  dt = 20.0,
-  nstep = 5000,
+  dt = ${Math.round((params.mdTimestep || 1.0) / 0.04837)},
+  nstep = ${params.mdSteps || 5000},
   tprnfor = .true.,
   tstress = .true.,
 /
@@ -678,8 +680,8 @@ K_POINTS automatic
 `;
 
     files['mae_soc_z.in'] = files['mae_soc_x.in']
-      .replace('angle1(1) = 90.0', 'angle1(1) = 0.0')
-      .replace('angle2(1) = 0.0', 'angle2(1) = 0.0');
+      .replace("prefix = 'mae'", "prefix = 'mae_z'")
+      .replace('angle1(1) = 90.0', 'angle1(1) = 0.0');
   }
 
   // --- Piezoelectric ---

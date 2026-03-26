@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% set active = "single" %}
+{% block title %}{{ case.name }} - DEM Analysis{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <h2>{{ case.name }}</h2>
+      <p>
+        <span class="badge badge-{{ case.mode }}">{{ case.mode }}</span>
+        <span class="badge badge-scale">Scale: {{ case.scale }}x</span>
+        {% if case.type_map %}<span class="badge">{{ case.type_map }}</span>{% endif %}
+      </p>
+    </div>
+    <div class="header-actions">
+      <a href="/results/{{ case.id }}/report" class="btn btn-primary">MD Report 다운로드</a>
+      <a href="/" class="btn btn-secondary">목록으로</a>
+    </div>
+  </div>
+</div>
+
+<!-- Summary Tables -->
+{% if tables %}
+<div class="card">
+  <h3>분석 요약</h3>
+  <div class="tabs">
+    {% for name, tbl in tables.items() %}
+    <button class="tab-btn {% if loop.first %}active{% endif %}"
+            onclick="switchTab(this, 'tab-{{ name }}')">
+      {{ name.replace('_', ' ').title() }}
+    </button>
+    {% endfor %}
+  </div>
+  {% for name, tbl in tables.items() %}
+  <div id="tab-{{ name }}" class="tab-panel {% if loop.first %}active{% endif %}">
+    <div class="table-scroll">
+      <table class="data-table compact">
+        <thead><tr>{% for col in tbl.columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for row in tbl.data %}
+          <tr>{% for val in row %}<td>{{ val }}</td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Figures -->
+{% if figures %}
+<div class="card">
+  <h3>Figures ({{ figures|length }})</h3>
+  <div class="figures-grid">
+    {% for fig in figures %}
+    <div class="figure-item" onclick="openModal('/results/{{ case.id }}/figures/{{ fig }}', '{{ fig }}')">
+      <img src="/results/{{ case.id }}/figures/{{ fig }}" alt="{{ fig }}" loading="lazy">
+      <span class="figure-label">{{ fig }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Report Preview -->
+{% if report %}
+<div class="card">
+  <div class="card-header-row">
+    <h3>Markdown Report</h3>
+    <button class="btn btn-sm btn-copy" onclick="copyReport()">복사</button>
+  </div>
+  <div class="report-preview" id="report-content">
+    <pre>{{ report }}</pre>
+  </div>
+</div>
+{% endif %}
+
+<!-- Image Modal -->
+<div id="modal" class="modal" onclick="this.classList.remove('open')">
+  <div class="modal-inner" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="document.getElementById('modal').classList.remove('open')">&times;</button>
+    <img id="modal-img" src="" alt="">
+    <p id="modal-title"></p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(btn, id) {
+  btn.closest('.card').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.closest('.card').querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(id).classList.add('active');
+}
+
+function openModal(src, title) {
+  document.getElementById('modal-img').src = src;
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal').classList.add('open');
+}
+
+function copyReport() {
+  const text = document.getElementById('report-content').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.btn-copy');
+    btn.textContent = '복사됨!';
+    setTimeout(() => btn.textContent = '복사', 1500);
+  });
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') document.getElementById('modal').classList.remove('open');
+});
+</script>
+{% endblock %}

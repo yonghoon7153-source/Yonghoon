@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% set active = "home" %}
+{% block title %}DEM Analyzer - Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Dashboard</h2>
+  <p>LIGGGHTS 파일을 업로드하고 DEM 분석을 실행하세요</p>
+</div>
+
+<!-- Upload Section -->
+<div class="card upload-card">
+  <h3>새 분석 케이스</h3>
+  <form id="upload-form" enctype="multipart/form-data">
+    <div class="form-row">
+      <div class="form-group">
+        <label>케이스 이름</label>
+        <input type="text" name="case_name" placeholder="예: Real_6_PS_73_SE3" class="input">
+      </div>
+      <div class="form-group">
+        <label>모드</label>
+        <select name="mode" class="input">
+          <option value="auto">자동 감지</option>
+          <option value="standard">Standard (AM+SE)</option>
+          <option value="bimodal">Bimodal (AM_P+AM_S+SE)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Type Map</label>
+        <input type="text" name="type_map" placeholder="자동 (예: 1:AM_P,2:AM_S,3:SE)" class="input">
+      </div>
+      <div class="form-group">
+        <label>Scale</label>
+        <input type="number" name="scale" value="1000" class="input" style="width:100px">
+      </div>
+    </div>
+
+    <!-- Drag & Drop Zone -->
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone-content">
+        <span class="drop-icon">&#x1F4C2;</span>
+        <p><strong>파일을 여기에 드래그하거나 클릭해서 선택</strong></p>
+        <p class="drop-hint">atom_*.liggghts, contact_*.liggghts, input_*.liggghts, mesh 파일</p>
+      </div>
+      <input type="file" id="file-input" name="files" multiple accept=".liggghts,.stl,.vtk,.csv" hidden>
+    </div>
+
+    <div id="file-list" class="file-list"></div>
+
+    <button type="submit" class="btn btn-primary" id="upload-btn" disabled>
+      업로드
+    </button>
+  </form>
+</div>
+
+<!-- Cases List -->
+<div class="card">
+  <h3>분석 케이스 목록</h3>
+  {% if cases %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>이름</th>
+        <th>모드</th>
+        <th>상태</th>
+        <th>파일 수</th>
+        <th>결과</th>
+        <th>액션</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for case in cases %}
+      <tr>
+        <td><strong>{{ case.name }}</strong></td>
+        <td><span class="badge badge-{{ case.mode }}">{{ case.mode }}</span></td>
+        <td>
+          <span class="status status-{{ case.status }}">
+            {% if case.status == 'uploaded' %}대기중
+            {% elif case.status == 'running' %}실행중...
+            {% elif case.status == 'done' %}완료
+            {% elif case.status == 'error' %}오류
+            {% else %}{{ case.status }}{% endif %}
+          </span>
+        </td>
+        <td>{{ case.files|length if case.files else '-' }}</td>
+        <td>
+          {% if case.has_figures %}<span class="tag">Figures</span>{% endif %}
+          {% if case.has_report %}<span class="tag">Report</span>{% endif %}
+        </td>
+        <td class="actions">
+          {% if case.status == 'uploaded' %}
+          <button class="btn btn-sm btn-run" onclick="runAnalysis('{{ case.id }}')">분석 실행</button>
+          {% endif %}
+          {% if case.has_results %}
+          <a href="/single/{{ case.id }}" class="btn btn-sm btn-view">결과 보기</a>
+          {% endif %}
+          {% if case.has_report %}
+          <a href="/results/{{ case.id }}/report" class="btn btn-sm btn-dl">MD 다운로드</a>
+          {% endif %}
+          <button class="btn btn-sm btn-del" onclick="deleteCase('{{ case.id }}')">삭제</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty-state">아직 업로드된 케이스가 없습니다.</p>
+  {% endif %}
+</div>
+
+<!-- Running Status -->
+<div id="status-panel" class="card" style="display:none">
+  <h3>분석 진행 상황</h3>
+  <div id="status-log" class="log-output"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Drag & Drop
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
+const fileList = document.getElementById('file-list');
+const uploadBtn = document.getElementById('upload-btn');
+let selectedFiles = [];
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  addFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => addFiles(fileInput.files));
+
+function addFiles(files) {
+  for (const f of files) {
+    if (!selectedFiles.find(x => x.name === f.name)) {
+      selectedFiles.push(f);
+    }
+  }
+  renderFileList();
+}
+
+function removeFile(name) {
+  selectedFiles = selectedFiles.filter(f => f.name !== name);
+  renderFileList();
+}
+
+function renderFileList() {
+  fileList.innerHTML = selectedFiles.map(f => `
+    <div class="file-item">
+      <span class="file-name">${f.name}</span>
+      <span class="file-size">${(f.size/1024).toFixed(0)} KB</span>
+      <button class="file-remove" onclick="removeFile('${f.name}')">&times;</button>
+    </div>
+  `).join('');
+  uploadBtn.disabled = selectedFiles.length === 0;
+}
+
+// Upload
+document.getElementById('upload-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = new FormData(e.target);
+  // Remove default files, add our selectedFiles
+  form.delete('files');
+  selectedFiles.forEach(f => form.append('files', f));
+
+  uploadBtn.disabled = true;
+  uploadBtn.textContent = '업로드 중...';
+
+  try {
+    const res = await fetch('/upload', { method: 'POST', body: form });
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+    } else {
+      // Auto-run analysis
+      if (confirm(`업로드 완료 (${data.mode} 모드). 분석을 바로 실행할까요?`)) {
+        await runAnalysis(data.case_id);
+      }
+      location.reload();
+    }
+  } catch (err) {
+    alert('업로드 실패: ' + err.message);
+  }
+  uploadBtn.disabled = false;
+  uploadBtn.textContent = '업로드';
+});
+
+// Run Analysis
+async function runAnalysis(caseId) {
+  const panel = document.getElementById('status-panel');
+  const log = document.getElementById('status-log');
+  panel.style.display = 'block';
+  log.innerHTML = '<p>분석 시작...</p>';
+
+  try {
+    const res = await fetch(`/analyze/${caseId}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) {
+      log.innerHTML += `<p class="log-error">오류: ${data.error}</p>`;
+    } else {
+      data.log.forEach(l => {
+        const cls = l.rc === 0 ? 'log-ok' : 'log-error';
+        log.innerHTML += `<p class="${cls}">[${l.step}] ${l.rc === 0 ? '완료' : '실패'}</p>`;
+        if (l.stderr && l.rc !== 0) {
+          log.innerHTML += `<pre class="log-detail">${l.stderr}</pre>`;
+        }
+      });
+      log.innerHTML += '<p class="log-ok"><strong>분석 완료! 페이지를 새로고침합니다...</strong></p>';
+      setTimeout(() => location.reload(), 1500);
+    }
+  } catch (err) {
+    log.innerHTML += `<p class="log-error">네트워크 오류: ${err.message}</p>`;
+  }
+}
+
+// Delete
+async function deleteCase(caseId) {
+  if (!confirm('이 케이스를 삭제할까요?')) return;
+  await fetch(`/delete/${caseId}`, { method: 'POST' });
+  location.reload();
+}
+</script>
+{% endblock %}

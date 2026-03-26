@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% set active = "group" %}
+{% block title %}Group 비교 - DEM Analyzer{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Group 비교 분석</h2>
+  <p>여러 케이스를 선택해서 비교 테이블 및 리포트를 생성합니다</p>
+</div>
+
+<!-- Case Selection -->
+<div class="card">
+  <h3>케이스 선택</h3>
+  <form id="group-form" method="GET" action="/group">
+    <div class="case-select-grid">
+      {% for case in cases %}
+      {% if case.has_results %}
+      <label class="case-checkbox">
+        <input type="checkbox" name="cases" value="{{ case.id }}"
+               {% if case.id in selected %}checked{% endif %}>
+        <div class="case-label">
+          <strong>{{ case.name }}</strong>
+          <span class="badge badge-{{ case.mode }}">{{ case.mode }}</span>
+        </div>
+      </label>
+      {% endif %}
+      {% endfor %}
+    </div>
+    <button type="submit" class="btn btn-primary">비교하기</button>
+  </form>
+</div>
+
+<!-- Comparison Results -->
+{% if comparison and comparison.rows %}
+<div class="card">
+  <h3>비교 결과</h3>
+  <div class="table-scroll">
+    <table class="data-table compact">
+      <thead>
+        <tr>
+          {% for col in comparison.columns %}
+          <th>{{ col }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in comparison.rows %}
+        <tr>
+          {% for col in comparison.columns %}
+          <td>{{ row[col] if row[col] is defined else '-' }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Report Generation -->
+<div class="card">
+  <h3>비교 리포트 생성</h3>
+  <form id="report-form">
+    <div class="form-row">
+      <div class="form-group">
+        <label>리포트 제목</label>
+        <input type="text" name="title" placeholder="예: SE_Contact_Network_TradeOff" class="input">
+      </div>
+      <div class="form-group" style="flex:2">
+        <label>메모</label>
+        <input type="text" name="notes" placeholder="주제, 데이터 설명 등" class="input">
+      </div>
+    </div>
+    {% for cid in selected %}
+    <input type="hidden" name="cases" value="{{ cid }}">
+    {% endfor %}
+    <button type="submit" class="btn btn-primary">MD Report 생성</button>
+  </form>
+  <div id="report-output" style="display:none">
+    <div class="card-header-row" style="margin-top:16px">
+      <h4>생성된 리포트</h4>
+      <button class="btn btn-sm btn-copy" onclick="copyGroupReport()">복사</button>
+    </div>
+    <div class="report-preview" id="group-report-content">
+      <pre></pre>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if not cases or not cases|selectattr('has_results')|list %}
+<div class="card">
+  <p class="empty-state">분석이 완료된 케이스가 없습니다. 먼저 <a href="/">Dashboard</a>에서 분석을 실행하세요.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('report-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = new FormData(e.target);
+  const res = await fetch('/group/report', { method: 'POST', body: form });
+  const data = await res.json();
+
+  const output = document.getElementById('report-output');
+  output.style.display = 'block';
+  output.querySelector('pre').textContent = data.report;
+});
+
+function copyGroupReport() {
+  const text = document.getElementById('group-report-content').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.btn-copy');
+    btn.textContent = '복사됨!';
+    setTimeout(() => btn.textContent = '복사', 1500);
+  });
+}
+</script>
+{% endblock %}

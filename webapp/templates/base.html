@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}DEM Analyzer{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <h1>DEM Analyzer</h1>
+      <span class="version">v1.0</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="/" class="{% if active == 'home' %}active{% endif %}">
+        <span class="icon">&#x1F4C1;</span> Dashboard
+      </a></li>
+      <li><a href="/group" class="{% if active == 'group' %}active{% endif %}">
+        <span class="icon">&#x1F4CA;</span> Group 비교
+      </a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <small>Solid-State Battery DEM</small>
+    </div>
+  </nav>
+
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="/static/js/main.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

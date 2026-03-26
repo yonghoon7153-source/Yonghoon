@@ -67,8 +67,7 @@
         <th>이름</th>
         <th>모드</th>
         <th>상태</th>
-        <th>파일 수</th>
-        <th>결과</th>
+        <th>파일</th>
         <th>액션</th>
       </tr>
     </thead>
@@ -86,10 +85,10 @@
             {% else %}{{ case.status }}{% endif %}
           </span>
         </td>
-        <td>{{ case.files|length if case.files else '-' }}</td>
         <td>
-          {% if case.has_figures %}<span class="tag">Figures</span>{% endif %}
-          {% if case.has_report %}<span class="tag">Report</span>{% endif %}
+          {% if case.files %}
+          <button class="btn btn-sm btn-secondary" onclick="showFiles('{{ case.id }}', {{ case.files | tojson }})">{{ case.files|length }} 파일</button>
+          {% else %}-{% endif %}
         </td>
         <td class="actions">
           {% if case.status == 'uploaded' %}
@@ -97,9 +96,7 @@
           {% endif %}
           {% if case.has_results %}
           <a href="/single/{{ case.id }}" class="btn btn-sm btn-view">결과 보기</a>
-          {% endif %}
-          {% if case.has_report %}
-          <a href="/results/{{ case.id }}/report" class="btn btn-sm btn-dl">MD 다운로드</a>
+          <button class="btn btn-sm btn-archive" onclick="quickSave('{{ case.id }}')">보관함 저장</button>
           {% endif %}
           <button class="btn btn-sm btn-del" onclick="deleteCase('{{ case.id }}')">삭제</button>
         </td>
@@ -116,6 +113,17 @@
 <div id="status-panel" class="card" style="display:none">
   <h3>분석 진행 상황</h3>
   <div id="status-log" class="log-output"></div>
+</div>
+
+<!-- File List Modal -->
+<div id="files-modal" class="modal" onclick="this.classList.remove('open')">
+  <div class="save-dialog-inner" onclick="event.stopPropagation()" style="width:500px">
+    <h3>업로드 파일</h3>
+    <div id="files-list" style="margin:16px 0"></div>
+    <div style="text-align:right">
+      <button class="btn btn-secondary" onclick="document.getElementById('files-modal').classList.remove('open')">닫기</button>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
@@ -226,6 +234,42 @@ async function deleteCase(caseId) {
   if (!confirm('이 케이스를 삭제할까요?')) return;
   await fetch(`/delete/${caseId}`, { method: 'POST' });
   location.reload();
+}
+
+// Show uploaded files
+function showFiles(caseId, files) {
+  const list = document.getElementById('files-list');
+  list.innerHTML = files.map(f => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span style="font-family:var(--mono);font-size:.85rem">${f}</span>
+      <a href="/download-file/${caseId}/${f}" class="btn btn-sm btn-dl" download>다운로드</a>
+    </div>
+  `).join('');
+  document.getElementById('files-modal').classList.add('open');
+}
+
+// Quick save to archive
+async function quickSave(caseId) {
+  const folder = prompt('보관함 저장 폴더 (비우면 최상위):', '');
+  if (folder === null) return;
+  if (folder) {
+    const parts = folder.split('/');
+    let current = '';
+    for (const part of parts) {
+      const form = new FormData();
+      form.append('parent', current);
+      form.append('name', part);
+      await fetch('/archive/create-folder', { method: 'POST', body: form });
+      current = current ? current + '/' + part : part;
+    }
+  }
+  const form = new FormData();
+  form.append('case_id', caseId);
+  form.append('folder', folder);
+  const res = await fetch('/archive/save-case', { method: 'POST', body: form });
+  const data = await res.json();
+  if (data.success) alert('보관함에 저장 완료!');
+  else alert('오류: ' + (data.error || '저장 실패'));
 }
 
 // Rename (double-click)

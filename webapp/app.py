@@ -614,6 +614,12 @@ def serve_report(case_id):
                         download_name=f'{case_id}_report.md')
     return 'Report not found', 404
 
+@app.route('/download-file/<case_id>/<filename>')
+def download_case_file(case_id, filename):
+    """Download an uploaded file from a case."""
+    case_dir = get_case_dir(case_id)
+    return send_from_directory(case_dir, filename, as_attachment=True)
+
 @app.route('/rename/<case_id>', methods=['POST'])
 def rename_case(case_id):
     """Rename a case."""

@@ -126,7 +126,8 @@
   <div class="save-dialog-inner" onclick="event.stopPropagation()" style="width:500px">
     <h3>업로드 파일</h3>
     <div id="files-list" style="margin:16px 0"></div>
-    <div style="text-align:right">
+    <div style="display:flex;justify-content:space-between">
+      <button class="btn btn-primary" id="download-all-btn" onclick="">모두 다운로드</button>
       <button class="btn btn-secondary" onclick="document.getElementById('files-modal').classList.remove('open')">닫기</button>
     </div>
   </div>
@@ -288,6 +289,16 @@ function showFiles(caseId) {
     </div>
   `).join('');
   if (!files.length) list.innerHTML = '<p class="dim" style="text-align:center;padding:20px">파일 없음</p>';
+  document.getElementById('download-all-btn').onclick = () => {
+    files.forEach(f => {
+      const a = document.createElement('a');
+      a.href = `/download-file/${caseId}/${f}`;
+      a.download = f;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+  };
   document.getElementById('files-modal').classList.add('open');
 }
 

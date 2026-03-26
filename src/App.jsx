@@ -89,7 +89,7 @@ function App() {
         <div className="header-content">
           <h1>DFT / MLIP Script Generator</h1>
           <p className="subtitle">
-            Quantum ESPRESSO &middot; ORCA &middot; UMA &middot; MACE
+            Quantum ESPRESSO &middot; VASP &middot; ORCA &middot; UMA &middot; MACE
           </p>
         </div>
       </header>

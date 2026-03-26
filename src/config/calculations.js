@@ -1,7 +1,7 @@
 // All supported calculation codes
 export const CODES = [
-  { id: 'vasp', label: 'VASP' },
   { id: 'qe', label: 'Quantum ESPRESSO' },
+  { id: 'vasp', label: 'VASP' },
   { id: 'orca', label: 'ORCA' },
   { id: 'uma', label: 'UMA (MLIP)' },
   { id: 'mace', label: 'MACE (MLIP)' },

@@ -55,6 +55,7 @@
       {% endif %}
     </div>
 
+    <div id="ordered-inputs"></div>
     <button type="submit" class="btn btn-primary">비교하기</button>
   </form>
 </div>
@@ -205,6 +206,22 @@ async function loadArchiveCases(folder) {
 // Ordered case selection
 let caseOrder = [];
 {% if selected %}caseOrder = {{ selected | tojson }};{% endif %}
+
+// Intercept form submit to inject ordered cases
+document.getElementById('group-form').addEventListener('submit', (e) => {
+  // Disable all individual case inputs
+  document.querySelectorAll('.case-checkbox input[name="cases"]').forEach(i => i.disabled = true);
+  // Inject ordered inputs
+  const container = document.getElementById('ordered-inputs');
+  container.innerHTML = '';
+  caseOrder.forEach(cid => {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'cases';
+    input.value = cid;
+    container.appendChild(input);
+  });
+});
 
 function toggleCase(el, caseId) {
   const idx = caseOrder.indexOf(caseId);

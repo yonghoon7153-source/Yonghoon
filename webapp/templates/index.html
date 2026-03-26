@@ -59,7 +59,13 @@
 
 <!-- Cases List -->
 <div class="card">
-  <h3>분석 케이스 목록</h3>
+  <div class="card-header-row">
+    <h3>분석 케이스 목록</h3>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-sm btn-secondary sort-btn" onclick="sortCases('name')" id="sort-name">이름순</button>
+      <button class="btn btn-sm btn-secondary sort-btn active" onclick="sortCases('date')" id="sort-date">최신순</button>
+    </div>
+  </div>
   {% if cases %}
   <table class="data-table">
     <thead>
@@ -129,6 +135,32 @@
 
 {% block scripts %}
 <script>
+// Sort cases
+let originalRows = [];
+document.addEventListener('DOMContentLoaded', () => {
+  const tbody = document.querySelector('.data-table tbody');
+  if (tbody) originalRows = Array.from(tbody.querySelectorAll('tr'));
+});
+
+function sortCases(mode) {
+  const tbody = document.querySelector('.data-table tbody');
+  if (!tbody) return;
+  let rows;
+  if (mode === 'name') {
+    rows = Array.from(tbody.querySelectorAll('tr'));
+    rows.sort((a, b) => {
+      const na = a.querySelector('.case-name')?.textContent.trim() || '';
+      const nb = b.querySelector('.case-name')?.textContent.trim() || '';
+      return na.localeCompare(nb, undefined, {numeric: true});
+    });
+  } else {
+    rows = [...originalRows];
+  }
+  rows.forEach(r => tbody.appendChild(r));
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('sort-' + mode).classList.add('active');
+}
+
 // Drag & Drop
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');

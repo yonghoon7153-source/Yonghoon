@@ -180,6 +180,17 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     am_p_atoms = [a for a in atoms_raw.values() if type_map.get(a['type']) == 'AM_P']
     am_s_atoms = [a for a in atoms_raw.values() if type_map.get(a['type']) == 'AM_S']
 
+    # Standard mode: type_map has 'AM' (not AM_P/AM_S)
+    # Determine if it's P or S from radius (AM_P ≈ 6μm, AM_S ≈ 2μm in sim units)
+    am_generic = [a for a in atoms_raw.values() if type_map.get(a['type']) == 'AM']
+    if am_generic and not am_p_atoms and not am_s_atoms:
+        avg_r = np.mean([a['radius'] for a in am_generic])
+        # In sim units: AM_P radius ≈ 0.006, AM_S radius ≈ 0.002
+        if avg_r > 0.004:  # large AM → P only
+            am_p_atoms = am_generic
+        else:  # small AM → S only
+            am_s_atoms = am_generic
+
     am_p_mass = sum(am_density * 4/3 * np.pi * a['radius']**3 for a in am_p_atoms)
     am_s_mass = sum(am_density * 4/3 * np.pi * a['radius']**3 for a in am_s_atoms)
 

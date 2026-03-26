@@ -2,15 +2,26 @@ import { useState } from 'react';
 import { POST_PROCESSING } from '../config/calculations';
 
 function Tooltip({ text }) {
-  const [show, setShow] = useState(false);
+  const [pos, setPos] = useState(null);
+  const handleEnter = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPos({ top: rect.top - 8, left: rect.left + rect.width / 2 });
+  };
   return (
     <span
       className="tooltip-wrapper"
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
+      onMouseEnter={handleEnter}
+      onMouseLeave={() => setPos(null)}
     >
       <span className="tooltip-icon">?</span>
-      {show && <span className="tooltip-text">{text}</span>}
+      {pos && (
+        <span
+          className="tooltip-text"
+          style={{ top: pos.top, left: pos.left, transform: 'translate(-50%, -100%)' }}
+        >
+          {text}
+        </span>
+      )}
     </span>
   );
 }

@@ -60,7 +60,13 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     rows = []
     total_n = 0
     total_area = 0
+    am_types_count = sum(1 for v in type_map.values() if 'AM' in v)
+    is_bimodal = am_types_count > 1
+
     for ct, v in results['interface'].items():
+        # Standard 모드에서 AM전체-SE는 AM-SE와 동일하므로 생략
+        if ct == 'AM전체-SE' and not is_bimodal:
+            continue
         rows.append({
             '접촉유형': ct, '접촉수': v['n_contacts'],
             '접촉면적_mean(μm²)': round(v['mean_area'], 4),

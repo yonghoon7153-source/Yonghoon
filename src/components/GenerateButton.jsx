@@ -2,6 +2,7 @@ import { useState } from 'react';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { parseCIF } from '../utils/cifParser';
+import { generateVASPScripts } from '../generators/vaspGenerator';
 import { generateQEScripts } from '../generators/qeGenerator';
 import { generateORCAScripts } from '../generators/orcaGenerator';
 import { generateUMAScripts, generateMACEScripts } from '../generators/mlipGenerator';
@@ -38,6 +39,9 @@ export default function GenerateButton({
 
     let files;
     switch (selectedCode) {
+      case 'vasp':
+        files = generateVASPScripts(parsed, params, [...resolvedCalcTypes], postProcessing);
+        break;
       case 'qe':
         files = generateQEScripts(parsed, params, [...resolvedCalcTypes], postProcessing);
         break;

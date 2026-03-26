@@ -49,6 +49,54 @@ export default function ParameterSettings({ params, setParams, selectedCode }) {
           </div>
         </div>
 
+        {/* VASP specific */}
+        {selectedCode === 'vasp' && (
+          <div className="param-group">
+            <h4>VASP</h4>
+            <div className="input-group">
+              <label>ENCUT (eV) — auto from ecutwfc:</label>
+              <input
+                type="number"
+                min={100}
+                value={Math.round((params.ecutwfc || 60) * 13.6057)}
+                onChange={(e) => update('ecutwfc', Math.round((parseInt(e.target.value) || 500) / 13.6057))}
+              />
+            </div>
+            <div className="input-row">
+              <div className="input-group">
+                <label>k-points (x):</label>
+                <input type="number" min={1} value={params.kx} onChange={(e) => update('kx', parseInt(e.target.value) || 4)} />
+              </div>
+              <div className="input-group">
+                <label>k-points (y):</label>
+                <input type="number" min={1} value={params.ky} onChange={(e) => update('ky', parseInt(e.target.value) || 4)} />
+              </div>
+              <div className="input-group">
+                <label>k-points (z):</label>
+                <input type="number" min={1} value={params.kz} onChange={(e) => update('kz', parseInt(e.target.value) || 4)} />
+              </div>
+            </div>
+            <div className="input-group">
+              <label>POTCAR directory path:</label>
+              <input
+                type="text"
+                value={params.ppPath}
+                onChange={(e) => update('ppPath', e.target.value)}
+                placeholder="/opt/vasp/potentials/PBE"
+              />
+            </div>
+            <div className="input-group">
+              <label>Hubbard U (eV, leave empty if none):</label>
+              <input
+                type="text"
+                value={params.hubbardU}
+                onChange={(e) => update('hubbardU', e.target.value)}
+                placeholder="e.g., 4.0"
+              />
+            </div>
+          </div>
+        )}
+
         {/* QE specific */}
         {selectedCode === 'qe' && (
           <div className="param-group">

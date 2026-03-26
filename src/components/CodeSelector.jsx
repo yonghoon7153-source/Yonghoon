@@ -12,6 +12,7 @@ export default function CodeSelector({ selectedCode, setSelectedCode }) {
             onClick={() => setSelectedCode(code.id)}
           >
             <span className="code-name">{code.label}</span>
+            {code.id === 'vasp' && <span className="code-tag">DFT</span>}
             {code.id === 'qe' && <span className="code-tag">DFT</span>}
             {code.id === 'orca' && <span className="code-tag">DFT/QC</span>}
             {(code.id === 'uma' || code.id === 'mace') && <span className="code-tag">MLIP</span>}

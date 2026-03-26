@@ -421,14 +421,14 @@ def group():
             # Standard 모드: coverage_AM_mean → P:S에 따라 P 또는 S에 매핑
             if 'coverage_AM_mean' in metrics:
                 ps = metrics.get('ps_ratio', '')
-                if ps == 'P only':
+                if ps in ('P only', '10:0'):
                     metrics.setdefault('coverage_AM_P_mean', metrics['coverage_AM_mean'])
                 else:
                     metrics.setdefault('coverage_AM_S_mean', metrics['coverage_AM_mean'])
             # Standard 모드: area_AM_SE_total → P:S에 따라 매핑
             if 'area_AM_SE_total' in metrics and 'area_AM_P_SE_total' not in metrics:
                 ps = metrics.get('ps_ratio', '')
-                if ps == 'P only':
+                if ps in ('P only', '10:0'):
                     metrics['area_AM_P_SE_total'] = metrics['area_AM_SE_total']
                 else:
                     metrics['area_AM_S_SE_total'] = metrics['area_AM_SE_total']

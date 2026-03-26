@@ -191,9 +191,9 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         s_pct = 10 - p_pct
         ps_ratio = f"{p_pct}:{s_pct}"
     elif am_p_mass > 0 and am_s_mass == 0:
-        ps_ratio = "P only"
+        ps_ratio = "10:0"
     elif am_s_mass > 0 and am_p_mass == 0:
-        ps_ratio = "S only"
+        ps_ratio = "0:10"
     else:
         ps_ratio = ""
 

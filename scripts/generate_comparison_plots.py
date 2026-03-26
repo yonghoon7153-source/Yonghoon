@@ -89,7 +89,7 @@ def _resolve_am_se(d):
     if am_p == 0 and am_s == 0:
         total = _get(d, "area_AM_SE_total") or _get(d, "area_AM전체_SE_total")
         ps = d.get("ps_ratio", "")
-        if ps == "P only" or "AM_P" in str(d.get("plate_z_source", "")):
+        if ps in ("P only", "10:0"):
             return total, 0
         else:
             # S only 또는 기본 → AM_S

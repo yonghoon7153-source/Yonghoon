@@ -79,6 +79,24 @@ function NotionChatbot() {
     return <span className="ref-importance">{importance}</span>;
   };
 
+  // Simple markdown to HTML renderer
+  const renderMarkdown = (text) => {
+    if (!text) return '';
+    let html = text
+      .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+      .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`(.+?)`/g, '<code>$1</code>')
+      .replace(/^- (.+)$/gm, '<li>$1</li>')
+      .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br/>');
+    html = html.replace(/((?:<li>.*?<\/li>\s*)+)/g, '<ul>$1</ul>');
+    return '<p>' + html + '</p>';
+  };
+
   return (
     <div className="chatbot-container">
       <div className="chatbot-header">
@@ -104,17 +122,17 @@ function NotionChatbot() {
             <h3>Welcome!</h3>
             <p>Ask me anything about your Notion research database.</p>
             <div className="welcome-suggestions">
-              <button onClick={() => { setInput('전고체 배터리에서 pressure가 중요한 이유는?'); }}>
-                전고체 배터리에서 pressure가 중요한 이유는?
+              <button onClick={() => { setInput('\uc804\uace0\uccb4 \ubc30\ud130\ub9ac\uc5d0\uc11c pressure\uac00 \uc911\uc694\ud55c \uc774\uc720\ub294?'); }}>
+                \uc804\uace0\uccb4 \ubc30\ud130\ub9ac\uc5d0\uc11c pressure\uac00 \uc911\uc694\ud55c \uc774\uc720\ub294?
               </button>
-              <button onClick={() => { setInput('Ag-C anode interlayer에 대해 설명해줘'); }}>
-                Ag-C anode interlayer에 대해 설명해줘
+              <button onClick={() => { setInput('Ag-C anode interlayer\uc5d0 \ub300\ud574 \uc124\uba85\ud574\uc918'); }}>
+                Ag-C anode interlayer\uc5d0 \ub300\ud574 \uc124\uba85\ud574\uc918
               </button>
-              <button onClick={() => { setInput('DEM simulation이란 무엇인가?'); }}>
-                DEM simulation이란 무엇인가?
+              <button onClick={() => { setInput('DEM simulation\uc774\ub780 \ubb34\uc5c7\uc778\uac00?'); }}>
+                DEM simulation\uc774\ub780 \ubb34\uc5c7\uc778\uac00?
               </button>
-              <button onClick={() => { setInput('NCM cathode의 degradation 메커니즘은?'); }}>
-                NCM cathode의 degradation 메커니즘은?
+              <button onClick={() => { setInput('NCM cathode\uc758 degradation \uba54\ucee4\ub2c8\uc998\uc740?'); }}>
+                NCM cathode\uc758 degradation \uba54\ucee4\ub2c8\uc998\uc740?
               </button>
             </div>
           </div>
@@ -134,7 +152,11 @@ function NotionChatbot() {
               )}
             </div>
             <div className="message-content">
-              <div className="message-text">{msg.content}</div>
+              {msg.role === 'assistant' ? (
+                <div className="message-text" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+              ) : (
+                <div className="message-text">{msg.content}</div>
+              )}
               {msg.references && msg.references.length > 0 && (
                 <div className="message-references">
                   <button

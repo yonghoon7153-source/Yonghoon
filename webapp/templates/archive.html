@@ -37,12 +37,21 @@
       {% for item in items %}
         {% if item.type == 'folder' %}
         <div class="tree-folder" style="padding-left:{{ (depth+1)*16 }}px">
-          <a href="/archive?folder={{ item.path }}" class="tree-item {% if current == item.path %}tree-active{% endif %}">
-            <span class="tree-icon">&#x1F4C1;</span>
-            {{ item.name }}
-            <span class="tree-count">{{ item.file_count }}</span>
-          </a>
-          {{ render_tree(item.children, depth+1) }}
+          <div class="tree-row">
+            {% if item.children|selectattr('type', 'equalto', 'folder')|list %}
+            <span class="tree-toggle" onclick="event.preventDefault();this.closest('.tree-folder').classList.toggle('collapsed')">&#9660;</span>
+            {% else %}
+            <span class="tree-toggle-space"></span>
+            {% endif %}
+            <a href="/archive?folder={{ item.path }}" class="tree-item {% if current == item.path %}tree-active{% endif %}">
+              <span class="tree-icon">&#x1F4C1;</span>
+              {{ item.name }}
+              <span class="tree-count">{{ item.file_count }}</span>
+            </a>
+          </div>
+          <div class="tree-children">
+            {{ render_tree(item.children, depth+1) }}
+          </div>
         </div>
         {% endif %}
       {% endfor %}

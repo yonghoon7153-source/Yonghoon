@@ -77,11 +77,13 @@ def main():
     if 'contact_area' in df_contact.columns:
         df_contact['contact_area'] = df_contact['contact_area'] * (scale ** 2)
 
-    # Force: scale factor
+    # Force: F_sim(N) → F_real(μN)
+    # F_real(N) = F_sim(N) / scale  (∵ P×0.001, A×10^6 → F×1000)
+    # F_real(μN) = F_real(N) × 10^6 = F_sim(N) × 10^6 / scale = F_sim × scale
     force_cols = ['fx', 'fy', 'fz', 'fn_x', 'fn_y', 'fn_z', 'ft_x', 'ft_y', 'ft_z']
     for c in force_cols:
         if c in df_contact.columns:
-            df_contact[c] = df_contact[c] * scale
+            df_contact[c] = df_contact[c] * scale  # → μN
 
     # Stress: already in simulation units, scale to MPa
     stress_cols = ['c_strs[1]', 'c_strs[2]', 'c_strs[3]']
@@ -93,12 +95,14 @@ def main():
 
     # Compute per-atom stress (σ = stress_atom / volume)
     if 'radius' in df_atom.columns and all(c in df_atom.columns for c in stress_cols):
-        vol = (4.0 / 3.0) * np.pi * (df_atom['radius'] / scale) ** 3  # volume in sim units
+        vol = (4.0 / 3.0) * np.pi * (df_atom['radius'] / scale) ** 3  # volume in sim units (m³)
         for c in stress_cols:
             col_name = c.replace('c_strs[1]', 'sigma_xx').replace('c_strs[2]', 'sigma_yy').replace('c_strs[3]', 'sigma_zz')
-            # stress/atom output is already stress*volume in LIGGGHTS
-            # divide by volume to get stress, then convert units
-            df_atom[col_name] = df_atom[c] / vol / 1e6  # Pa -> MPa
+            # stress/atom = σ_sim × V_sim (Pa·m³)
+            # σ_sim = stress_atom / V_sim (Pa in sim)
+            # σ_real = σ_sim × scale (∵ E scaled by 1/scale, P scaled by 1/scale)
+            # σ_real(MPa) = σ_sim(Pa) × scale / 1e6
+            df_atom[col_name] = df_atom[c] / vol * scale / 1e6  # → real MPa
 
     # ─── Contact Classification ─────────────────────────────────────────────
     print("Classifying contacts...")

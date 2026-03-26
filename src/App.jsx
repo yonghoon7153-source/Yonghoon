@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import CifUploader from './components/CifUploader';
 import PseudopotentialSelector from './components/PseudopotentialSelector';
 import CodeSelector from './components/CodeSelector';
@@ -7,6 +7,8 @@ import PostProcessing from './components/PostProcessing';
 import ParameterSettings from './components/ParameterSettings';
 import GenerateButton from './components/GenerateButton';
 import DependencyInfo from './components/DependencyInfo';
+import { parseCIF } from './utils/cifParser';
+import { analyzeStructure } from './utils/structureAnalyzer';
 import './App.css';
 
 const DEFAULT_PARAMS = {
@@ -39,6 +41,43 @@ function App() {
   const [calcTypes, setCalcTypes] = useState(['scf']);
   const [postProcessing, setPostProcessing] = useState([]);
   const [params, setParams] = useState(DEFAULT_PARAMS);
+  const [analysis, setAnalysis] = useState(null);
+  const prevCifRef = useRef('');
+
+  // Analyze CIF when it changes
+  useEffect(() => {
+    if (!cifText.trim() || cifText === prevCifRef.current) return;
+    prevCifRef.current = cifText;
+
+    try {
+      const parsed = parseCIF(cifText);
+      if (parsed.atoms.length === 0) {
+        setAnalysis(null);
+        return;
+      }
+
+      const result = analyzeStructure(parsed);
+      setAnalysis(result);
+
+      // Auto-update params with recommendations
+      setParams(prev => ({
+        ...prev,
+        ecutwfc: result.paramRecommendations.ecutwfc || prev.ecutwfc,
+        ecutrho: result.paramRecommendations.ecutrho || prev.ecutrho,
+        kx: result.paramRecommendations.kx || prev.kx,
+        ky: result.paramRecommendations.ky || prev.ky,
+        kz: result.paramRecommendations.kz || prev.kz,
+        smearing: result.paramRecommendations.smearing || prev.smearing,
+        degauss: result.paramRecommendations.degauss || prev.degauss,
+        spinPolarized: result.paramRecommendations.spinPolarized ?? prev.spinPolarized,
+        dftd3: result.paramRecommendations.dftd3 ?? prev.dftd3,
+        mdTemp: result.paramRecommendations.mdTemp || prev.mdTemp,
+        mdSteps: result.paramRecommendations.mdSteps || prev.mdSteps,
+      }));
+    } catch {
+      setAnalysis(null);
+    }
+  }, [cifText]);
 
   return (
     <div className="app">
@@ -53,10 +92,21 @@ function App() {
 
       <main className="main-content">
         <CifUploader cifText={cifText} setCifText={setCifText} />
+
+        {analysis && (
+          <div className="analysis-banner">
+            <span className="analysis-icon">&#9881;</span>
+            <div>
+              <strong>{analysis.description}</strong>
+              <span className="analysis-hint"> — Recommended settings auto-applied. Items marked with &#x25CF; are suggested.</span>
+            </div>
+          </div>
+        )}
+
         <CodeSelector selectedCode={selectedCode} setSelectedCode={setSelectedCode} />
         <PseudopotentialSelector params={params} setParams={setParams} selectedCode={selectedCode} />
-        <CalcTypeSelector calcTypes={calcTypes} setCalcTypes={setCalcTypes} />
-        <PostProcessing selectedCode={selectedCode} postProcessing={postProcessing} setPostProcessing={setPostProcessing} />
+        <CalcTypeSelector calcTypes={calcTypes} setCalcTypes={setCalcTypes} analysis={analysis} />
+        <PostProcessing selectedCode={selectedCode} postProcessing={postProcessing} setPostProcessing={setPostProcessing} analysis={analysis} />
         <DependencyInfo postProcessing={postProcessing} calcTypes={calcTypes} />
         <ParameterSettings params={params} setParams={setParams} selectedCode={selectedCode} />
         <GenerateButton cifText={cifText} selectedCode={selectedCode} calcTypes={calcTypes} postProcessing={postProcessing} params={params} />

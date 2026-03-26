@@ -26,7 +26,7 @@ function Tooltip({ text }) {
   );
 }
 
-export default function PostProcessing({ selectedCode, postProcessing, setPostProcessing }) {
+export default function PostProcessing({ selectedCode, postProcessing, setPostProcessing, analysis }) {
   const [collapsed, setCollapsed] = useState({});
 
   const toggle = (id) => {
@@ -81,20 +81,27 @@ export default function PostProcessing({ selectedCode, postProcessing, setPostPr
               </div>
               {!isCollapsed && (
                 <div className="pp-items">
-                  {availableItems.map((item) => (
-                    <label
-                      key={item.id}
-                      className={`pp-item ${postProcessing.includes(item.id) ? 'active' : ''}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={postProcessing.includes(item.id)}
-                        onChange={() => toggle(item.id)}
-                      />
-                      <span className="pp-item-label">{item.label}</span>
-                      <Tooltip text={item.description} />
-                    </label>
-                  ))}
+                  {availableItems.map((item) => {
+                    const rec = analysis?.postRecommendations?.[item.id];
+                    const isRec = rec?.recommended;
+                    return (
+                      <label
+                        key={item.id}
+                        className={`pp-item ${postProcessing.includes(item.id) ? 'active' : ''} ${isRec ? 'recommended' : ''}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={postProcessing.includes(item.id)}
+                          onChange={() => toggle(item.id)}
+                        />
+                        <span className="pp-item-label">
+                          {item.label}
+                          {isRec && <span className="rec-dot" title={rec.reason}>&#x25CF;</span>}
+                        </span>
+                        <Tooltip text={isRec ? `${item.description}\n★ ${rec.reason}` : item.description} />
+                      </label>
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -57,6 +57,54 @@
   overflow: visible;
 }
 
+/* === Analysis Banner === */
+.analysis-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, var(--primary-light), var(--accent-light));
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-lg);
+  font-size: 0.9rem;
+  color: var(--text-heading);
+}
+
+.analysis-icon {
+  font-size: 1.5rem;
+}
+
+.analysis-hint {
+  color: var(--text-light);
+  font-size: 0.82rem;
+}
+
+/* === Recommendation indicators === */
+.rec-dot {
+  color: #ef4444;
+  font-size: 0.7rem;
+  margin-left: 4px;
+  vertical-align: super;
+}
+
+.rec-reason {
+  display: block;
+  font-size: 0.72rem;
+  color: #ef4444;
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+.pp-item.recommended {
+  border-color: #fca5a5;
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.pp-item.recommended.active {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
 .card h2 {
   font-size: 1.25rem;
   font-weight: 600;

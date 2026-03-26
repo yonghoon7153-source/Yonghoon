@@ -61,6 +61,39 @@
   </div>
 </div>
 
+<!-- Comparison Plots -->
+<div class="card">
+  <div class="card-header-row">
+    <h3>비교 플롯</h3>
+    <button class="btn btn-primary" onclick="generatePlots()" id="plot-btn">선택 플롯 생성</button>
+  </div>
+  <div class="plot-select-grid">
+    <label class="plot-checkbox"><input type="checkbox" value="porosity" checked>
+      <span>Porosity</span></label>
+    <label class="plot-checkbox"><input type="checkbox" value="am_se_interface" checked>
+      <span>AM-SE 계면적</span></label>
+    <label class="plot-checkbox"><input type="checkbox" value="se_se_tradeoff" checked>
+      <span>SE-SE Trade-off</span></label>
+    <label class="plot-checkbox"><input type="checkbox" value="se_se_total" checked>
+      <span>SE-SE Total Area</span></label>
+    <label class="plot-checkbox"><input type="checkbox" value="percolation_tortuosity" checked>
+      <span>Percolation + Tortuosity</span></label>
+    <label class="plot-checkbox"><input type="checkbox" value="ionic_active">
+      <span>Ionic Active AM</span></label>
+    <label class="plot-checkbox"><input type="checkbox" value="coverage">
+      <span>Coverage</span></label>
+    <label class="plot-checkbox"><input type="checkbox" value="four_panel">
+      <span>4-Panel 종합</span></label>
+  </div>
+
+  <div id="plots-output" style="display:none">
+    <div id="plots-grid" class="plots-grid"></div>
+  </div>
+  <div id="plots-loading" style="display:none;text-align:center;padding:20px">
+    <p>플롯 생성 중...</p>
+  </div>
+</div>
+
 <!-- Report Generation -->
 <div class="card">
   <h3>비교 리포트 생성</h3>
@@ -111,6 +144,75 @@ document.getElementById('report-form')?.addEventListener('submit', async (e) => 
   output.style.display = 'block';
   output.querySelector('pre').textContent = data.report;
 });
+
+async function generatePlots() {
+  const checks = document.querySelectorAll('.plot-checkbox input:checked');
+  const plots = Array.from(checks).map(c => c.value);
+  if (!plots.length) return alert('플롯을 선택하세요.');
+
+  const btn = document.getElementById('plot-btn');
+  const loading = document.getElementById('plots-loading');
+  btn.disabled = true; btn.textContent = '생성 중...';
+  loading.style.display = 'block';
+
+  const form = new FormData();
+  {% for cid in selected %}form.append('cases', '{{ cid }}');{% endfor %}
+  plots.forEach(p => form.append('plots', p));
+
+  try {
+    const res = await fetch('/group/plots', { method: 'POST', body: form });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+
+    const grid = document.getElementById('plots-grid');
+    grid.innerHTML = '';
+    data.plots.forEach(p => {
+      const item = document.createElement('div');
+      item.className = 'plot-item';
+      item.innerHTML = `
+        <img src="/group/plot-image/${data.session}/${p.file}" alt="${p.title}"
+             onclick="openPlotModal(this.src, '${p.title}')">
+        <div class="plot-info">
+          <h4>${p.title}</h4>
+          <p class="plot-desc">${p.description}</p>
+          <details class="plot-origin">
+            <summary>Origin 설정</summary>
+            <pre>${p.origin_tip}</pre>
+          </details>
+          <details class="plot-code">
+            <summary>Python 코드</summary>
+            <pre>${p.python_hint || ''}</pre>
+          </details>
+        </div>`;
+      grid.appendChild(item);
+    });
+    document.getElementById('plots-output').style.display = 'block';
+  } catch(e) { alert('오류: ' + e.message); }
+  finally {
+    btn.disabled = false; btn.textContent = '선택 플롯 생성';
+    loading.style.display = 'none';
+  }
+}
+
+function openPlotModal(src, title) {
+  // reuse modal if exists, or create
+  let modal = document.getElementById('plot-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'plot-modal';
+    modal.className = 'modal';
+    modal.onclick = () => modal.classList.remove('open');
+    modal.innerHTML = `<div class="modal-inner" onclick="event.stopPropagation()">
+      <button class="modal-close" onclick="document.getElementById('plot-modal').classList.remove('open')">&times;</button>
+      <img id="plot-modal-img" src="" style="max-width:100%;max-height:85vh;border-radius:8px">
+      <p id="plot-modal-title" style="text-align:center;color:var(--dim);margin-top:8px"></p>
+    </div>`;
+    document.body.appendChild(modal);
+  }
+  document.getElementById('plot-modal-img').src = src;
+  document.getElementById('plot-modal-title').textContent = title;
+  modal.classList.add('open');
+}
 
 function copyGroupReport() {
   const text = document.getElementById('group-report-content').textContent;

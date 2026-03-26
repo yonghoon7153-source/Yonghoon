@@ -441,6 +441,59 @@ def group():
     return render_template('group.html', cases=cases, selected=selected,
                          comparison=comparison_data)
 
+@app.route('/group/plots', methods=['POST'])
+def group_plots():
+    """Generate comparison plots for selected cases."""
+    selected = request.form.getlist('cases')
+    plots = request.form.getlist('plots')
+    if not selected or not plots:
+        return jsonify({'error': '케이스와 플롯을 선택하세요.'}), 400
+
+    session_id = datetime.now().strftime('%y%m%d_%H%M%S') + '_' + str(uuid.uuid4())[:4]
+    plot_dir = os.path.join(app.config['RESULTS_FOLDER'], 'group_plots', session_id)
+    os.makedirs(plot_dir, exist_ok=True)
+
+    # Collect metrics files and names
+    input_files = []
+    names = []
+    for cid in selected:
+        results_dir = get_results_dir(cid)
+        metrics_path = os.path.join(results_dir, 'full_metrics.json')
+        meta_file = os.path.join(get_case_dir(cid), 'meta.json')
+        if os.path.exists(metrics_path) and os.path.exists(meta_file):
+            input_files.append(metrics_path)
+            with open(meta_file) as f:
+                meta = json.load(f)
+            names.append(meta.get('name', cid))
+
+    if not input_files:
+        return jsonify({'error': '메트릭 데이터가 없습니다.'}), 400
+
+    scripts = app.config['SCRIPTS_FOLDER']
+    cmd = ['python3', os.path.join(scripts, 'generate_comparison_plots.py'),
+           '-i'] + input_files + ['-n'] + names + ['-o', plot_dir, '-p'] + plots
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+
+    if result.returncode != 0:
+        return jsonify({'error': f'Plot 생성 실패: {result.stderr}'}), 500
+
+    # Load plot info
+    info_path = os.path.join(plot_dir, 'plot_info.json')
+    plot_list = []
+    if os.path.exists(info_path):
+        with open(info_path) as f:
+            info = json.load(f)
+        for key in plots:
+            if key in info:
+                plot_list.append(info[key])
+
+    return jsonify({'session': session_id, 'plots': plot_list})
+
+@app.route('/group/plot-image/<session>/<filename>')
+def serve_group_plot(session, filename):
+    plot_dir = os.path.join(app.config['RESULTS_FOLDER'], 'group_plots', session)
+    return send_from_directory(plot_dir, filename)
+
 @app.route('/group/report', methods=['POST'])
 def group_report():
     """Generate group comparison markdown report."""

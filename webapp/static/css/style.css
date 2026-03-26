@@ -304,6 +304,54 @@ select.input { cursor: pointer; }
   margin: 4px 0 8px; color: var(--dim);
 }
 
+/* ===== Group Plots ===== */
+.plot-select-grid {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;
+}
+.plot-checkbox {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 6px;
+  cursor: pointer; font-size: .85rem; transition: .15s;
+}
+.plot-checkbox:hover { border-color: var(--accent); }
+.plot-checkbox input { accent-color: var(--accent); }
+
+.plots-grid {
+  display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 16px;
+}
+.plot-item {
+  display: grid; grid-template-columns: 1fr 300px; gap: 16px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+}
+.plot-item img {
+  width: 100%; height: auto; cursor: pointer;
+  padding: 12px; transition: .2s;
+}
+.plot-item img:hover { opacity: .9; }
+.plot-info { padding: 16px 16px 16px 0; }
+.plot-info h4 { margin-bottom: 8px; font-size: .95rem; }
+.plot-desc { color: var(--dim); font-size: .8rem; line-height: 1.5; margin-bottom: 12px; }
+.plot-origin, .plot-code {
+  margin-top: 8px; font-size: .8rem;
+}
+.plot-origin summary, .plot-code summary {
+  cursor: pointer; color: var(--accent); font-weight: 500;
+  padding: 4px 0;
+}
+.plot-origin pre, .plot-code pre {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 6px; padding: 10px; margin-top: 6px;
+  font-family: var(--mono); font-size: .75rem;
+  line-height: 1.5; white-space: pre-wrap; max-height: 200px;
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .plot-item { grid-template-columns: 1fr; }
+}
+
 /* ===== Group ===== */
 .case-select-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

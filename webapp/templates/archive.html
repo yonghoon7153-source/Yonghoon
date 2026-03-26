@@ -61,7 +61,12 @@
       </div>
       <div class="folder-grid">
         {% for f in folders %}
-        <a href="/archive?folder={{ f.path }}" class="folder-card">
+        <a href="/archive?folder={{ f.path }}" class="folder-card"
+           draggable="true"
+           ondragstart="dragStart(event, '{{ f.path }}')"
+           ondragover="dragOver(event)"
+           ondragleave="dragLeave(event)"
+           ondrop="dropOnFolder(event, '{{ f.path }}')">
           <span class="folder-icon">&#x1F4C1;</span>
           <div class="folder-info">
             <strong>{{ f.name }}</strong>
@@ -187,6 +192,49 @@ async function createFolder() {
   if (data.success) location.reload();
   else alert(data.error);
 }
+
+// Drag & Drop between folders
+let dragSrc = null;
+
+function dragStart(e, path) {
+  dragSrc = path;
+  e.dataTransfer.effectAllowed = 'move';
+  e.target.style.opacity = '0.5';
+}
+
+function dragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('folder-drop-target');
+}
+
+function dragLeave(e) {
+  e.currentTarget.classList.remove('folder-drop-target');
+}
+
+async function dropOnFolder(e, targetPath) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('folder-drop-target');
+  if (!dragSrc || dragSrc === targetPath) return;
+  // Don't drop into itself
+  if (targetPath.startsWith(dragSrc + '/')) return alert('자기 자신 안으로 이동할 수 없습니다.');
+
+  const srcName = dragSrc.split('/').pop();
+  if (!confirm(`"${srcName}"을(를) "${targetPath.split('/').pop()}" 안으로 이동할까요?`)) return;
+
+  const form = new FormData();
+  form.append('src', dragSrc);
+  form.append('dst', targetPath);
+  const res = await fetch('/archive/move', { method: 'POST', body: form });
+  const data = await res.json();
+  if (data.success) location.reload();
+  else alert(data.error || '이동 실패');
+}
+
+document.addEventListener('dragend', () => {
+  dragSrc = null;
+  document.querySelectorAll('.folder-card').forEach(c => c.style.opacity = '1');
+});
 
 async function deleteAllFolders() {
   const folders = [{% for f in folders %}'{{ f.path }}',{% endfor %}];

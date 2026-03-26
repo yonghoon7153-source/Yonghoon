@@ -416,6 +416,13 @@ select.input { cursor: pointer; }
   transition: .15s; text-decoration: none; color: var(--text);
 }
 .folder-card:hover { border-color: var(--accent); }
+.folder-card[draggable] { cursor: grab; }
+.folder-card[draggable]:active { cursor: grabbing; }
+.folder-drop-target {
+  border-color: var(--green) !important;
+  background: rgba(52,211,153,.08) !important;
+  box-shadow: 0 0 0 2px rgba(52,211,153,.3);
+}
 .folder-icon { font-size: 1.6rem; }
 .folder-info { flex: 1; }
 .folder-info strong { display: block; font-size: .9rem; }

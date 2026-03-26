@@ -798,6 +798,13 @@ def archive_save_case():
     shutil.copytree(results_dir, save_dir, dirs_exist_ok=True)
     # Also copy meta
     shutil.copy2(meta_file, os.path.join(save_dir, 'meta.json'))
+    # Also copy original uploaded files (atom, contact, mesh, input .liggghts)
+    raw_dir = os.path.join(save_dir, 'raw_files')
+    os.makedirs(raw_dir, exist_ok=True)
+    for fname in os.listdir(case_dir):
+        fpath = os.path.join(case_dir, fname)
+        if os.path.isfile(fpath) and fname != 'meta.json':
+            shutil.copy2(fpath, os.path.join(raw_dir, fname))
     return jsonify({'success': True, 'saved_to': save_dir})
 
 @app.route('/archive/download/<path:filepath>')

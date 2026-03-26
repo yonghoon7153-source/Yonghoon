@@ -231,8 +231,8 @@ select.input { cursor: pointer; }
 }
 .tab-btn.active { background: var(--bg); color: var(--text); }
 .tab-btn:hover:not(.active) { color: var(--text); }
-.tab-panel { display: none; }
-.tab-panel.active { display: block; }
+.tab-panel, .source-panel { display: none; }
+.tab-panel.active, .source-panel.active { display: block; }
 
 /* ===== Figures Grid ===== */
 .figures-grid {

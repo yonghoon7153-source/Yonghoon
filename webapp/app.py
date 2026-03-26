@@ -441,18 +441,30 @@ def group():
         ]
         rows = []
         for cid in selected:
-            results_dir = get_results_dir(cid)
-            meta_file = os.path.join(get_case_dir(cid), 'meta.json')
-            if not os.path.exists(meta_file):
-                continue
-            with open(meta_file) as f:
-                meta = json.load(f)
+            # Handle archive: prefix
+            if cid.startswith('archive:'):
+                archive_rel = cid[len('archive:'):]
+                case_path = os.path.join(app.config['ARCHIVE_FOLDER'], archive_rel)
+                meta_file = os.path.join(case_path, 'meta.json')
+                metrics_path = os.path.join(case_path, 'full_metrics.json')
+                case_name = os.path.basename(archive_rel)
+            else:
+                case_path = get_results_dir(cid)
+                meta_file = os.path.join(get_case_dir(cid), 'meta.json')
+                metrics_path = os.path.join(case_path, 'full_metrics.json')
+                case_name = cid
 
-            metrics_path = os.path.join(results_dir, 'full_metrics.json')
+            if os.path.exists(meta_file):
+                with open(meta_file) as f:
+                    meta = json.load(f)
+                case_name = meta.get('name', case_name)
+
             metrics = {}
             if os.path.exists(metrics_path):
                 with open(metrics_path) as f:
                     metrics = json.load(f)
+            else:
+                continue
 
             # Standard 모드: coverage_AM_mean → P:S에 따라 P 또는 S에 매핑
             if 'coverage_AM_mean' in metrics:
@@ -469,7 +481,7 @@ def group():
                 else:
                     metrics['area_AM_S_SE_total'] = metrics['area_AM_SE_total']
 
-            row = {'케이스': meta.get('name', cid)}
+            row = {'케이스': case_name}
             for label, unit, key in display_keys:
                 val = metrics.get(key, '')
                 if isinstance(val, float):
@@ -489,8 +501,50 @@ def group():
                 'rows': rows
             }
 
+    # Scan archive for folders with full_metrics.json
+    archive_folders = []
+    archive_root = app.config['ARCHIVE_FOLDER']
+    if os.path.isdir(archive_root):
+        for dirpath, dirnames, filenames in os.walk(archive_root):
+            # Count cases in this folder (subfolders with full_metrics.json)
+            case_count = 0
+            for d in dirnames:
+                if os.path.exists(os.path.join(dirpath, d, 'full_metrics.json')):
+                    case_count += 1
+            if case_count > 0:
+                rel = os.path.relpath(dirpath, archive_root)
+                archive_folders.append({'path': rel if rel != '.' else '(최상위)', 'case_count': case_count})
+
     return render_template('group.html', cases=cases, selected=selected,
-                         comparison=comparison_data)
+                         comparison=comparison_data, archive_folders=archive_folders)
+
+@app.route('/group/archive-cases')
+def group_archive_cases():
+    """Return cases in an archive folder that have full_metrics.json."""
+    folder = request.args.get('folder', '')
+    archive_root = app.config['ARCHIVE_FOLDER']
+    if folder == '(최상위)':
+        base = archive_root
+    else:
+        base = os.path.join(archive_root, folder)
+    if not os.path.isdir(base):
+        return jsonify({'cases': []})
+
+    cases = []
+    for name in sorted(os.listdir(base)):
+        case_dir = os.path.join(base, name)
+        metrics_path = os.path.join(case_dir, 'full_metrics.json')
+        if os.path.isdir(case_dir) and os.path.exists(metrics_path):
+            with open(metrics_path) as f:
+                m = json.load(f)
+            # Use archive: prefix to distinguish from dashboard cases
+            case_id = f"archive:{os.path.relpath(case_dir, archive_root)}"
+            cases.append({
+                'id': case_id,
+                'name': name,
+                'ps_ratio': m.get('ps_ratio', ''),
+            })
+    return jsonify({'cases': cases})
 
 @app.route('/group/plots', methods=['POST'])
 def group_plots():
@@ -508,14 +562,22 @@ def group_plots():
     input_files = []
     names = []
     for cid in selected:
-        results_dir = get_results_dir(cid)
-        metrics_path = os.path.join(results_dir, 'full_metrics.json')
-        meta_file = os.path.join(get_case_dir(cid), 'meta.json')
-        if os.path.exists(metrics_path) and os.path.exists(meta_file):
+        if cid.startswith('archive:'):
+            archive_rel = cid[len('archive:'):]
+            case_path = os.path.join(app.config['ARCHIVE_FOLDER'], archive_rel)
+            metrics_path = os.path.join(case_path, 'full_metrics.json')
+            case_name = os.path.basename(archive_rel)
+        else:
+            case_path = get_results_dir(cid)
+            metrics_path = os.path.join(case_path, 'full_metrics.json')
+            meta_file = os.path.join(get_case_dir(cid), 'meta.json')
+            case_name = cid
+            if os.path.exists(meta_file):
+                with open(meta_file) as f:
+                    case_name = json.load(f).get('name', cid)
+        if os.path.exists(metrics_path):
             input_files.append(metrics_path)
-            with open(meta_file) as f:
-                meta = json.load(f)
-            names.append(meta.get('name', cid))
+            names.append(case_name)
 
     if not input_files:
         return jsonify({'error': '메트릭 데이터가 없습니다.'}), 400

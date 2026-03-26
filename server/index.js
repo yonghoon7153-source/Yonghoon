@@ -14,71 +14,21 @@ const notion = new Client({ auth: process.env.NOTION_API_KEY });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const DATABASE_ID = process.env.NOTION_DATABASE_ID || '7b5d9b8c069c4f3bbe40b25f55afdf96';
+// Data source ID from Notion database
+const DATA_SOURCE_ID = '740a424e-7634-490c-b98c-d2ad04dcf29f';
 
 // Cache for Notion pages
 let cachedPages = [];
 let lastFetchTime = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-async function getBlockChildren(blockId) {
-  const blocks = [];
-  let cursor;
+async function getPageMarkdown(pageId) {
   try {
-    do {
-      const response = await notion.blocks.children.list({
-        block_id: blockId,
-        start_cursor: cursor,
-        page_size: 100,
-      });
-      blocks.push(...response.results);
-      cursor = response.has_more ? response.next_cursor : undefined;
-    } while (cursor);
+    const response = await notion.pages.retrieveMarkdown({ page_id: pageId });
+    return response.markdown || '';
   } catch (e) {
-    // silently skip inaccessible blocks
+    return '';
   }
-  return blocks;
-}
-
-function extractTextFromBlock(block) {
-  const texts = [];
-  const type = block.type;
-  const content = block[type];
-
-  if (!content) return '';
-
-  if (content.rich_text) {
-    texts.push(content.rich_text.map(t => t.plain_text).join(''));
-  }
-  if (content.caption) {
-    texts.push(content.caption.map(t => t.plain_text).join(''));
-  }
-
-  return texts.join(' ');
-}
-
-async function getPageContent(pageId) {
-  const blocks = await getBlockChildren(pageId);
-  const textParts = [];
-
-  for (const block of blocks) {
-    const text = extractTextFromBlock(block);
-    if (text) textParts.push(text);
-
-    // Get children of toggles, callouts, etc.
-    if (block.has_children) {
-      try {
-        const children = await getBlockChildren(block.id);
-        for (const child of children) {
-          const childText = extractTextFromBlock(child);
-          if (childText) textParts.push(childText);
-        }
-      } catch (e) {
-        // skip
-      }
-    }
-  }
-
-  return textParts.join('\n');
 }
 
 function extractPageProperties(page) {
@@ -105,8 +55,8 @@ async function fetchAllPages() {
   let cursor;
 
   do {
-    const response = await notion.databases.query({
-      database_id: DATABASE_ID,
+    const response = await notion.dataSources.query({
+      data_source_id: DATA_SOURCE_ID,
       start_cursor: cursor,
       page_size: 100,
     });
@@ -114,13 +64,15 @@ async function fetchAllPages() {
     cursor = response.has_more ? response.next_cursor : undefined;
   } while (cursor);
 
+  console.log(`Found ${pages.length} pages. Fetching content...`);
+
   // Fetch content for each page (with rate limiting)
   const enrichedPages = [];
   for (const page of pages) {
     const props = extractPageProperties(page);
     let content = '';
     try {
-      content = await getPageContent(page.id);
+      content = await getPageMarkdown(page.id);
     } catch (e) {
       console.log(`Failed to fetch content for: ${props.title}`);
     }
@@ -129,7 +81,7 @@ async function fetchAllPages() {
       id: page.id,
       url: page.url,
       ...props,
-      content: content.slice(0, 3000), // Limit content length per page
+      content: content.slice(0, 3000),
     });
 
     // Rate limit: small delay between requests

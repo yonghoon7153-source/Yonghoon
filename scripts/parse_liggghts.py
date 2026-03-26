@@ -80,6 +80,68 @@ def parse_mesh_stl(filepath):
     return np.mean(zs) if zs else None
 
 
+def parse_input_script(filepath):
+    """Parse LIGGGHTS input script for material properties and ratios."""
+    params = {}
+    with open(filepath, 'r') as f:
+        content = f.read()
+        lines = content.split('\n')
+
+    # Young's modulus: fix m1 all property/global youngsModulus peratomtype ...
+    for line in lines:
+        line = line.strip()
+        if 'youngsModulus' in line and 'peratomtype' in line:
+            parts = line.split('peratomtype')[-1].strip().split()
+            e_values = []
+            for p in parts:
+                try:
+                    e_values.append(float(p))
+                except ValueError:
+                    break
+            params['youngs_modulus_sim'] = e_values  # sim values (scaled)
+
+        # Particle distribution weights
+        if 'particledistribution/discrete' in line:
+            # e.g.: fix pdd_mix all particledistribution/discrete 49979687 2 pts1 0.816 pts2 0.184
+            parts = line.split()
+            weights = []
+            for i, p in enumerate(parts):
+                if p.startswith('pts'):
+                    if i + 1 < len(parts):
+                        try:
+                            weights.append(float(parts[i + 1]))
+                        except ValueError:
+                            pass
+            if weights:
+                params['mass_fractions'] = weights
+                # Assume first entries are AM, last is SE (or as defined)
+                am_frac = sum(weights[:-1])
+                se_frac = weights[-1]
+                params['am_se_ratio'] = f"{am_frac*100:.1f}:{se_frac*100:.1f}"
+
+        # Radius variables
+        if line.startswith('variable') and 'equal' in line:
+            parts = line.split()
+            if len(parts) >= 4:
+                var_name = parts[1]
+                try:
+                    val = float(parts[3].replace('e-3', 'e-3'))
+                    if 'r_AM' in var_name or 'r_SE' in var_name:
+                        params[var_name] = val
+                except ValueError:
+                    pass
+
+        # Target pressure
+        if 'target_press' in line and 'equal' in line:
+            parts = line.split()
+            try:
+                params['target_press_sim'] = float(parts[3])
+            except (ValueError, IndexError):
+                pass
+
+    return params
+
+
 def find_last_file(file_list):
     if len(file_list) == 1:
         return file_list[0]
@@ -100,6 +162,7 @@ def main():
     atom_files = [f for f in args.files if 'atom' in os.path.basename(f).lower() and f.endswith('.liggghts')]
     contact_files = [f for f in args.files if 'contact' in os.path.basename(f).lower() and f.endswith('.liggghts')]
     mesh_files = [f for f in args.files if f.lower().endswith('.stl')]
+    input_files = [f for f in args.files if 'input' in os.path.basename(f).lower() and f.endswith('.liggghts')]
 
     if not atom_files:
         print("ERROR: No atom files found", file=sys.stderr); sys.exit(1)
@@ -142,6 +205,20 @@ def main():
             print(f"  -> plate_z = {plate_z:.6f}")
     else:
         print("No mesh STL files (will estimate thickness from atoms)")
+
+    # Input script (optional)
+    if input_files:
+        print(f"Parsing input script: {input_files[0]}")
+        params = parse_input_script(input_files[0])
+        if params:
+            with open(os.path.join(args.output, 'input_params.json'), 'w') as f:
+                json.dump(params, f, indent=2)
+            if 'am_se_ratio' in params:
+                print(f"  -> AM:SE = {params['am_se_ratio']}")
+            if 'youngs_modulus_sim' in params:
+                print(f"  -> E(sim) = {params['youngs_modulus_sim']}")
+    else:
+        print("No input script found (optional)")
 
     print("Parse complete!")
 

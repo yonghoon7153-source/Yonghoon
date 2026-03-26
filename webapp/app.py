@@ -101,10 +101,11 @@ def run_pipeline(case_id, mode, type_map, scale=1000):
     os.makedirs(figures_dir, exist_ok=True)
     scripts = app.config['SCRIPTS_FOLDER']
 
-    # Find atom, contact, and mesh files
+    # Find atom, contact, mesh, and input files
     atom_files = sorted(globmod.glob(os.path.join(case_dir, 'atom_*.liggghts')))
     contact_files = sorted(globmod.glob(os.path.join(case_dir, 'contact_*.liggghts')))
     mesh_files = sorted(globmod.glob(os.path.join(case_dir, '*.stl')))
+    input_files = sorted(globmod.glob(os.path.join(case_dir, 'input_*.liggghts')))
 
     if not atom_files or not contact_files:
         return {'error': 'atom_*.liggghts 또는 contact_*.liggghts 파일을 찾을 수 없습니다.'}
@@ -113,7 +114,7 @@ def run_pipeline(case_id, mode, type_map, scale=1000):
 
     # Step 1: Parse (atom + contact + mesh)
     cmd = ['python3', os.path.join(scripts, 'parse_liggghts.py')]
-    cmd += atom_files + contact_files + mesh_files + ['-o', results_dir]
+    cmd += atom_files + contact_files + mesh_files + input_files + ['-o', results_dir]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
     log.append({'step': 'Parse', 'stdout': result.stdout, 'stderr': result.stderr, 'rc': result.returncode})
     if result.returncode != 0:
@@ -365,8 +366,16 @@ def single(case_id):
         with open(metrics_path) as f:
             metrics = json.load(f)
 
+    # Load input_params.json
+    input_params = {}
+    params_path = os.path.join(results_dir, 'input_params.json')
+    if os.path.exists(params_path):
+        with open(params_path) as f:
+            input_params = json.load(f)
+
     return render_template('single.html', case=meta, figures=figures,
-                         report=report, tables=tables, metrics=metrics)
+                         report=report, tables=tables, metrics=metrics,
+                         input_params=input_params)
 
 @app.route('/group', methods=['GET', 'POST'])
 def group():

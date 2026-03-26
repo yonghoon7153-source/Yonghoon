@@ -67,18 +67,46 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'contact_summary.csv'), index=False)
 
     # Atom Statistics (입자수, 반지름, 영률)
-    # Young's modulus from input script (sim values)
-    # SE real E ≈ 24 GPa, but sim uses effective E for contact model
+    # Load Young's modulus from input_params.json if available
+    input_params = {}
+    params_path = os.path.join(output_dir, 'input_params.json')
+    if os.path.exists(params_path):
+        with open(params_path) as f:
+            input_params = json.load(f)
+
+    e_sim_list = input_params.get('youngs_modulus_sim', [])
+    # SE real E ≈ 24 GPa
+    se_real_e = '24 GPa'
+
     rows = []
-    for t, name in type_map.items():
+    type_keys = sorted(type_map.keys())
+    for t in type_keys:
+        name = type_map[t]
         sub = {aid: a for aid, a in atoms_raw.items() if a['type'] == t}
         if not sub: continue
         rs = [a['radius'] for a in sub.values()]
         r_real = round(np.mean(rs) * scale, 2)
+
+        # Young's modulus: sim value × scale → real value
+        e_idx = t - 1  # type 1 → index 0
+        if e_idx < len(e_sim_list):
+            e_sim = e_sim_list[e_idx]
+            e_real = e_sim * scale  # × 1000
+            if e_real >= 1e9:
+                e_str = f"{e_real/1e9:.1f} GPa"
+            else:
+                e_str = f"{e_real/1e6:.1f} MPa"
+            # SE: 유효영률 옆에 실제값 표기
+            if name == 'SE':
+                e_str = f"{e_str} ({se_real_e})"
+        else:
+            e_str = '-'
+
         rows.append({
             '입자유형': name,
             '입자수': len(sub),
             '반지름(μm)': r_real,
+            '영률': e_str,
         })
     pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'atom_statistics.csv'), index=False)
 

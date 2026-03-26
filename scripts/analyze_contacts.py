@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Analyze contacts from parsed LIGGGHTS CSV files.
-Classifies contacts, computes coordination numbers, force statistics, network metrics.
+DEM Contact Analysis - Standard mode (AM + SE, 2 types)
+Full pipeline: porosity, interface area, coverage, percolation, tortuosity, ionic active AM
 
 Usage:
     python analyze_contacts.py results/atoms.csv results/contacts.csv -o ./results -t "1:AM,2:SE" -s 1000
@@ -9,304 +9,204 @@ Usage:
 import argparse
 import os
 import sys
+import json
 import numpy as np
 import pandas as pd
-import json
+from collections import defaultdict
+
+sys.path.insert(0, os.path.dirname(__file__))
+from dem_analysis_core import run_full_analysis
+
+
+def load_atoms_raw(csv_path):
+    df = pd.read_csv(csv_path)
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    df['id'] = df['id'].astype(int)
+    df['type'] = df['type'].astype(int)
+    atoms = {}
+    for _, row in df.iterrows():
+        atoms[int(row['id'])] = {
+            'type': int(row['type']),
+            'x': row['x'], 'y': row['y'], 'z': row['z'],
+            'radius': row['radius'],
+        }
+    return atoms, df
+
+
+def load_contacts_raw(csv_path):
+    df = pd.read_csv(csv_path)
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    df['id1'] = df['id1'].astype(int)
+    df['id2'] = df['id2'].astype(int)
+    contacts = []
+    for _, row in df.iterrows():
+        contacts.append({
+            'id1': int(row['id1']), 'id2': int(row['id2']),
+            'fn': np.sqrt(row['fn_x']**2 + row['fn_y']**2 + row['fn_z']**2),
+            'ft': np.sqrt(row['ft_x']**2 + row['ft_y']**2 + row['ft_z']**2),
+            'contact_area': row['contact_area'],
+            'delta': row['delta'],
+        })
+    return contacts, df
+
+
+def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
+                 type_map, scale, output_dir):
+    area_conv = 1.0 / (scale ** 2) * 1e12
+
+    # Contact Summary
+    rows = []
+    for ct, v in results['interface'].items():
+        rows.append({
+            '접촉유형': ct, '접촉수': v['n_contacts'],
+            '접촉면적_mean(μm²)': round(v['mean_area'], 4),
+            '접촉면적_total(μm²)': round(v['total_area'], 2),
+        })
+    pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'contact_summary.csv'), index=False)
+
+    # Atom Statistics
+    rows = []
+    for t, name in type_map.items():
+        sub = {aid: a for aid, a in atoms_raw.items() if a['type'] == t}
+        if not sub: continue
+        zs = [a['z'] for a in sub.values()]
+        rs = [a['radius'] for a in sub.values()]
+        rows.append({
+            '입자유형': name, '입자수': len(sub),
+            '반지름(μm)': round(np.mean(rs) * scale, 2),
+            'Z_min(μm)': round(min(zs) * scale, 1),
+            'Z_max(μm)': round(max(zs) * scale, 1),
+        })
+    pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'atom_statistics.csv'), index=False)
+
+    # Coordination Summary
+    coord = defaultdict(int)
+    for c in contacts_raw:
+        coord[c['id1']] += 1
+        coord[c['id2']] += 1
+    rows = []
+    for t, name in type_map.items():
+        ids = [aid for aid, a in atoms_raw.items() if a['type'] == t]
+        vals = np.array([coord.get(aid, 0) for aid in ids])
+        rows.append({
+            '입자유형': name, '입자수': len(ids),
+            '배위수_mean': round(float(np.mean(vals)), 1),
+            '배위수_std': round(float(np.std(vals)), 1),
+            '배위수_min': int(np.min(vals)),
+            '배위수_max': int(np.max(vals)),
+        })
+    pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'coordination_summary.csv'), index=False)
+
+    # Force Summary
+    force_by_type = defaultdict(list)
+    for c in contacts_raw:
+        if c['id1'] in atoms_raw and c['id2'] in atoms_raw:
+            t1 = type_map.get(atoms_raw[c['id1']]['type'], '?')
+            t2 = type_map.get(atoms_raw[c['id2']]['type'], '?')
+            ct = '-'.join(sorted([t1, t2]))
+            force_by_type[ct].append(c['fn'])
+    rows = []
+    for ct, forces in force_by_type.items():
+        f = np.array(forces) * scale
+        rows.append({
+            '접촉유형': ct,
+            '수직력_mean(μN)': round(float(np.mean(f)), 2),
+            '수직력_median(μN)': round(float(np.median(f)), 2),
+            '수직력_max(μN)': round(float(np.max(f)), 2),
+        })
+    pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'force_summary.csv'), index=False)
+
+    # Network Summary (comprehensive)
+    perc = results['percolation']
+    cn = results['se_se_cn']
+    tau = results['tortuosity']
+    ionic = results['ionic_active']
+    rows = [
+        {'지표': 'Porosity(%)', '값': round(results['porosity'], 2)},
+        {'지표': '전극두께(μm)', '값': round(results['thickness_um'], 2)},
+        {'지표': '두께기준', '값': results['plate_z_source']},
+        {'지표': 'SE-SE CN mean', '값': round(cn['mean'], 2)},
+        {'지표': 'SE Percolation(%)', '값': round(perc['percolation_pct'], 1)},
+        {'지표': 'Top Reachable(%)', '값': round(perc['top_reachable_pct'], 1)},
+        {'지표': '네트워크 수', '값': perc['n_components']},
+        {'지표': 'Tortuosity mean', '값': round(tau['mean'], 2) if tau['mean'] else 'N/A'},
+        {'지표': 'Tortuosity std', '값': round(tau['std'], 2) if tau['std'] else 'N/A'},
+        {'지표': 'Ionic Active AM(%)', '값': round(ionic['active_pct'], 1)},
+    ]
+    for lbl, v in results['coverage'].items():
+        rows.append({'지표': f'Coverage {lbl}(%)', '값': round(v['mean'], 1)})
+        rows.append({'지표': f'Coverage {lbl} std', '값': round(v['std'], 1)})
+    pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'network_summary.csv'), index=False)
+
+    # Full metrics JSON
+    metrics = {
+        'porosity': results['porosity'],
+        'thickness_um': results['thickness_um'],
+        'plate_z_source': results['plate_z_source'],
+        'se_se_cn': cn['mean'],
+        'percolation_pct': perc['percolation_pct'],
+        'top_reachable_pct': perc['top_reachable_pct'],
+        'n_components': perc['n_components'],
+        'tortuosity_mean': tau['mean'],
+        'tortuosity_std': tau['std'],
+        'ionic_active_pct': ionic['active_pct'],
+    }
+    for ct, v in results['interface'].items():
+        safe = ct.replace('-', '_')
+        metrics[f'area_{safe}_total'] = v['total_area']
+        metrics[f'area_{safe}_n'] = v['n_contacts']
+        metrics[f'area_{safe}_mean'] = v['mean_area']
+    for lbl, v in results['coverage'].items():
+        metrics[f'coverage_{lbl}_mean'] = v['mean']
+        metrics[f'coverage_{lbl}_std'] = v['std']
+    with open(os.path.join(output_dir, 'full_metrics.json'), 'w') as f:
+        json.dump(metrics, f, indent=2, default=str)
+
+    # Analyzed CSVs
+    df_atom['type_name'] = df_atom['type'].map(type_map)
+    coord_s = pd.Series(coord, name='coordination')
+    df_atom = df_atom.merge(coord_s, left_on='id', right_index=True, how='left')
+    df_atom['coordination'] = df_atom['coordination'].fillna(0).astype(int)
+    df_atom.to_csv(os.path.join(output_dir, 'atoms_analyzed.csv'), index=False)
+
+    id_to_type = {aid: type_map.get(a['type'], '?') for aid, a in atoms_raw.items()}
+    df_contact['type1'] = df_contact['id1'].map(id_to_type)
+    df_contact['type2'] = df_contact['id2'].map(id_to_type)
+    df_contact['contact_type'] = df_contact.apply(
+        lambda r: '-'.join(sorted([str(r['type1']), str(r['type2'])])), axis=1)
+    df_contact.to_csv(os.path.join(output_dir, 'contacts_analyzed.csv'), index=False)
+
 
 def main():
-    parser = argparse.ArgumentParser(description='Analyze DEM contacts')
-    parser.add_argument('atoms_csv', help='Path to atoms.csv')
-    parser.add_argument('contacts_csv', help='Path to contacts.csv')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('atoms_csv')
+    parser.add_argument('contacts_csv')
     parser.add_argument('-o', '--output', default='./results')
-    parser.add_argument('-t', '--type-map', default='1:AM,2:SE',
-                        help='Type mapping, e.g. "1:AM,2:SE" or "1:AM_P,2:AM_S,3:SE"')
-    parser.add_argument('-s', '--scale', type=float, default=1000,
-                        help='Scale factor (sim mm -> real um)')
+    parser.add_argument('-t', '--type-map', default='1:AM,2:SE')
+    parser.add_argument('-s', '--scale', type=float, default=1000)
     args = parser.parse_args()
 
     os.makedirs(args.output, exist_ok=True)
-    scale = args.scale
-
-    # Parse type map
     type_map = {}
     for item in args.type_map.split(','):
         k, v = item.split(':')
         type_map[int(k)] = v.strip()
-    print(f"Type map: {type_map}")
 
-    # ─── Load Data ──────────────────────────────────────────────────────────
-    print("Loading atoms...")
-    df_atom = pd.read_csv(args.atoms_csv)
-    # Ensure numeric
-    for col in df_atom.columns:
-        if col not in ['id', 'type']:
-            df_atom[col] = pd.to_numeric(df_atom[col], errors='coerce')
-    df_atom['id'] = df_atom['id'].astype(int)
-    df_atom['type'] = df_atom['type'].astype(int)
-    df_atom['type_name'] = df_atom['type'].map(type_map)
-    print(f"  Atoms: {len(df_atom)}")
-    for t, name in type_map.items():
-        n = (df_atom['type'] == t).sum()
-        print(f"    Type {t} ({name}): {n}")
+    print(f"Type map: {type_map}, Scale: {args.scale}")
 
-    print("Loading contacts...")
-    df_contact = pd.read_csv(args.contacts_csv)
-    for col in df_contact.columns:
-        df_contact[col] = pd.to_numeric(df_contact[col], errors='coerce')
-    df_contact['id1'] = df_contact['id1'].astype(int)
-    df_contact['id2'] = df_contact['id2'].astype(int)
-    print(f"  Contacts: {len(df_contact)}")
+    atoms_raw, df_atom = load_atoms_raw(args.atoms_csv)
+    print(f"  {len(atoms_raw)} atoms")
+    contacts_raw, df_contact = load_contacts_raw(args.contacts_csv)
+    print(f"  {len(contacts_raw)} contacts")
 
-    # ─── Scale Conversion ───────────────────────────────────────────────────
-    # Positions: sim (mm-scale) -> real (um)
-    pos_cols_atom = ['x', 'y', 'z']
-    for c in pos_cols_atom:
-        if c in df_atom.columns:
-            df_atom[c] = df_atom[c] * scale
-    if 'radius' in df_atom.columns:
-        df_atom['radius'] = df_atom['radius'] * scale
+    print("\n=== Full Analysis ===")
+    results = run_full_analysis(atoms_raw, contacts_raw, type_map, args.scale, args.output)
 
-    pos_cols_contact = ['p1_x', 'p1_y', 'p1_z', 'p2_x', 'p2_y', 'p2_z',
-                        'cp_x', 'cp_y', 'cp_z']
-    for c in pos_cols_contact:
-        if c in df_contact.columns:
-            df_contact[c] = df_contact[c] * scale
-
-    if 'delta' in df_contact.columns:
-        df_contact['delta'] = df_contact['delta'] * scale
-    if 'contact_area' in df_contact.columns:
-        df_contact['contact_area'] = df_contact['contact_area'] * (scale ** 2)
-
-    # Force: F_sim(N) → F_real(μN)
-    # F_real(N) = F_sim(N) / scale  (∵ P×0.001, A×10^6 → F×1000)
-    # F_real(μN) = F_real(N) × 10^6 = F_sim(N) × 10^6 / scale = F_sim × scale
-    force_cols = ['fx', 'fy', 'fz', 'fn_x', 'fn_y', 'fn_z', 'ft_x', 'ft_y', 'ft_z']
-    for c in force_cols:
-        if c in df_contact.columns:
-            df_contact[c] = df_contact[c] * scale  # → μN
-
-    # Stress: already in simulation units, scale to MPa
-    stress_cols = ['c_strs[1]', 'c_strs[2]', 'c_strs[3]']
-    for c in stress_cols:
-        if c in df_atom.columns:
-            # LIGGGHTS stress/atom is in Pa*volume, need to divide by volume
-            # For per-atom stress: σ = strs / volume, volume = 4/3 π r³
-            pass  # We'll compute per-atom stress below
-
-    # Compute per-atom stress (σ = stress_atom / volume)
-    if 'radius' in df_atom.columns and all(c in df_atom.columns for c in stress_cols):
-        vol = (4.0 / 3.0) * np.pi * (df_atom['radius'] / scale) ** 3  # volume in sim units (m³)
-        for c in stress_cols:
-            col_name = c.replace('c_strs[1]', 'sigma_xx').replace('c_strs[2]', 'sigma_yy').replace('c_strs[3]', 'sigma_zz')
-            # stress/atom = σ_sim × V_sim (Pa·m³)
-            # σ_sim = stress_atom / V_sim (Pa in sim)
-            # σ_real = σ_sim × scale (∵ E scaled by 1/scale, P scaled by 1/scale)
-            # σ_real(MPa) = σ_sim(Pa) × scale / 1e6
-            df_atom[col_name] = df_atom[c] / vol * scale / 1e6  # → real MPa
-
-    # ─── Contact Classification ─────────────────────────────────────────────
-    print("Classifying contacts...")
-    id_to_type = df_atom.set_index('id')['type_name'].to_dict()
-
-    df_contact['type1'] = df_contact['id1'].map(id_to_type)
-    df_contact['type2'] = df_contact['id2'].map(id_to_type)
-
-    # Standardize contact type (alphabetical order)
-    def classify_contact(row):
-        t1, t2 = sorted([str(row['type1']), str(row['type2'])])
-        return f"{t1}-{t2}"
-
-    df_contact['contact_type'] = df_contact.apply(classify_contact, axis=1)
-    contact_types = df_contact['contact_type'].value_counts()
-    print("  Contact type distribution:")
-    for ct, n in contact_types.items():
-        print(f"    {ct}: {n} ({100*n/len(df_contact):.1f}%)")
-
-    # ─── Computed Columns ───────────────────────────────────────────────────
-    # Normal force magnitude
-    if all(c in df_contact.columns for c in ['fn_x', 'fn_y', 'fn_z']):
-        df_contact['fn_mag'] = np.sqrt(
-            df_contact['fn_x']**2 + df_contact['fn_y']**2 + df_contact['fn_z']**2)
-
-    # Tangential force magnitude
-    if all(c in df_contact.columns for c in ['ft_x', 'ft_y', 'ft_z']):
-        df_contact['ft_mag'] = np.sqrt(
-            df_contact['ft_x']**2 + df_contact['ft_y']**2 + df_contact['ft_z']**2)
-
-    # Total force magnitude
-    if all(c in df_contact.columns for c in ['fx', 'fy', 'fz']):
-        df_contact['f_mag'] = np.sqrt(
-            df_contact['fx']**2 + df_contact['fy']**2 + df_contact['fz']**2)
-
-    # Ft/Fn ratio
-    if 'fn_mag' in df_contact.columns and 'ft_mag' in df_contact.columns:
-        df_contact['ft_fn_ratio'] = df_contact['ft_mag'] / df_contact['fn_mag'].replace(0, np.nan)
-
-    # ─── Coordination Number ────────────────────────────────────────────────
-    print("Computing coordination numbers...")
-    contacts_per_atom = pd.concat([
-        df_contact[['id1']].rename(columns={'id1': 'id'}),
-        df_contact[['id2']].rename(columns={'id2': 'id'})
-    ])
-    coord_num = contacts_per_atom.groupby('id').size().rename('coordination')
-    df_atom = df_atom.merge(coord_num, left_on='id', right_index=True, how='left')
-    df_atom['coordination'] = df_atom['coordination'].fillna(0).astype(int)
-
-    # Type-specific coordination (e.g., SE-SE contacts for SE particles)
-    type_names = list(type_map.values())
-    for tn in type_names:
-        # Contacts where this type is involved
-        mask1 = df_contact['type1'] == tn
-        mask2 = df_contact['type2'] == tn
-        same_contacts = df_contact[(mask1 & (df_contact['type2'] == tn)) |
-                                    (mask2 & (df_contact['type1'] == tn))]
-        ids = pd.concat([same_contacts['id1'], same_contacts['id2']])
-        ids = ids[ids.isin(df_atom[df_atom['type_name'] == tn]['id'])]
-        same_coord = ids.groupby(ids).size().rename(f'coord_{tn}_{tn}')
-        df_atom = df_atom.merge(same_coord, left_on='id', right_index=True, how='left')
-        df_atom[f'coord_{tn}_{tn}'] = df_atom[f'coord_{tn}_{tn}'].fillna(0).astype(int)
-
-    coord_stats = df_atom.groupby('type_name')['coordination'].agg(['mean', 'std', 'min', 'max'])
-    print("  Coordination by type:")
-    print(coord_stats.to_string())
-
-    # ─── Network Analysis ───────────────────────────────────────────────────
-    print("Analyzing networks...")
-    import networkx as nx
-
-    network_results = {}
-    for tn in type_names:
-        # Build graph for same-type contacts
-        type_ids = set(df_atom[df_atom['type_name'] == tn]['id'])
-        same_contacts = df_contact[
-            (df_contact['type1'] == tn) & (df_contact['type2'] == tn)
-        ]
-        G = nx.Graph()
-        G.add_nodes_from(type_ids)
-        edges = list(zip(same_contacts['id1'].values, same_contacts['id2'].values))
-        G.add_edges_from(edges)
-
-        components = list(nx.connected_components(G))
-        largest = max(components, key=len) if components else set()
-        n_total = len(type_ids)
-        n_connected = sum(1 for n in type_ids if G.degree(n) > 0)
-        n_largest = len(largest)
-
-        # Percolation check (does largest component span Z range?)
-        if n_largest > 0:
-            z_vals = df_atom[df_atom['id'].isin(largest)]['z']
-            z_range = z_vals.max() - z_vals.min()
-            total_z = df_atom['z'].max() - df_atom['z'].min()
-            percolation = z_range / total_z * 100 if total_z > 0 else 0
-        else:
-            percolation = 0
-
-        network_results[tn] = {
-            'total': n_total,
-            'connected': n_connected,
-            'connected_pct': 100 * n_connected / n_total if n_total > 0 else 0,
-            'components': len(components),
-            'largest_pct': 100 * n_largest / n_total if n_total > 0 else 0,
-            'percolation_pct': percolation,
-        }
-        print(f"  {tn}: {n_connected}/{n_total} connected ({100*n_connected/n_total:.1f}%), "
-              f"{len(components)} components, largest {100*n_largest/n_total:.1f}%, "
-              f"percolation {percolation:.1f}%")
-
-    # ─── Save Results ───────────────────────────────────────────────────────
-    print("Saving results...")
-
-    # Analyzed CSVs
-    df_atom.to_csv(os.path.join(args.output, 'atoms_analyzed.csv'), index=False)
-    df_contact.to_csv(os.path.join(args.output, 'contacts_analyzed.csv'), index=False)
-
-    # Contact summary
-    contact_summary = []
-    for ct in df_contact['contact_type'].unique():
-        subset = df_contact[df_contact['contact_type'] == ct]
-        row = {
-            '접촉유형': ct,
-            '접촉수': len(subset),
-            '비율(%)': f"{100*len(subset)/len(df_contact):.1f}",
-        }
-        if 'fn_mag' in subset.columns:
-            row['수직력_mean(μN)'] = f"{subset['fn_mag'].mean():.2f}"
-            row['수직력_max(μN)'] = f"{subset['fn_mag'].max():.2f}"
-        if 'contact_area' in subset.columns:
-            row['접촉면적_mean(μm²)'] = f"{subset['contact_area'].mean():.4f}"
-            row['접촉면적_total(μm²)'] = f"{subset['contact_area'].sum():.2f}"
-        if 'delta' in subset.columns:
-            row['겹침량_mean(μm)'] = f"{subset['delta'].mean():.4f}"
-        contact_summary.append(row)
-    pd.DataFrame(contact_summary).to_csv(
-        os.path.join(args.output, 'contact_summary.csv'), index=False)
-
-    # Coordination summary
-    coord_summary = []
-    for tn in type_names:
-        sub = df_atom[df_atom['type_name'] == tn]
-        coord_summary.append({
-            '입자유형': tn,
-            '입자수': len(sub),
-            '배위수_mean': f"{sub['coordination'].mean():.1f}",
-            '배위수_std': f"{sub['coordination'].std():.1f}",
-            '배위수_min': sub['coordination'].min(),
-            '배위수_max': sub['coordination'].max(),
-        })
-    pd.DataFrame(coord_summary).to_csv(
-        os.path.join(args.output, 'coordination_summary.csv'), index=False)
-
-    # Network summary
-    net_rows = []
-    for tn, data in network_results.items():
-        net_rows.append({
-            '입자유형': tn,
-            '전체수': data['total'],
-            '연결된수': data['connected'],
-            '연결비율(%)': f"{data['connected_pct']:.1f}",
-            '네트워크수': data['components'],
-            '최대네트워크(%)': f"{data['largest_pct']:.1f}",
-            'Percolation(%)': f"{data['percolation_pct']:.1f}",
-        })
-    pd.DataFrame(net_rows).to_csv(
-        os.path.join(args.output, 'network_summary.csv'), index=False)
-
-    # Force summary
-    force_summary = []
-    for ct in df_contact['contact_type'].unique():
-        subset = df_contact[df_contact['contact_type'] == ct]
-        row = {'접촉유형': ct}
-        if 'fn_mag' in subset.columns:
-            row['수직력_mean(μN)'] = f"{subset['fn_mag'].mean():.2f}"
-            row['수직력_median(μN)'] = f"{subset['fn_mag'].median():.2f}"
-            row['수직력_max(μN)'] = f"{subset['fn_mag'].max():.2f}"
-        if 'ft_mag' in subset.columns:
-            row['전단력_mean(μN)'] = f"{subset['ft_mag'].mean():.2f}"
-        if 'ft_fn_ratio' in subset.columns:
-            valid = subset['ft_fn_ratio'].dropna()
-            row['전단/수직_median'] = f"{valid.median():.3f}" if len(valid) > 0 else 'N/A'
-        force_summary.append(row)
-    pd.DataFrame(force_summary).to_csv(
-        os.path.join(args.output, 'force_summary.csv'), index=False)
-
-    # Atom statistics
-    atom_stats = []
-    for tn in type_names:
-        sub = df_atom[df_atom['type_name'] == tn]
-        row = {
-            '입자유형': tn,
-            '입자수': len(sub),
-            '반지름(μm)': f"{sub['radius'].mean():.2f}" if 'radius' in sub.columns else 'N/A',
-            'Z_min(μm)': f"{sub['z'].min():.1f}",
-            'Z_max(μm)': f"{sub['z'].max():.1f}",
-        }
-        if 'sigma_zz' in sub.columns:
-            row['σ_zz_mean(MPa)'] = f"{sub['sigma_zz'].mean():.1f}"
-        atom_stats.append(row)
-    pd.DataFrame(atom_stats).to_csv(
-        os.path.join(args.output, 'atom_statistics.csv'), index=False)
-
-    print(f"\nAll results saved to {args.output}")
+    print("\nSaving...")
+    save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
+                 type_map, args.scale, args.output)
     print("Done!")
 
 

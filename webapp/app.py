@@ -101,18 +101,19 @@ def run_pipeline(case_id, mode, type_map, scale=1000):
     os.makedirs(figures_dir, exist_ok=True)
     scripts = app.config['SCRIPTS_FOLDER']
 
-    # Find atom and contact files
+    # Find atom, contact, and mesh files
     atom_files = sorted(globmod.glob(os.path.join(case_dir, 'atom_*.liggghts')))
     contact_files = sorted(globmod.glob(os.path.join(case_dir, 'contact_*.liggghts')))
+    mesh_files = sorted(globmod.glob(os.path.join(case_dir, '*.stl')))
 
     if not atom_files or not contact_files:
         return {'error': 'atom_*.liggghts 또는 contact_*.liggghts 파일을 찾을 수 없습니다.'}
 
     log = []
 
-    # Step 1: Parse
+    # Step 1: Parse (atom + contact + mesh)
     cmd = ['python3', os.path.join(scripts, 'parse_liggghts.py')]
-    cmd += atom_files + contact_files + ['-o', results_dir]
+    cmd += atom_files + contact_files + mesh_files + ['-o', results_dir]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
     log.append({'step': 'Parse', 'stdout': result.stdout, 'stderr': result.stderr, 'rc': result.returncode})
     if result.returncode != 0:

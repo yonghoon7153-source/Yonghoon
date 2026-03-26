@@ -19,6 +19,11 @@ const DATABASE_ID = process.env.NOTION_DATABASE_ID || '7b5d9b8c069c4f3bbe40b25f5
 let cachedPages = [];
 let lastFetchTime = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+let cachedDataSourceId = null;
+
+// Auto-sync: poll for new/updated pages every 2 minutes
+const SYNC_INTERVAL = 2 * 60 * 1000;
+let lastSyncEditTime = null;
 
 async function getPageMarkdown(pageId) {
   try {
@@ -43,16 +48,15 @@ function extractPageProperties(page) {
 }
 
 async function getDataSourceId() {
+  if (cachedDataSourceId) return cachedDataSourceId;
   const db = await notion.databases.retrieve({ database_id: DATABASE_ID });
-  console.log('Database keys:', Object.keys(db));
-  // Try multiple possible locations for data source ID
   if (db.data_sources && db.data_sources.length > 0) {
     const ds = db.data_sources[0];
-    return ds.data_source_id || ds.id;
+    cachedDataSourceId = ds.data_source_id || ds.id;
+  } else {
+    cachedDataSourceId = db.data_source_id || db.id || DATABASE_ID;
   }
-  if (db.data_source_id) return db.data_source_id;
-  if (db.id) return db.id;
-  return DATABASE_ID;
+  return cachedDataSourceId;
 }
 
 async function fetchAllPages() {
@@ -261,9 +265,70 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
+// API: Force refresh cache
+app.post('/api/refresh', async (req, res) => {
+  try {
+    cachedPages = [];
+    lastFetchTime = 0;
+    const pages = await fetchAllPages();
+    res.json({ message: `Refreshed ${pages.length} pages` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API: Get sync status
+app.get('/api/status', (req, res) => {
+  res.json({
+    totalPages: cachedPages.length,
+    lastFetchTime: lastFetchTime ? new Date(lastFetchTime).toISOString() : null,
+    autoSyncEnabled: true,
+    syncIntervalMs: SYNC_INTERVAL,
+  });
+});
+
+// Auto-sync: check for new/updated pages periodically
+async function autoSync() {
+  try {
+    const dataSourceId = await getDataSourceId();
+    // Query pages sorted by last edited time, get most recent
+    const response = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      page_size: 5,
+      sorts: [{ property: '생성 일자', direction: 'descending' }],
+    });
+
+    if (response.results.length === 0) return;
+
+    const latestEditTime = response.results[0].last_edited_time;
+
+    // If we have new edits since last sync, refresh cache
+    if (lastSyncEditTime && latestEditTime !== lastSyncEditTime) {
+      console.log(`[Auto-sync] Changes detected. Refreshing...`);
+      cachedPages = [];
+      lastFetchTime = 0;
+      await fetchAllPages();
+    }
+    lastSyncEditTime = latestEditTime;
+  } catch (e) {
+    console.error('[Auto-sync] Error:', e.message);
+  }
+}
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   // Pre-fetch pages on startup
-  fetchAllPages().catch(console.error);
+  fetchAllPages().then(() => {
+    // Set initial sync time
+    if (cachedPages.length > 0) {
+      const sorted = [...cachedPages].sort((a, b) =>
+        new Date(b.lastEdited) - new Date(a.lastEdited)
+      );
+      lastSyncEditTime = sorted[0]?.lastEdited;
+    }
+    // Start auto-sync polling
+    setInterval(autoSync, SYNC_INTERVAL);
+    console.log(`[Auto-sync] Enabled. Checking every ${SYNC_INTERVAL / 1000}s for changes.`);
+  }).catch(console.error);
 });

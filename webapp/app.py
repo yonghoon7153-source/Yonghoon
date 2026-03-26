@@ -72,7 +72,7 @@ def list_cases():
     upload_dir = app.config['UPLOAD_FOLDER']
     if not os.path.exists(upload_dir):
         return cases
-    for case_id in sorted(os.listdir(upload_dir)):
+    for case_id in sorted(os.listdir(upload_dir), reverse=True):
         case_dir = os.path.join(upload_dir, case_id)
         if not os.path.isdir(case_dir):
             continue
@@ -387,7 +387,22 @@ def group():
 
     comparison_data = {}
     if selected:
-        import pandas as pd
+        # Key metrics for comparison (from full_metrics.json)
+        display_keys = [
+            ('P:S', 'ps_ratio'),
+            ('Porosity(%)', 'porosity'),
+            ('두께(μm)', 'thickness_um'),
+            ('AM-SE Total(μm²)', 'area_AM전체_SE_total'),
+            ('SE-SE Total(μm²)', 'area_SE_SE_total'),
+            ('SE-SE CN', 'se_se_cn'),
+            ('SE Cluster', 'n_components'),
+            ('Percolation(%)', 'percolation_pct'),
+            ('Top Reachable(%)', 'top_reachable_pct'),
+            ('Tortuosity', 'tortuosity_mean'),
+            ('Ionic Active(%)', 'ionic_active_pct'),
+            ('Coverage AM_P(%)', 'coverage_AM_P_mean'),
+            ('Coverage AM_S(%)', 'coverage_AM_S_mean'),
+        ]
         rows = []
         for cid in selected:
             results_dir = get_results_dir(cid)
@@ -397,17 +412,18 @@ def group():
             with open(meta_file) as f:
                 meta = json.load(f)
 
-            row = {'case': meta.get('name', cid), 'id': cid}
+            metrics_path = os.path.join(results_dir, 'full_metrics.json')
+            metrics = {}
+            if os.path.exists(metrics_path):
+                with open(metrics_path) as f:
+                    metrics = json.load(f)
 
-            # Load summary CSVs
-            for csv_name in ['contact_summary', 'coordination_summary', 'network_summary']:
-                csv_path = os.path.join(results_dir, f'{csv_name}.csv')
-                if os.path.exists(csv_path):
-                    df = pd.read_csv(csv_path)
-                    for col in df.columns:
-                        for _, r in df.iterrows():
-                            key = f"{csv_name}_{col}_{r.iloc[0]}" if len(df) > 1 else f"{csv_name}_{col}"
-                            row[key] = r[col]
+            row = {'케이스': meta.get('name', cid)}
+            for label, key in display_keys:
+                val = metrics.get(key, '')
+                if isinstance(val, float):
+                    val = round(val, 2)
+                row[label] = val if val != '' else '-'
             rows.append(row)
 
         if rows:

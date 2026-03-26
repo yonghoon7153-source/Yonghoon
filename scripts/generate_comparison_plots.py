@@ -51,8 +51,9 @@ def _apply_style(ax, ylabel, names):
 
 def _save(fig, outdir, fname):
     fig.tight_layout(pad=1.5)
+    fig.subplots_adjust(right=0.85)  # dual Y-axis 우측 여백 확보
     path = os.path.join(outdir, fname)
-    fig.savefig(path, dpi=DPI, bbox_inches="tight", facecolor='white', pad_inches=0.15)
+    fig.savefig(path, dpi=DPI, bbox_inches="tight", facecolor='white', pad_inches=0.2)
     plt.close(fig)
     return path
 

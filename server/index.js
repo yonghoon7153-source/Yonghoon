@@ -14,8 +14,6 @@ const notion = new Client({ auth: process.env.NOTION_API_KEY });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const DATABASE_ID = process.env.NOTION_DATABASE_ID || '7b5d9b8c069c4f3bbe40b25f55afdf96';
-// Data source ID from Notion database
-const DATA_SOURCE_ID = '740a424e-7634-490c-b98c-d2ad04dcf29f';
 
 // Cache for Notion pages
 let cachedPages = [];
@@ -44,6 +42,16 @@ function extractPageProperties(page) {
   return { title, description, category, importance, link, lastEdited, createdTime };
 }
 
+async function getDataSourceId() {
+  const db = await notion.databases.retrieve({ database_id: DATABASE_ID });
+  // In v5, database has data_sources array
+  if (db.data_sources && db.data_sources.length > 0) {
+    return db.data_sources[0].data_source_id;
+  }
+  // Fallback: use database ID itself
+  return DATABASE_ID;
+}
+
 async function fetchAllPages() {
   const now = Date.now();
   if (cachedPages.length > 0 && now - lastFetchTime < CACHE_TTL) {
@@ -51,12 +59,17 @@ async function fetchAllPages() {
   }
 
   console.log('Fetching all pages from Notion database...');
+
+  // First, get the data source ID from the database
+  const dataSourceId = await getDataSourceId();
+  console.log(`Using data source ID: ${dataSourceId}`);
+
   const pages = [];
   let cursor;
 
   do {
     const response = await notion.dataSources.query({
-      data_source_id: DATA_SOURCE_ID,
+      data_source_id: dataSourceId,
       start_cursor: cursor,
       page_size: 100,
     });

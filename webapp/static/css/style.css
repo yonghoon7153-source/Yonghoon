@@ -321,7 +321,7 @@ select.input { cursor: pointer; }
   display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 16px;
 }
 .plot-item {
-  display: grid; grid-template-columns: 1fr 300px; gap: 16px;
+  display: grid; grid-template-columns: 1fr 340px; gap: 0;
   background: var(--bg); border: 1px solid var(--border);
   border-radius: 10px; overflow: hidden;
 }
@@ -330,22 +330,28 @@ select.input { cursor: pointer; }
   padding: 12px; transition: .2s;
 }
 .plot-item img:hover { opacity: .9; }
-.plot-info { padding: 16px 16px 16px 0; }
-.plot-info h4 { margin-bottom: 8px; font-size: .95rem; }
-.plot-desc { color: var(--dim); font-size: .8rem; line-height: 1.5; margin-bottom: 12px; }
-.plot-origin, .plot-code {
-  margin-top: 8px; font-size: .8rem;
+.plot-info {
+  padding: 20px; border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; justify-content: center;
 }
-.plot-origin summary, .plot-code summary {
-  cursor: pointer; color: var(--accent); font-weight: 500;
-  padding: 4px 0;
+.plot-info h4 { margin-bottom: 10px; font-size: 1.1rem; color: var(--text); }
+.plot-desc {
+  color: #c8cad4; font-size: .9rem; line-height: 1.75;
+  margin-bottom: 14px; white-space: pre-line;
 }
-.plot-origin pre, .plot-code pre {
+.plot-origin {
+  margin-top: 8px;
+}
+.plot-origin summary {
+  cursor: pointer; color: var(--accent); font-weight: 600;
+  padding: 6px 0; font-size: .88rem;
+}
+.plot-origin pre {
   background: var(--card); border: 1px solid var(--border);
-  border-radius: 6px; padding: 10px; margin-top: 6px;
-  font-family: var(--mono); font-size: .75rem;
-  line-height: 1.5; white-space: pre-wrap; max-height: 200px;
-  overflow-y: auto;
+  border-radius: 6px; padding: 12px; margin-top: 6px;
+  font-family: var(--mono); font-size: .78rem;
+  line-height: 1.6; white-space: pre-wrap; max-height: 250px;
+  overflow-y: auto; color: var(--dim);
 }
 
 @media (max-width: 900px) {

@@ -55,7 +55,10 @@
   <div class="archive-files">
     {% if folders %}
     <div class="card">
-      <h4>폴더</h4>
+      <div class="card-header-row">
+        <h4>폴더</h4>
+        <button class="btn btn-sm btn-del" onclick="deleteAllFolders()">모두 삭제</button>
+      </div>
       <div class="folder-grid">
         {% for f in folders %}
         <a href="/archive?folder={{ f.path }}" class="folder-card">
@@ -183,6 +186,18 @@ async function createFolder() {
   const data = await res.json();
   if (data.success) location.reload();
   else alert(data.error);
+}
+
+async function deleteAllFolders() {
+  const folders = [{% for f in folders %}'{{ f.path }}',{% endfor %}];
+  if (!folders.length) return;
+  if (!confirm(`현재 폴더의 하위 폴더 ${folders.length}개를 모두 삭제할까요?`)) return;
+  for (const path of folders) {
+    const form = new FormData();
+    form.append('path', path);
+    await fetch('/archive/delete', { method: 'POST', body: form });
+  }
+  location.reload();
 }
 
 async function deleteItem(path) {

@@ -189,20 +189,15 @@ select.input { cursor: pointer; }
 /* Group comparison table */
 .group-table th, .group-table td { text-align: center; }
 .group-table td:first-child { text-align: left; font-weight: 500; }
-.group-th {
-  vertical-align: bottom; padding-bottom: 8px !important;
-  min-height: 50px;
-}
+.group-table thead th { vertical-align: bottom; }
+.group-th { padding: 10px 8px 6px !important; }
 .th-name {
-  display: block; font-weight: 600; color: var(--text);
-  font-size: .8rem; white-space: pre-line; line-height: 1.3;
-  min-height: 2.6em;  /* 2줄 높이 고정 */
-  display: flex; align-items: flex-end; justify-content: center;
+  font-weight: 600; color: var(--text);
+  font-size: .78rem; white-space: nowrap; line-height: 1.3;
 }
 .th-unit {
-  display: block; font-weight: 400; color: var(--dim);
-  font-size: .7rem; margin-top: 2px;
-  min-height: 1em;
+  font-weight: 400; color: var(--dim);
+  font-size: .68rem; margin-top: 1px;
 }
 
 /* ===== Badges & Tags ===== */

@@ -15,7 +15,7 @@ Error generating stack: `+e.message+`
   ${n.map(e=>e.toFixed(10)).join(`  `)}
   ${r.map(e=>e.toFixed(10)).join(`  `)}`}function B(e){let t=`ATOMIC_POSITIONS crystal
 `;for(let n of e.atoms)t+=`  ${n.symbol.padEnd(4)} ${n.x.toFixed(10)}  ${n.y.toFixed(10)}  ${n.z.toFixed(10)}\n`;return t.trimEnd()}function V(e,t,n){let r={H:1.008,He:4.003,Li:6.941,Be:9.012,B:10.81,C:12.011,N:14.007,O:15.999,F:18.998,Ne:20.18,Na:22.99,Mg:24.305,Al:26.982,Si:28.086,P:30.974,S:32.065,Cl:35.453,Ar:39.948,K:39.098,Ca:40.078,Sc:44.956,Ti:47.867,V:50.942,Cr:51.996,Mn:54.938,Fe:55.845,Co:58.933,Ni:58.693,Cu:63.546,Zn:65.38,Ga:69.723,Ge:72.64,As:74.922,Se:78.96,Br:79.904,Kr:83.798,Rb:85.468,Sr:87.62,Y:88.906,Zr:91.224,Nb:92.906,Mo:95.96,Tc:98,Ru:101.07,Rh:102.906,Pd:106.42,Ag:107.868,Cd:112.411,In:114.818,Sn:118.71,Sb:121.76,Te:127.6,I:126.904,Xe:131.293,Cs:132.905,Ba:137.327,La:138.905,Ce:140.116,Pr:140.908,Nd:144.242,Pm:145,Sm:150.36,Eu:151.964,Gd:157.25,Tb:158.925,Dy:162.5,Ho:164.93,Er:167.259,Tm:168.934,Yb:173.054,Lu:174.967,Hf:178.49,Ta:180.948,W:183.84,Re:186.207,Os:190.23,Ir:192.217,Pt:195.084,Au:196.967,Hg:200.59,Tl:204.383,Pb:207.2,Bi:208.98,Po:209,At:210,Rn:222,Fr:223,Ra:226,Ac:227,Th:232.038,Pa:231.036,U:238.029,Np:237,Pu:244},i=`ATOMIC_SPECIES
-`;for(let t of e.elements){let e=r[t]||1,a=I(t,n);i+=`  ${t.padEnd(4)} ${e.toFixed(3)}  ${a}\n`}return i.trimEnd()}function ne(e,t,n,r){let i={},a=t.ppPath||`./pseudo`,o=n.includes(`scf`)||r.length>0,s=n.includes(`nscf`)||[`dos`,`pdos`,`bands`,`bandgap`,`effmass`,`fermi_surface`,`wannier`,`cohp`,`coop`,`cobi`,`stm`,`optical_absorption`,`refractive_index`,`dielectric`,`boltztrap`].some(e=>r.includes(e)),c=n.includes(`relax`)||[`adhesion_energy`,`surface_energy`,`vacancy_energy`,`neb`].some(e=>r.includes(e)),l=n.includes(`vc-relax`),u=r.includes(`bands`)||r.includes(`effmass`),d=t.kx||4,f=t.ky||4,p=t.kz||4,m=t.ecutwfc||60,h=t.ecutrho||480,g=t.smearing||`gaussian`,_=t.degauss||.02,v=t.functional||`pbe`,y=t.hubbardU||``,b=t.dftd3||!1,x=t.spinPolarized||!1,S=[`hse06`,`b3lyp`].includes(v),C=`  ibrav = 0,
+`;for(let t of e.elements){let e=r[t]||1,a=I(t,n);i+=`  ${t.padEnd(4)} ${e.toFixed(3)}  ${a}\n`}return i.trimEnd()}function ne(e,t,n,r){let i={},a=t.ppPath||`./pseudo`,o=n.includes(`scf`)||r.length>0,s=n.includes(`nscf`)||[`dos`,`pdos`,`bands`,`bandgap`,`effmass`,`fermi_surface`,`wannier`,`cohp`,`coop`,`cobi`,`stm`,`optical_absorption`,`refractive_index`,`dielectric`,`boltztrap`].some(e=>r.includes(e)),c=n.includes(`relax`)||[`adhesion_energy`,`surface_energy`,`vacancy_energy`,`neb`].some(e=>r.includes(e)),l=n.includes(`vc-relax`),u=r.includes(`bands`)||r.includes(`effmass`),d=t.kx||4,f=t.ky||4,p=t.kz||4,m=t.ecutwfc||60,h=t.ecutrho||480,g=t.smearing||`gaussian`,_=t.degauss||.02,v=t.functional||`pbe`,y=t.hubbardU||``,b=t.dftd3||!1,x=t.spinPolarized||!1,S=[`hse06`,`b3lyp`].includes(v),C=e.nat>50?.3:e.nat>20?.4:.7,w=`  ibrav = 0,
   nat = ${e.nat},
   ntyp = ${e.ntyp},
   ecutwfc = ${m},
@@ -35,15 +35,14 @@ Error generating stack: `+e.message+`
 /
 
 &SYSTEM
-${C}
+${w}
 /
 
 &ELECTRONS
   conv_thr = 1.0d-8,
-  mixing_beta = 0.7,
+  mixing_beta = ${C},
 /
 
-ATOMIC_SPECIES
 ${V(e,a,t.ppLibrary)}
 
 ${B(e)}
@@ -60,14 +59,13 @@ K_POINTS automatic
 /
 
 &SYSTEM
-${C}
+${w}
 /
 
 &ELECTRONS
   conv_thr = 1.0d-8,
 /
 
-ATOMIC_SPECIES
 ${V(e,a,t.ppLibrary)}
 
 ${B(e)}
@@ -86,19 +84,18 @@ K_POINTS automatic
 /
 
 &SYSTEM
-${C}
+${w}
 /
 
 &ELECTRONS
   conv_thr = 1.0d-8,
-  mixing_beta = 0.7,
+  mixing_beta = ${C},
 /
 
 &IONS
   ion_dynamics = 'bfgs',
 /
 
-ATOMIC_SPECIES
 ${V(e,a,t.ppLibrary)}
 
 ${B(e)}
@@ -117,12 +114,12 @@ K_POINTS automatic
 /
 
 &SYSTEM
-${C}
+${w}
 /
 
 &ELECTRONS
   conv_thr = 1.0d-8,
-  mixing_beta = 0.7,
+  mixing_beta = ${C},
 /
 
 &IONS
@@ -134,7 +131,6 @@ ${C}
   press_conv_thr = 0.5,
 /
 
-ATOMIC_SPECIES
 ${V(e,a,t.ppLibrary)}
 
 ${B(e)}
@@ -151,14 +147,13 @@ K_POINTS automatic
 /
 
 &SYSTEM
-${C}
+${w}
 /
 
 &ELECTRONS
   conv_thr = 1.0d-8,
 /
 
-ATOMIC_SPECIES
 ${V(e,a,t.ppLibrary)}
 
 ${B(e)}
@@ -324,15 +319,14 @@ potential.dat
 /
 
 &SYSTEM
-${C}
+${w}
 /
 
 &ELECTRONS
   conv_thr = 1.0d-10,
-  mixing_beta = 0.7,
+  mixing_beta = ${C},
 /
 
-ATOMIC_SPECIES
 ${V(e,a,t.ppLibrary)}
 
 ${B(e)}
@@ -358,14 +352,13 @@ K_POINTS automatic
 /
 
 &SYSTEM
-${C}
+${w}
 /
 
 &ELECTRONS
   conv_thr = 1.0d-8,
 /
 
-ATOMIC_SPECIES
 ${V(e,a,t.ppLibrary)}
 
 ${B(e)}
@@ -389,13 +382,13 @@ K_POINTS automatic
 /
 
 &SYSTEM
-${C}
+${w}
   nosym = .true.,
 /
 
 &ELECTRONS
   conv_thr = 1.0d-6,
-  mixing_beta = 0.7,
+  mixing_beta = ${C},
 /
 
 &IONS
@@ -405,7 +398,6 @@ ${C}
   tolp = 50.0,
 /
 
-ATOMIC_SPECIES
 ${V(e,a,t.ppLibrary)}
 
 ${B(e)}
@@ -434,7 +426,7 @@ BEGIN_ENGINE_INPUT
 /
 
 &SYSTEM
-${C}
+${w}
 /
 
 &ELECTRONS
@@ -459,7 +451,6 @@ ${z(e)}
 K_POINTS automatic
   ${d} ${f} ${p} 0 0 0
 
-ATOMIC_SPECIES
 ${V(e,a,t.ppLibrary)}
 
 END_ENGINE_INPUT
@@ -523,7 +514,7 @@ wannier_plot = .true.
 /
 
 &SYSTEM
-${C}
+${w}
   noncolin = .true.,
   lspinorb = .true.,
   angle1(1) = 90.0,
@@ -534,7 +525,6 @@ ${C}
   conv_thr = 1.0d-10,
 /
 
-ATOMIC_SPECIES
 ${V(e,a,t.ppLibrary)}
 
 ${B(e)}
@@ -1137,4 +1127,4 @@ echo`}).join(`
 `)}
 
 echo "All ${i.toUpperCase()} calculations completed!"
-`,a}function ce({cifText:e,selectedCode:t,calcTypes:n,postProcessing:r,params:i}){let[a,o]=(0,v.useState)(null),[s,c]=(0,v.useState)(null);return(0,b.jsxs)(`section`,{className:`card`,children:[(0,b.jsx)(`h2`,{children:`7. Generate Scripts`}),(0,b.jsxs)(`div`,{className:`generate-actions`,children:[(0,b.jsx)(`button`,{className:`btn btn-primary btn-large`,onClick:()=>{if(!e.trim()){alert(`Please provide a CIF file first.`);return}let a=L(e);if(a.atoms.length===0){alert(`Could not parse any atoms from the CIF. Please check the format.`);return}let s=new Set(n);for(let e of r){let t=D[e]||[];for(let e of t)C.find(t=>t.id===e)&&s.add(e)}let l;switch(t){case`qe`:l=ne(a,i,[...s],r);break;case`orca`:l=ie(a,i,[...s],r);break;case`uma`:l=ae(a,i,[...s],r);break;case`mace`:l=oe(a,i,[...s],r);break;default:alert(`Please select a calculation code.`);return}o(l),c(Object.keys(l)[0])},children:`Generate Scripts`}),a&&(0,b.jsx)(`button`,{className:`btn btn-success btn-large`,onClick:()=>{if(!a)return;let n=new P.default,r=n.folder(`${t}_workflow`);for(let[e,t]of Object.entries(a))r.file(e,t);r.file(`structure.cif`,e),n.generateAsync({type:`blob`}).then(e=>{(0,N.saveAs)(e,`${t}_workflow.zip`)})},children:`Download ZIP`})]}),a&&(0,b.jsxs)(`div`,{className:`preview-section`,children:[(0,b.jsx)(`h3`,{children:`Generated Files Preview`}),(0,b.jsxs)(`div`,{className:`preview-layout`,children:[(0,b.jsx)(`div`,{className:`file-list`,children:Object.keys(a).map(e=>(0,b.jsx)(`button`,{className:`file-item ${s===e?`active`:``}`,onClick:()=>c(e),children:e},e))}),(0,b.jsxs)(`div`,{className:`file-preview`,children:[(0,b.jsxs)(`div`,{className:`file-preview-header`,children:[(0,b.jsx)(`span`,{children:s}),(0,b.jsx)(`button`,{className:`btn btn-sm`,onClick:()=>{navigator.clipboard.writeText(a[s])},children:`Copy`})]}),(0,b.jsx)(`pre`,{className:`file-content`,children:(0,b.jsx)(`code`,{children:a[s]})})]})]})]})]})}function le({postProcessing:e,calcTypes:t}){let n=new Set;for(let r of e){let e=D[r]||[];for(let r of e)C.find(e=>e.id===r)&&!t.includes(r)&&n.add(r)}if(n.size===0)return null;let r={scf:`SCF`,nscf:`NSCF`,relax:`Relaxation`,"vc-relax":`VC-Relax`,bands:`Bands`,phonon:`Phonon`,aimd:`AIMD`};return(0,b.jsxs)(`div`,{className:`dependency-info`,children:[(0,b.jsx)(`span`,{className:`dep-icon`,children:`ⓘ`}),(0,b.jsxs)(`span`,{children:[`Auto-included prerequisites:`,` `,[...n].map(e=>(0,b.jsx)(`span`,{className:`dep-tag`,children:r[e]||e},e))]})]})}var ue=`Sc.Ti.V.Cr.Mn.Fe.Co.Ni.Cu.Zn.Y.Zr.Nb.Mo.Tc.Ru.Rh.Pd.Ag.Cd.Hf.Ta.W.Re.Os.Ir.Pt.Au.Hg`.split(`.`),de=[`Mn`,`Fe`,`Co`,`Ni`,`Cr`,`V`,`Cu`,`Gd`,`Tb`,`Dy`,`Ho`,`Er`],fe=[`Hf`,`Ta`,`W`,`Re`,`Os`,`Ir`,`Pt`,`Au`,`Hg`,`Tl`,`Pb`,`Bi`,`Po`,`At`,`Rn`,`Fr`,`Ra`,`Ac`,`Th`,`Pa`,`U`,`Np`,`Pu`],pe=[`Li`,`Na`,`K`,`Rb`,`Cs`],me=[`F`,`Cl`,`Br`,`I`],he=[`O`,`S`,`Se`,`Te`],ge={O:70,N:70,F:70,C:60,H:50,Li:50,Na:50,K:50,S:50,P:50,Cl:55,Br:45,I:45,Se:45,Te:45,Si:45,Ge:45,Al:40,Ga:45,Fe:70,Co:65,Ni:65,Mn:70,Cr:65,Ti:55,V:55,Cu:55,Zn:50,default:60};function _e(e){let t=e.elements||[],n=e.nat||0,r=e.a||0,i=e.b||0,a=e.c||0,o={calcTypeRecommendations:{},postRecommendations:{},paramRecommendations:{},systemType:``,description:``};t.some(e=>pe.includes(e));let s=t.some(e=>me.includes(e));t.some(e=>he.includes(e));let c=t.some(e=>ue.includes(e)),l=t.some(e=>de.includes(e)),u=t.some(e=>fe.includes(e)),d=t.includes(`P`),f=t.includes(`S`),p=t.includes(`O`),m=t.includes(`Li`),h=t.includes(`Na`),g=(m||h)&&(s||d&&f||d&&p);n>=5&&(p||s)&&t.length;let _=l,v=!c&&(t.includes(`Si`)||t.includes(`Ge`)||t.includes(`Ga`)&&(t.includes(`As`)||t.includes(`N`)));g?(o.systemType=`ionic_conductor`,o.description=`Ionic conductor (${m?`Li`:`Na`}-ion) — ${t.join(`-`)} system, ${n} atoms`):_?(o.systemType=`magnetic`,o.description=`Magnetic system — ${t.join(`-`)}, ${n} atoms`):v?(o.systemType=`semiconductor`,o.description=`Semiconductor — ${t.join(`-`)}, ${n} atoms`):(o.systemType=`general`,o.description=`${t.join(`-`)} system, ${n} atoms, ${e.ntyp} species`),o.calcTypeRecommendations.scf={recommended:!0,reason:`Basic energy calculation (always needed)`},o.calcTypeRecommendations.relax={recommended:!0,reason:`Optimize atomic positions`},o.calcTypeRecommendations[`vc-relax`]={recommended:!0,reason:`Optimize cell + positions for accurate lattice`},o.calcTypeRecommendations.nscf={recommended:!1,reason:``},o.postRecommendations.dos={recommended:!0,reason:`Essential electronic structure analysis`},o.postRecommendations.pdos={recommended:!0,reason:`Orbital-resolved electronic structure`},o.postRecommendations.bands={recommended:!0,reason:`Band structure visualization`},o.postRecommendations.bandgap={recommended:!0,reason:`Determine metallic/insulating character`},o.postRecommendations.bond_length={recommended:!0,reason:`Basic structural analysis`},g&&(o.postRecommendations.aimd={recommended:!0,reason:`${m?`Li`:`Na`}-ion diffusion study`},o.postRecommendations.msd={recommended:!0,reason:`Diffusion coefficient & ionic conductivity`},o.postRecommendations.rdf={recommended:!0,reason:`Local structure analysis during MD`},o.postRecommendations.neb={recommended:!0,reason:`${m?`Li`:`Na`} migration barrier`},o.postRecommendations.phonon={recommended:!0,reason:`Dynamical stability check`},o.postRecommendations.bader={recommended:!0,reason:`Charge transfer analysis`},o.postRecommendations.elastic={recommended:!0,reason:`Mechanical stability`}),_&&(o.postRecommendations.magnetic_moments={recommended:!0,reason:`Magnetic ordering analysis`},o.postRecommendations.mae={recommended:!0,reason:`Magnetic anisotropy`},o.postRecommendations.cohp={recommended:!0,reason:`Bonding analysis for TM compounds`}),v&&(o.postRecommendations.effmass={recommended:!0,reason:`Carrier effective mass`},o.postRecommendations.dielectric={recommended:!0,reason:`Dielectric response`},o.postRecommendations.optical_absorption={recommended:!0,reason:`Optical properties`},o.postRecommendations.boltztrap={recommended:!0,reason:`Thermoelectric properties`}),u&&(o.postRecommendations.mae={recommended:!0,reason:`Strong spin-orbit coupling effects`}),n<=50&&(o.postRecommendations.phonon={recommended:!0,reason:`Dynamical stability & thermal properties`},o.postRecommendations.thermo={recommended:!0,reason:`Thermodynamic functions (Cv, entropy, F)`});let y=0;for(let e of t){let t=ge[e]||ge.default;t>y&&(y=t)}o.paramRecommendations.ecutwfc=y,o.paramRecommendations.ecutrho=y*8;let b=n>50?25:35;o.paramRecommendations.kx=Math.max(1,Math.round(b/r)),o.paramRecommendations.ky=Math.max(1,Math.round(b/i)),o.paramRecommendations.kz=Math.max(1,Math.round(b/a)),_||c?(o.paramRecommendations.smearing=`mv`,o.paramRecommendations.degauss=.02):(o.paramRecommendations.smearing=`gaussian`,o.paramRecommendations.degauss=.02),o.paramRecommendations.spinPolarized=_;let x=f||t.includes(`Se`)||t.includes(`Te`)||a/r>2.5||a/i>2.5;return o.paramRecommendations.dftd3=x,g&&(o.paramRecommendations.mdTemp=600,o.paramRecommendations.mdSteps=1e4),o}var ve={ecutwfc:60,ecutrho:480,kx:4,ky:4,kz:4,smearing:`gaussian`,degauss:.02,ppPath:`./pseudo`,ppLibrary:`sssp_efficiency`,hubbardU:``,functional:`pbe`,nprocs:4,dftd3:!1,spinPolarized:!1,basisSet:`def2-SVP`,charge:0,multiplicity:1,mlipModel:``,mdTemp:300,mdSteps:5e3,mdTimestep:1};function ye(){let[e,t]=(0,v.useState)(``),[n,r]=(0,v.useState)(`qe`),[i,a]=(0,v.useState)([`scf`]),[o,s]=(0,v.useState)([]),[c,l]=(0,v.useState)(ve),[u,d]=(0,v.useState)(null),f=(0,v.useRef)(``);return(0,v.useEffect)(()=>{if(!(!e.trim()||e===f.current)){f.current=e;try{let t=L(e);if(t.atoms.length===0){d(null);return}let n=_e(t);d(n),l(e=>({...e,ecutwfc:n.paramRecommendations.ecutwfc||e.ecutwfc,ecutrho:n.paramRecommendations.ecutrho||e.ecutrho,kx:n.paramRecommendations.kx||e.kx,ky:n.paramRecommendations.ky||e.ky,kz:n.paramRecommendations.kz||e.kz,smearing:n.paramRecommendations.smearing||e.smearing,degauss:n.paramRecommendations.degauss||e.degauss,spinPolarized:n.paramRecommendations.spinPolarized??e.spinPolarized,dftd3:n.paramRecommendations.dftd3??e.dftd3,mdTemp:n.paramRecommendations.mdTemp||e.mdTemp,mdSteps:n.paramRecommendations.mdSteps||e.mdSteps}))}catch{d(null)}}},[e]),(0,b.jsxs)(`div`,{className:`app`,children:[(0,b.jsx)(`header`,{className:`app-header`,children:(0,b.jsxs)(`div`,{className:`header-content`,children:[(0,b.jsx)(`h1`,{children:`DFT / MLIP Script Generator`}),(0,b.jsx)(`p`,{className:`subtitle`,children:`Quantum ESPRESSO · ORCA · UMA · MACE`})]})}),(0,b.jsxs)(`main`,{className:`main-content`,children:[(0,b.jsx)(x,{cifText:e,setCifText:t}),u&&(0,b.jsxs)(`div`,{className:`analysis-banner`,children:[(0,b.jsx)(`span`,{className:`analysis-icon`,children:`⚙`}),(0,b.jsxs)(`div`,{children:[(0,b.jsx)(`strong`,{children:u.description}),(0,b.jsx)(`span`,{className:`analysis-hint`,children:` — Recommended settings auto-applied. Items marked with ● are suggested.`})]})]}),(0,b.jsx)(k,{selectedCode:n,setSelectedCode:r}),(0,b.jsx)(O,{params:c,setParams:l,selectedCode:n}),(0,b.jsx)(A,{calcTypes:i,setCalcTypes:a,analysis:u}),(0,b.jsx)(M,{selectedCode:n,postProcessing:o,setPostProcessing:s,analysis:u}),(0,b.jsx)(le,{postProcessing:o,calcTypes:i}),(0,b.jsx)(ee,{params:c,setParams:l,selectedCode:n}),(0,b.jsx)(ce,{cifText:e,selectedCode:n,calcTypes:i,postProcessing:o,params:c})]}),(0,b.jsx)(`footer`,{className:`app-footer`,children:(0,b.jsx)(`p`,{children:`DFT/MLIP Script Generator — Auto-generate input scripts for computational materials science`})})]})}(0,_.createRoot)(document.getElementById(`root`)).render((0,b.jsx)(v.StrictMode,{children:(0,b.jsx)(ye,{})}));
+`,a}function ce({cifText:e,selectedCode:t,calcTypes:n,postProcessing:r,params:i}){let[a,o]=(0,v.useState)(null),[s,c]=(0,v.useState)(null);return(0,b.jsxs)(`section`,{className:`card`,children:[(0,b.jsx)(`h2`,{children:`7. Generate Scripts`}),(0,b.jsxs)(`div`,{className:`generate-actions`,children:[(0,b.jsx)(`button`,{className:`btn btn-primary btn-large`,onClick:()=>{if(!e.trim()){alert(`Please provide a CIF file first.`);return}let a=L(e);if(a.atoms.length===0){alert(`Could not parse any atoms from the CIF. Please check the format.`);return}let s=new Set(n);for(let e of r){let t=D[e]||[];for(let e of t)C.find(t=>t.id===e)&&s.add(e)}let l;switch(t){case`qe`:l=ne(a,i,[...s],r);break;case`orca`:l=ie(a,i,[...s],r);break;case`uma`:l=ae(a,i,[...s],r);break;case`mace`:l=oe(a,i,[...s],r);break;default:alert(`Please select a calculation code.`);return}o(l),c(Object.keys(l)[0])},children:`Generate Scripts`}),a&&(0,b.jsx)(`button`,{className:`btn btn-success btn-large`,onClick:()=>{if(!a)return;let n=new P.default,r=n.folder(`${t}_workflow`);for(let[e,t]of Object.entries(a))r.file(e,t);r.file(`structure.cif`,e),n.generateAsync({type:`blob`}).then(e=>{(0,N.saveAs)(e,`${t}_workflow.zip`)})},children:`Download ZIP`})]}),a&&(0,b.jsxs)(`div`,{className:`preview-section`,children:[(0,b.jsx)(`h3`,{children:`Generated Files Preview`}),(0,b.jsxs)(`div`,{className:`preview-layout`,children:[(0,b.jsx)(`div`,{className:`file-list`,children:Object.keys(a).map(e=>(0,b.jsx)(`button`,{className:`file-item ${s===e?`active`:``}`,onClick:()=>c(e),children:e},e))}),(0,b.jsxs)(`div`,{className:`file-preview`,children:[(0,b.jsxs)(`div`,{className:`file-preview-header`,children:[(0,b.jsx)(`span`,{children:s}),(0,b.jsx)(`button`,{className:`btn btn-sm`,onClick:()=>{navigator.clipboard.writeText(a[s])},children:`Copy`})]}),(0,b.jsx)(`pre`,{className:`file-content`,children:(0,b.jsx)(`code`,{children:a[s]})})]})]})]})]})}function le({postProcessing:e,calcTypes:t}){let n=new Set;for(let r of e){let e=D[r]||[];for(let r of e)C.find(e=>e.id===r)&&!t.includes(r)&&n.add(r)}if(n.size===0)return null;let r={scf:`SCF`,nscf:`NSCF`,relax:`Relaxation`,"vc-relax":`VC-Relax`,bands:`Bands`,phonon:`Phonon`,aimd:`AIMD`};return(0,b.jsxs)(`div`,{className:`dependency-info`,children:[(0,b.jsx)(`span`,{className:`dep-icon`,children:`ⓘ`}),(0,b.jsxs)(`span`,{children:[`Auto-included prerequisites:`,` `,[...n].map(e=>(0,b.jsx)(`span`,{className:`dep-tag`,children:r[e]||e},e))]})]})}var ue=`Sc.Ti.V.Cr.Mn.Fe.Co.Ni.Cu.Zn.Y.Zr.Nb.Mo.Tc.Ru.Rh.Pd.Ag.Cd.Hf.Ta.W.Re.Os.Ir.Pt.Au.Hg`.split(`.`),de=[`Mn`,`Fe`,`Co`,`Ni`,`Cr`,`V`,`Cu`,`Gd`,`Tb`,`Dy`,`Ho`,`Er`],fe=[`Hf`,`Ta`,`W`,`Re`,`Os`,`Ir`,`Pt`,`Au`,`Hg`,`Tl`,`Pb`,`Bi`,`Po`,`At`,`Rn`,`Fr`,`Ra`,`Ac`,`Th`,`Pa`,`U`,`Np`,`Pu`],pe=[`Li`,`Na`,`K`,`Rb`,`Cs`],me=[`F`,`Cl`,`Br`,`I`],he=[`O`,`S`,`Se`,`Te`],ge={O:70,N:70,F:70,C:60,H:50,Li:50,Na:50,K:50,S:50,P:50,Cl:55,Br:45,I:45,Se:45,Te:45,Si:45,Ge:45,Al:40,Ga:45,Fe:70,Co:65,Ni:65,Mn:70,Cr:65,Ti:55,V:55,Cu:55,Zn:50,default:60};function _e(e){let t=e.elements||[],n=e.nat||0,r=e.a||0,i=e.b||0,a=e.c||0,o={calcTypeRecommendations:{},postRecommendations:{},paramRecommendations:{},systemType:``,description:``};t.some(e=>pe.includes(e));let s=t.some(e=>me.includes(e));t.some(e=>he.includes(e));let c=t.some(e=>ue.includes(e)),l=t.some(e=>de.includes(e)),u=t.some(e=>fe.includes(e)),d=t.includes(`P`),f=t.includes(`S`),p=t.includes(`O`),m=t.includes(`Li`),h=t.includes(`Na`),g=(m||h)&&(s||d&&f||d&&p);n>=5&&(p||s)&&t.length;let _=l,v=!c&&(t.includes(`Si`)||t.includes(`Ge`)||t.includes(`Ga`)&&(t.includes(`As`)||t.includes(`N`)));g?(o.systemType=`ionic_conductor`,o.description=`Ionic conductor (${m?`Li`:`Na`}-ion) — ${t.join(`-`)} system, ${n} atoms`):_?(o.systemType=`magnetic`,o.description=`Magnetic system — ${t.join(`-`)}, ${n} atoms`):v?(o.systemType=`semiconductor`,o.description=`Semiconductor — ${t.join(`-`)}, ${n} atoms`):(o.systemType=`general`,o.description=`${t.join(`-`)} system, ${n} atoms, ${e.ntyp} species`),o.calcTypeRecommendations.scf={recommended:!0,reason:`Basic energy calculation (always needed)`},o.calcTypeRecommendations.relax={recommended:!0,reason:`Optimize atomic positions`},o.calcTypeRecommendations[`vc-relax`]={recommended:!0,reason:`Optimize cell + positions for accurate lattice`},o.calcTypeRecommendations.nscf={recommended:!1,reason:``},o.postRecommendations.dos={recommended:!0,reason:`Essential electronic structure analysis`},o.postRecommendations.pdos={recommended:!0,reason:`Orbital-resolved electronic structure`},o.postRecommendations.bands={recommended:!0,reason:`Band structure visualization`},o.postRecommendations.bandgap={recommended:!0,reason:`Determine metallic/insulating character`},o.postRecommendations.bond_length={recommended:!0,reason:`Basic structural analysis`},g&&(o.postRecommendations.aimd={recommended:!0,reason:`${m?`Li`:`Na`}-ion diffusion study`},o.postRecommendations.msd={recommended:!0,reason:`Diffusion coefficient & ionic conductivity`},o.postRecommendations.rdf={recommended:!0,reason:`Local structure analysis during MD`},o.postRecommendations.neb={recommended:!0,reason:`${m?`Li`:`Na`} migration barrier`},o.postRecommendations.phonon={recommended:!0,reason:`Dynamical stability check`},o.postRecommendations.bader={recommended:!0,reason:`Charge transfer analysis`},o.postRecommendations.elastic={recommended:!0,reason:`Mechanical stability`}),_&&(o.postRecommendations.magnetic_moments={recommended:!0,reason:`Magnetic ordering analysis`},o.postRecommendations.mae={recommended:!0,reason:`Magnetic anisotropy`},o.postRecommendations.cohp={recommended:!0,reason:`Bonding analysis for TM compounds`}),v&&(o.postRecommendations.effmass={recommended:!0,reason:`Carrier effective mass`},o.postRecommendations.dielectric={recommended:!0,reason:`Dielectric response`},o.postRecommendations.optical_absorption={recommended:!0,reason:`Optical properties`},o.postRecommendations.boltztrap={recommended:!0,reason:`Thermoelectric properties`}),u&&(o.postRecommendations.mae={recommended:!0,reason:`Strong spin-orbit coupling effects`}),n<=50&&(o.postRecommendations.phonon={recommended:!0,reason:`Dynamical stability & thermal properties`},o.postRecommendations.thermo={recommended:!0,reason:`Thermodynamic functions (Cv, entropy, F)`});let y=0;for(let e of t){let t=ge[e]||ge.default;t>y&&(y=t)}o.paramRecommendations.ecutwfc=y,o.paramRecommendations.ecutrho=y*10;let b=n>50?25:35;o.paramRecommendations.kx=Math.max(2,Math.round(b/r)),o.paramRecommendations.ky=Math.max(2,Math.round(b/i)),o.paramRecommendations.kz=Math.max(1,Math.round(b/a)),_||c?(o.paramRecommendations.smearing=`mv`,o.paramRecommendations.degauss=.02):(o.paramRecommendations.smearing=`gaussian`,o.paramRecommendations.degauss=.02),o.paramRecommendations.spinPolarized=_;let x=f||t.includes(`Se`)||t.includes(`Te`)||a/r>2.5||a/i>2.5;return o.paramRecommendations.dftd3=x,g&&(o.paramRecommendations.mdTemp=600,o.paramRecommendations.mdSteps=1e4),o}var ve={ecutwfc:60,ecutrho:480,kx:4,ky:4,kz:4,smearing:`gaussian`,degauss:.02,ppPath:`./pseudo`,ppLibrary:`sssp_efficiency`,hubbardU:``,functional:`pbe`,nprocs:4,dftd3:!1,spinPolarized:!1,basisSet:`def2-SVP`,charge:0,multiplicity:1,mlipModel:``,mdTemp:300,mdSteps:5e3,mdTimestep:1};function ye(){let[e,t]=(0,v.useState)(``),[n,r]=(0,v.useState)(`qe`),[i,a]=(0,v.useState)([`scf`]),[o,s]=(0,v.useState)([]),[c,l]=(0,v.useState)(ve),[u,d]=(0,v.useState)(null),f=(0,v.useRef)(``);return(0,v.useEffect)(()=>{if(!(!e.trim()||e===f.current)){f.current=e;try{let t=L(e);if(t.atoms.length===0){d(null);return}let n=_e(t);d(n),l(e=>({...e,ecutwfc:n.paramRecommendations.ecutwfc||e.ecutwfc,ecutrho:n.paramRecommendations.ecutrho||e.ecutrho,kx:n.paramRecommendations.kx||e.kx,ky:n.paramRecommendations.ky||e.ky,kz:n.paramRecommendations.kz||e.kz,smearing:n.paramRecommendations.smearing||e.smearing,degauss:n.paramRecommendations.degauss||e.degauss,spinPolarized:n.paramRecommendations.spinPolarized??e.spinPolarized,dftd3:n.paramRecommendations.dftd3??e.dftd3,mdTemp:n.paramRecommendations.mdTemp||e.mdTemp,mdSteps:n.paramRecommendations.mdSteps||e.mdSteps}))}catch{d(null)}}},[e]),(0,b.jsxs)(`div`,{className:`app`,children:[(0,b.jsx)(`header`,{className:`app-header`,children:(0,b.jsxs)(`div`,{className:`header-content`,children:[(0,b.jsx)(`h1`,{children:`DFT / MLIP Script Generator`}),(0,b.jsx)(`p`,{className:`subtitle`,children:`Quantum ESPRESSO · ORCA · UMA · MACE`})]})}),(0,b.jsxs)(`main`,{className:`main-content`,children:[(0,b.jsx)(x,{cifText:e,setCifText:t}),u&&(0,b.jsxs)(`div`,{className:`analysis-banner`,children:[(0,b.jsx)(`span`,{className:`analysis-icon`,children:`⚙`}),(0,b.jsxs)(`div`,{children:[(0,b.jsx)(`strong`,{children:u.description}),(0,b.jsx)(`span`,{className:`analysis-hint`,children:` — Recommended settings auto-applied. Items marked with ● are suggested.`})]})]}),(0,b.jsx)(k,{selectedCode:n,setSelectedCode:r}),(0,b.jsx)(O,{params:c,setParams:l,selectedCode:n}),(0,b.jsx)(A,{calcTypes:i,setCalcTypes:a,analysis:u}),(0,b.jsx)(M,{selectedCode:n,postProcessing:o,setPostProcessing:s,analysis:u}),(0,b.jsx)(le,{postProcessing:o,calcTypes:i}),(0,b.jsx)(ee,{params:c,setParams:l,selectedCode:n}),(0,b.jsx)(ce,{cifText:e,selectedCode:n,calcTypes:i,postProcessing:o,params:c})]}),(0,b.jsx)(`footer`,{className:`app-footer`,children:(0,b.jsx)(`p`,{children:`DFT/MLIP Script Generator — Auto-generate input scripts for computational materials science`})})]})}(0,_.createRoot)(document.getElementById(`root`)).render((0,b.jsx)(v.StrictMode,{children:(0,b.jsx)(ye,{})}));

@@ -25,6 +25,7 @@ export function generateQEScripts(parsed, params, calcTypes, postProcessing) {
 
   const inputFunctional = functional === 'pbe' ? 'pbe' : functional === 'pbesol' ? 'pbesol' : functional === 'lda' ? 'pz' : 'pbe';
   const isHybrid = ['hse06', 'b3lyp'].includes(functional);
+  const mixingBeta = parsed.nat > 50 ? 0.3 : parsed.nat > 20 ? 0.4 : 0.7;
 
   const commonSystem = `  ibrav = 0,
   nat = ${parsed.nat},
@@ -61,10 +62,9 @@ ${commonSystem}
 
 &ELECTRONS
   conv_thr = 1.0d-8,
-  mixing_beta = 0.7,
+  mixing_beta = ${mixingBeta},
 /
 
-ATOMIC_SPECIES
 ${formatAtomicSpecies(parsed, ppPath, params.ppLibrary)}
 
 ${formatAtomicPositions(parsed)}
@@ -94,7 +94,6 @@ ${commonSystem}
   conv_thr = 1.0d-8,
 /
 
-ATOMIC_SPECIES
 ${formatAtomicSpecies(parsed, ppPath, params.ppLibrary)}
 
 ${formatAtomicPositions(parsed)}
@@ -123,14 +122,13 @@ ${commonSystem}
 
 &ELECTRONS
   conv_thr = 1.0d-8,
-  mixing_beta = 0.7,
+  mixing_beta = ${mixingBeta},
 /
 
 &IONS
   ion_dynamics = 'bfgs',
 /
 
-ATOMIC_SPECIES
 ${formatAtomicSpecies(parsed, ppPath, params.ppLibrary)}
 
 ${formatAtomicPositions(parsed)}
@@ -159,7 +157,7 @@ ${commonSystem}
 
 &ELECTRONS
   conv_thr = 1.0d-8,
-  mixing_beta = 0.7,
+  mixing_beta = ${mixingBeta},
 /
 
 &IONS
@@ -171,7 +169,6 @@ ${commonSystem}
   press_conv_thr = 0.5,
 /
 
-ATOMIC_SPECIES
 ${formatAtomicSpecies(parsed, ppPath, params.ppLibrary)}
 
 ${formatAtomicPositions(parsed)}
@@ -200,7 +197,6 @@ ${commonSystem}
   conv_thr = 1.0d-8,
 /
 
-ATOMIC_SPECIES
 ${formatAtomicSpecies(parsed, ppPath, params.ppLibrary)}
 
 ${formatAtomicPositions(parsed)}
@@ -430,10 +426,9 @@ ${commonSystem}
 
 &ELECTRONS
   conv_thr = 1.0d-10,
-  mixing_beta = 0.7,
+  mixing_beta = ${mixingBeta},
 /
 
-ATOMIC_SPECIES
 ${formatAtomicSpecies(parsed, ppPath, params.ppLibrary)}
 
 ${formatAtomicPositions(parsed)}
@@ -476,7 +471,6 @@ ${commonSystem}
   conv_thr = 1.0d-8,
 /
 
-ATOMIC_SPECIES
 ${formatAtomicSpecies(parsed, ppPath, params.ppLibrary)}
 
 ${formatAtomicPositions(parsed)}
@@ -512,7 +506,7 @@ ${commonSystem}
 
 &ELECTRONS
   conv_thr = 1.0d-6,
-  mixing_beta = 0.7,
+  mixing_beta = ${mixingBeta},
 /
 
 &IONS
@@ -522,7 +516,6 @@ ${commonSystem}
   tolp = 50.0,
 /
 
-ATOMIC_SPECIES
 ${formatAtomicSpecies(parsed, ppPath, params.ppLibrary)}
 
 ${formatAtomicPositions(parsed)}
@@ -579,7 +572,6 @@ ${formatCellParameters(parsed)}
 K_POINTS automatic
   ${kx} ${ky} ${kz} 0 0 0
 
-ATOMIC_SPECIES
 ${formatAtomicSpecies(parsed, ppPath, params.ppLibrary)}
 
 END_ENGINE_INPUT
@@ -675,7 +667,6 @@ ${commonSystem}
   conv_thr = 1.0d-10,
 /
 
-ATOMIC_SPECIES
 ${formatAtomicSpecies(parsed, ppPath, params.ppLibrary)}
 
 ${formatAtomicPositions(parsed)}

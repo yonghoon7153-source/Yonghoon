@@ -135,13 +135,13 @@ export function analyzeStructure(parsed) {
     if (ecut > maxEcut) maxEcut = ecut;
   }
   result.paramRecommendations.ecutwfc = maxEcut;
-  result.paramRecommendations.ecutrho = maxEcut * 8;
+  result.paramRecommendations.ecutrho = maxEcut * 10;
 
   // k-points: based on cell size (a, b, c)
   // Rule of thumb: k * a ≈ 30-40 Å for good convergence
   const kTarget = nat > 50 ? 25 : 35;
-  result.paramRecommendations.kx = Math.max(1, Math.round(kTarget / a));
-  result.paramRecommendations.ky = Math.max(1, Math.round(kTarget / b));
+  result.paramRecommendations.kx = Math.max(2, Math.round(kTarget / a));
+  result.paramRecommendations.ky = Math.max(2, Math.round(kTarget / b));
   result.paramRecommendations.kz = Math.max(1, Math.round(kTarget / c));
 
   // Smearing

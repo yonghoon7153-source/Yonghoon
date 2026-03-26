@@ -32,12 +32,11 @@
 <div class="card">
   <div class="card-header-row">
     <h3>분석 요약</h3>
-    {% if input_params %}
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      {% if input_params.am_se_ratio %}<span class="badge">AM:SE = {{ input_params.am_se_ratio }}</span>{% endif %}
-      {% if input_params.target_press_sim is defined %}<span class="badge">Target: {{ "%.1f"|format(input_params.target_press_sim * 1000) }} MPa</span>{% endif %}
+      {% if case.ps_ratio %}<span class="badge">P:S = {{ case.ps_ratio }}</span>{% endif %}
+      {% if input_params and input_params.am_se_ratio %}<span class="badge">AM:SE = {{ input_params.am_se_ratio }}</span>{% endif %}
+      {% if input_params and input_params.target_press_sim is defined %}<span class="badge">Target: {{ "%.1f"|format(input_params.target_press_sim * 1000) }} MPa</span>{% endif %}
     </div>
-    {% endif %}
   </div>
   <div class="tabs">
     {% set tab_names = {

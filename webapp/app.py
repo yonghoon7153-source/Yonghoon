@@ -252,6 +252,7 @@ def upload():
     case_name = request.form.get('case_name', '').strip()
     mode = request.form.get('mode', 'auto')
     type_map = request.form.get('type_map', '')
+    ps_ratio = request.form.get('ps_ratio', '').strip()
     scale = request.form.get('scale', '1000')
 
     case_id = datetime.now().strftime('%y%m%d_%H%M%S') + '_' + str(uuid.uuid4())[:6]
@@ -281,6 +282,7 @@ def upload():
         'created': datetime.now().isoformat(),
         'mode': mode,
         'type_map': type_map,
+        'ps_ratio': ps_ratio,
         'scale': int(scale),
         'files': filenames,
         'status': 'uploaded'

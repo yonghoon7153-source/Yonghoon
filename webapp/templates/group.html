@@ -35,11 +35,16 @@
 <div class="card">
   <h3>비교 결과</h3>
   <div class="table-scroll">
-    <table class="data-table compact">
+    <table class="data-table compact group-table">
       <thead>
         <tr>
           {% for col in comparison.columns %}
-          <th>{{ col }}</th>
+          <th class="group-th">
+            <span class="th-name">{{ col }}</span>
+            {% if comparison.units[loop.index0] %}
+            <span class="th-unit">{{ comparison.units[loop.index0] }}</span>
+            {% endif %}
+          </th>
           {% endfor %}
         </tr>
       </thead>

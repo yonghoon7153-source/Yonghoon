@@ -469,6 +469,23 @@ def serve_report(case_id):
                         download_name=f'{case_id}_report.md')
     return 'Report not found', 404
 
+@app.route('/rename/<case_id>', methods=['POST'])
+def rename_case(case_id):
+    """Rename a case."""
+    new_name = request.form.get('name', '').strip()
+    if not new_name:
+        return jsonify({'error': '이름을 입력하세요.'}), 400
+    case_dir = get_case_dir(case_id)
+    meta_file = os.path.join(case_dir, 'meta.json')
+    if not os.path.exists(meta_file):
+        return jsonify({'error': '케이스를 찾을 수 없습니다.'}), 404
+    with open(meta_file) as f:
+        meta = json.load(f)
+    meta['name'] = new_name
+    with open(meta_file, 'w') as f:
+        json.dump(meta, f, indent=2)
+    return jsonify({'success': True})
+
 @app.route('/delete/<case_id>', methods=['POST'])
 def delete_case(case_id):
     case_dir = get_case_dir(case_id)

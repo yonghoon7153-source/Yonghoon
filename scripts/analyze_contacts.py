@@ -150,11 +150,30 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         rows.append({'지표': f'Coverage {lbl} std', '값': round(v['std'], 1)})
     pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'network_summary.csv'), index=False)
 
+    # Auto-detect P:S ratio from atom counts
+    am_p_count = sum(1 for a in atoms_raw.values() if type_map.get(a['type']) == 'AM_P')
+    am_s_count = sum(1 for a in atoms_raw.values() if type_map.get(a['type']) == 'AM_S')
+    am_count = sum(1 for a in atoms_raw.values() if 'AM' in type_map.get(a['type'], ''))
+    se_count = sum(1 for a in atoms_raw.values() if type_map.get(a['type']) == 'SE')
+
+    if am_p_count > 0 and am_s_count > 0:
+        total_am = am_p_count + am_s_count
+        p_pct = round(am_p_count / total_am * 10)
+        s_pct = 10 - p_pct
+        ps_ratio = f"{p_pct}:{s_pct}"
+    elif am_p_count > 0 and am_s_count == 0:
+        ps_ratio = "P only"
+    elif am_s_count > 0 and am_p_count == 0:
+        ps_ratio = "S only"
+    else:
+        ps_ratio = ""
+
     # Full metrics JSON
     metrics = {
         'porosity': results['porosity'],
         'thickness_um': results['thickness_um'],
         'plate_z_source': results['plate_z_source'],
+        'ps_ratio': ps_ratio,
         'se_se_cn': cn['mean'],
         'percolation_pct': perc['percolation_pct'],
         'top_reachable_pct': perc['top_reachable_pct'],

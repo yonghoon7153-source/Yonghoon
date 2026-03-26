@@ -41,29 +41,35 @@ def get_results_dir(case_id):
     return d
 
 def detect_mode(case_dir):
-    """Detect if bimodal (3 types) or standard (2 types) from input script."""
-    for f in os.listdir(case_dir):
-        if f.endswith('.liggghts') and 'input' in f.lower():
-            with open(os.path.join(case_dir, f)) as fh:
-                content = fh.read()
-                if 'AM_P' in content or 'type 3' in content.lower():
-                    return 'bimodal'
-    # Check atom file for 3 types
-    for f in os.listdir(case_dir):
+    """Detect if bimodal (3 types) or standard (2 types) from atom file type count."""
+    # Count unique atom types from atom dump file (most reliable)
+    for f in sorted(os.listdir(case_dir)):
         if f.startswith('atom') and f.endswith('.liggghts'):
             with open(os.path.join(case_dir, f)) as fh:
                 lines = fh.readlines()
                 types = set()
+                in_data = False
                 for line in lines:
-                    parts = line.strip().split()
-                    if len(parts) >= 2:
-                        try:
-                            t = int(parts[1])
-                            types.add(t)
-                        except ValueError:
-                            continue
+                    stripped = line.strip()
+                    if stripped.startswith('ITEM: ATOMS'):
+                        in_data = True
+                        continue
+                    if stripped.startswith('ITEM:'):
+                        in_data = False
+                        continue
+                    if in_data:
+                        parts = stripped.split()
+                        if len(parts) >= 2:
+                            try:
+                                t = int(parts[1])
+                                types.add(t)
+                            except ValueError:
+                                continue
+                # 3 types = bimodal (AM_P + AM_S + SE)
+                # 2 types = standard (AM + SE)
                 if len(types) >= 3:
                     return 'bimodal'
+                return 'standard'
     return 'standard'
 
 def list_cases():
@@ -275,7 +281,30 @@ def upload():
 
     # Default type maps
     if not type_map:
-        type_map = '1:AM_P,2:AM_S,3:SE' if mode == 'bimodal' else '1:AM,2:SE'
+        if mode == 'bimodal':
+            type_map = '1:AM_P,2:AM_S,3:SE'
+        else:
+            # Standard: detect AM_P vs AM_S from radius in atom file
+            am_type_name = 'AM'
+            for f in os.listdir(case_dir):
+                if f.startswith('atom') and f.endswith('.liggghts'):
+                    with open(os.path.join(case_dir, f)) as fh:
+                        for line in fh:
+                            if line.strip().startswith('ITEM:'):
+                                continue
+                            parts = line.strip().split()
+                            if len(parts) >= 6:
+                                try:
+                                    t = int(parts[1])
+                                    r = float(parts[5])
+                                    if t == 1:
+                                        # sim r > 0.004 → AM_P (6μm), else AM_S (2μm)
+                                        am_type_name = 'AM_P' if r > 0.004 else 'AM_S'
+                                        break
+                                except (ValueError, IndexError):
+                                    continue
+                    break
+            type_map = f'1:{am_type_name},2:SE'
 
     meta = {
         'name': case_name or case_id,

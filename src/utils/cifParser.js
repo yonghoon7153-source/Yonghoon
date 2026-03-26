@@ -1,3 +1,5 @@
+import { getPseudopotentialFile } from '../config/pseudopotentials';
+
 // Simple CIF parser to extract lattice parameters and atomic positions
 export function parseCIF(cifText) {
   const lines = cifText.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
@@ -139,20 +141,11 @@ export function formatAtomicSpecies(parsed, ppPath, ppLibrary) {
     U: 238.029, Np: 237.0, Pu: 244.0
   };
 
-  const ppSuffix = {
-    sssp_efficiency: '.pbe-s-kjpaw_psl.1.0.0.UPF',
-    sssp_precision: '.pbe-s-kjpaw_psl.1.0.0.UPF',
-    pslibrary_paw: '.pbe-n-kjpaw_psl.1.0.0.UPF',
-    pslibrary_us: '.pbe-n-rrkjus_psl.1.0.0.UPF',
-    gbrv: '_pbe_v1.uspp.F.UPF',
-    custom: '.UPF',
-  };
-
   let out = 'ATOMIC_SPECIES\n';
   for (const el of parsed.elements) {
     const mass = massMap[el] || 1.0;
-    const suffix = ppSuffix[ppLibrary] || '.UPF';
-    out += `  ${el.padEnd(4)} ${mass.toFixed(3)}  ${el}${suffix}\n`;
+    const ppFile = getPseudopotentialFile(el, ppLibrary);
+    out += `  ${el.padEnd(4)} ${mass.toFixed(3)}  ${ppFile}\n`;
   }
   return out.trimEnd();
 }

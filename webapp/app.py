@@ -596,6 +596,9 @@ def group_plots():
     if os.path.exists(info_path):
         with open(info_path) as f:
             info = json.load(f)
+        # particle_info always first
+        if 'particle_info' in info:
+            plot_list.append(info['particle_info'])
         for key in plots:
             if key in info:
                 plot_list.append(info[key])

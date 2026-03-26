@@ -325,7 +325,8 @@ async function autoSync() {
 }
 
 // SPA fallback: serve index.html for all non-API routes
-app.get('*', (req, res) => {
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) return next();
   res.sendFile(path.join(distPath, 'index.html'));
 });
 

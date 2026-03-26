@@ -41,6 +41,7 @@ def _apply_style(ax, ylabel, names):
     """Apply common academic style."""
     ax.set_xticks(range(len(names)))
     ax.set_xticklabels(names, fontsize=10)
+    ax.set_xlabel("P:S Configuration", fontsize=10)
     ax.set_ylabel(ylabel, fontsize=11)
     ax.yaxis.grid(True, linestyle="--", linewidth=0.4, color="#CCCCCC", alpha=0.7)
     ax.set_axisbelow(True)
@@ -319,6 +320,58 @@ def plot_four_panel(all_data, names, outdir):
     return _save(fig, outdir, "four_panel.png")
 
 
+def _generate_particle_info(all_data, ps_labels, case_names, outdir):
+    """Generate a particle info summary table as PNG."""
+    fig, ax = plt.subplots(figsize=(max(7, len(ps_labels)*1.5 + 2), 3))
+    ax.axis('off')
+
+    # Build table data
+    headers = ['P:S'] + ps_labels
+    rows_data = []
+
+    # Particle counts
+    for ptype in ['AM_P', 'AM_S', 'SE']:
+        row = [f'{ptype} 입자수']
+        for d in all_data:
+            # Try to find count from metrics or approximate
+            # Not stored in full_metrics, so we show '-' or derive
+            key = f'n_{ptype}'
+            val = d.get(key, '-')
+            row.append(str(val) if val != '-' else '-')
+        rows_data.append(row)
+
+    # Radii (from metrics if available)
+    for ptype, r_key in [('AM_P', 'r_AM_P'), ('AM_S', 'r_AM_S'), ('SE', 'r_SE')]:
+        row = [f'{ptype} 반지름(μm)']
+        for d in all_data:
+            val = d.get(r_key, '-')
+            row.append(str(val) if val != '-' else '-')
+        rows_data.append(row)
+
+    # If no data available, show P:S and basic info
+    table = ax.table(cellText=rows_data, colLabels=headers,
+                     loc='center', cellLoc='center')
+    table.auto_set_font_size(False)
+    table.set_fontsize(9)
+    table.scale(1, 1.4)
+
+    # Style header
+    for j in range(len(headers)):
+        cell = table[0, j]
+        cell.set_facecolor('#4472C4')
+        cell.set_text_props(color='white', fontweight='bold')
+
+    for i in range(len(rows_data)):
+        for j in range(len(headers)):
+            cell = table[i+1, j]
+            cell.set_facecolor('#f0f0f0' if i % 2 == 0 else 'white')
+
+    fig.tight_layout()
+    fig.savefig(os.path.join(outdir, 'particle_info.png'), dpi=DPI,
+                bbox_inches='tight', facecolor='white', pad_inches=0.1)
+    plt.close(fig)
+
+
 # ─── Plot dispatch table ─────────────────────────────────────────────────────
 
 PLOT_REGISTRY = {
@@ -394,8 +447,27 @@ def main():
         with open(path, "r") as f:
             all_data.append(json.load(f))
 
+    # Use P:S ratio as x-axis labels (fallback to case names)
+    plot_names = []
+    for i, d in enumerate(all_data):
+        ps = d.get('ps_ratio', '')
+        if ps:
+            plot_names.append(ps)
+        else:
+            plot_names.append(args.names[i])
+
     os.makedirs(args.output, exist_ok=True)
     plot_info = {}
+
+    # Generate particle info table as first plot
+    if 'particle_info' in args.plots or True:  # always generate
+        _generate_particle_info(all_data, plot_names, args.names, args.output)
+        plot_info['particle_info'] = {
+            'file': 'particle_info.png',
+            'title': '입자 정보',
+            'description': '각 케이스별 AM_P, AM_S, SE 입자수와 반지름.\nSE 크기가 같으면 비교 조건 동일.',
+            'origin_tip': 'Table 형태로 Origin에서는 Worksheet에 직접 입력.',
+        }
 
     # Generate CSV for each plot type
     csv_map = {
@@ -428,7 +500,7 @@ def main():
             with open(csv_path, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
                 writer.writerow([c[0] for c in cols])
-                for i, name in enumerate(args.names):
+                for i, name in enumerate(plot_names):
                     row = []
                     for col_name, fn in cols:
                         if fn is None:
@@ -439,7 +511,7 @@ def main():
 
     for plot_name in args.plots:
         if plot_name == "four_panel":
-            outpath = plot_four_panel(all_data, args.names, args.output)
+            outpath = plot_four_panel(all_data, plot_names, args.output)
             plot_info["four_panel"] = {
                 "file": "four_panel.png",
                 "title": "Four-Panel Composite",
@@ -455,7 +527,7 @@ def main():
 
         entry = PLOT_REGISTRY[plot_name]
         fig, ax = plt.subplots(figsize=FIG_SINGLE)
-        entry["func"](all_data, args.names, ax=ax)
+        entry["func"](all_data, plot_names, ax=ax)
         outpath = _save(fig, args.output, entry["file"])
 
         csv_file = f"{plot_name}.csv" if plot_name in csv_map else None

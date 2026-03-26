@@ -208,6 +208,14 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     else:
         ps_ratio = ""
 
+    # Particle counts and radii per type
+    particle_info = {}
+    for t, name in type_map.items():
+        sub = [a for a in atoms_raw.values() if a['type'] == t]
+        if sub:
+            particle_info[f'n_{name}'] = len(sub)
+            particle_info[f'r_{name}'] = round(np.mean([a['radius'] for a in sub]) * scale, 2)
+
     # Full metrics JSON
     metrics = {
         'porosity': results['porosity'],
@@ -222,6 +230,7 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         'tortuosity_std': tau['std'],
         'ionic_active_pct': ionic['active_pct'],
     }
+    metrics.update(particle_info)
     for ct, v in results['interface'].items():
         safe = ct.replace('-', '_')
         metrics[f'area_{safe}_total'] = v['total_area']

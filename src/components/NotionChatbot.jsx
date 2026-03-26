@@ -79,7 +79,6 @@ function NotionChatbot() {
     return <span className="ref-importance">{importance}</span>;
   };
 
-  // Simple markdown to HTML renderer
   const renderMarkdown = (text) => {
     if (!text) return '';
     let html = text
@@ -96,6 +95,13 @@ function NotionChatbot() {
     html = html.replace(/((?:<li>.*?<\/li>\s*)+)/g, '<ul>$1</ul>');
     return '<p>' + html + '</p>';
   };
+
+  const suggestions = [
+    '전고체 배터리에서 pressure가 중요한 이유는?',
+    'Ag-C anode interlayer에 대해 설명해줘',
+    'DEM simulation이란 무엇인가?',
+    'NCM cathode의 degradation 메커니즘은?',
+  ];
 
   return (
     <div className="chatbot-container">
@@ -122,18 +128,9 @@ function NotionChatbot() {
             <h3>Welcome!</h3>
             <p>Ask me anything about your Notion research database.</p>
             <div className="welcome-suggestions">
-              <button onClick={() => { setInput('\uc804\uace0\uccb4 \ubc30\ud130\ub9ac\uc5d0\uc11c pressure\uac00 \uc911\uc694\ud55c \uc774\uc720\ub294?'); }}>
-                \uc804\uace0\uccb4 \ubc30\ud130\ub9ac\uc5d0\uc11c pressure\uac00 \uc911\uc694\ud55c \uc774\uc720\ub294?
-              </button>
-              <button onClick={() => { setInput('Ag-C anode interlayer\uc5d0 \ub300\ud574 \uc124\uba85\ud574\uc918'); }}>
-                Ag-C anode interlayer\uc5d0 \ub300\ud574 \uc124\uba85\ud574\uc918
-              </button>
-              <button onClick={() => { setInput('DEM simulation\uc774\ub780 \ubb34\uc5c7\uc778\uac00?'); }}>
-                DEM simulation\uc774\ub780 \ubb34\uc5c7\uc778\uac00?
-              </button>
-              <button onClick={() => { setInput('NCM cathode\uc758 degradation \uba54\ucee4\ub2c8\uc998\uc740?'); }}>
-                NCM cathode\uc758 degradation \uba54\ucee4\ub2c8\uc998\uc740?
-              </button>
+              {suggestions.map((s, i) => (
+                <button key={i} onClick={() => setInput(s)}>{s}</button>
+              ))}
             </div>
           </div>
         )}

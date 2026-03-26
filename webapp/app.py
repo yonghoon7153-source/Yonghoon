@@ -345,10 +345,10 @@ def single(case_id):
         with open(report_path) as f:
             report = f.read()
 
-    # Load CSVs for tables
+    # Load CSVs for tables (atom_statistics first, no force_summary)
     tables = {}
-    for csv_name in ['contact_summary', 'atom_statistics', 'coordination_summary',
-                     'force_summary', 'network_summary']:
+    for csv_name in ['atom_statistics', 'contact_summary', 'coordination_summary',
+                     'network_summary']:
         csv_path = os.path.join(results_dir, f'{csv_name}.csv')
         if os.path.exists(csv_path):
             import pandas as pd
@@ -358,8 +358,15 @@ def single(case_id):
                 'data': df.values.tolist()
             }
 
+    # Load full_metrics.json for header info
+    metrics = {}
+    metrics_path = os.path.join(results_dir, 'full_metrics.json')
+    if os.path.exists(metrics_path):
+        with open(metrics_path) as f:
+            metrics = json.load(f)
+
     return render_template('single.html', case=meta, figures=figures,
-                         report=report, tables=tables)
+                         report=report, tables=tables, metrics=metrics)
 
 @app.route('/group', methods=['GET', 'POST'])
 def group():

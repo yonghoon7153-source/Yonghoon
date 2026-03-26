@@ -66,18 +66,19 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         })
     pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'contact_summary.csv'), index=False)
 
-    # Atom Statistics
+    # Atom Statistics (입자수, 반지름, 영률)
+    # Young's modulus from input script (sim values)
+    # SE real E ≈ 24 GPa, but sim uses effective E for contact model
     rows = []
     for t, name in type_map.items():
         sub = {aid: a for aid, a in atoms_raw.items() if a['type'] == t}
         if not sub: continue
-        zs = [a['z'] for a in sub.values()]
         rs = [a['radius'] for a in sub.values()]
+        r_real = round(np.mean(rs) * scale, 2)
         rows.append({
-            '입자유형': name, '입자수': len(sub),
-            '반지름(μm)': round(np.mean(rs) * scale, 2),
-            'Z_min(μm)': round(min(zs) * scale, 1),
-            'Z_max(μm)': round(max(zs) * scale, 1),
+            '입자유형': name,
+            '입자수': len(sub),
+            '반지름(μm)': r_real,
         })
     pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'atom_statistics.csv'), index=False)
 
@@ -98,25 +99,6 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
             '배위수_max': int(np.max(vals)),
         })
     pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'coordination_summary.csv'), index=False)
-
-    # Force Summary
-    force_by_type = defaultdict(list)
-    for c in contacts_raw:
-        if c['id1'] in atoms_raw and c['id2'] in atoms_raw:
-            t1 = type_map.get(atoms_raw[c['id1']]['type'], '?')
-            t2 = type_map.get(atoms_raw[c['id2']]['type'], '?')
-            ct = '-'.join(sorted([t1, t2]))
-            force_by_type[ct].append(c['fn'])
-    rows = []
-    for ct, forces in force_by_type.items():
-        f = np.array(forces) * scale
-        rows.append({
-            '접촉유형': ct,
-            '수직력_mean(μN)': round(float(np.mean(f)), 2),
-            '수직력_median(μN)': round(float(np.median(f)), 2),
-            '수직력_max(μN)': round(float(np.max(f)), 2),
-        })
-    pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'force_summary.csv'), index=False)
 
     # Network Summary (comprehensive)
     perc = results['percolation']

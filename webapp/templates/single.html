@@ -11,6 +11,12 @@
         <span class="badge badge-{{ case.mode }}">{{ case.mode }}</span>
         <span class="badge badge-scale">Scale: {{ case.scale }}x</span>
         {% if case.type_map %}<span class="badge">{{ case.type_map }}</span>{% endif %}
+        {% if metrics %}
+          {% if metrics.porosity is defined %}<span class="badge">Porosity: {{ "%.1f"|format(metrics.porosity) }}%</span>{% endif %}
+          {% if metrics.thickness_um is defined %}<span class="badge">두께: {{ "%.1f"|format(metrics.thickness_um) }}μm</span>{% endif %}
+          {% if metrics.percolation_pct is defined %}<span class="badge">Percolation: {{ "%.1f"|format(metrics.percolation_pct) }}%</span>{% endif %}
+          {% if metrics.ionic_active_pct is defined %}<span class="badge badge-{{ 'standard' if metrics.ionic_active_pct >= 95 else 'bimodal' }}">Ionic Active: {{ "%.1f"|format(metrics.ionic_active_pct) }}%</span>{% endif %}
+        {% endif %}
       </p>
     </div>
     <div class="header-actions">
@@ -26,10 +32,16 @@
 <div class="card">
   <h3>분석 요약</h3>
   <div class="tabs">
+    {% set tab_names = {
+      'atom_statistics': '입자 정보',
+      'contact_summary': '접촉 요약',
+      'coordination_summary': '배위수',
+      'network_summary': '네트워크 지표'
+    } %}
     {% for name, tbl in tables.items() %}
     <button class="tab-btn {% if loop.first %}active{% endif %}"
             onclick="switchTab(this, 'tab-{{ name }}')">
-      {{ name.replace('_', ' ').title() }}
+      {{ tab_names.get(name, name.replace('_', ' ').title()) }}
     </button>
     {% endfor %}
   </div>

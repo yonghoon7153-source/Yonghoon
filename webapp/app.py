@@ -285,24 +285,31 @@ def upload():
             type_map = '1:AM_P,2:AM_S,3:SE'
         else:
             # Standard: detect AM_P vs AM_S from radius in atom file
-            am_type_name = 'AM'
-            for f in os.listdir(case_dir):
+            am_type_name = 'AM_S'  # default: small AM
+            for f in sorted(os.listdir(case_dir)):
                 if f.startswith('atom') and f.endswith('.liggghts'):
                     with open(os.path.join(case_dir, f)) as fh:
+                        in_data = False
                         for line in fh:
-                            if line.strip().startswith('ITEM:'):
+                            stripped = line.strip()
+                            if stripped.startswith('ITEM: ATOMS'):
+                                in_data = True
                                 continue
-                            parts = line.strip().split()
-                            if len(parts) >= 6:
-                                try:
-                                    t = int(parts[1])
-                                    r = float(parts[5])
-                                    if t == 1:
-                                        # sim r > 0.004 → AM_P (6μm), else AM_S (2μm)
-                                        am_type_name = 'AM_P' if r > 0.004 else 'AM_S'
-                                        break
-                                except (ValueError, IndexError):
-                                    continue
+                            if stripped.startswith('ITEM:'):
+                                in_data = False
+                                continue
+                            if in_data:
+                                parts = stripped.split()
+                                if len(parts) >= 6:
+                                    try:
+                                        t = int(parts[1])
+                                        r = float(parts[5])
+                                        if t == 1:
+                                            # sim r > 0.004 → AM_P (6μm), else AM_S (2μm)
+                                            am_type_name = 'AM_P' if r > 0.004 else 'AM_S'
+                                            break
+                                    except (ValueError, IndexError):
+                                        continue
                     break
             type_map = f'1:{am_type_name},2:SE'
 

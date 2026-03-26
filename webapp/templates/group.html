@@ -15,14 +15,14 @@
     <div class="case-select-grid">
       {% for case in cases %}
       {% if case.has_results %}
-      <label class="case-checkbox">
-        <input type="checkbox" name="cases" value="{{ case.id }}"
-               {% if case.id in selected %}checked{% endif %}>
+      <div class="case-checkbox" onclick="toggleCase(this, '{{ case.id }}')">
+        <span class="order-num"></span>
+        <input type="hidden" name="cases" value="{{ case.id }}" disabled>
         <div class="case-label">
           <strong>{{ case.name }}</strong>
           <span class="badge badge-{{ case.mode }}">{{ case.mode }}</span>
         </div>
-      </label>
+      </div>
       {% endif %}
       {% endfor %}
     </div>
@@ -134,6 +134,54 @@
 
 {% block scripts %}
 <script>
+// Ordered case selection
+let caseOrder = [];
+{% if selected %}caseOrder = {{ selected | tojson }};{% endif %}
+
+function toggleCase(el, caseId) {
+  const idx = caseOrder.indexOf(caseId);
+  const input = el.querySelector('input[name="cases"]');
+  if (idx >= 0) {
+    caseOrder.splice(idx, 1);
+    input.disabled = true;
+    el.classList.remove('case-selected');
+  } else {
+    caseOrder.push(caseId);
+    input.disabled = false;
+    el.classList.add('case-selected');
+  }
+  updateOrderNums();
+}
+
+function updateOrderNums() {
+  document.querySelectorAll('.case-checkbox').forEach(el => {
+    const input = el.querySelector('input[name="cases"]');
+    const num = el.querySelector('.order-num');
+    const idx = caseOrder.indexOf(input.value);
+    if (idx >= 0) {
+      num.textContent = idx + 1;
+      num.style.display = 'flex';
+    } else {
+      num.textContent = '';
+      num.style.display = 'none';
+    }
+  });
+}
+
+// Restore selection on page load
+document.addEventListener('DOMContentLoaded', () => {
+  caseOrder.forEach(cid => {
+    document.querySelectorAll('.case-checkbox').forEach(el => {
+      const input = el.querySelector('input[name="cases"]');
+      if (input.value === cid) {
+        input.disabled = false;
+        el.classList.add('case-selected');
+      }
+    });
+  });
+  updateOrderNums();
+});
+
 document.getElementById('report-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const form = new FormData(e.target);

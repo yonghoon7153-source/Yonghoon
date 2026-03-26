@@ -370,7 +370,14 @@ select.input { cursor: pointer; }
   cursor: pointer; transition: .15s;
 }
 .case-checkbox:hover { border-color: var(--accent); }
-.case-checkbox input { accent-color: var(--accent); }
+.case-checkbox { user-select: none; }
+.case-selected { border-color: var(--accent); background: rgba(108,140,255,.06); }
+.order-num {
+  display: none; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  font-size: .8rem; font-weight: 700; flex-shrink: 0;
+}
 .case-label { display: flex; flex-direction: column; gap: 4px; }
 .case-label strong { font-size: .85rem; }
 

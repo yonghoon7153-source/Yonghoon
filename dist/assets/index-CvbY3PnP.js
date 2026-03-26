@@ -800,7 +800,7 @@ opt.run(fmax=0.01)
 print(f"Optimized energy: {atoms.get_potential_energy():.6f} eV")
 write('optimized.cif', atoms)
 print("Optimized structure saved to optimized.cif")
-`}return r.includes(`eos`)&&(a[`eos.py`]=`"""Equation of State calculation with ${i.toUpperCase()}"""
+`}if(r.includes(`eos`)&&(a[`eos.py`]=`"""Equation of State calculation with ${i.toUpperCase()}"""
 ${m}
 
 from ase.eos import EquationOfState
@@ -876,88 +876,187 @@ idx = list(tp['temperatures']).index(300.0) if 300.0 in tp['temperatures'] else 
 print(f"  Cv = {tp['heat_capacity'][idx]:.3f} J/mol/K")
 print(f"  Entropy = {tp['entropy'][idx]:.3f} J/mol/K")
 print(f"  Free energy = {tp['free_energy'][idx]:.3f} kJ/mol")
-`),(r.includes(`aimd`)||r.includes(`rdf`)||r.includes(`msd`)||r.includes(`stress_fluct`))&&(a[`md.py`]=`"""Molecular dynamics with ${i.toUpperCase()}"""
+`),r.includes(`aimd`)||r.includes(`rdf`)||r.includes(`msd`)||r.includes(`stress_fluct`)){let e=s,t=[e,e+200,e+400];a[`md.py`]=`"""Multi-temperature molecular dynamics with ${i.toUpperCase()}
+Runs MD at ${t.join(`, `)} K for Arrhenius analysis"""
 ${m}
 
 from ase.md.langevin import Langevin
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase import units
+import os
 
-# Set up MD
-MaxwellBoltzmannDistribution(atoms, temperature_K=${s})
+temperatures = [${t.join(`, `)}]  # K
 
-dyn = Langevin(
-    atoms,
-    timestep=${l} * units.fs,
-    temperature_K=${s},
-    friction=0.01,
-    trajectory='md.traj',
-    logfile='md.log',
-)
+for T in temperatures:
+    print(f"\\n{'='*50}")
+    print(f"Running MD at {T} K for ${c} steps...")
+    print(f"{'='*50}")
 
-print(f"Running MD at ${s} K for ${c} steps...")
-dyn.run(${c})
-print("MD completed. Trajectory saved to md.traj")
-`),r.includes(`rdf`)&&(a[`rdf.py`]=`"""Radial Distribution Function from MD trajectory"""
+    atoms_md = atoms.copy()
+    atoms_md.calc = calc
+    MaxwellBoltzmannDistribution(atoms_md, temperature_K=T)
+
+    traj_file = f'md_{T}K.traj'
+    log_file = f'md_{T}K.log'
+
+    dyn = Langevin(
+        atoms_md,
+        timestep=${l} * units.fs,
+        temperature_K=T,
+        friction=0.01,
+        trajectory=traj_file,
+        logfile=log_file,
+    )
+    dyn.run(${c})
+    print(f"  MD at {T} K completed. Trajectory: {traj_file}")
+
+print("\\nAll MD runs completed!")
+`}return r.includes(`rdf`)&&(a[`rdf.py`]=`"""Radial Distribution Function from MD trajectories"""
 from ase.io import read
 import numpy as np
-
-traj = read('md.traj', index=':')
-
-from ase.geometry.analysis import Analysis
-ana = Analysis(traj)
-
-# All-all RDF
-rdf = ana.get_rdf(rmax=8.0, nbins=200, return_dists=True)
-r, g = rdf[0]
-
 import matplotlib.pyplot as plt
-plt.figure(figsize=(8, 5))
-plt.plot(r, g)
+import glob
+
+temperatures = [${[s,s+200,s+400].join(`, `)}]
+
+plt.figure(figsize=(10, 6))
+for T in temperatures:
+    traj_file = f'md_{T}K.traj'
+    try:
+        traj = read(traj_file, index='500:')  # skip equilibration
+        from ase.geometry.analysis import Analysis
+        ana = Analysis(traj)
+        rdf = ana.get_rdf(rmax=8.0, nbins=200, return_dists=True)
+        r, g = rdf[0]
+        plt.plot(r, g, label=f'{T} K')
+        print(f"RDF at {T} K computed ({len(traj)} frames)")
+    except Exception as e:
+        print(f"Skipping {T} K: {e}")
+
 plt.xlabel('r (Å)')
 plt.ylabel('g(r)')
 plt.title('Radial Distribution Function')
+plt.legend()
 plt.savefig('rdf.png', dpi=150)
 print("RDF saved to rdf.png")
-`),r.includes(`msd`)&&(a[`msd.py`]=`"""Mean Square Displacement & Diffusion Coefficient"""
+`),r.includes(`msd`)&&(a[`msd.py`]=`"""Multi-temperature MSD, Diffusion & Arrhenius plot"""
 from ase.io import read
 import numpy as np
-
-traj = read('md.traj', index=':')
-positions = np.array([a.get_positions() for a in traj])
-
-# Compute MSD
-ref = positions[0]
-msd = np.mean(np.sum((positions - ref)**2, axis=-1), axis=-1)
-time = np.arange(len(msd)) * ${l}  # fs
-
-# Fit linear region for diffusion coefficient
-from numpy.polynomial import polynomial as P
-# Use last 60% of data
-start = int(0.4 * len(time))
-coeff = P.polyfit(time[start:] * 1e-15, msd[start:] * 1e-20, 1)
-D = coeff[1] / 6  # m²/s
-print(f"Diffusion coefficient: {D:.4e} m²/s")
-
-# Ionic conductivity (Nernst-Einstein)
-from ase import units
-T = ${s}
-n_ions = len(traj[0])
-V = traj[0].get_volume() * 1e-30  # m³
-z = 1  # charge number
-e = 1.602e-19
-kB = 1.381e-23
-sigma = n_ions * z**2 * e**2 * D / (V * kB * T)
-print(f"Ionic conductivity: {sigma:.4e} S/m")
-
 import matplotlib.pyplot as plt
-plt.figure(figsize=(8, 5))
-plt.plot(time, msd)
-plt.xlabel('Time (fs)')
-plt.ylabel('MSD (Å²)')
-plt.title('Mean Square Displacement')
-plt.savefig('msd.png', dpi=150)
+from numpy.polynomial import polynomial as P
+
+temperatures = [${[s,s+200,s+400].join(`, `)}]  # K
+timestep = ${l}  # fs
+e_charge = 1.602176634e-19
+kB = 1.380649e-23
+
+diffusion_coeffs = []
+conductivities = []
+
+fig_msd, ax_msd = plt.subplots(figsize=(10, 6))
+
+for T in temperatures:
+    traj_file = f'md_{T}K.traj'
+    try:
+        traj = read(traj_file, index=':')
+    except Exception as ex:
+        print(f"Skipping {T} K: {ex}")
+        continue
+
+    # Use unwrapped positions for correct MSD
+    positions = np.array([a.get_positions() for a in traj])
+
+    # Compute MSD
+    ref = positions[0]
+    msd = np.mean(np.sum((positions - ref)**2, axis=-1), axis=-1)
+    time_fs = np.arange(len(msd)) * timestep
+
+    # Plot MSD
+    ax_msd.plot(time_fs / 1000, msd, label=f'{T} K')
+
+    # Fit linear region (last 60%) for diffusion coefficient
+    start = int(0.4 * len(time_fs))
+    if start < 2:
+        continue
+    time_s = time_fs[start:] * 1e-15  # fs -> s
+    msd_m2 = msd[start:] * 1e-20  # Å² -> m²
+    coeff = P.polyfit(time_s, msd_m2, 1)
+    D = coeff[1] / 6  # m²/s (3D diffusion)
+    diffusion_coeffs.append(D)
+
+    # Nernst-Einstein ionic conductivity
+    n_carrier = sum(1 for a in traj[0] if a.symbol in ['Li', 'Na', 'K'])
+    if n_carrier == 0:
+        n_carrier = len(traj[0])
+    V = traj[0].get_volume() * 1e-30  # m³
+    c = n_carrier / V  # number density (1/m³)
+    z = 1
+    sigma = c * z**2 * e_charge**2 * D / (kB * T)
+    conductivities.append(sigma)
+
+    print(f"T = {T} K:")
+    print(f"  D = {D:.4e} m²/s")
+    print(f"  σ = {sigma:.4e} S/m  ({sigma*1e3:.4f} mS/cm)")
+    print()
+
+ax_msd.set_xlabel('Time (ps)')
+ax_msd.set_ylabel('MSD (Å²)')
+ax_msd.set_title('Mean Square Displacement')
+ax_msd.legend()
+fig_msd.savefig('msd.png', dpi=150)
 print("MSD plot saved to msd.png")
+
+# --- Arrhenius plot ---
+if len(diffusion_coeffs) >= 2:
+    inv_T = np.array([1000.0 / T for T in temperatures[:len(diffusion_coeffs)]])
+    ln_D = np.log(np.array(diffusion_coeffs))
+    ln_sigma = np.log(np.array(conductivities))
+
+    # Linear fit: ln(D) = ln(D0) - Ea/(kB*T)
+    fit_D = np.polyfit(inv_T * 1000, ln_D, 1)  # x = 1/T in 1/K
+    Ea_D = -fit_D[0] * kB / e_charge  # eV
+
+    fit_sigma = np.polyfit(inv_T * 1000, ln_sigma, 1)
+    Ea_sigma = -fit_sigma[0] * kB / e_charge  # eV
+
+    print(f"Arrhenius analysis:")
+    print(f"  Ea (from D)     = {Ea_D:.4f} eV ({Ea_D * 96.485:.2f} kJ/mol)")
+    print(f"  Ea (from sigma) = {Ea_sigma:.4f} eV ({Ea_sigma * 96.485:.2f} kJ/mol)")
+
+    # Extrapolate to 300K
+    D_300 = np.exp(fit_D[1]) * np.exp(fit_D[0] * 1000 / 300)
+    sigma_300 = np.exp(fit_sigma[1]) * np.exp(fit_sigma[0] * 1000 / 300)
+    print(f"  D(300K)     = {D_300:.4e} m²/s")
+    print(f"  σ(300K)     = {sigma_300:.4e} S/m ({sigma_300*1e3:.4f} mS/cm)")
+
+    fig_arr, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+
+    # D Arrhenius
+    ax1.scatter(inv_T, ln_D, s=80, c='blue', zorder=5)
+    x_fit = np.linspace(inv_T.min() * 0.9, max(inv_T.max() * 1.1, 1000/300), 50)
+    ax1.plot(x_fit, np.polyval(fit_D, x_fit * 1000), 'b--',
+             label=f'Ea = {Ea_D:.3f} eV')
+    ax1.axvline(1000/300, color='gray', ls=':', alpha=0.5, label='300 K')
+    ax1.set_xlabel('1000/T (1/K)')
+    ax1.set_ylabel('ln(D) [m²/s]')
+    ax1.set_title('Arrhenius: Diffusion Coefficient')
+    ax1.legend()
+
+    # σ Arrhenius
+    ax2.scatter(inv_T, ln_sigma, s=80, c='red', zorder=5)
+    ax2.plot(x_fit, np.polyval(fit_sigma, x_fit * 1000), 'r--',
+             label=f'Ea = {Ea_sigma:.3f} eV')
+    ax2.axvline(1000/300, color='gray', ls=':', alpha=0.5, label='300 K')
+    ax2.set_xlabel('1000/T (1/K)')
+    ax2.set_ylabel('ln(σ) [S/m]')
+    ax2.set_title('Arrhenius: Ionic Conductivity')
+    ax2.legend()
+
+    fig_arr.tight_layout()
+    fig_arr.savefig('arrhenius.png', dpi=150)
+    print("Arrhenius plot saved to arrhenius.png")
+else:
+    print("Need at least 2 temperatures for Arrhenius fit.")
 `),r.includes(`elastic`)&&(a[`elastic.py`]=`"""Elastic constants with ${i.toUpperCase()}"""
 ${m}
 

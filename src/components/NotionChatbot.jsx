@@ -18,7 +18,12 @@ function NotionChatbot() {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messages.length > 0) {
+      const lastMsg = document.querySelector('.chat-message:last-of-type');
+      if (lastMsg) {
+        lastMsg.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
   }, [messages]);
 
   const toggleRef = (msgIndex) => {

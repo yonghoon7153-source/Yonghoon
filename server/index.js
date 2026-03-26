@@ -165,7 +165,7 @@ async function incrementalSync() {
 
 function searchPages(pages, query) {
   const queryLower = query.toLowerCase();
-  const queryTerms = queryLower.split(/\\s+/).filter(t => t.length > 1);
+  const queryTerms = queryLower.split(/\s+/).filter(t => t.length > 1);
   const scored = pages.map(page => {
     const searchText = (page.title + ' ' + page.description + ' ' + page.category + ' ' + page.content).toLowerCase();
     let score = 0;
@@ -194,7 +194,18 @@ app.post('/api/chat', async (req, res) => {
     const messages = [];
     for (const h of history.slice(-6)) { messages.push({ role: h.role, content: h.content }); }
     messages.push({ role: 'user', content: message });
-    const systemPrompt = 'You are a knowledgeable research assistant that answers questions based on a Notion database containing notes about:\\n- All-solid-state batteries (ASSB)\\n- NCM cathode materials\\n- Solid electrolytes (LPSCl, sulfide-based)\\n- DEM (Discrete Element Method) simulation\\n- Electrode fabrication and characterization\\n- Meeting notes, seminar content, and paper summaries\\n\\nIMPORTANT RULES:\\n1. Answer in the same language as the user\\'s question (Korean or English).\\n2. Base your answers ONLY on the provided database content below.\\n3. If the database doesn\\'t contain relevant information, say so honestly.\\n4. Always cite which pages you referenced using their titles.\\n5. Be concise but thorough.\\n\\n--- DATABASE CONTENT ---\\n' + (context || 'No relevant pages found for this query.') + '\\n--- END DATABASE CONTENT ---';
+    const systemPrompt = `You are a knowledgeable research assistant that answers questions based on a Notion database.
+
+RULES:
+1. Answer in the same language as the user's question.
+2. Base your answers ONLY on the provided database content below.
+3. If the database does not contain relevant information, say so honestly.
+4. Always cite which pages you referenced using their titles.
+5. Be concise but thorough.
+
+--- DATABASE CONTENT ---
+${context || "No relevant pages found."}
+--- END DATABASE CONTENT ---`;
     const response = await anthropic.messages.create({ model: 'claude-sonnet-4-20250514', max_tokens: 2000, system: systemPrompt, messages });
     const answer = response.content[0].text;
     const references = relevantPages.map(p => ({ id: p.id, title: p.title, url: p.url, category: p.category, importance: p.importance, description: p.description, imageUrl: p.imageUrl }));
@@ -219,23 +230,54 @@ app.post('/api/refresh', async (req, res) => {
   catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-const SAVE_DATABASE_ID = '32f53577a0a58048a64fe440a87bd17d';
+const SAVE_DATABASE_ID = '7b5d9b8c069c4f3bbe40b25f55afdf96';
+const MAX_TEXT_LENGTH = 2000;
+
+function contentToBlocks(text) {
+  const blocks = [];
+  const lines2 = text.split('\n');
+  let current = '';
+  for (const line of lines2) {
+    if (current.length + line.length + 1 > 1900) {
+      if (current) { blocks.push({ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: current } }] } }); }
+      current = line;
+    } else { current = current ? current + '\n' + line : line; }
+  }
+  if (current) { blocks.push({ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: current } }] } }); }
+  return blocks;
+}
+
+async function generateSummary(content) {
+  try {
+    const response = await anthropic.messages.create({ model: 'claude-sonnet-4-20250514', max_tokens: 500, messages: [{ role: 'user', content: 'Summarize in Korean, under 1500 chars. Use plain text only, no markdown formatting like # or ** or ```. Use bullet points with simple dots:\n\n' + content.slice(0, 8000) }] });
+    return response.content[0].text;
+  } catch (e) { return content.slice(0, MAX_TEXT_LENGTH); }
+}
 
 app.post('/api/save-to-notion', async (req, res) => {
   try {
     const { title, content } = req.body;
     if (!title || !content) return res.status(400).json({ error: 'Title and content are required' });
+    const isLong = content.length > MAX_TEXT_LENGTH;
+    let textVal = isLong ? await generateSummary(content) : content;
     const page = await notion.pages.create({
       parent: { database_id: SAVE_DATABASE_ID },
       properties: {
-        '\uc774\ub984': { title: [{ text: { content: title } }] },
-        '\ud14d\uc2a4\ud2b8': { rich_text: [{ text: { content: content.slice(0, 2000) } }] },
+        'Name': { title: [{ text: { content: title } }] },
+        '설명': { rich_text: [{ text: { content: textVal.slice(0, MAX_TEXT_LENGTH) } }] },
+        '링크 페이지': { rich_text: [{ text: { content: 'Notiontalk' } }] },
+        '논문/미팅 분류': { select: { name: 'Notiontalk' } },
       },
     });
+    if (isLong) {
+      const blocks = contentToBlocks(content);
+      for (let i = 0; i < blocks.length; i += 100) {
+        await notion.blocks.children.append({ block_id: page.id, children: blocks.slice(i, i + 100) });
+      }
+    }
     res.json({ success: true, url: page.url, id: page.id });
   } catch (error) { console.error('Save to Notion error:', error); res.status(500).json({ error: error.message }); }
 });
-
 app.get('/api/status', (req, res) => {
   res.json({ totalPages: cachedPages.length, lastFetchTime: lastFetchTime ? new Date(lastFetchTime).toISOString() : null, cacheFileExists: fs.existsSync(CACHE_FILE), autoSyncEnabled: true, syncIntervalMs: SYNC_INTERVAL });
 });

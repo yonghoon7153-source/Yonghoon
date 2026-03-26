@@ -245,6 +245,97 @@ def generate_report(case_id, case_name='', notes=''):
         f.write(report)
     return report
 
+# ─── Claude AI Analysis ────────────────────────────────────────────────────
+
+def _generate_ai_analysis(all_metrics, case_names, title, notes):
+    """Use Claude API to generate deep analysis of comparison data."""
+    api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+    if not api_key:
+        return None
+
+    try:
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+    except ImportError:
+        return None
+    except Exception:
+        return None
+
+    # Build data summary for Claude
+    import pandas as pd
+    display_keys = [
+        ('P:S', 'ps_ratio'), ('Porosity(%)', 'porosity'),
+        ('Thickness(μm)', 'thickness_um'),
+        ('AM-SE Total(μm²)', 'area_AM전체_SE_total'),
+        ('SE-SE Total(μm²)', 'area_SE_SE_total'),
+        ('SE-SE N', 'area_SE_SE_n'),
+        ('SE-SE Mean Area(μm²)', 'area_SE_SE_mean'),
+        ('SE-SE CN', 'se_se_cn'),
+        ('SE Cluster', 'n_components'),
+        ('Percolation(%)', 'percolation_pct'),
+        ('Top Reachable(%)', 'top_reachable_pct'),
+        ('Tortuosity', 'tortuosity_mean'),
+        ('Ionic Active AM(%)', 'ionic_active_pct'),
+        ('Coverage AM_P(%)', 'coverage_AM_P_mean'),
+        ('Coverage AM_S(%)', 'coverage_AM_S_mean'),
+    ]
+    rows = []
+    for i, name in enumerate(case_names):
+        row = {'Case': name}
+        for label, key in display_keys:
+            val = all_metrics[i].get(key, '-')
+            if isinstance(val, float):
+                val = round(val, 2)
+            row[label] = val
+        rows.append(row)
+    df = pd.DataFrame(rows)
+    data_table = df.to_markdown(index=False)
+
+    prompt = f"""당신은 고체전지 복합양극 DEM 시뮬레이션 전문가입니다.
+아래는 bimodal AM (AM_P: 대립자 6μm, AM_S: 소립자 2μm) + SE (고체전해질) 복합 양극의 DEM 분석 비교 데이터입니다.
+
+제목: {title}
+{f'메모: {notes}' if notes else ''}
+
+## 데이터
+
+{data_table}
+
+## 분석 지침
+
+아래 내용을 한국어로 작성해주세요:
+
+### 1. 핵심 발견
+- AM_P 비율 변화에 따른 주요 경향 3-5개
+- 각 경향의 물리적 원인 설명
+
+### 2. SE Contact Network Trade-off
+- SE-SE 접촉 개수 vs 평균 면적의 trade-off 관계
+- Total Area = N × Mean → 최적점 분석
+- 비유를 활용한 설명
+
+### 3. AM-SE vs SE-SE 상위 Trade-off
+- AM-SE 계면 (charge transfer) vs SE 네트워크 (ionic transport)
+- 병목 분석
+- 최적 P:S 비율 제안
+
+### 4. 결론 및 제언
+- 종합 최적 조건
+- 다음 실험/시뮬레이션 제안
+
+마크다운 형식으로, 표/수치를 적극 활용해서 작성해주세요."""
+
+    try:
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=3000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return message.content[0].text
+    except Exception as e:
+        return f"*AI 분석 생성 실패: {str(e)}*"
+
+
 # ─── Routes ─────────────────────────────────────────────────────────────────
 
 @app.route('/')
@@ -751,6 +842,15 @@ def group_report():
     L.append('')
 
     # Tags
+    L.append('---\n')
+
+    # Claude AI 심층 분석
+    ai_analysis = _generate_ai_analysis(all_metrics, case_names, title, notes)
+    if ai_analysis:
+        L.append('\n## 5. AI 심층 분석 (Claude)\n')
+        L.append(ai_analysis)
+        L.append('')
+
     L.append('---\n')
     L.append('#DEM #bimodal #comparison #percolation #tortuosity #coverage #ASSB\n')
 

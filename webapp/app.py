@@ -301,29 +301,36 @@ def _generate_ai_analysis(all_metrics, case_names, title, notes):
 
 {data_table}
 
-## 분석 지침
+## 분석 원칙 (반드시 준수)
 
-아래 내용을 한국어로 작성해주세요:
+1. **자의적 가중치 사용 금지**: "종합 점수"를 만들 때 근거 없는 가중치(예: 0.4/0.6)를 부여하지 마세요.
+2. **물리적 근거 기반 판단**: 각 주장에는 반드시 물리적 메커니즘 설명이 필요합니다.
+3. **Percolation 포화 효과**: 95% 이상에서는 diminishing return. 93%→97% 차이보다 tortuosity 차이가 실제 성능에 더 큰 영향.
+4. **병목 결정 원칙**: 고체전지에서는 일반적으로 ionic transport이 charge transfer보다 훨씬 큰 저항. AM-SE 계면이 "충분"하면 SE 네트워크 효율(tortuosity↓)이 핵심.
+5. **데이터에 없는 값을 추정하지 마세요**: 주어진 수치만으로 분석.
+6. **핵심 지표 우선순위**: Tortuosity > SE-SE Total Area > Percolation > Porosity > AM-SE Total (ionic transport limited 시스템 기준)
+
+## 분석 내용 (한국어)
 
 ### 1. 핵심 발견
 - AM_P 비율 변화에 따른 주요 경향 3-5개
-- 각 경향의 물리적 원인 설명
+- 각 경향의 물리적 원인 (입자 크기, 공간 배치 관점)
 
 ### 2. SE Contact Network Trade-off
 - SE-SE 접촉 개수 vs 평균 면적의 trade-off 관계
 - Total Area = N × Mean → 최적점 분석
-- 비유를 활용한 설명
+- 직관적 비유 활용
 
 ### 3. AM-SE vs SE-SE 상위 Trade-off
 - AM-SE 계면 (charge transfer) vs SE 네트워크 (ionic transport)
-- 병목 분석
-- 최적 P:S 비율 제안
+- 어느 쪽이 실제 병목인지 데이터 기반으로 판단
+- 최적 P:S 비율 제안 (근거 명시)
 
 ### 4. 결론 및 제언
-- 종합 최적 조건
-- 다음 실험/시뮬레이션 제안
+- 종합 최적 조건과 그 이유
+- 주의사항, 추가 검증 필요 사항
 
-마크다운 형식으로, 표/수치를 적극 활용해서 작성해주세요."""
+마크다운 형식으로, 표/수치를 적극 활용하되 근거 없는 수치 생성은 금지."""
 
     try:
         message = client.messages.create(

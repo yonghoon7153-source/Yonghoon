@@ -189,7 +189,7 @@ select.input { cursor: pointer; }
 /* Group comparison table */
 .group-table th, .group-table td { text-align: center; }
 .group-table td:first-child { text-align: left; font-weight: 500; }
-.group-table thead th { vertical-align: bottom; }
+.group-table thead th { vertical-align: top; }
 .group-th { padding: 10px 8px 6px !important; }
 .th-name {
   font-weight: 600; color: var(--text);

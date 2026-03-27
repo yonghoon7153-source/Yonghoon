@@ -85,18 +85,6 @@
 </div>
 {% endif %}
 
-<!-- Report Preview -->
-{% if report %}
-<div class="card">
-  <div class="card-header-row">
-    <h3>Markdown Report</h3>
-    <button class="btn btn-sm btn-copy" onclick="copyReport()">복사</button>
-  </div>
-  <div class="report-preview" id="report-content">
-    <pre>{{ report }}</pre>
-  </div>
-</div>
-{% endif %}
 
 <!-- Image Modal -->
 <div id="modal" class="modal" onclick="this.classList.remove('open')">

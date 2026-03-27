@@ -887,12 +887,92 @@ def serve_figure(case_id, filename):
 
 @app.route('/results/<case_id>/report')
 def serve_report(case_id):
-    report_path = os.path.join(get_results_dir(case_id), 'report.md')
-    if os.path.exists(report_path):
-        return send_file(report_path, mimetype='text/markdown',
-                        as_attachment=True,
-                        download_name=f'{case_id}_report.md')
-    return 'Report not found', 404
+    """Generate MD report on-the-fly from analysis CSVs."""
+    import pandas as pd
+    results_dir = get_results_dir(case_id)
+    case_dir = get_case_dir(case_id)
+    meta_file = os.path.join(case_dir, 'meta.json')
+
+    meta = {}
+    if os.path.exists(meta_file):
+        with open(meta_file) as f:
+            meta = json.load(f)
+
+    metrics = {}
+    metrics_path = os.path.join(results_dir, 'full_metrics.json')
+    if os.path.exists(metrics_path):
+        with open(metrics_path) as f:
+            metrics = json.load(f)
+
+    input_params = {}
+    params_path = os.path.join(results_dir, 'input_params.json')
+    if os.path.exists(params_path):
+        with open(params_path) as f:
+            input_params = json.load(f)
+
+    name = meta.get('name', case_id)
+    now = datetime.now().strftime('%y%m%d')
+    L = []
+
+    # Header
+    L.append(f'# {now}_{name}_DEM_Analysis\n')
+    L.append(f'> **날짜**: {datetime.now().strftime("%Y-%m-%d")}')
+    L.append(f'> **케이스**: {name}')
+    L.append(f'> **모드**: {meta.get("mode", "-")}')
+    if metrics.get('ps_ratio'):
+        L.append(f'> **P:S**: {metrics["ps_ratio"]}')
+    if input_params.get('am_se_ratio'):
+        L.append(f'> **AM:SE**: {input_params["am_se_ratio"]}')
+    if input_params.get('target_press_sim'):
+        L.append(f'> **Target Pressure**: {input_params["target_press_sim"] * 1000:.1f} MPa')
+    L.append('')
+    L.append('---\n')
+
+    # Load and append each CSV as table
+    csv_names = {
+        'atom_statistics': '입자 정보',
+        'contact_summary': '접촉 요약',
+        'coordination_summary': '배위수',
+        'network_summary': '네트워크 지표',
+    }
+    section_num = 1
+    for csv_name, title in csv_names.items():
+        csv_path = os.path.join(results_dir, f'{csv_name}.csv')
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            L.append(f'## {section_num}. {title}\n')
+            L.append(df.to_markdown(index=False))
+            L.append('')
+            section_num += 1
+
+    # Key metrics summary
+    if metrics:
+        L.append(f'\n## {section_num}. 핵심 지표 요약\n')
+        summary_items = [
+            ('Porosity', f"{metrics.get('porosity', '-')}%"),
+            ('전극 두께', f"{metrics.get('thickness_um', '-')} μm"),
+            ('SE-SE CN', f"{metrics.get('se_se_cn', '-')}"),
+            ('SE Percolation', f"{metrics.get('percolation_pct', '-')}%"),
+            ('Top Reachable', f"{metrics.get('top_reachable_pct', '-')}%"),
+            ('Tortuosity', f"{metrics.get('tortuosity_mean', '-')}"),
+            ('Ionic Active AM', f"{metrics.get('ionic_active_pct', '-')}%"),
+        ]
+        if metrics.get('stress_cv'):
+            summary_items.append(('Stress CV', f"{metrics.get('stress_cv', '-')}%"))
+        for label, val in summary_items:
+            L.append(f'- **{label}**: {val}')
+        L.append('')
+
+    L.append('---\n')
+    L.append('#DEM #analysis #ASSB #composite-cathode\n')
+
+    report = '\n'.join(L)
+
+    # Return as downloadable MD
+    from io import BytesIO
+    buf = BytesIO(report.encode('utf-8'))
+    return send_file(buf, mimetype='text/markdown', as_attachment=True,
+                    download_name=f'{name}_report.md')
 
 @app.route('/download-file/<case_id>/<filename>')
 def download_case_file(case_id, filename):

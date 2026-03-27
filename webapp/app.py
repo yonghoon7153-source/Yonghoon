@@ -543,6 +543,8 @@ def group():
             ('Coverage P', '(%)', 'coverage_AM_P_mean'),
             ('Coverage S', '(%)', 'coverage_AM_S_mean'),
             ('Stress CV', '(%)', 'stress_cv'),
+            ('σ_AM_P/σ_mean', '', 'stress_ratio_AM_P'),
+            ('σ_AM_S/σ_mean', '', 'stress_ratio_AM_S'),
             ('σ_SE/σ_mean', '', 'stress_ratio_SE'),
         ]
         rows = []

@@ -530,6 +530,14 @@ def single(case_id):
         with open(metrics_path) as f:
             metrics = json.load(f)
 
+    # Patch SE Cluster display for old CSVs (plain number → large/total format)
+    if 'network_summary' in tables and metrics:
+        n_large = metrics.get('n_large_components')
+        if n_large is not None:
+            for row in tables['network_summary']['data']:
+                if str(row[0]) == 'SE Cluster 수' and '≥10' not in str(row[1]):
+                    row[1] = f"{n_large}(≥10) / {row[1]}"
+
     # Load input_params.json
     input_params = {}
     params_path = os.path.join(results_dir, 'input_params.json')

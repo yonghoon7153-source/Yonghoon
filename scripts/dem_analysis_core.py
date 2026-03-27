@@ -193,6 +193,7 @@ def calc_percolation(atoms, contacts, se_types, plate_z, boundary_factor=2.0):
 
     components = list(nx.connected_components(G))
     largest = max(len(c) for c in components) if components else 0
+    n_large = sum(1 for c in components if len(c) >= 10)
 
     percolating_se = set()
     top_reachable_se = set()
@@ -211,6 +212,7 @@ def calc_percolation(atoms, contacts, se_types, plate_z, boundary_factor=2.0):
         'percolation_pct': len(percolating_se) / n * 100,
         'top_reachable_pct': len(top_reachable_se) / n * 100,
         'n_components': len(components),
+        'n_large_components': n_large,
         'largest_pct': largest / n * 100,
         'top_reachable_se': top_reachable_se,
         'bottom_se': bottom_se,

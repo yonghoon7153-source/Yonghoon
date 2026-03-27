@@ -337,10 +337,24 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                     if len(all_paths) >= 30:
                         break
                 if all_paths:
-                    # Sort by closeness to overall tortuosity mean
+                    # Sort: best τ (1~10), mean τ (11~20), worst τ (21~30)
                     tau_mean = results['tortuosity'].get('mean', 0) or 0
-                    all_paths.sort(key=lambda p: abs(p['tortuosity'] - tau_mean))
-                    paths_list = all_paths[:10]
+                    all_paths.sort(key=lambda p: p['tortuosity'])  # ascending
+                    best = all_paths[:10]  # lowest τ
+                    worst = all_paths[-10:] if len(all_paths) > 20 else all_paths[10:]
+                    # mean-close: sort middle by closeness to mean
+                    middle = [p for p in all_paths[10:] if p not in worst] if len(all_paths) > 10 else []
+                    middle.sort(key=lambda p: abs(p['tortuosity'] - tau_mean))
+                    middle = middle[:10]
+                    paths_list = best + middle + worst
+                    # Tag each path
+                    for i, p in enumerate(paths_list):
+                        if i < 10:
+                            p['category'] = 'best'
+                        elif i < 20:
+                            p['category'] = 'mean'
+                        else:
+                            p['category'] = 'worst'
                     cluster_info['path'] = paths_list[0]
                     cluster_info['paths'] = paths_list
 

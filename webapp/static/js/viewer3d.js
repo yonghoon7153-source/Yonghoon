@@ -416,7 +416,9 @@ function highlightCluster(idx, scene, state, infoEl, pathIdx) {
   let html = `<b>#${idx}</b> ${cluster.size}개`;
   html += cluster.percolating ? ` <span style="color:#34D399">✓</span>` : ` <span style="color:#F87171">✗</span>`;
   if (allPaths.length > 1) {
-    html += `<br>Path ${pi+1}/${allPaths.length}`;
+    const cat = allPaths[pi]?.category || '';
+    const catLabel = cat === 'best' ? '🟢best' : cat === 'worst' ? '🔴worst' : '🟡mean';
+    html += `<br>Path ${pi+1}/${allPaths.length} ${catLabel}`;
   }
 
   /* draw selected path */
@@ -550,47 +552,105 @@ function showPathOnlyView(renderer, scene, camera, state) {
     return;
   }
 
-  // Save visibility state
+  // Build unwrapped continuous path (no periodic breaks)
+  const clusters = ((state.data.clusters || {}).clusters) || [];
+  const cidx = state.currentClusterIdx || 0;
+  const cluster = clusters[cidx];
+  const pathIdx = state.currentPathIdx || 0;
+  const allPaths = cluster ? (cluster.paths || (cluster.path ? [cluster.path] : [])) : [];
+  const pathData = allPaths[pathIdx];
+
+  if (!pathData || !pathData.ids) {
+    alert('경로 데이터가 없습니다.');
+    return;
+  }
+
+  // Build unwrapped points (accumulate offset when periodic jump detected)
+  const box = state.data.box;
+  const bx = box.x_max - box.x_min;
+  const by = box.y_max - box.y_min;
+  const rawPts = pathData.ids.map(id => state.idIndex[id]).filter(Boolean);
+  const unwrapped = [];
+  let offX = 0, offY = 0;
+  for (let i = 0; i < rawPts.length; i++) {
+    const p = rawPts[i];
+    let x = p.x + offX, y = p.y + offY;
+    if (i > 0) {
+      const prev = unwrapped[i-1];
+      const dx = (p.x + offX) - prev.x;
+      const dy = (p.y + offY) - prev.z; // Three.js z = data y
+      if (Math.abs(dx) > bx * 0.5) { offX -= Math.sign(dx) * bx; x = p.x + offX; }
+      if (Math.abs(dy) > by * 0.5) { offY -= Math.sign(dy) * by; y = p.y + offY; }
+    }
+    unwrapped.push(new THREE.Vector3(x, p.z, y)); // Z-up swap
+  }
+
+  // Create temporary path group for clean render
+  const tempGroup = new THREE.Group();
+  for (let j = 0; j < unwrapped.length - 1; j++) {
+    const seg = new THREE.TubeGeometry(
+      new THREE.LineCurve3(unwrapped[j], unwrapped[j+1]), 1, 0.6, 6, false
+    );
+    const mat = new THREE.MeshPhongMaterial({
+      color: COL.PATH, emissive: COL.PATH, emissiveIntensity: 0.5,
+    });
+    tempGroup.add(new THREE.Mesh(seg, mat));
+  }
+  // Start/end markers
+  const mkS = (pos, color) => {
+    const s = new THREE.Mesh(new THREE.SphereGeometry(1.8,12,12), new THREE.MeshPhongMaterial({color}));
+    s.position.copy(pos); return s;
+  };
+  tempGroup.add(mkS(unwrapped[0], 0x22D3EE));
+  tempGroup.add(mkS(unwrapped[unwrapped.length-1], 0xF87171));
+  scene.add(tempGroup);
+
+  // Hide all particles
   const saved = {};
   Object.entries(state.meshes).forEach(([k, m]) => {
     if (m) { saved[k] = m.visible; m.visible = false; }
   });
+  // Also hide the original path group (with breaks)
+  if (state.pathGroup) state.pathGroup.visible = false;
 
-  // Render path-only frame
+  // Render
   renderer.render(scene, camera);
   const dataUrl = renderer.domElement.toDataURL('image/png');
 
-  // Restore visibility
+  // Restore
   Object.entries(saved).forEach(([k, v]) => {
     if (state.meshes[k]) state.meshes[k].visible = v;
   });
+  if (state.pathGroup) state.pathGroup.visible = true;
+  scene.remove(tempGroup);
 
-  // Get current path info
-  const clusters = ((state.data.clusters || {}).clusters) || [];
-  const idx = state.currentClusterIdx || 0;
-  const cluster = clusters[idx];
-  const pathIdx = state.currentPathIdx || 0;
-  const allPaths = cluster ? (cluster.paths || (cluster.path ? [cluster.path] : [])) : [];
-  const path = allPaths[pathIdx];
+  // Path info
+  const path = pathData;
+  const cat = path?.category || '';
+  const catLabel = cat === 'best' ? 'Best' : cat === 'worst' ? 'Worst' : 'Mean';
+  const idx = cidx;
 
   let infoHtml = '';
   if (path) {
-    infoHtml = `Cluster #${idx} (${cluster.size} SE) | Path ${pathIdx+1}/${allPaths.length} | τ = ${path.tortuosity} | L = ${path.path_length} μm | Z = ${path.z_distance} μm`;
+    infoHtml = `<b>Li⁺ Ion Path</b> (${catLabel})<br>`;
+    infoHtml += `Cluster #${idx} | ${cluster.size} SE particles<br>`;
+    infoHtml += `τ = ${path.tortuosity} | Path: ${path.path_length} μm | Z: ${path.z_distance} μm`;
   }
 
-  // Create modal
+  // Modal
   const overlay = document.createElement('div');
   overlay.className = 'path-modal-overlay';
   overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
   overlay.innerHTML = `
-    <div class="path-modal">
+    <div class="path-modal" style="text-align:center">
       <button class="path-modal-close" onclick="this.closest('.path-modal-overlay').remove()">&times;</button>
-      <img src="${dataUrl}" alt="Path Only View">
-      <div class="path-modal-info">${infoHtml}</div>
+      <div style="font-size:14px;font-weight:bold;margin-bottom:10px">Li⁺ Ion Path (if SE connected)</div>
+      <img src="${dataUrl}" alt="Path Only View" style="max-height:70vh">
+      <div class="path-modal-info" style="text-align:left;margin-top:12px">${infoHtml}</div>
       <div class="path-modal-actions">
         <button onclick="(() => {
           const a = document.createElement('a');
-          a.download = 'ion_path_view.png';
+          a.download = 'li_ion_path_${catLabel.toLowerCase()}_tau${path?.tortuosity || ''}.png';
           a.href = this.closest('.path-modal').querySelector('img').src;
           a.click();
         })()">PNG 다운로드</button>

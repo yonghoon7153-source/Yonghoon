@@ -38,6 +38,15 @@ function buildControls(container) {
     <button data-action="resetView">Reset</button>
     <button data-action="screenshot">Screenshot</button>`;
   container.appendChild(div);
+  // Zoom slider (bottom-right)
+  const zoomDiv = document.createElement('div');
+  zoomDiv.className = 'viewer-zoom';
+  zoomDiv.innerHTML = `
+    <button id="zoom-out">−</button>
+    <input type="range" id="zoom-slider" min="30" max="350" value="200" step="5">
+    <button id="zoom-in">+</button>`;
+  container.appendChild(zoomDiv);
+  div._zoomDiv = zoomDiv;
   // Separate info panel
   const infoDiv = document.createElement('div');
   infoDiv.className = 'viewer-info';
@@ -62,9 +71,16 @@ function injectCSS() {
 .viewer-controls button{background:#555;color:#fff;border:none;border-radius:4px;padding:3px 8px;
   cursor:pointer;font-size:10px;margin-top:1px}
 .viewer-controls button:hover{background:#777}
-.viewer-info{position:absolute;bottom:12px;left:12px;background:rgba(22,25,46,.9);
+.viewer-info{position:absolute;bottom:50px;left:12px;background:rgba(22,25,46,.9);
   border:1px solid #2a2d3e;border-radius:8px;padding:8px 12px;
-  font:11px/1.5 'JetBrains Mono',monospace;color:#e4e6f0;z-index:10;max-width:240px;display:none}`;
+  font:11px/1.5 'JetBrains Mono',monospace;color:#e4e6f0;z-index:10;max-width:240px;display:none}
+.viewer-zoom{position:absolute;bottom:12px;right:12px;background:rgba(22,25,46,.9);
+  border:1px solid #2a2d3e;border-radius:8px;padding:6px 10px;z-index:10;
+  display:flex;align-items:center;gap:6px}
+.viewer-zoom button{background:#555;color:#fff;border:none;border-radius:4px;width:24px;height:24px;
+  cursor:pointer;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center}
+.viewer-zoom button:hover{background:#777}
+.viewer-zoom input[type=range]{width:100px;accent-color:#6c8cff}`;
   document.head.appendChild(s);
 }
 
@@ -88,12 +104,7 @@ export function initElectrodeViewer(containerId, dataUrl) {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.12;
-  controls.zoomSpeed = 0.5;
-  controls.minDistance = 30;
-  controls.maxDistance = 400;
-
-  /* prevent page scroll when zooming inside viewer */
-  renderer.domElement.addEventListener('wheel', e => e.preventDefault(), {passive: false});
+  controls.enableZoom = false;  // disable wheel zoom (use UI slider instead)
 
   /* lights */
   scene.add(new THREE.AmbientLight(0xffffff, 0.4));
@@ -431,8 +442,8 @@ function highlightCluster(idx, scene, state, infoEl, pathIdx) {
 
         if (isPeriodic) {
           // Mark both ends with red spheres, skip the tube
-          group.add(mkSphere(a, 0xFF0000, 1.2));
-          group.add(mkSphere(b, 0xFF0000, 1.2));
+          group.add(mkSphere(a, 0xFF0000, 0.5));
+          group.add(mkSphere(b, 0xFF0000, 0.5));
         } else {
           const seg = new THREE.TubeGeometry(
             new THREE.LineCurve3(a, b), 1, 0.5, 6, false
@@ -499,4 +510,24 @@ function wireControls(ctrlDiv, renderer, camera, controls, scene, state) {
       }
     });
   });
+
+  /* zoom slider */
+  const zoomDiv = ctrlDiv._zoomDiv;
+  if (zoomDiv) {
+    const slider = zoomDiv.querySelector('#zoom-slider');
+    const zoomIn = zoomDiv.querySelector('#zoom-in');
+    const zoomOut = zoomDiv.querySelector('#zoom-out');
+
+    function setZoom(dist) {
+      dist = Math.max(30, Math.min(350, dist));
+      const dir = camera.position.clone().sub(controls.target).normalize();
+      camera.position.copy(controls.target).addScaledVector(dir, dist);
+      controls.update();
+      slider.value = dist;
+    }
+
+    slider.addEventListener('input', () => setZoom(parseInt(slider.value)));
+    zoomIn.addEventListener('click', () => setZoom(parseInt(slider.value) - 20));
+    zoomOut.addEventListener('click', () => setZoom(parseInt(slider.value) + 20));
+  }
 }

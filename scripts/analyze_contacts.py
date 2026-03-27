@@ -298,25 +298,45 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                 'path': None,
             }
 
-            # Find shortest path for percolating clusters
+            # Find multiple shortest paths for percolating clusters
             if percolating:
                 src_candidates = list(comp & bottom_se)
                 tgt_candidates = list(comp & top_se)
-                if src_candidates and tgt_candidates:
-                    try:
-                        path = nx.shortest_path(G, src_candidates[0], tgt_candidates[0])
-                        path_len = sum(
-                            np.sqrt(sum((atoms_raw[path[k]][c] - atoms_raw[path[k+1]][c])**2 for c in 'xyz'))
-                            for k in range(len(path)-1))
-                        z_dist = abs(atoms_raw[tgt_candidates[0]]['z'] - atoms_raw[src_candidates[0]]['z'])
-                        cluster_info['path'] = {
-                            'ids': path,
-                            'tortuosity': round(path_len / z_dist, 2) if z_dist > 0 else 0,
-                            'path_length': round(path_len * scale, 1),
-                            'z_distance': round(z_dist * scale, 1),
-                        }
-                    except nx.NetworkXNoPath:
-                        pass
+                import random
+                random.seed(42)
+                random.shuffle(src_candidates)
+                random.shuffle(tgt_candidates)
+                paths_list = []
+                seen_pairs = set()
+                for si in range(min(10, len(src_candidates))):
+                    for ti in range(min(10, len(tgt_candidates))):
+                        if len(paths_list) >= 10:
+                            break
+                        src = src_candidates[si]
+                        tgt = tgt_candidates[ti]
+                        pair = (src, tgt)
+                        if pair in seen_pairs:
+                            continue
+                        seen_pairs.add(pair)
+                        try:
+                            path = nx.shortest_path(G, src, tgt)
+                            path_len = sum(
+                                np.sqrt(sum((atoms_raw[path[k]][c] - atoms_raw[path[k+1]][c])**2 for c in 'xyz'))
+                                for k in range(len(path)-1))
+                            z_dist = abs(atoms_raw[tgt]['z'] - atoms_raw[src]['z'])
+                            paths_list.append({
+                                'ids': path,
+                                'tortuosity': round(path_len / z_dist, 2) if z_dist > 0 else 0,
+                                'path_length': round(path_len * scale, 1),
+                                'z_distance': round(z_dist * scale, 1),
+                            })
+                        except nx.NetworkXNoPath:
+                            pass
+                    if len(paths_list) >= 10:
+                        break
+                if paths_list:
+                    cluster_info['path'] = paths_list[0]  # default (legacy)
+                    cluster_info['paths'] = paths_list  # all paths
 
             clusters.append(cluster_info)
 

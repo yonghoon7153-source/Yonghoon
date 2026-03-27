@@ -134,33 +134,61 @@ export function initElectrodeViewer(containerId, dataUrl) {
     const pathControls = ctrlDiv.querySelector('#path-controls');
     const pathToggle = ctrlDiv.querySelector('#path-toggle');
 
-    function showPercCluster(idx) {
+    state.currentPathIdx = 0;
+
+    function showPercCluster(clusterIdx, pathIdx) {
       if (!percClusters.length) { if (infoEl) infoEl.innerHTML = 'No percolating'; return; }
-      idx = ((idx % percClusters.length) + percClusters.length) % percClusters.length;
-      state.percIdx = idx;
-      if (currentEl) currentEl.textContent = idx + 1;
-      const origIdx = clusters.indexOf(percClusters[idx]);
-      highlightCluster(origIdx, scene, state, infoEl);
+      clusterIdx = ((clusterIdx % percClusters.length) + percClusters.length) % percClusters.length;
+      state.percIdx = clusterIdx;
+      const origIdx = clusters.indexOf(percClusters[clusterIdx]);
+      const cluster = percClusters[clusterIdx];
+      const allPaths = cluster.paths || (cluster.path ? [cluster.path] : []);
+      const pi = pathIdx !== undefined ? pathIdx : 0;
+      highlightCluster(origIdx, scene, state, infoEl, pi);
+      if (currentEl) currentEl.textContent = `${clusterIdx+1}-${pi+1}`;
+      if (totalEl) totalEl.textContent = `/ ${percClusters.length} (${allPaths.length}경로)`;
     }
 
     function clearPath() {
       if (state.pathGroup) { scene.remove(state.pathGroup); state.pathGroup = null; }
       resetSEColors(state);
       if (infoEl) infoEl.innerHTML = '';
+      if (currentEl) currentEl.textContent = '-';
     }
 
     if (pathToggle) pathToggle.addEventListener('change', () => {
       if (pathToggle.checked) {
         pathControls.style.display = 'block';
-        if (percClusters.length > 0) showPercCluster(state.percIdx);
+        state.currentPathIdx = 0;
+        if (percClusters.length > 0) showPercCluster(state.percIdx, 0);
       } else {
         pathControls.style.display = 'none';
         clearPath();
       }
     });
 
-    if (prevBtn) prevBtn.addEventListener('click', () => showPercCluster(state.percIdx - 1));
-    if (nextBtn) nextBtn.addEventListener('click', () => showPercCluster(state.percIdx + 1));
+    if (prevBtn) prevBtn.addEventListener('click', () => {
+      const pi = (state.currentPathIdx || 0) - 1;
+      if (pi < 0) {
+        // 이전 클러스터의 마지막 path
+        const prevCluster = percClusters[((state.percIdx - 1) + percClusters.length) % percClusters.length];
+        const prevPaths = prevCluster.paths || [prevCluster.path];
+        showPercCluster(state.percIdx - 1, prevPaths.length - 1);
+      } else {
+        showPercCluster(state.percIdx, pi);
+      }
+    });
+    if (nextBtn) nextBtn.addEventListener('click', () => {
+      const curCluster = percClusters[state.percIdx];
+      const curPaths = curCluster.paths || [curCluster.path];
+      const pi = (state.currentPathIdx || 0) + 1;
+      if (pi >= curPaths.length) {
+        // 다음 클러스터의 첫 path
+        showPercCluster(state.percIdx + 1, 0);
+      } else {
+        showPercCluster(state.percIdx, pi);
+      }
+    });
 
     animate();
   }).catch(err => {
@@ -325,7 +353,7 @@ function applyPercolation(state, on) {
 }
 
 /* ── Cluster highlight by index ────────────────────────────── */
-function highlightCluster(idx, scene, state, infoEl) {
+function highlightCluster(idx, scene, state, infoEl, pathIdx) {
   const particles = state.seParticles;
   if (!particles) return;
 
@@ -340,6 +368,9 @@ function highlightCluster(idx, scene, state, infoEl) {
   }
 
   const cluster = clusterList[idx];
+  const allPaths = cluster.paths || (cluster.path ? [cluster.path] : []);
+  state.currentClusterPaths = allPaths;
+  state.currentPathIdx = pathIdx || 0;
 
   /* highlight cluster SE particles */
   const clusterSet = new Set(cluster.ids);
@@ -347,7 +378,7 @@ function highlightCluster(idx, scene, state, infoEl) {
   const col = new THREE.Color();
   particles.forEach((p, i) => {
     if (clusterSet.has(p.id)) {
-      col.setHex(0x1565C0);  // deep blue
+      col.setHex(0x1565C0);
     } else {
       col.setHex(COL.SE);
     }
@@ -356,12 +387,16 @@ function highlightCluster(idx, scene, state, infoEl) {
   mesh.instanceColor.needsUpdate = true;
 
   /* info text */
+  const pi = state.currentPathIdx;
   let html = `<b>#${idx}</b> ${cluster.size}개`;
   html += cluster.percolating ? ` <span style="color:#34D399">✓</span>` : ` <span style="color:#F87171">✗</span>`;
+  if (allPaths.length > 1) {
+    html += `<br>Path ${pi+1}/${allPaths.length}`;
+  }
 
-  /* draw path if percolating */
-  if (cluster.path && cluster.path.ids) {
-    const path = cluster.path;
+  /* draw selected path */
+  const path = allPaths[pi];
+  if (path && path.ids) {
     const pts = path.ids.map(id => {
       const p = state.idIndex[id];
       return p ? new THREE.Vector3(p.x, p.z, p.y) : null;

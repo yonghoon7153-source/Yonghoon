@@ -545,14 +545,13 @@ function wireControls(ctrlDiv, renderer, camera, controls, scene, state) {
   }
 }
 
-/* ── Path Only View (popup) ──────────────────────────────── */
+/* ── Path Only View (interactive 3D popup) ───────────────── */
 function showPathOnlyView(renderer, scene, camera, state) {
   if (!state.pathGroup) {
     alert('먼저 Percolating Path를 선택하세요.');
     return;
   }
 
-  // Build unwrapped continuous path (no periodic breaks)
   const clusters = ((state.data.clusters || {}).clusters) || [];
   const cidx = state.currentClusterIdx || 0;
   const cluster = clusters[cidx];
@@ -565,10 +564,9 @@ function showPathOnlyView(renderer, scene, camera, state) {
     return;
   }
 
-  // Build unwrapped points (accumulate offset when periodic jump detected)
+  // Build unwrapped path
   const box = state.data.box;
-  const bx = box.x_max - box.x_min;
-  const by = box.y_max - box.y_min;
+  const bx = box.x_max - box.x_min, by = box.y_max - box.y_min;
   const rawPts = pathData.ids.map(id => state.idIndex[id]).filter(Boolean);
   const unwrapped = [];
   let offX = 0, offY = 0;
@@ -578,99 +576,139 @@ function showPathOnlyView(renderer, scene, camera, state) {
     if (i > 0) {
       const prev = unwrapped[i-1];
       const dx = (p.x + offX) - prev.x;
-      const dy = (p.y + offY) - prev.z; // Three.js z = data y
+      const dy = (p.y + offY) - prev.z;
       if (Math.abs(dx) > bx * 0.5) { offX -= Math.sign(dx) * bx; x = p.x + offX; }
       if (Math.abs(dy) > by * 0.5) { offY -= Math.sign(dy) * by; y = p.y + offY; }
     }
-    unwrapped.push(new THREE.Vector3(x, p.z, y)); // Z-up swap
+    unwrapped.push(new THREE.Vector3(x, p.z, y));
   }
-
-  // Center the path in the box (shift x,z so path midpoint = box center)
+  // Center path
   if (unwrapped.length > 0) {
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    unwrapped.forEach(v => {
-      minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x);
-      minZ = Math.min(minZ, v.z); maxZ = Math.max(maxZ, v.z);
-    });
-    const pathCx = (minX + maxX) / 2;
-    const pathCz = (minZ + maxZ) / 2;
-    const boxCx = (box.x_min + box.x_max) / 2;
-    const boxCz = (box.y_min + box.y_max) / 2;
-    const shiftX = boxCx - pathCx;
-    const shiftZ = boxCz - pathCz;
-    unwrapped.forEach(v => { v.x += shiftX; v.z += shiftZ; });
+    let mnX=Infinity,mxX=-Infinity,mnZ=Infinity,mxZ=-Infinity;
+    unwrapped.forEach(v=>{mnX=Math.min(mnX,v.x);mxX=Math.max(mxX,v.x);mnZ=Math.min(mnZ,v.z);mxZ=Math.max(mxZ,v.z);});
+    const sx=(box.x_min+box.x_max)/2-(mnX+mxX)/2, sz=(box.y_min+box.y_max)/2-(mnZ+mxZ)/2;
+    unwrapped.forEach(v=>{v.x+=sx;v.z+=sz;});
   }
 
-  // Create temporary path group for clean render
-  const tempGroup = new THREE.Group();
-  for (let j = 0; j < unwrapped.length - 1; j++) {
-    const seg = new THREE.TubeGeometry(
-      new THREE.LineCurve3(unwrapped[j], unwrapped[j+1]), 1, 0.6, 6, false
-    );
-    const mat = new THREE.MeshPhongMaterial({
-      color: COL.PATH, emissive: COL.PATH, emissiveIntensity: 0.5,
-    });
-    tempGroup.add(new THREE.Mesh(seg, mat));
-  }
-  // Start/end markers
-  const mkS = (pos, color) => {
-    const s = new THREE.Mesh(new THREE.SphereGeometry(1.8,12,12), new THREE.MeshPhongMaterial({color}));
-    s.position.copy(pos); return s;
-  };
-  tempGroup.add(mkS(unwrapped[0], 0x22D3EE));
-  tempGroup.add(mkS(unwrapped[unwrapped.length-1], 0xF87171));
-  scene.add(tempGroup);
-
-  // Hide all particles
-  const saved = {};
-  Object.entries(state.meshes).forEach(([k, m]) => {
-    if (m) { saved[k] = m.visible; m.visible = false; }
-  });
-  // Also hide the original path group (with breaks)
-  if (state.pathGroup) state.pathGroup.visible = false;
-
-  // Render
-  renderer.render(scene, camera);
-  const dataUrl = renderer.domElement.toDataURL('image/png');
-
-  // Restore
-  Object.entries(saved).forEach(([k, v]) => {
-    if (state.meshes[k]) state.meshes[k].visible = v;
-  });
-  if (state.pathGroup) state.pathGroup.visible = true;
-  scene.remove(tempGroup);
-
-  // Path info
-  const path = pathData;
-  const cat = path?.category || '';
-  const catLabel = cat === 'best' ? 'Best' : cat === 'worst' ? 'Worst' : 'Mean';
-  const idx = cidx;
-
-  let infoHtml = '';
-  if (path) {
-    infoHtml = `<b>Li⁺ Ion Path</b> (${catLabel})<br>`;
-    infoHtml += `Cluster #${idx} | ${cluster.size} SE particles<br>`;
-    infoHtml += `τ = ${path.tortuosity} | Path: ${path.path_length} μm | Z: ${path.z_distance} μm`;
-  }
-
-  // Modal
+  // Create modal with canvas
   const overlay = document.createElement('div');
   overlay.className = 'path-modal-overlay';
-  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  const cat = pathData.category || '';
+  const catLabel = cat === 'best' ? 'Best' : cat === 'worst' ? 'Worst' : 'Mean';
   overlay.innerHTML = `
-    <div class="path-modal" style="text-align:center">
+    <div class="path-modal" style="width:700px;max-width:90vw">
       <button class="path-modal-close" onclick="this.closest('.path-modal-overlay').remove()">&times;</button>
-      <div style="font-size:14px;font-weight:bold;margin-bottom:10px">Li⁺ Ion Path (if SE connected)</div>
-      <img src="${dataUrl}" alt="Path Only View" style="max-height:70vh">
-      <div class="path-modal-info" style="text-align:left;margin-top:12px">${infoHtml}</div>
+      <div style="font-size:14px;font-weight:bold;margin-bottom:8px;text-align:center">Li⁺ Ion Path (${catLabel})</div>
+      <div id="path-viewer-container" style="width:100%;height:500px;border-radius:8px;overflow:hidden;background:#f5f5f5"></div>
+      <div class="path-modal-info" style="text-align:center;margin-top:10px">
+        Cluster #${cidx} | ${cluster.size} SE | τ = ${pathData.tortuosity} | Path: ${pathData.path_length} μm | Z: ${pathData.z_distance} μm
+      </div>
       <div class="path-modal-actions">
-        <button onclick="(() => {
-          const a = document.createElement('a');
-          a.download = 'li_ion_path_${catLabel.toLowerCase()}_tau${path?.tortuosity || ''}.png';
-          a.href = this.closest('.path-modal').querySelector('img').src;
-          a.click();
-        })()">PNG 다운로드</button>
+        <button id="path-screenshot-btn">PNG 다운로드</button>
         <button onclick="this.closest('.path-modal-overlay').remove()">닫기</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.onclick = (e) => { if (e.target === overlay) { cancelAnimationFrame(pathAnimId); overlay.remove(); }};
+
+  // Create separate Three.js scene for path
+  const container = document.getElementById('path-viewer-container');
+  const r2 = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  r2.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  r2.setSize(container.clientWidth, container.clientHeight);
+  r2.setClearColor(0xf5f5f5);
+  container.appendChild(r2.domElement);
+
+  const s2 = new THREE.Scene();
+  const c2 = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 10000);
+  const ctrl2 = new OrbitControls(c2, r2.domElement);
+  ctrl2.enableDamping = true;
+  ctrl2.dampingFactor = 0.12;
+  ctrl2.enableZoom = false;
+
+  s2.add(new THREE.AmbientLight(0xffffff, 0.5));
+  const dl = new THREE.DirectionalLight(0xffffff, 0.8);
+  dl.position.set(1, 1.5, 1);
+  s2.add(dl);
+
+  // Bounding box
+  const bw = box.x_max-box.x_min, bh = box.z_max-box.z_min, bd = box.y_max-box.y_min;
+  const cx = (box.x_min+box.x_max)/2, cy = (box.z_min+box.z_max)/2, cz = (box.y_min+box.y_max)/2;
+  const bbEdges = new THREE.EdgesGeometry(new THREE.BoxGeometry(bw, bh, bd));
+  const bbLine = new THREE.LineSegments(bbEdges, new THREE.LineBasicMaterial({color: 0x999999}));
+  bbLine.position.set(cx, cy, cz);
+  s2.add(bbLine);
+
+  // Grid
+  const grid = new THREE.GridHelper(Math.max(bw,bd)*1.2, 20, 0xcccccc, 0xe0e0e0);
+  grid.position.set(cx, box.z_min, cz);
+  s2.add(grid);
+
+  // Path tubes
+  for (let j = 0; j < unwrapped.length - 1; j++) {
+    const seg = new THREE.TubeGeometry(new THREE.LineCurve3(unwrapped[j], unwrapped[j+1]), 1, 0.6, 6, false);
+    s2.add(new THREE.Mesh(seg, new THREE.MeshPhongMaterial({color: COL.PATH, emissive: COL.PATH, emissiveIntensity: 0.5})));
+  }
+  // Start/end
+  const mkS = (pos, color) => {
+    const s = new THREE.Mesh(new THREE.SphereGeometry(2, 12, 12), new THREE.MeshPhongMaterial({color}));
+    s.position.copy(pos); return s;
+  };
+  s2.add(mkS(unwrapped[0], 0x22D3EE));
+  s2.add(mkS(unwrapped[unwrapped.length-1], 0xF87171));
+
+  // Axis labels
+  addAxisLabels(s2, box);
+
+  // Camera
+  const maxDim = Math.max(bw, bh, bd);
+  c2.position.set(cx + maxDim*1.2, cy + maxDim*0.8, cz + maxDim*1.2);
+  ctrl2.target.set(cx, cy, cz);
+  ctrl2.update();
+
+  // Zoom slider
+  const zoomDiv = document.createElement('div');
+  zoomDiv.style.cssText = 'position:absolute;bottom:10px;right:10px;display:flex;gap:4px;align-items:center;background:rgba(22,25,46,.8);padding:4px 8px;border-radius:6px;z-index:10';
+  zoomDiv.innerHTML = '<button id="pv-zo" style="background:#555;color:#fff;border:none;border-radius:3px;width:20px;height:20px;cursor:pointer">−</button><input id="pv-zs" type="range" min="30" max="350" value="200" style="width:80px"><button id="pv-zi" style="background:#555;color:#fff;border:none;border-radius:3px;width:20px;height:20px;cursor:pointer">+</button>';
+  container.style.position = 'relative';
+  container.appendChild(zoomDiv);
+
+  function setZoom2(d) {
+    d = Math.max(30, Math.min(350, d));
+    const dir = c2.position.clone().sub(ctrl2.target).normalize();
+    c2.position.copy(ctrl2.target).addScaledVector(dir, d);
+    ctrl2.update();
+    document.getElementById('pv-zs').value = d;
+  }
+  document.getElementById('pv-zs').addEventListener('input', e => setZoom2(parseInt(e.target.value)));
+  document.getElementById('pv-zi').addEventListener('click', () => setZoom2(parseInt(document.getElementById('pv-zs').value) - 20));
+  document.getElementById('pv-zo').addEventListener('click', () => setZoom2(parseInt(document.getElementById('pv-zs').value) + 20));
+
+  // Screenshot
+  document.getElementById('path-screenshot-btn').addEventListener('click', () => {
+    r2.render(s2, c2);
+    const a = document.createElement('a');
+    a.download = `li_ion_path_${catLabel.toLowerCase()}_tau${pathData.tortuosity}.png`;
+    a.href = r2.domElement.toDataURL('image/png');
+    a.click();
+  });
+
+  // Animate
+  let pathAnimId;
+  function animPath() {
+    pathAnimId = requestAnimationFrame(animPath);
+    ctrl2.update();
+    r2.render(s2, c2);
+  }
+  animPath();
+
+  // Cleanup on close
+  overlay.querySelector('.path-modal-close').addEventListener('click', () => {
+    cancelAnimationFrame(pathAnimId);
+    r2.dispose();
+    overlay.remove();
+  });
+}
       </div>
     </div>`;
   document.body.appendChild(overlay);

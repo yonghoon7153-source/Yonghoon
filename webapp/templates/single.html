@@ -92,19 +92,6 @@
     <button class="btn btn-primary" onclick="load3DViewer()">3D 뷰어 로드</button>
   </div>
   <div id="viewer-container" class="viewer-container" style="display:none">
-    <canvas id="viewer-canvas"></canvas>
-    <div id="viewer-controls" class="viewer-controls">
-      <label><input type="checkbox" id="show-amp" checked onchange="toggleType('AM_P')"> AM_P</label>
-      <label><input type="checkbox" id="show-ams" checked onchange="toggleType('AM_S')"> AM_S</label>
-      <label><input type="checkbox" id="show-se" checked onchange="toggleType('SE')"> SE</label>
-      <hr style="border-color:var(--border);margin:6px 0">
-      <label><input type="checkbox" id="show-perc" onchange="togglePercolation()"> SE Percolation</label>
-      <label><input type="checkbox" id="show-paths" onchange="togglePaths()"> Ion Paths</label>
-      <hr style="border-color:var(--border);margin:6px 0">
-      <button class="btn btn-sm btn-secondary" onclick="resetView()">Reset</button>
-      <button class="btn btn-sm btn-secondary" onclick="takeScreenshot()">Screenshot</button>
-    </div>
-    <div id="viewer-info" class="viewer-info"></div>
   </div>
 </div>
 
@@ -144,21 +131,16 @@
 }
 </script>
 <script>
-let viewer3d = null;
+let viewer3dLoaded = false;
 
 async function load3DViewer() {
   const container = document.getElementById('viewer-container');
   container.style.display = 'block';
-  if (viewer3d) return;
+  if (viewer3dLoaded) return;
+  viewer3dLoaded = true;
   const mod = await import('/static/js/viewer3d.js');
-  viewer3d = mod.initElectrodeViewer('viewer-container', '/results/{{ case.id }}/3d-data');
+  mod.initElectrodeViewer('viewer-container', '/results/{{ case.id }}/3d-data');
 }
-
-function toggleType(t) { if (viewer3d) viewer3d.toggleLayer(t); }
-function togglePercolation() { if (viewer3d) viewer3d.togglePercolation(); }
-function togglePaths() { if (viewer3d) viewer3d.togglePaths(); }
-function resetView() { if (viewer3d) viewer3d.resetCamera(); }
-function takeScreenshot() { if (viewer3d) viewer3d.screenshot(); }
 
 function switchTab(btn, id) {
   btn.closest('.card').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));

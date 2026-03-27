@@ -13,7 +13,7 @@ const COL = {
   SE_BOTTOM: 0xfbbf24, SE_TOP: 0x22d3ee,
   PATH: 0xffd700, BG: 0xf5f5f5,
 };
-const OPA = { SE: 0.3, SE_REACH: 0.6, SE_NON: 0.15, SE_BOUND: 0.6 };
+const OPA = { SE: 0.15, SE_REACH: 0.5, SE_NON: 0.08, SE_BOUND: 0.5 };
 
 /* ── control-panel HTML ────────────────────────────────────── */
 function buildControls(container) {
@@ -23,11 +23,10 @@ function buildControls(container) {
     <label><input type="checkbox" data-layer="AM_P" checked> AM_P</label>
     <label><input type="checkbox" data-layer="AM_S" checked> AM_S</label>
     <label><input type="checkbox" data-layer="SE" checked> SE</label>
-    <label><input type="checkbox" data-layer="percolation"> SE Percolation</label>
-    <label><input type="checkbox" data-layer="forceChains"> Force Chains</label>
     <hr>
-    <button data-action="resetView">Reset View</button>
-    <button data-action="screenshot">Screenshot</button>`;
+    <button data-action="resetView">Reset</button>
+    <button data-action="screenshot">Screenshot</button>
+    <div style="margin-top:4px;font-size:10px;color:#7c8194">SE 클릭 → 클러스터</div>`;
   container.appendChild(div);
   // Separate info panel
   const infoDiv = document.createElement('div');
@@ -46,8 +45,8 @@ function injectCSS() {
   s.textContent = `
 .viewer-container{position:relative;width:100%;height:600px;border-radius:10px;overflow:hidden;background:#f5f5f5}
 .viewer-controls{position:absolute;top:10px;left:10px;background:rgba(22,25,46,.92);
-  border:1px solid #2a2d3e;border-radius:8px;padding:10px 14px;display:flex;flex-direction:column;gap:4px;
-  font:13px/1.5 'Inter',sans-serif;color:#e4e6f0;z-index:10;user-select:none}
+  border:1px solid #2a2d3e;border-radius:8px;padding:8px 12px;display:flex;flex-direction:column;gap:3px;
+  font:12px/1.4 'Inter',sans-serif;color:#e4e6f0;z-index:10;user-select:none;width:auto}
 .viewer-controls label{display:flex;align-items:center;gap:6px;cursor:pointer}
 .viewer-controls hr{border:none;border-top:1px solid #2a2d3e;margin:4px 0}
 .viewer-controls button{background:#6c8cff;color:#fff;border:none;border-radius:5px;padding:5px 10px;
@@ -79,7 +78,9 @@ export function initElectrodeViewer(containerId, dataUrl) {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.12;
-  controls.zoomSpeed = 0.15;  // 줌 속도 크게 낮춤
+  controls.zoomSpeed = 0.3;
+  controls.minDistance = 20;
+  controls.maxDistance = 500;
 
   /* lights */
   scene.add(new THREE.AmbientLight(0xffffff, 0.4));

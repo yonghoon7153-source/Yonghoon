@@ -284,6 +284,78 @@ def plot_coverage(all_data, names, ax=None):
     return ax
 
 
+def plot_stress_cv(all_data, names, ax=None):
+    standalone = ax is None
+    if standalone:
+        fig, ax = plt.subplots(figsize=FIG_SINGLE)
+    xs = list(range(len(names)))
+    ys = [_get(d, "stress_cv") for d in all_data]
+    ax.plot(xs, ys, marker="s", markersize=9, color=BLACK, linewidth=1.5, zorder=3)
+    if ys:
+        ymin, ymax = min(ys), max(ys)
+        pad = max((ymax - ymin) * 0.15, 1)
+        ax.set_ylim(ymin - pad, ymax + pad)
+    _apply_style(ax, "Von Mises CV (%)", names)
+    ax.set_title("Stress Distribution Uniformity", fontsize=13, fontweight="bold", pad=10)
+    if standalone:
+        return _save(fig, "", "")
+    return ax
+
+
+def plot_stress_ratio(all_data, names, ax=None):
+    standalone = ax is None
+    if standalone:
+        fig, ax = plt.subplots(figsize=FIG_SINGLE)
+    xs = list(range(len(names)))
+
+    type_keys = ['AM_P', 'AM_S', 'SE']
+    colors = {'AM_P': RED, 'AM_S': '#FF8C00', 'SE': GREEN}
+    markers = {'AM_P': 's', 'AM_S': 'o', 'SE': '^'}
+
+    for tk in type_keys:
+        ys = [_get(d, f"stress_ratio_{tk}") for d in all_data]
+        if any(v > 0 for v in ys):
+            ax.plot(xs, ys, marker=markers[tk], markersize=8, color=colors[tk],
+                    linewidth=1.5, label=tk, zorder=3)
+
+    ax.axhline(y=1.0, color=GRAY, linestyle='--', linewidth=1, alpha=0.5, label='mean')
+    _apply_style(ax, "σ / σ_mean", names)
+    ax.set_title("Stress Ratio by Type", fontsize=13, fontweight="bold", pad=10)
+    ax.legend(fontsize=9, frameon=False)
+    if standalone:
+        return _save(fig, "", "")
+    return ax
+
+
+def plot_stress_z_layer(all_data, names, ax=None):
+    """Z-layer별 stress CV profile (all cases overlaid)."""
+    standalone = ax is None
+    if standalone:
+        fig, ax = plt.subplots(figsize=FIG_SINGLE)
+
+    colors_cycle = [BLUE, RED, GREEN, '#FF8C00', BLACK, '#9467BD']
+    for i, d in enumerate(all_data):
+        z_data = d.get('stress_z_layer_cv', [])
+        if z_data:
+            zs = [layer['z_mid_um'] for layer in z_data]
+            cvs = [layer['cv'] for layer in z_data]
+            c = colors_cycle[i % len(colors_cycle)]
+            ax.plot(zs, cvs, marker='o', markersize=5, linewidth=1.5,
+                    color=c, label=names[i], zorder=3)
+
+    ax.set_xlabel("Z Position (μm)", fontsize=10)
+    ax.set_ylabel("Von Mises CV (%)", fontsize=11)
+    ax.yaxis.grid(True, linestyle="--", linewidth=0.4, color="#CCCCCC", alpha=0.7)
+    ax.set_axisbelow(True)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.set_title("Stress Uniformity by Z-layer", fontsize=13, fontweight="bold", pad=10)
+    ax.legend(fontsize=8, frameon=False)
+    if standalone:
+        return _save(fig, "", "")
+    return ax
+
+
 def _save_csv(outdir, fname, names, all_data, keys):
     """Save plot data as CSV for download."""
     import csv
@@ -421,6 +493,27 @@ PLOT_REGISTRY = {
         "title": "AM Coverage",
         "description": "AM 표면의 SE 피복률.\n= (SE 접촉 면적) / (AM 자유 표면적) × 100%\n\nAM_P가 클수록 SE 접촉 면적↑ → Coverage↑.\nError bar = 입자 간 편차(std).",
         "origin_tip": "Grouped Bar + Error Bar.\nAM_P: Green #548235, AM_S: Light Green #A9D18E.\nCap size 4, Line width 1.2.\nX: Configuration, Y: Coverage (%).",
+    },
+    "stress_cv": {
+        "func": plot_stress_cv,
+        "file": "stress_cv.png",
+        "title": "Stress CV",
+        "description": "Von Mises 응력 변동계수(CV).\n\nCV 낮을수록 전극 내 응력이 균일.\n유효영률 사용으로 절대값은 참고용, 상대 비교만 유효.",
+        "origin_tip": "Line+Symbol → X: P:S, Y: VM CV (%).\nSymbol: Square, Black.\nCV < 100%면 양호.",
+    },
+    "stress_ratio": {
+        "func": plot_stress_ratio,
+        "file": "stress_ratio.png",
+        "title": "Stress Ratio by Type",
+        "description": "입자 유형별 응력 비율 (σ_type / σ_mean).\n\n> 1.0 = 평균보다 응력 집중\n< 1.0 = 평균보다 하중 적음\n\nSE > 1.0이면 SE에 응력 집중 → 소성변형 유발.",
+        "origin_tip": "Multi-line → X: P:S, Y: σ/σ_mean.\nAM_P: Red, AM_S: Orange, SE: Green.\ny=1.0에 점선 (mean baseline).",
+    },
+    "stress_z_layer": {
+        "func": plot_stress_z_layer,
+        "file": "stress_z_layer.png",
+        "title": "Stress Z-layer CV",
+        "description": "전극 높이별 Von Mises CV 프로파일.\n\n균일 압축 → 전 층에서 CV 비슷.\n경계 효과 → 상/하단 CV 증가.\nAM_P↑ → force chain으로 Z 관통 → 균일.",
+        "origin_tip": "Multi-line → X: Z Position (μm), Y: VM CV (%).\n각 케이스별 다른 색.\n경계(상/하단) 영역 음영 표시 권장.",
     },
 }
 

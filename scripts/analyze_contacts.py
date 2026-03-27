@@ -26,11 +26,19 @@ def load_atoms_raw(csv_path):
     df['type'] = df['type'].astype(int)
     atoms = {}
     for _, row in df.iterrows():
-        atoms[int(row['id'])] = {
+        atom = {
             'type': int(row['type']),
             'x': row['x'], 'y': row['y'], 'z': row['z'],
             'radius': row['radius'],
         }
+        # Add stress if available (sim units)
+        if 'c_strs[1]' in row and not pd.isna(row['c_strs[1]']):
+            vol = (4.0 / 3.0) * np.pi * row['radius']**3
+            if vol > 0:
+                atom['sigma_xx'] = row['c_strs[1]'] / vol
+                atom['sigma_yy'] = row['c_strs[2]'] / vol
+                atom['sigma_zz'] = row['c_strs[3]'] / vol
+        atoms[int(row['id'])] = atom
     return atoms, df
 
 
@@ -172,6 +180,12 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         # 4. 활성도 (최종 성능)
         {'지표': 'Ionic Active AM(%)', '값': round(ionic['active_pct'], 1)},
     ]
+    # 5. 응력 (상대값)
+    stress = results.get('stress')
+    if stress:
+        rows.append({'지표': 'Stress CV(%)', '값': round(stress['vm_cv'], 1)})
+        for tn, sv in stress['type_stress'].items():
+            rows.append({'지표': f'σ_{tn}/σ_mean', '값': round(sv['ratio'], 3)})
     pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'network_summary.csv'), index=False)
 
     # Auto-detect P:S ratio from mass (count × volume × density)
@@ -239,6 +253,13 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     for lbl, v in results['coverage'].items():
         metrics[f'coverage_{lbl}_mean'] = v['mean']
         metrics[f'coverage_{lbl}_std'] = v['std']
+    # Stress (relative)
+    stress = results.get('stress')
+    if stress:
+        metrics['stress_cv'] = stress['vm_cv']
+        for tn, sv in stress['type_stress'].items():
+            metrics[f'stress_ratio_{tn}'] = sv['ratio']
+        metrics['stress_z_layer_cv'] = stress['z_layer_cv']
     with open(os.path.join(output_dir, 'full_metrics.json'), 'w') as f:
         json.dump(metrics, f, indent=2, default=str)
 

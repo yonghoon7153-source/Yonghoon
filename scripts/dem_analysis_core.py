@@ -309,6 +309,78 @@ def calc_ionic_active_am(atoms, contacts, perc_result, se_types, am_types, type_
     return result
 
 
+# ─── Von Mises Stress Analysis ─────────────────────────────────────────────
+
+def calc_von_mises_stress(atoms_raw, type_map, scale, plate_z, n_layers=10):
+    """
+    Simplified Von Mises from diagonal stress components.
+    σ_VM = √(σ_xx² + σ_yy² + σ_zz² - σ_xx·σ_yy - σ_yy·σ_zz - σ_xx·σ_zz)
+
+    atoms_raw must have 'sigma_xx', 'sigma_yy', 'sigma_zz' keys (sim Pa).
+    Returns: overall CV, type ratios, z-layer CV profile.
+    Note: absolute values are not reliable (effective E used), only relative comparison.
+    """
+    # Check if stress data available
+    sample = next(iter(atoms_raw.values()))
+    if 'sigma_xx' not in sample:
+        return None
+
+    # Compute Von Mises for each atom (sim units, relative only)
+    vm_data = {}
+    for aid, a in atoms_raw.items():
+        sxx = a.get('sigma_xx', 0)
+        syy = a.get('sigma_yy', 0)
+        szz = a.get('sigma_zz', 0)
+        vm = np.sqrt(sxx**2 + syy**2 + szz**2 - sxx*syy - syy*szz - sxx*szz)
+        vm_data[aid] = vm
+
+    all_vm = np.array(list(vm_data.values()))
+    vm_mean = float(np.mean(all_vm))
+    vm_std = float(np.std(all_vm))
+    vm_cv = (vm_std / vm_mean * 100) if vm_mean > 0 else 0
+
+    # Type-specific mean (for ratio calculation)
+    type_stress = {}
+    for t_name in set(type_map.values()):
+        t_ids = [aid for aid, a in atoms_raw.items() if type_map.get(a['type']) == t_name]
+        if t_ids:
+            t_vm = np.array([vm_data[aid] for aid in t_ids])
+            type_stress[t_name] = {
+                'mean': float(np.mean(t_vm)),
+                'ratio': float(np.mean(t_vm) / vm_mean) if vm_mean > 0 else 0,
+            }
+
+    # Z-layer CV profile
+    z_layer_cv = []
+    z_values = np.array([a['z'] for a in atoms_raw.values()])
+    z_min, z_max = 0.0, plate_z
+    layer_edges = np.linspace(z_min, z_max, n_layers + 1)
+
+    atom_ids = list(atoms_raw.keys())
+    atom_z = np.array([atoms_raw[aid]['z'] for aid in atom_ids])
+    atom_vm = np.array([vm_data[aid] for aid in atom_ids])
+
+    for i in range(n_layers):
+        mask = (atom_z >= layer_edges[i]) & (atom_z < layer_edges[i+1])
+        if mask.sum() > 1:
+            layer_vm = atom_vm[mask]
+            layer_mean = np.mean(layer_vm)
+            layer_cv = (np.std(layer_vm) / layer_mean * 100) if layer_mean > 0 else 0
+            z_mid = (layer_edges[i] + layer_edges[i+1]) / 2 * scale  # to μm
+            z_layer_cv.append({
+                'z_mid_um': float(z_mid),
+                'cv': float(layer_cv),
+                'mean_normalized': float(layer_mean / vm_mean) if vm_mean > 0 else 0,
+            })
+
+    return {
+        'vm_cv': vm_cv,
+        'vm_mean': vm_mean,
+        'type_stress': type_stress,
+        'z_layer_cv': z_layer_cv,
+    }
+
+
 # ─── Full Analysis ─────────────────────────────────────────────────────────
 
 def run_full_analysis(atoms_raw, contacts_raw, type_map, scale, results_dir, box_xy=0.05):
@@ -357,6 +429,15 @@ def run_full_analysis(atoms_raw, contacts_raw, type_map, scale, results_dir, box
     ionic = calc_ionic_active_am(atoms_raw, contacts_raw, perc, se_types, am_types, type_map)
     print(f"  Ionic Active AM: {ionic['active_pct']:.1f}%")
 
+    # 8. Von Mises Stress (relative)
+    stress = calc_von_mises_stress(atoms_raw, type_map, scale, plate_z)
+    if stress:
+        print(f"  Stress CV: {stress['vm_cv']:.1f}%")
+        for tn, sv in stress['type_stress'].items():
+            print(f"    {tn}: σ/σ_mean = {sv['ratio']:.2f}")
+    else:
+        print("  Stress: N/A (no stress data)")
+
     return {
         'plate_z': plate_z,
         'plate_z_source': pz_source,
@@ -368,4 +449,5 @@ def run_full_analysis(atoms_raw, contacts_raw, type_map, scale, results_dir, box
         'percolation': perc,
         'tortuosity': tau,
         'ionic_active': ionic,
+        'stress': stress,
     }

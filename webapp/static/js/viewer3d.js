@@ -389,7 +389,7 @@ function highlightCluster(idx, scene, state, infoEl, pathIdx) {
     mesh.setColorAt(i, col);
   });
   mesh.instanceColor.needsUpdate = true;
-  mesh.material.opacity = 0.1;
+  mesh.material.opacity = 0.01;
 
   /* info text */
   const pi = state.currentPathIdx;

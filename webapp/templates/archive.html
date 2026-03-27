@@ -228,9 +228,6 @@ async function dropOnFolder(e, targetPath) {
   // Don't drop into itself
   if (targetPath.startsWith(dragSrc + '/')) return alert('자기 자신 안으로 이동할 수 없습니다.');
 
-  const srcName = dragSrc.split('/').pop();
-  if (!confirm(`"${srcName}"을(를) "${targetPath.split('/').pop()}" 안으로 이동할까요?`)) return;
-
   const form = new FormData();
   form.append('src', dragSrc);
   form.append('dst', targetPath);

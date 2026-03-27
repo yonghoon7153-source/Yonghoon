@@ -20,7 +20,7 @@
       </p>
     </div>
     <div class="header-actions">
-      <button class="btn btn-archive" onclick="showSaveDialog()">보관함에 저장</button>
+      <button class="btn btn-archive" onclick="saveToArchive()">보관함에 저장</button>
       <a href="/results/{{ case.id }}/report" class="btn btn-primary">MD Report 다운로드</a>
       <a href="/" class="btn btn-secondary">목록으로</a>
     </div>
@@ -104,21 +104,6 @@
   </div>
 </div>
 
-<!-- Save to Archive Dialog -->
-<div id="save-dialog" class="modal" onclick="this.classList.remove('open')">
-  <div class="save-dialog-inner" onclick="event.stopPropagation()">
-    <h3>보관함에 저장</h3>
-    <div class="form-group" style="margin:16px 0">
-      <label>저장 폴더 (비우면 최상위)</label>
-      <input type="text" id="save-folder" class="input" placeholder="예: SE_1.5um/PS_73">
-    </div>
-    <p class="dim" style="font-size:.8rem;margin-bottom:16px">/ 로 하위폴더 구분. 없으면 자동 생성됩니다.</p>
-    <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn btn-secondary" onclick="document.getElementById('save-dialog').classList.remove('open')">취소</button>
-      <button class="btn btn-primary" onclick="saveToArchive()">저장</button>
-    </div>
-  </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -191,27 +176,10 @@ function editName(el) {
   });
 }
 
-function showSaveDialog() {
-  document.getElementById('save-dialog').classList.add('open');
-}
-
 async function saveToArchive() {
-  const folder = document.getElementById('save-folder').value.trim();
-  // Create folder path if specified
-  if (folder) {
-    const parts = folder.split('/');
-    let current = '';
-    for (const part of parts) {
-      const form = new FormData();
-      form.append('parent', current);
-      form.append('name', part);
-      await fetch('/archive/create-folder', { method: 'POST', body: form });
-      current = current ? current + '/' + part : part;
-    }
-  }
   const form = new FormData();
   form.append('case_id', '{{ case.id }}');
-  form.append('folder', folder);
+  form.append('folder', '');
   const res = await fetch('/archive/save-case', { method: 'POST', body: form });
   const data = await res.json();
   if (data.success) {

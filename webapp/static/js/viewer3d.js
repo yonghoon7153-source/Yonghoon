@@ -35,6 +35,7 @@ function buildControls(container) {
       <div id="cluster-info" style="font-size:10px;color:#e4e6f0;margin-top:3px;line-height:1.5"></div>
     </div>
     <hr>
+    <button data-action="pathOnly">Path Only View</button>
     <button data-action="resetView">Reset</button>
     <button data-action="screenshot">Screenshot</button>`;
   container.appendChild(div);
@@ -80,7 +81,15 @@ function injectCSS() {
 .viewer-zoom button{background:#555;color:#fff;border:none;border-radius:4px;width:24px;height:24px;
   cursor:pointer;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center}
 .viewer-zoom button:hover{background:#777}
-.viewer-zoom input[type=range]{width:100px;accent-color:#6c8cff}`;
+.viewer-zoom input[type=range]{width:100px;accent-color:#6c8cff}
+.path-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;display:flex;align-items:center;justify-content:center}
+.path-modal{background:#fff;border-radius:12px;padding:20px;max-width:90vw;max-height:90vh;position:relative}
+.path-modal img{max-width:100%;max-height:75vh;border-radius:8px;border:1px solid #ddd}
+.path-modal-info{margin-top:10px;font:12px/1.5 'JetBrains Mono',monospace;color:#333}
+.path-modal-actions{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
+.path-modal-actions button{background:#6c8cff;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px}
+.path-modal-actions button:hover{background:#8ba3ff}
+.path-modal-close{position:absolute;top:8px;right:12px;background:none;border:none;font-size:20px;cursor:pointer;color:#888}`;
   document.head.appendChild(s);
 }
 
@@ -507,6 +516,8 @@ function wireControls(ctrlDiv, renderer, camera, controls, scene, state) {
         link.download = 'electrode_3d.png';
         link.href = renderer.domElement.toDataURL('image/png');
         link.click();
+      } else if (action === 'pathOnly') {
+        showPathOnlyView(renderer, scene, camera, state);
       }
     });
   });
@@ -530,4 +541,61 @@ function wireControls(ctrlDiv, renderer, camera, controls, scene, state) {
     zoomIn.addEventListener('click', () => setZoom(parseInt(slider.value) - 20));
     zoomOut.addEventListener('click', () => setZoom(parseInt(slider.value) + 20));
   }
+}
+
+/* ── Path Only View (popup) ──────────────────────────────── */
+function showPathOnlyView(renderer, scene, camera, state) {
+  if (!state.pathGroup) {
+    alert('먼저 Percolating Path를 선택하세요.');
+    return;
+  }
+
+  // Save visibility state
+  const saved = {};
+  Object.entries(state.meshes).forEach(([k, m]) => {
+    if (m) { saved[k] = m.visible; m.visible = false; }
+  });
+
+  // Render path-only frame
+  renderer.render(scene, camera);
+  const dataUrl = renderer.domElement.toDataURL('image/png');
+
+  // Restore visibility
+  Object.entries(saved).forEach(([k, v]) => {
+    if (state.meshes[k]) state.meshes[k].visible = v;
+  });
+
+  // Get current path info
+  const clusters = ((state.data.clusters || {}).clusters) || [];
+  const idx = state.currentClusterIdx || 0;
+  const cluster = clusters[idx];
+  const pathIdx = state.currentPathIdx || 0;
+  const allPaths = cluster ? (cluster.paths || (cluster.path ? [cluster.path] : [])) : [];
+  const path = allPaths[pathIdx];
+
+  let infoHtml = '';
+  if (path) {
+    infoHtml = `Cluster #${idx} (${cluster.size} SE) | Path ${pathIdx+1}/${allPaths.length} | τ = ${path.tortuosity} | L = ${path.path_length} μm | Z = ${path.z_distance} μm`;
+  }
+
+  // Create modal
+  const overlay = document.createElement('div');
+  overlay.className = 'path-modal-overlay';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div class="path-modal">
+      <button class="path-modal-close" onclick="this.closest('.path-modal-overlay').remove()">&times;</button>
+      <img src="${dataUrl}" alt="Path Only View">
+      <div class="path-modal-info">${infoHtml}</div>
+      <div class="path-modal-actions">
+        <button onclick="(() => {
+          const a = document.createElement('a');
+          a.download = 'ion_path_view.png';
+          a.href = this.closest('.path-modal').querySelector('img').src;
+          a.click();
+        })()">PNG 다운로드</button>
+        <button onclick="this.closest('.path-modal-overlay').remove()">닫기</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
 }

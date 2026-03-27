@@ -321,9 +321,17 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                         seen_pairs.add(pair)
                         try:
                             path = nx.shortest_path(G, src, tgt)
-                            path_len = sum(
-                                np.sqrt(sum((atoms_raw[path[k]][c] - atoms_raw[path[k+1]][c])**2 for c in 'xyz'))
-                                for k in range(len(path)-1))
+                            # Minimum image convention for periodic x,y
+                            box_xy = 0.05  # sim units
+                            path_len = 0
+                            for ki in range(len(path)-1):
+                                a1, a2 = atoms_raw[path[ki]], atoms_raw[path[ki+1]]
+                                dx = abs(a1['x'] - a2['x'])
+                                dy = abs(a1['y'] - a2['y'])
+                                dz = a1['z'] - a2['z']
+                                dx = min(dx, box_xy - dx)
+                                dy = min(dy, box_xy - dy)
+                                path_len += np.sqrt(dx**2 + dy**2 + dz**2)
                             z_dist = abs(atoms_raw[tgt]['z'] - atoms_raw[src]['z'])
                             if z_dist > 0:
                                 all_paths.append({
@@ -385,16 +393,24 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
             tgt = reach_top[i % len(reach_top)]
             try:
                 path = nx.shortest_path(G, src, tgt)
-                path_len = sum(
-                    np.sqrt(sum((atoms_raw[path[k]][c] - atoms_raw[path[k+1]][c])**2 for c in 'xyz'))
-                    for k in range(len(path)-1))
+                box_xy = 0.05
+                path_len = 0
+                for ki in range(len(path)-1):
+                    a1, a2 = atoms_raw[path[ki]], atoms_raw[path[ki+1]]
+                    dx = abs(a1['x'] - a2['x'])
+                    dy = abs(a1['y'] - a2['y'])
+                    dz = a1['z'] - a2['z']
+                    dx = min(dx, box_xy - dx)
+                    dy = min(dy, box_xy - dy)
+                    path_len += np.sqrt(dx**2 + dy**2 + dz**2)
                 z_dist = abs(atoms_raw[tgt]['z'] - atoms_raw[src]['z'])
-                paths_data.append({
-                    'ids': path,
-                    'tortuosity': round(path_len / z_dist, 2) if z_dist > 0 else 0,
-                    'path_length': round(path_len * scale, 1),
-                    'z_distance': round(z_dist * scale, 1),
-                })
+                if z_dist > 0:
+                    paths_data.append({
+                        'ids': path,
+                        'tortuosity': round(path_len / z_dist, 2),
+                        'path_length': round(path_len * scale, 1),
+                        'z_distance': round(z_dist * scale, 1),
+                    })
             except nx.NetworkXNoPath:
                 pass
         with open(os.path.join(output_dir, 'tortuosity_paths.json'), 'w') as f:

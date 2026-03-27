@@ -219,8 +219,20 @@ def calc_percolation(atoms, contacts, se_types, plate_z, boundary_factor=2.0):
 
 # ─── Tortuosity ────────────────────────────────────────────────────────────
 
-def calc_tortuosity(atoms, perc_result, n_samples=200):
-    """tortuosity = path length / z distance (hop-based shortest path)."""
+def _periodic_dist(a1, a2, box_x=0.05, box_y=0.05):
+    """Distance between two atoms with periodic boundary in x,y (NOT z)."""
+    dx = abs(a1['x'] - a2['x'])
+    dy = abs(a1['y'] - a2['y'])
+    dz = a1['z'] - a2['z']
+    # Minimum image convention for periodic x,y
+    dx = min(dx, box_x - dx)
+    dy = min(dy, box_y - dy)
+    return np.sqrt(dx**2 + dy**2 + dz**2)
+
+
+def calc_tortuosity(atoms, perc_result, n_samples=200, box_xy=0.05):
+    """tortuosity = path length / z distance (hop-based shortest path).
+    Uses minimum image convention for periodic x,y boundaries."""
     G = perc_result['graph']
     top_reachable_se = perc_result['top_reachable_se']
     bottom_se = perc_result['bottom_se']
@@ -242,9 +254,7 @@ def calc_tortuosity(atoms, perc_result, n_samples=200):
         try:
             path = nx.shortest_path(G, src, tgt)
             path_len = sum(
-                np.sqrt((atoms[path[k]]['x'] - atoms[path[k+1]]['x'])**2 +
-                        (atoms[path[k]]['y'] - atoms[path[k+1]]['y'])**2 +
-                        (atoms[path[k]]['z'] - atoms[path[k+1]]['z'])**2)
+                _periodic_dist(atoms[path[k]], atoms[path[k+1]], box_xy, box_xy)
                 for k in range(len(path) - 1))
             z_dist = abs(atoms[tgt]['z'] - atoms[src]['z'])
             if z_dist > 0:

@@ -409,28 +409,44 @@ function highlightCluster(idx, scene, state, infoEl, pathIdx) {
 
     if (pts.length >= 2) {
       const group = new THREE.Group();
+      const box = state.data.box;
+      const halfX = (box.x_max - box.x_min) / 2;
+      const halfY = (box.y_max - box.y_min) / 2;
 
-      /* straight tube segments between SE centers */
-      for (let j = 0; j < pts.length - 1; j++) {
-        const seg = new THREE.TubeGeometry(
-          new THREE.LineCurve3(pts[j], pts[j+1]), 1, 0.5, 6, false
-        );
-        const mat = new THREE.MeshPhongMaterial({
-          color: COL.PATH, emissive: COL.PATH, emissiveIntensity: 0.3,
-        });
-        group.add(new THREE.Mesh(seg, mat));
-      }
-
-      /* start(bottom)/end(top) markers */
-      const mkSphere = (pos, color) => {
-        const g = new THREE.SphereGeometry(1.8, 12, 12);
+      /* draw segments, detect periodic jumps */
+      const mkSphere = (pos, color, size) => {
+        const g = new THREE.SphereGeometry(size || 1.8, 12, 12);
         const m = new THREE.MeshPhongMaterial({ color });
         const s = new THREE.Mesh(g, m);
         s.position.copy(pos);
         return s;
       };
-      group.add(mkSphere(pts[0], 0x22D3EE));
-      group.add(mkSphere(pts[pts.length - 1], 0xF87171));
+
+      for (let j = 0; j < pts.length - 1; j++) {
+        const a = pts[j], b = pts[j+1];
+        // Check periodic jump: x or z (=data y) distance > half box
+        const dx = Math.abs(a.x - b.x);
+        const dz = Math.abs(a.z - b.z);  // Three.js z = data y
+        const isPeriodic = dx > halfX || dz > halfY;
+
+        if (isPeriodic) {
+          // Mark both ends with red spheres, skip the tube
+          group.add(mkSphere(a, 0xFF0000, 1.2));
+          group.add(mkSphere(b, 0xFF0000, 1.2));
+        } else {
+          const seg = new THREE.TubeGeometry(
+            new THREE.LineCurve3(a, b), 1, 0.5, 6, false
+          );
+          const mat = new THREE.MeshPhongMaterial({
+            color: COL.PATH, emissive: COL.PATH, emissiveIntensity: 0.3,
+          });
+          group.add(new THREE.Mesh(seg, mat));
+        }
+      }
+
+      /* start(bottom cyan) / end(top red) markers */
+      group.add(mkSphere(pts[0], 0x22D3EE, 1.8));
+      group.add(mkSphere(pts[pts.length - 1], 0xF87171, 1.8));
 
       scene.add(group);
       state.pathGroup = group;

@@ -24,14 +24,16 @@ function buildControls(container) {
     <label><input type="checkbox" data-layer="AM_S" checked> AM_S</label>
     <label><input type="checkbox" data-layer="SE" checked> SE</label>
     <hr>
-    <div style="font-size:10px;color:#e4e6f0;margin-bottom:2px">Percolating Path</div>
-    <div style="display:flex;gap:4px;align-items:center">
-      <button id="path-prev" style="background:#555;color:#fff;border:none;border-radius:3px;padding:1px 6px;cursor:pointer;font-size:12px">&lt;</button>
-      <span id="path-current" style="font-size:11px;color:#e4e6f0;min-width:30px;text-align:center">-</span>
-      <button id="path-next" style="background:#555;color:#fff;border:none;border-radius:3px;padding:1px 6px;cursor:pointer;font-size:12px">&gt;</button>
-      <span id="path-total" style="font-size:10px;color:#7c8194">/ -</span>
+    <label><input type="checkbox" id="path-toggle"> <span style="font-size:11px">Percolating Path</span></label>
+    <div id="path-controls" style="display:none">
+      <div style="display:flex;gap:4px;align-items:center;margin-top:3px">
+        <button id="path-prev" style="background:#555;color:#fff;border:none;border-radius:3px;padding:1px 6px;cursor:pointer;font-size:12px">&lt;</button>
+        <span id="path-current" style="font-size:11px;color:#e4e6f0;min-width:30px;text-align:center">-</span>
+        <button id="path-next" style="background:#555;color:#fff;border:none;border-radius:3px;padding:1px 6px;cursor:pointer;font-size:12px">&gt;</button>
+        <span id="path-total" style="font-size:10px;color:#7c8194">/ -</span>
+      </div>
+      <div id="cluster-info" style="font-size:10px;color:#e4e6f0;margin-top:3px;line-height:1.5"></div>
     </div>
-    <div id="cluster-info" style="font-size:10px;color:#e4e6f0;margin-top:3px;line-height:1.5"></div>
     <hr>
     <button data-action="resetView">Reset</button>
     <button data-action="screenshot">Screenshot</button>`;
@@ -129,20 +131,36 @@ export function initElectrodeViewer(containerId, dataUrl) {
 
     if (totalEl) totalEl.textContent = `/ ${percClusters.length}`;
 
+    const pathControls = ctrlDiv.querySelector('#path-controls');
+    const pathToggle = ctrlDiv.querySelector('#path-toggle');
+
     function showPercCluster(idx) {
-      if (!percClusters.length) { if (infoEl) infoEl.innerHTML = 'No percolating clusters'; return; }
+      if (!percClusters.length) { if (infoEl) infoEl.innerHTML = 'No percolating'; return; }
       idx = ((idx % percClusters.length) + percClusters.length) % percClusters.length;
       state.percIdx = idx;
       if (currentEl) currentEl.textContent = idx + 1;
-      // Find the original cluster index
       const origIdx = clusters.indexOf(percClusters[idx]);
       highlightCluster(origIdx, scene, state, infoEl);
     }
 
+    function clearPath() {
+      if (state.pathGroup) { scene.remove(state.pathGroup); state.pathGroup = null; }
+      resetSEColors(state);
+      if (infoEl) infoEl.innerHTML = '';
+    }
+
+    if (pathToggle) pathToggle.addEventListener('change', () => {
+      if (pathToggle.checked) {
+        pathControls.style.display = 'block';
+        if (percClusters.length > 0) showPercCluster(state.percIdx);
+      } else {
+        pathControls.style.display = 'none';
+        clearPath();
+      }
+    });
+
     if (prevBtn) prevBtn.addEventListener('click', () => showPercCluster(state.percIdx - 1));
     if (nextBtn) nextBtn.addEventListener('click', () => showPercCluster(state.percIdx + 1));
-
-    if (percClusters.length > 0) showPercCluster(0);
 
     animate();
   }).catch(err => {

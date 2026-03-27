@@ -501,6 +501,28 @@ def single(case_id):
                 'data': df.values.tolist()
             }
 
+    # Inject section headers into network_summary if missing
+    if 'network_summary' in tables:
+        data = tables['network_summary']['data']
+        has_headers = any(str(row[0]).startswith('──') for row in data)
+        if not has_headers:
+            section_map = {
+                'Porosity(%)': '── 구조 ──',
+                'AM-SE Total(μm²)': '── 계면 ──',
+                'SE-SE CN mean': '── 이온경로: 연결성 ──',
+                'Tortuosity mean': '── 이온경로: 경로 효율 ──',
+                'Path Hop Area mean(μm²)': '── 이온경로: 경로 품질 ──',
+                'Ionic Active AM(%)': '── 활성도 ──',
+                'Stress CV(%)': '── 응력 ──',
+            }
+            new_data = []
+            for row in data:
+                label = str(row[0])
+                if label in section_map:
+                    new_data.append([section_map[label], ''])
+                new_data.append(row)
+            tables['network_summary']['data'] = new_data
+
     # Load full_metrics.json for header info
     metrics = {}
     metrics_path = os.path.join(results_dir, 'full_metrics.json')

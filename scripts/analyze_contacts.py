@@ -274,7 +274,66 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     with open(os.path.join(output_dir, 'percolation_sets.json'), 'w') as f:
         json.dump(perc_sets, f)
 
-    # Save tortuosity sample paths for 3D viewer
+    # Save SE cluster data for 3D viewer (cluster membership + paths)
+    if 'graph' in perc:
+        import networkx as nx
+        G = perc['graph']
+        components = list(nx.connected_components(G))
+        bottom_se = perc.get('bottom_se', set())
+        top_se = perc.get('top_se', set())
+
+        clusters = []
+        for comp in components:
+            if len(comp) < 2:
+                continue
+            comp_list = list(comp)
+            has_bottom = len(comp & bottom_se) > 0
+            has_top = len(comp & top_se) > 0
+            percolating = has_bottom and has_top
+
+            cluster_info = {
+                'ids': comp_list,
+                'size': len(comp),
+                'percolating': percolating,
+                'path': None,
+            }
+
+            # Find shortest path for percolating clusters
+            if percolating:
+                src_candidates = list(comp & bottom_se)
+                tgt_candidates = list(comp & top_se)
+                if src_candidates and tgt_candidates:
+                    try:
+                        path = nx.shortest_path(G, src_candidates[0], tgt_candidates[0])
+                        path_len = sum(
+                            np.sqrt(sum((atoms_raw[path[k]][c] - atoms_raw[path[k+1]][c])**2 for c in 'xyz'))
+                            for k in range(len(path)-1))
+                        z_dist = abs(atoms_raw[tgt_candidates[0]]['z'] - atoms_raw[src_candidates[0]]['z'])
+                        cluster_info['path'] = {
+                            'ids': path,
+                            'tortuosity': round(path_len / z_dist, 2) if z_dist > 0 else 0,
+                            'path_length': round(path_len * scale, 1),
+                            'z_distance': round(z_dist * scale, 1),
+                        }
+                    except nx.NetworkXNoPath:
+                        pass
+
+            clusters.append(cluster_info)
+
+        # Sort by size (largest first), limit to top 50 for performance
+        clusters.sort(key=lambda c: c['size'], reverse=True)
+        clusters = clusters[:50]
+
+        # Build SE id → cluster index map
+        se_cluster_map = {}
+        for i, cl in enumerate(clusters):
+            for sid in cl['ids']:
+                se_cluster_map[sid] = i
+
+        with open(os.path.join(output_dir, 'se_clusters.json'), 'w') as f:
+            json.dump({'clusters': clusters, 'se_cluster_map': se_cluster_map}, f)
+
+    # Save tortuosity sample paths for 3D viewer (legacy)
     tau = results['tortuosity']
     if tau.get('mean') and 'graph' in perc:
         import networkx as nx

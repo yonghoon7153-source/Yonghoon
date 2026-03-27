@@ -959,11 +959,19 @@ def serve_3d_data(case_id):
         with open(paths_path) as f:
             paths = json.load(f)
 
+    # SE clusters for click interaction
+    clusters = {}
+    clusters_path = os.path.join(results_dir, 'se_clusters.json')
+    if os.path.exists(clusters_path):
+        with open(clusters_path) as f:
+            clusters = json.load(f)
+
     return jsonify({
         'particles': particles,
         'box': box,
         'percolation': percolation,
         'paths': paths,
+        'clusters': clusters,
     })
 
 @app.route('/results/<case_id>/report')

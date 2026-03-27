@@ -268,47 +268,108 @@ function applyPercolation(state, on) {
   }
 }
 
-/* ── SE click handler ──────────────────────────────────────── */
+/* ── SE click handler (cluster-based) ─────────────────────── */
 function onSEClick(instanceId, scene, state) {
   const particles = state.seParticles;
   if (!particles || instanceId >= particles.length) return;
   const clicked = particles[instanceId];
   const info = state.infoEl;
+  if (!info) return;
+  info.style.display = 'block';
 
-  /* find path containing this particle */
-  const paths = state.data.paths || [];
-  const path = paths.find(p => p.ids && p.ids.includes(clicked.id));
-
-  /* clear old path */
+  /* clear previous highlights */
   if (state.pathGroup) { scene.remove(state.pathGroup); state.pathGroup = null; }
+  resetSEColors(state);
 
-  if (!path) {
-    info.textContent = `SE #${clicked.id} - no tortuosity path`;
+  const clusters = state.data.clusters || {};
+  const clusterMap = clusters.se_cluster_map || {};
+  const clusterList = clusters.clusters || [];
+
+  const clusterIdx = clusterMap[clicked.id];
+  if (clusterIdx === undefined) {
+    info.innerHTML = `SE #${clicked.id}<br>클러스터 없음 (고립)`;
     return;
   }
 
-  /* draw tube along path */
-  const pts = path.ids.map(id => {
-    const p = state.idIndex[id];
-    return p ? new THREE.Vector3(p.x, p.z, p.y) : null;  // Z-up swap
-  }).filter(Boolean);
+  const cluster = clusterList[clusterIdx];
+  if (!cluster) {
+    info.innerHTML = `SE #${clicked.id}<br>클러스터 데이터 없음`;
+    return;
+  }
 
-  if (pts.length < 2) return;
+  /* highlight cluster SE particles (bright blue) */
+  const clusterSet = new Set(cluster.ids);
+  const mesh = state.meshes.SE;
+  const col = new THREE.Color();
+  particles.forEach((p, i) => {
+    if (clusterSet.has(p.id)) {
+      col.setHex(0x2196F3);  // highlight blue
+    } else {
+      col.setHex(COL.SE);
+    }
+    mesh.setColorAt(i, col);
+  });
+  mesh.instanceColor.needsUpdate = true;
+  mesh.material.opacity = 0.5;
 
-  const curve = new THREE.CatmullRomCurve3(pts);
-  const tubeGeo = new THREE.TubeGeometry(curve, pts.length * 4, 0.8, 8, false);
-  const tubeMat = new THREE.MeshPhongMaterial({ color: COL.PATH, emissive: COL.PATH, emissiveIntensity: 0.4 });
-  const tubeMesh = new THREE.Mesh(tubeGeo, tubeMat);
+  /* show cluster info */
+  let html = `<b>SE Cluster #${clusterIdx}</b><br>`;
+  html += `입자 수: ${cluster.size}<br>`;
+  html += cluster.percolating ? `<span style="color:#34D399">Percolating ✓</span>` : `<span style="color:#F87171">Non-percolating ✗</span>`;
 
-  const group = new THREE.Group();
-  group.add(tubeMesh);
-  scene.add(group);
-  state.pathGroup = group;
+  /* draw path if percolating */
+  if (cluster.path && cluster.path.ids) {
+    const path = cluster.path;
+    const pts = path.ids.map(id => {
+      const p = state.idIndex[id];
+      return p ? new THREE.Vector3(p.x, p.z, p.y) : null;  // Z-up swap
+    }).filter(Boolean);
 
-  info.innerHTML = `<b>Tortuosity path</b><br>
-    tau = ${path.tortuosity.toFixed(2)}<br>
-    path = ${path.path_length.toFixed(1)} um<br>
-    z dist = ${path.z_distance.toFixed(1)} um`;
+    if (pts.length >= 2) {
+      const group = new THREE.Group();
+
+      /* tube along path */
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const tubeGeo = new THREE.TubeGeometry(curve, Math.min(pts.length * 4, 200), 0.6, 8, false);
+      const tubeMat = new THREE.MeshPhongMaterial({
+        color: COL.PATH, emissive: COL.PATH, emissiveIntensity: 0.3,
+      });
+      group.add(new THREE.Mesh(tubeGeo, tubeMat));
+
+      /* start/end markers */
+      const startGeo = new THREE.SphereGeometry(1.5, 12, 12);
+      const startMat = new THREE.MeshPhongMaterial({ color: 0x22D3EE });
+      const startSphere = new THREE.Mesh(startGeo, startMat);
+      startSphere.position.copy(pts[0]);
+      group.add(startSphere);
+
+      const endGeo = new THREE.SphereGeometry(1.5, 12, 12);
+      const endMat = new THREE.MeshPhongMaterial({ color: 0xF87171 });
+      const endSphere = new THREE.Mesh(endGeo, endMat);
+      endSphere.position.copy(pts[pts.length - 1]);
+      group.add(endSphere);
+
+      scene.add(group);
+      state.pathGroup = group;
+
+      html += `<br><b>Ion Path</b><br>`;
+      html += `τ = ${path.tortuosity}<br>`;
+      html += `경로: ${path.path_length} μm<br>`;
+      html += `Z 거리: ${path.z_distance} μm`;
+    }
+  }
+
+  info.innerHTML = html;
+}
+
+function resetSEColors(state) {
+  const mesh = state.meshes.SE;
+  if (!mesh) return;
+  const col = new THREE.Color(COL.SE);
+  const particles = state.seParticles || [];
+  particles.forEach((p, i) => mesh.setColorAt(i, col));
+  mesh.instanceColor.needsUpdate = true;
+  mesh.material.opacity = OPA.SE;
 }
 
 /* ── wire up control panel ─────────────────────────────────── */

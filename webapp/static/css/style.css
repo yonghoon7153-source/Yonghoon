@@ -310,8 +310,8 @@ select.input { cursor: pointer; }
   display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;
 }
 .plot-checkbox {
-  display: flex; align-items: center; gap: 6px;
-  padding: 6px 12px; background: var(--bg);
+  display: flex; align-items: center; gap: 6px; flex: 1 1 auto;
+  padding: 6px 12px; background: var(--bg); justify-content: center;
   border: 1px solid var(--border); border-radius: 6px;
   cursor: pointer; font-size: .85rem; transition: .15s;
 }

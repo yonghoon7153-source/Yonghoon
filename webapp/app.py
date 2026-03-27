@@ -887,6 +887,85 @@ def serve_figure(case_id, filename):
     figures_dir = os.path.join(get_results_dir(case_id), 'figures')
     return send_from_directory(figures_dir, filename)
 
+@app.route('/results/<case_id>/3d-data')
+def serve_3d_data(case_id):
+    """Serve particle + percolation data for 3D viewer."""
+    import pandas as pd
+    results_dir = get_results_dir(case_id)
+    case_dir = get_case_dir(case_id)
+    meta_file = os.path.join(case_dir, 'meta.json')
+
+    if not os.path.exists(meta_file):
+        return jsonify({'error': 'Case not found'}), 404
+
+    with open(meta_file) as f:
+        meta = json.load(f)
+    scale = meta.get('scale', 1000)
+    type_map_str = meta.get('type_map', '1:AM,2:SE')
+    type_map = {}
+    for item in type_map_str.split(','):
+        k, v = item.split(':')
+        type_map[int(k)] = v.strip()
+
+    # Load atoms
+    atoms_csv = os.path.join(results_dir, 'atoms.csv')
+    if not os.path.exists(atoms_csv):
+        return jsonify({'error': 'No atom data'}), 404
+
+    df = pd.read_csv(atoms_csv)
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    particles = []
+    for _, row in df.iterrows():
+        t = int(row['type'])
+        particles.append({
+            'id': int(row['id']),
+            'type': type_map.get(t, f'T{t}'),
+            'x': round(float(row['x']) * scale, 2),
+            'y': round(float(row['y']) * scale, 2),
+            'z': round(float(row['z']) * scale, 2),
+            'r': round(float(row['radius']) * scale, 2),
+        })
+
+    # Box bounds
+    box = {
+        'x_min': 0, 'x_max': round(0.05 * scale, 1),
+        'y_min': 0, 'y_max': round(0.05 * scale, 1),
+        'z_min': 0,
+    }
+    # plate_z from mesh_info
+    mesh_file = os.path.join(results_dir, 'mesh_info.json')
+    if os.path.exists(mesh_file):
+        with open(mesh_file) as f:
+            box['z_max'] = round(json.load(f)['plate_z'] * scale, 1)
+    else:
+        box['z_max'] = round(max(p['z'] + p['r'] for p in particles), 1)
+
+    # Percolation data from full_metrics
+    percolation = {'top_reachable': [], 'bottom_se': [], 'top_se': []}
+    metrics_path = os.path.join(results_dir, 'full_metrics.json')
+
+    # Try to load percolation sets from a saved file
+    perc_path = os.path.join(results_dir, 'percolation_sets.json')
+    if os.path.exists(perc_path):
+        with open(perc_path) as f:
+            percolation = json.load(f)
+
+    # Paths (tortuosity sample paths)
+    paths = []
+    paths_path = os.path.join(results_dir, 'tortuosity_paths.json')
+    if os.path.exists(paths_path):
+        with open(paths_path) as f:
+            paths = json.load(f)
+
+    return jsonify({
+        'particles': particles,
+        'box': box,
+        'percolation': percolation,
+        'paths': paths,
+    })
+
 @app.route('/results/<case_id>/report')
 def serve_report(case_id):
     """Generate MD report on-the-fly from analysis CSVs."""

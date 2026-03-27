@@ -264,6 +264,44 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     with open(os.path.join(output_dir, 'full_metrics.json'), 'w') as f:
         json.dump(metrics, f, indent=2, default=str)
 
+    # Save percolation sets for 3D viewer
+    perc = results['percolation']
+    perc_sets = {
+        'top_reachable': list(perc.get('top_reachable_se', set())),
+        'bottom_se': list(perc.get('bottom_se', set())),
+        'top_se': list(perc.get('top_se', set())),
+    }
+    with open(os.path.join(output_dir, 'percolation_sets.json'), 'w') as f:
+        json.dump(perc_sets, f)
+
+    # Save tortuosity sample paths for 3D viewer
+    tau = results['tortuosity']
+    if tau.get('mean') and 'graph' in perc:
+        import networkx as nx
+        G = perc['graph']
+        reach_bottom = list(perc.get('bottom_se', set()) & perc.get('top_reachable_se', set()))
+        reach_top = list(perc.get('top_se', set()) & perc.get('top_reachable_se', set()))
+        paths_data = []
+        for i in range(min(5, len(reach_bottom), len(reach_top))):
+            src = reach_bottom[i % len(reach_bottom)]
+            tgt = reach_top[i % len(reach_top)]
+            try:
+                path = nx.shortest_path(G, src, tgt)
+                path_len = sum(
+                    np.sqrt(sum((atoms_raw[path[k]][c] - atoms_raw[path[k+1]][c])**2 for c in 'xyz'))
+                    for k in range(len(path)-1))
+                z_dist = abs(atoms_raw[tgt]['z'] - atoms_raw[src]['z'])
+                paths_data.append({
+                    'ids': path,
+                    'tortuosity': round(path_len / z_dist, 2) if z_dist > 0 else 0,
+                    'path_length': round(path_len * scale, 1),
+                    'z_distance': round(z_dist * scale, 1),
+                })
+            except nx.NetworkXNoPath:
+                pass
+        with open(os.path.join(output_dir, 'tortuosity_paths.json'), 'w') as f:
+            json.dump(paths_data, f)
+
     # Analyzed CSVs
     df_atom['type_name'] = df_atom['type'].map(type_map)
     coord_s = pd.Series(coord, name='coordination')

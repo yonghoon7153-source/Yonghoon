@@ -11,7 +11,7 @@ const COL = {
   AM_P: 0x222222, AM_S: 0x888888, SE: 0xf5d77a,
   SE_TOP_REACH: 0x34d399, SE_NON_REACH: 0xf87171,
   SE_BOTTOM: 0xfbbf24, SE_TOP: 0x22d3ee,
-  PATH: 0xffd700, BG: 0x0f1117,
+  PATH: 0xffd700, BG: 0xf5f5f5,
 };
 const OPA = { SE: 0.3, SE_REACH: 0.6, SE_NON: 0.15, SE_BOUND: 0.6 };
 
@@ -72,6 +72,7 @@ export function initElectrodeViewer(containerId, dataUrl) {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.12;
+  controls.zoomSpeed = 0.5;  // 줌 속도 절반으로
 
   /* lights */
   scene.add(new THREE.AmbientLight(0xffffff, 0.4));
@@ -133,35 +134,39 @@ export function initElectrodeViewer(containerId, dataUrl) {
 /* ── build scene from data ─────────────────────────────────── */
 function buildScene(scene, camera, controls, data, state) {
   const box = data.box;
+  // Z-up coordinate system: Three.js Y-up → swap Y↔Z for display
+  // Data: x, y (horizontal), z (up=electrode height)
+  // Three.js: x, y(=data z, up), z(=data y)
   const cx = (box.x_min + box.x_max) / 2;
-  const cy = (box.y_min + box.y_max) / 2;
-  const cz = (box.z_min + box.z_max) / 2;
-  const maxDim = Math.max(box.x_max - box.x_min, box.y_max - box.y_min, box.z_max - box.z_min);
+  const cy = (box.z_min + box.z_max) / 2;  // data Z → Three.js Y (up)
+  const cz = (box.y_min + box.y_max) / 2;  // data Y → Three.js Z
+  const bw = box.x_max - box.x_min;
+  const bh = box.z_max - box.z_min;  // height = data Z range
+  const bd = box.y_max - box.y_min;
+  const maxDim = Math.max(bw, bh, bd);
 
-  /* camera position */
-  camera.position.set(cx + maxDim * 0.8, cy + maxDim * 0.6, cz + maxDim * 1.0);
+  /* camera position - isometric-ish view */
+  camera.position.set(cx + maxDim * 1.2, cy + maxDim * 0.8, cz + maxDim * 1.2);
   controls.target.set(cx, cy, cz);
   controls.update();
   state.defaultCamPos = camera.position.clone();
   state.defaultTarget = controls.target.clone();
 
   /* bounding box wireframe */
-  const bw = box.x_max - box.x_min, bh = box.y_max - box.y_min, bd = box.z_max - box.z_min;
   const bbGeo = new THREE.BoxGeometry(bw, bh, bd);
-  const bbMat = new THREE.LineBasicMaterial({ color: 0x3a3d5e });
+  const bbMat = new THREE.LineBasicMaterial({ color: 0x888888 });
   const bbEdges = new THREE.EdgesGeometry(bbGeo);
   const bbLine = new THREE.LineSegments(bbEdges, bbMat);
   bbLine.position.set(cx, cy, cz);
   scene.add(bbLine);
 
-  /* grid at z=0 */
-  const gridSize = Math.max(bw, bh) * 1.2;
-  const grid = new THREE.GridHelper(gridSize, 20, 0x2a2d3e, 0x1c1f2e);
-  grid.rotation.x = Math.PI / 2; // rotate so grid lies on XY plane at z=0
-  grid.position.set(cx, cy, box.z_min);
+  /* grid at bottom (Y=0 in Three.js = Z=0 in data) */
+  const gridSize = Math.max(bw, bd) * 1.2;
+  const grid = new THREE.GridHelper(gridSize, 20, 0xcccccc, 0xe0e0e0);
+  grid.position.set(cx, box.z_min, cz);
   scene.add(grid);
 
-  /* axis labels */
+  /* axis labels (Z-up convention) */
   addAxisLabels(scene, box);
 
   /* group particles by type */
@@ -193,7 +198,7 @@ function createInstancedSpheres(particles, segments, color, opacity, transparent
   const dummy = new THREE.Object3D();
   const col = new THREE.Color();
   particles.forEach((p, i) => {
-    dummy.position.set(p.x, p.y, p.z);
+    dummy.position.set(p.x, p.z, p.y);  // Z-up: swap Y↔Z
     dummy.scale.setScalar(p.r);
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
@@ -207,19 +212,20 @@ function createInstancedSpheres(particles, segments, color, opacity, transparent
 
 /* ── axis labels using sprite text ─────────────────────────── */
 function addAxisLabels(scene, box) {
+  // Z-up: X→right, Y→depth(Three.js Z), Z→up(Three.js Y)
   const labels = [
-    { text: 'X (um)', pos: [box.x_max + 5, box.y_min, box.z_min] },
-    { text: 'Y (um)', pos: [box.x_min, box.y_max + 5, box.z_min] },
-    { text: 'Z (um)', pos: [box.x_min, box.y_min, box.z_max + 5] },
+    { text: 'X (μm)', pos: [box.x_max + 5, box.z_min, (box.y_min+box.y_max)/2] },
+    { text: 'Y (μm)', pos: [(box.x_min+box.x_max)/2, box.z_min, box.y_max + 5] },
+    { text: 'Z (μm)', pos: [box.x_min - 5, box.z_max + 5, (box.y_min+box.y_max)/2] },
   ];
   labels.forEach(l => {
     const canvas = document.createElement('canvas');
-    canvas.width = 128; canvas.height = 48;
+    canvas.width = 160; canvas.height = 48;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#7c8194';
-    ctx.font = 'bold 24px Inter, sans-serif';
+    ctx.fillStyle = '#333333';
+    ctx.font = 'bold 22px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(l.text, 64, 32);
+    ctx.fillText(l.text, 80, 32);
     const tex = new THREE.CanvasTexture(canvas);
     const mat = new THREE.SpriteMaterial({ map: tex, depthWrite: false });
     const sprite = new THREE.Sprite(mat);
@@ -284,7 +290,7 @@ function onSEClick(instanceId, scene, state) {
   /* draw tube along path */
   const pts = path.ids.map(id => {
     const p = state.idIndex[id];
-    return p ? new THREE.Vector3(p.x, p.y, p.z) : null;
+    return p ? new THREE.Vector3(p.x, p.z, p.y) : null;  // Z-up swap
   }).filter(Boolean);
 
   if (pts.length < 2) return;

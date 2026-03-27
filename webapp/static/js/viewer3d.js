@@ -268,7 +268,7 @@ function buildScene(scene, camera, controls, data, state) {
   /* instanced meshes */
   state.meshes.AM_P = createInstancedSpheres(groups.AM_P, 16, COL.AM_P, 1.0, false);
   state.meshes.AM_S = createInstancedSpheres(groups.AM_S, 16, COL.AM_S, 1.0, false);
-  state.meshes.SE = createInstancedSpheres(groups.SE, 12, COL.SE, OPA.SE, false);
+  state.meshes.SE = createInstancedSpheres(groups.SE, 12, COL.SE, OPA.SE, true);
   state.seParticles = groups.SE;
 
   Object.values(state.meshes).forEach(m => { if (m) scene.add(m); });

@@ -24,9 +24,16 @@ function buildControls(container) {
     <label><input type="checkbox" data-layer="AM_S" checked> AM_S</label>
     <label><input type="checkbox" data-layer="SE" checked> SE</label>
     <hr>
+    <div style="font-size:10px;color:#7c8194;margin-bottom:2px">SE Cluster (크기순)</div>
+    <div style="display:flex;gap:4px;align-items:center">
+      <input type="number" id="cluster-input" min="0" value="0"
+        style="width:50px;background:#1c1f2e;border:1px solid #2a2d3e;color:#e4e6f0;border-radius:4px;padding:2px 5px;font-size:11px">
+      <span id="cluster-total" style="font-size:10px;color:#7c8194">/ -</span>
+    </div>
+    <div id="cluster-info" style="font-size:10px;color:#7c8194;margin-top:3px;line-height:1.4"></div>
+    <hr>
     <button data-action="resetView">Reset</button>
-    <button data-action="screenshot">Screenshot</button>
-    <div style="margin-top:4px;font-size:10px;color:#7c8194">SE 클릭 → 클러스터</div>`;
+    <button data-action="screenshot">Screenshot</button>`;
   container.appendChild(div);
   // Separate info panel
   const infoDiv = document.createElement('div');
@@ -106,10 +113,28 @@ export function initElectrodeViewer(containerId, dataUrl) {
     state.data = data;
     buildScene(scene, camera, controls, data, state);
     wireControls(ctrlDiv, renderer, camera, controls, scene, state);
+
+    // Setup cluster input
+    const clusters = (data.clusters || {}).clusters || [];
+    const totalEl = ctrlDiv.querySelector('#cluster-total');
+    const inputEl = ctrlDiv.querySelector('#cluster-input');
+    const infoEl = ctrlDiv.querySelector('#cluster-info');
+    if (totalEl) totalEl.textContent = `/ ${clusters.length - 1}`;
+    if (inputEl) {
+      inputEl.max = Math.max(0, clusters.length - 1);
+      inputEl.addEventListener('change', () => {
+        const idx = parseInt(inputEl.value) || 0;
+        highlightCluster(idx, scene, state, infoEl);
+      });
+      inputEl.addEventListener('input', () => {
+        const idx = parseInt(inputEl.value) || 0;
+        highlightCluster(idx, scene, state, infoEl);
+      });
+    }
+
     animate();
   }).catch(err => {
     console.error('viewer3d: failed to load data', err);
-    state.infoEl.textContent = 'Error loading data';
   });
 
   /* ── animation loop ──────────────────────────────────────── */
@@ -128,18 +153,7 @@ export function initElectrodeViewer(containerId, dataUrl) {
   });
   ro.observe(container);
 
-  /* raycaster for click */
-  const raycaster = new THREE.Raycaster();
-  const pointer = new THREE.Vector2();
-  renderer.domElement.addEventListener('click', e => {
-    if (!state.data || !state.meshes.SE) return;
-    const rect = renderer.domElement.getBoundingClientRect();
-    pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera(pointer, camera);
-    const hit = raycaster.intersectObject(state.meshes.SE);
-    if (hit.length > 0) onSEClick(hit[0].instanceId, scene, state);
-  });
+  /* cluster input is handled via event listener in data fetch callback */
 }
 
 /* ── build scene from data ─────────────────────────────────── */
@@ -279,98 +293,77 @@ function applyPercolation(state, on) {
   }
 }
 
-/* ── SE click handler (cluster-based) ─────────────────────── */
-function onSEClick(instanceId, scene, state) {
+/* ── Cluster highlight by index ────────────────────────────── */
+function highlightCluster(idx, scene, state, infoEl) {
   const particles = state.seParticles;
-  if (!particles || instanceId >= particles.length) return;
-  const clicked = particles[instanceId];
-  const info = state.infoEl;
-  if (!info) return;
-  info.style.display = 'block';
+  if (!particles) return;
 
-  /* clear previous highlights */
+  /* clear previous */
   if (state.pathGroup) { scene.remove(state.pathGroup); state.pathGroup = null; }
   resetSEColors(state);
 
-  const clusters = state.data.clusters || {};
-  const clusterMap = clusters.se_cluster_map || {};
-  const clusterList = clusters.clusters || [];
-
-  const clusterIdx = clusterMap[clicked.id];
-  if (clusterIdx === undefined) {
-    info.innerHTML = `SE #${clicked.id}<br>클러스터 없음 (고립)`;
+  const clusterList = ((state.data.clusters || {}).clusters) || [];
+  if (idx < 0 || idx >= clusterList.length) {
+    if (infoEl) infoEl.innerHTML = '';
     return;
   }
 
-  const cluster = clusterList[clusterIdx];
-  if (!cluster) {
-    info.innerHTML = `SE #${clicked.id}<br>클러스터 데이터 없음`;
-    return;
-  }
+  const cluster = clusterList[idx];
 
-  /* highlight cluster SE particles (bright blue) */
+  /* highlight cluster SE particles */
   const clusterSet = new Set(cluster.ids);
   const mesh = state.meshes.SE;
   const col = new THREE.Color();
   particles.forEach((p, i) => {
     if (clusterSet.has(p.id)) {
-      col.setHex(0x2196F3);  // highlight blue
+      col.setHex(0x1565C0);  // deep blue
     } else {
       col.setHex(COL.SE);
     }
     mesh.setColorAt(i, col);
   });
   mesh.instanceColor.needsUpdate = true;
-  mesh.material.opacity = 0.5;
 
-  /* show cluster info */
-  let html = `<b>SE Cluster #${clusterIdx}</b><br>`;
-  html += `입자 수: ${cluster.size}<br>`;
-  html += cluster.percolating ? `<span style="color:#34D399">Percolating ✓</span>` : `<span style="color:#F87171">Non-percolating ✗</span>`;
+  /* info text */
+  let html = `<b>#${idx}</b> ${cluster.size}개`;
+  html += cluster.percolating ? ` <span style="color:#34D399">✓</span>` : ` <span style="color:#F87171">✗</span>`;
 
   /* draw path if percolating */
   if (cluster.path && cluster.path.ids) {
     const path = cluster.path;
     const pts = path.ids.map(id => {
       const p = state.idIndex[id];
-      return p ? new THREE.Vector3(p.x, p.z, p.y) : null;  // Z-up swap
+      return p ? new THREE.Vector3(p.x, p.z, p.y) : null;
     }).filter(Boolean);
 
     if (pts.length >= 2) {
       const group = new THREE.Group();
-
-      /* tube along path */
       const curve = new THREE.CatmullRomCurve3(pts);
-      const tubeGeo = new THREE.TubeGeometry(curve, Math.min(pts.length * 4, 200), 0.6, 8, false);
+      const tubeGeo = new THREE.TubeGeometry(curve, Math.min(pts.length * 4, 200), 0.8, 8, false);
       const tubeMat = new THREE.MeshPhongMaterial({
-        color: COL.PATH, emissive: COL.PATH, emissiveIntensity: 0.3,
+        color: COL.PATH, emissive: COL.PATH, emissiveIntensity: 0.4,
       });
       group.add(new THREE.Mesh(tubeGeo, tubeMat));
 
-      /* start/end markers */
-      const startGeo = new THREE.SphereGeometry(1.5, 12, 12);
-      const startMat = new THREE.MeshPhongMaterial({ color: 0x22D3EE });
-      const startSphere = new THREE.Mesh(startGeo, startMat);
-      startSphere.position.copy(pts[0]);
-      group.add(startSphere);
-
-      const endGeo = new THREE.SphereGeometry(1.5, 12, 12);
-      const endMat = new THREE.MeshPhongMaterial({ color: 0xF87171 });
-      const endSphere = new THREE.Mesh(endGeo, endMat);
-      endSphere.position.copy(pts[pts.length - 1]);
-      group.add(endSphere);
+      /* start(bottom)/end(top) markers */
+      const mkSphere = (pos, color) => {
+        const g = new THREE.SphereGeometry(1.8, 12, 12);
+        const m = new THREE.MeshPhongMaterial({ color });
+        const s = new THREE.Mesh(g, m);
+        s.position.copy(pos);
+        return s;
+      };
+      group.add(mkSphere(pts[0], 0x22D3EE));
+      group.add(mkSphere(pts[pts.length - 1], 0xF87171));
 
       scene.add(group);
       state.pathGroup = group;
 
-      html += `<br><b>Ion Path</b><br>`;
-      html += `τ = ${path.tortuosity}<br>`;
-      html += `경로: ${path.path_length} μm<br>`;
-      html += `Z 거리: ${path.z_distance} μm`;
+      html += `<br>τ=${path.tortuosity} L=${path.path_length}μm`;
     }
   }
 
-  info.innerHTML = html;
+  if (infoEl) infoEl.innerHTML = html;
 }
 
 function resetSEColors(state) {

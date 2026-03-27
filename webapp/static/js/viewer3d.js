@@ -8,12 +8,12 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 /* ── colour constants ──────────────────────────────────────── */
 const COL = {
-  AM_P: 0x222222, AM_S: 0x888888, SE: 0xf5d77a,
+  AM_P: 0x222222, AM_S: 0x888888, SE: 0xf5e6a3,
   SE_TOP_REACH: 0x34d399, SE_NON_REACH: 0xf87171,
   SE_BOTTOM: 0xfbbf24, SE_TOP: 0x22d3ee,
   PATH: 0xffd700, BG: 0xf5f5f5,
 };
-const OPA = { SE: 0.85, SE_CLUSTER: 0.5 };
+const OPA = { SE: 0.85 };
 
 /* ── control-panel HTML ────────────────────────────────────── */
 function buildControls(container) {
@@ -376,20 +376,22 @@ function highlightCluster(idx, scene, state, infoEl, pathIdx) {
   state.currentClusterPaths = allPaths;
   state.currentPathIdx = pathIdx || 0;
 
-  /* highlight cluster SE = bright blue, rest = original color */
+  /* cluster SE = blue (nearly transparent), rest = yellow (opaque) */
   const clusterSet = new Set(cluster.ids);
   const mesh = state.meshes.SE;
   const col = new THREE.Color();
   particles.forEach((p, i) => {
     if (clusterSet.has(p.id)) {
-      col.setHex(0x2196F3);  // bright blue
+      col.setHex(0x2196F3);  // blue for cluster
     } else {
-      col.setHex(COL.SE);
+      col.setHex(COL.SE);    // yellow for rest
     }
     mesh.setColorAt(i, col);
   });
   mesh.instanceColor.needsUpdate = true;
-  mesh.material.opacity = OPA.SE_CLUSTER;
+  /* InstancedMesh has single material - use 0.85 so non-cluster stays visible,
+     cluster blue at 0.85 is also visible but distinguishable by color */
+  mesh.material.opacity = 0.85;
   mesh.material.depthWrite = false;
 
   /* info text */
@@ -450,9 +452,7 @@ function resetSEColors(state) {
   const particles = state.seParticles || [];
   particles.forEach((p, i) => mesh.setColorAt(i, col));
   mesh.instanceColor.needsUpdate = true;
-  mesh.material.transparent = false;
-  mesh.material.opacity = OPA.SE;
-  mesh.material.depthWrite = true;
+  mesh.material.opacity = OPA.SE;  // back to 0.85
 }
 
 /* ── wire up control panel ─────────────────────────────────── */

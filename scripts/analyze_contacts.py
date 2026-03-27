@@ -184,8 +184,9 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     stress = results.get('stress')
     if stress:
         rows.append({'지표': 'Stress CV(%)', '값': round(stress['vm_cv'], 1)})
-        for tn, sv in stress['type_stress'].items():
-            rows.append({'지표': f'σ_{tn}/σ_mean', '값': round(sv['ratio'], 3)})
+        for tn in ['AM_P', 'AM_S', 'SE']:
+            if tn in stress['type_stress']:
+                rows.append({'지표': f'σ_{tn}/σ_mean', '값': round(stress['type_stress'][tn]['ratio'], 3)})
     pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'network_summary.csv'), index=False)
 
     # Auto-detect P:S ratio from mass (count × volume × density)

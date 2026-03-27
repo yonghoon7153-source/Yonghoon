@@ -27,9 +27,14 @@ function buildControls(container) {
     <label><input type="checkbox" data-layer="forceChains"> Force Chains</label>
     <hr>
     <button data-action="resetView">Reset View</button>
-    <button data-action="screenshot">Screenshot</button>
-    <div class="viewer-info" id="viewer-info"></div>`;
+    <button data-action="screenshot">Screenshot</button>`;
   container.appendChild(div);
+  // Separate info panel
+  const infoDiv = document.createElement('div');
+  infoDiv.className = 'viewer-info';
+  infoDiv.id = 'viewer-info';
+  container.appendChild(infoDiv);
+  div._infoEl = infoDiv;
   return div;
 }
 
@@ -39,8 +44,8 @@ function injectCSS() {
   const s = document.createElement('style');
   s.id = 'viewer3d-css';
   s.textContent = `
-.viewer-container{position:relative;width:100%;height:600px;border-radius:10px;overflow:hidden;background:#0f1117}
-.viewer-controls{position:absolute;top:10px;right:10px;background:rgba(22,25,46,.92);
+.viewer-container{position:relative;width:100%;height:600px;border-radius:10px;overflow:hidden;background:#f5f5f5}
+.viewer-controls{position:absolute;top:10px;left:10px;background:rgba(22,25,46,.92);
   border:1px solid #2a2d3e;border-radius:8px;padding:10px 14px;display:flex;flex-direction:column;gap:4px;
   font:13px/1.5 'Inter',sans-serif;color:#e4e6f0;z-index:10;user-select:none}
 .viewer-controls label{display:flex;align-items:center;gap:6px;cursor:pointer}
@@ -48,7 +53,9 @@ function injectCSS() {
 .viewer-controls button{background:#6c8cff;color:#fff;border:none;border-radius:5px;padding:5px 10px;
   cursor:pointer;font-size:12px;margin-top:2px}
 .viewer-controls button:hover{background:#8ba3ff}
-.viewer-info{margin-top:6px;font-size:11px;color:#7c8194;max-width:200px;word-wrap:break-word}`;
+.viewer-info{position:absolute;bottom:12px;right:12px;background:rgba(22,25,46,.92);
+  border:1px solid #2a2d3e;border-radius:8px;padding:10px 14px;
+  font:12px/1.6 'JetBrains Mono',monospace;color:#e4e6f0;z-index:10;max-width:260px;display:none}`;
   document.head.appendChild(s);
 }
 
@@ -72,7 +79,7 @@ export function initElectrodeViewer(containerId, dataUrl) {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.12;
-  controls.zoomSpeed = 0.5;  // 줌 속도 절반으로
+  controls.zoomSpeed = 0.15;  // 줌 속도 크게 낮춤
 
   /* lights */
   scene.add(new THREE.AmbientLight(0xffffff, 0.4));
@@ -88,7 +95,7 @@ export function initElectrodeViewer(containerId, dataUrl) {
 
   /* controls panel */
   const ctrlDiv = buildControls(container);
-  state.infoEl = ctrlDiv.querySelector('#viewer-info');
+  state.infoEl = ctrlDiv._infoEl || document.getElementById('viewer-info');
 
   /* ── data fetch & build ──────────────────────────────────── */
   fetch(dataUrl).then(r => r.json()).then(data => {

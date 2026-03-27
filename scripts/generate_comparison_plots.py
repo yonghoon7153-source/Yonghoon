@@ -582,6 +582,14 @@ def main():
             ('Coverage AM_P std', lambda d: _resolve_coverage(d)[1]),
             ('Coverage AM_S(%)', lambda d: _resolve_coverage(d)[2]),
             ('Coverage AM_S std', lambda d: _resolve_coverage(d)[3])],
+        'stress_cv': [('Case', None),
+            ('Stress CV(%)', lambda d: _get(d, 'stress_cv'))],
+        'stress_ratio': [('Case', None),
+            ('σ_AM_P/σ_mean', lambda d: _get(d, 'stress_ratio_AM_P')),
+            ('σ_AM_S/σ_mean', lambda d: _get(d, 'stress_ratio_AM_S')),
+            ('σ_SE/σ_mean', lambda d: _get(d, 'stress_ratio_SE'))],
+        'stress_z_layer': [('Case', None),
+            ('Z_data', lambda d: str(d.get('stress_z_layer_cv', [])))],
     }
 
     import csv
@@ -597,7 +605,11 @@ def main():
                         if fn is None:
                             row.append(name)
                         else:
-                            row.append(round(fn(all_data[i]), 4))
+                            val = fn(all_data[i])
+                            if isinstance(val, (int, float)):
+                                row.append(round(val, 4))
+                            else:
+                                row.append(val)
                     writer.writerow(row)
 
     for plot_name in args.plots:

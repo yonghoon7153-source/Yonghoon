@@ -307,13 +307,13 @@ function addAxisLabels(scene, box) {
   ];
   labels.forEach(l => {
     const canvas = document.createElement('canvas');
-    canvas.width = 256; canvas.height = 64;
+    canvas.width = 512; canvas.height = 128;
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#000000';
-    ctx.font = 'bold 36px Arial, sans-serif';
+    ctx.font = 'bold 72px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(l.text, 128, 32);
+    ctx.fillText(l.text, 256, 64);
     const tex = new THREE.CanvasTexture(canvas);
     const mat = new THREE.SpriteMaterial({ map: tex, depthWrite: false });
     const sprite = new THREE.Sprite(mat);

@@ -179,12 +179,14 @@ def calc_percolation(atoms, contacts, se_types, plate_z, boundary_factor=2.0):
 
     G = nx.Graph()
     G.add_nodes_from(se_ids)
-    edges = []
+    box_x = 0.05  # periodic boundary box size
+    box_y = 0.05
     for c in contacts:
         if c['id1'] in atoms and c['id2'] in atoms:
             if atoms[c['id1']]['type'] in se_types and atoms[c['id2']]['type'] in se_types:
-                edges.append((c['id1'], c['id2']))
-    G.add_edges_from(edges)
+                # Add edge with periodic-corrected distance as weight
+                d = _periodic_dist(atoms[c['id1']], atoms[c['id2']], box_x, box_y)
+                G.add_edge(c['id1'], c['id2'], distance=d)
 
     bottom_se = {aid for aid in se_ids if atoms[aid]['z'] <= z_bottom}
     top_se = {aid for aid in se_ids if atoms[aid]['z'] >= z_top}
@@ -231,8 +233,9 @@ def _periodic_dist(a1, a2, box_x=0.05, box_y=0.05):
 
 
 def calc_tortuosity(atoms, perc_result, n_samples=200, box_xy=0.05):
-    """tortuosity = path length / z distance (hop-based shortest path).
-    Uses minimum image convention for periodic x,y boundaries."""
+    """tortuosity = path length / z distance.
+    Uses distance-weighted shortest path (physical shortest distance)
+    with periodic boundary correction."""
     G = perc_result['graph']
     top_reachable_se = perc_result['top_reachable_se']
     bottom_se = perc_result['bottom_se']
@@ -252,7 +255,8 @@ def calc_tortuosity(atoms, perc_result, n_samples=200, box_xy=0.05):
         src = reach_bottom[i % len(reach_bottom)]
         tgt = reach_top[i % len(reach_top)]
         try:
-            path = nx.shortest_path(G, src, tgt)
+            # Distance-weighted shortest path (physical shortest route)
+            path = nx.shortest_path(G, src, tgt, weight='distance')
             path_len = sum(
                 _periodic_dist(atoms[path[k]], atoms[path[k+1]], box_xy, box_xy)
                 for k in range(len(path) - 1))

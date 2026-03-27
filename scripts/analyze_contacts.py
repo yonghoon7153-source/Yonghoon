@@ -320,7 +320,7 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                             continue
                         seen_pairs.add(pair)
                         try:
-                            path = nx.shortest_path(G, src, tgt)
+                            path = nx.shortest_path(G, src, tgt, weight='distance')
                             # Minimum image convention for periodic x,y
                             box_xy = 0.05  # sim units
                             path_len = 0
@@ -392,7 +392,7 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
             src = reach_bottom[i % len(reach_bottom)]
             tgt = reach_top[i % len(reach_top)]
             try:
-                path = nx.shortest_path(G, src, tgt)
+                path = nx.shortest_path(G, src, tgt, weight='distance')
                 box_xy = 0.05
                 path_len = 0
                 for ki in range(len(path)-1):

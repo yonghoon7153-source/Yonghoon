@@ -298,7 +298,7 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                 'path': None,
             }
 
-            # Find multiple shortest paths for percolating clusters
+            # Find multiple shortest paths, sorted by closeness to τ mean
             if percolating:
                 src_candidates = list(comp & bottom_se)
                 tgt_candidates = list(comp & top_se)
@@ -306,11 +306,12 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                 random.seed(42)
                 random.shuffle(src_candidates)
                 random.shuffle(tgt_candidates)
-                paths_list = []
+                # Sample up to 30 candidates, keep best 10
+                all_paths = []
                 seen_pairs = set()
-                for si in range(min(10, len(src_candidates))):
-                    for ti in range(min(10, len(tgt_candidates))):
-                        if len(paths_list) >= 10:
+                for si in range(min(15, len(src_candidates))):
+                    for ti in range(min(15, len(tgt_candidates))):
+                        if len(all_paths) >= 30:
                             break
                         src = src_candidates[si]
                         tgt = tgt_candidates[ti]
@@ -324,19 +325,24 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                                 np.sqrt(sum((atoms_raw[path[k]][c] - atoms_raw[path[k+1]][c])**2 for c in 'xyz'))
                                 for k in range(len(path)-1))
                             z_dist = abs(atoms_raw[tgt]['z'] - atoms_raw[src]['z'])
-                            paths_list.append({
-                                'ids': path,
-                                'tortuosity': round(path_len / z_dist, 2) if z_dist > 0 else 0,
-                                'path_length': round(path_len * scale, 1),
-                                'z_distance': round(z_dist * scale, 1),
-                            })
+                            if z_dist > 0:
+                                all_paths.append({
+                                    'ids': path,
+                                    'tortuosity': round(path_len / z_dist, 2),
+                                    'path_length': round(path_len * scale, 1),
+                                    'z_distance': round(z_dist * scale, 1),
+                                })
                         except nx.NetworkXNoPath:
                             pass
-                    if len(paths_list) >= 10:
+                    if len(all_paths) >= 30:
                         break
-                if paths_list:
-                    cluster_info['path'] = paths_list[0]  # default (legacy)
-                    cluster_info['paths'] = paths_list  # all paths
+                if all_paths:
+                    # Sort by closeness to overall tortuosity mean
+                    tau_mean = results['tortuosity'].get('mean', 0) or 0
+                    all_paths.sort(key=lambda p: abs(p['tortuosity'] - tau_mean))
+                    paths_list = all_paths[:10]
+                    cluster_info['path'] = paths_list[0]
+                    cluster_info['paths'] = paths_list
 
             clusters.append(cluster_info)
 

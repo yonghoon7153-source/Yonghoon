@@ -13,7 +13,7 @@ const COL = {
   SE_BOTTOM: 0xfbbf24, SE_TOP: 0x22d3ee,
   PATH: 0xffd700, BG: 0xf5f5f5,
 };
-const OPA = { SE: 0.15, SE_REACH: 0.5, SE_NON: 0.08, SE_BOUND: 0.5 };
+const OPA = { SE: 0.85, SE_CLUSTER: 0.5 };
 
 /* ── control-panel HTML ────────────────────────────────────── */
 function buildControls(container) {
@@ -235,6 +235,10 @@ function buildScene(scene, camera, controls, data, state) {
   state.defaultCamPos = camera.position.clone();
   state.defaultTarget = controls.target.clone();
 
+  /* set zoom limits based on data size */
+  controls.minDistance = maxDim * 0.3;
+  controls.maxDistance = maxDim * 4;
+
   /* bounding box wireframe */
   const bbGeo = new THREE.BoxGeometry(bw, bh, bd);
   const bbMat = new THREE.LineBasicMaterial({ color: 0x888888 });
@@ -264,7 +268,7 @@ function buildScene(scene, camera, controls, data, state) {
   /* instanced meshes */
   state.meshes.AM_P = createInstancedSpheres(groups.AM_P, 16, COL.AM_P, 1.0, false);
   state.meshes.AM_S = createInstancedSpheres(groups.AM_S, 16, COL.AM_S, 1.0, false);
-  state.meshes.SE = createInstancedSpheres(groups.SE, 12, COL.SE, OPA.SE, true);
+  state.meshes.SE = createInstancedSpheres(groups.SE, 12, COL.SE, OPA.SE, false);
   state.seParticles = groups.SE;
 
   Object.values(state.meshes).forEach(m => { if (m) scene.add(m); });
@@ -385,6 +389,9 @@ function highlightCluster(idx, scene, state, infoEl, pathIdx) {
     mesh.setColorAt(i, col);
   });
   mesh.instanceColor.needsUpdate = true;
+  mesh.material.transparent = true;
+  mesh.material.opacity = OPA.SE_CLUSTER;
+  mesh.material.depthWrite = false;
 
   /* info text */
   const pi = state.currentPathIdx;
@@ -444,7 +451,9 @@ function resetSEColors(state) {
   const particles = state.seParticles || [];
   particles.forEach((p, i) => mesh.setColorAt(i, col));
   mesh.instanceColor.needsUpdate = true;
+  mesh.material.transparent = false;
   mesh.material.opacity = OPA.SE;
+  mesh.material.depthWrite = true;
 }
 
 /* ── wire up control panel ─────────────────────────────────── */

@@ -530,13 +530,27 @@ def single(case_id):
         with open(metrics_path) as f:
             metrics = json.load(f)
 
-    # Patch SE Cluster display for old CSVs (plain number → large/total format)
+    # Patch network_summary with values from full_metrics.json
     if 'network_summary' in tables and metrics:
+        # SE Cluster: plain number → large/total format
         n_large = metrics.get('n_large_components')
         if n_large is not None:
             for row in tables['network_summary']['data']:
                 if str(row[0]) == 'SE Cluster 수' and '≥10' not in str(row[1]):
                     row[1] = f"{n_large}(≥10) / {row[1]}"
+        # Fill placeholder '-' values from full_metrics
+        placeholder_map = {
+            'GB Density(hops/μm)': 'gb_density_mean',
+            'Path Hop Area mean(μm²)': 'path_hop_area_mean',
+            'Path Bottleneck(μm²)': 'path_hop_area_min_mean',
+            'Path Conductance(μm²)': 'path_conductance_mean',
+        }
+        for row in tables['network_summary']['data']:
+            label = str(row[0])
+            if label in placeholder_map and str(row[1]).strip() in ('-', ''):
+                val = metrics.get(placeholder_map[label])
+                if val is not None:
+                    row[1] = val
 
     # Load input_params.json
     input_params = {}

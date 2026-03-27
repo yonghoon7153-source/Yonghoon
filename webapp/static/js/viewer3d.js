@@ -585,6 +585,22 @@ function showPathOnlyView(renderer, scene, camera, state) {
     unwrapped.push(new THREE.Vector3(x, p.z, y)); // Z-up swap
   }
 
+  // Center the path in the box (shift x,z so path midpoint = box center)
+  if (unwrapped.length > 0) {
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    unwrapped.forEach(v => {
+      minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x);
+      minZ = Math.min(minZ, v.z); maxZ = Math.max(maxZ, v.z);
+    });
+    const pathCx = (minX + maxX) / 2;
+    const pathCz = (minZ + maxZ) / 2;
+    const boxCx = (box.x_min + box.x_max) / 2;
+    const boxCz = (box.y_min + box.y_max) / 2;
+    const shiftX = boxCx - pathCx;
+    const shiftZ = boxCz - pathCz;
+    unwrapped.forEach(v => { v.x += shiftX; v.z += shiftZ; });
+  }
+
   // Create temporary path group for clean render
   const tempGroup = new THREE.Group();
   for (let j = 0; j < unwrapped.length - 1; j++) {

@@ -376,20 +376,19 @@ function highlightCluster(idx, scene, state, infoEl, pathIdx) {
   state.currentClusterPaths = allPaths;
   state.currentPathIdx = pathIdx || 0;
 
-  /* highlight cluster SE particles */
+  /* highlight cluster SE = bright blue, rest = original color */
   const clusterSet = new Set(cluster.ids);
   const mesh = state.meshes.SE;
   const col = new THREE.Color();
   particles.forEach((p, i) => {
     if (clusterSet.has(p.id)) {
-      col.setHex(0x1565C0);
+      col.setHex(0x2196F3);  // bright blue
     } else {
       col.setHex(COL.SE);
     }
     mesh.setColorAt(i, col);
   });
   mesh.instanceColor.needsUpdate = true;
-  mesh.material.transparent = true;
   mesh.material.opacity = OPA.SE_CLUSTER;
   mesh.material.depthWrite = false;
 

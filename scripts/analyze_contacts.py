@@ -160,35 +160,42 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     tau = results['tortuosity']
     ionic = results['ionic_active']
     rows = [
-        # 1. 구조
+        # ── 구조 ──
+        {'지표': '── 구조 ──', '값': ''},
         {'지표': 'Porosity(%)', '값': round(results['porosity'], 2)},
         {'지표': '전극두께(μm)', '값': round(results['thickness_um'], 2)},
-        # 2. 계면
+        # ── 계면 ──
+        {'지표': '── 계면 ──', '값': ''},
         {'지표': 'AM-SE Total(μm²)', '값': round(results['interface'].get('AM전체-SE', {}).get('total_area', 0), 2)},
         {'지표': 'SE-SE Total(μm²)', '값': round(results['interface'].get('SE-SE', {}).get('total_area', 0), 2)},
     ]
     for lbl, v in results['coverage'].items():
         rows.append({'지표': f'Coverage {lbl}(%)', '값': round(v['mean'], 1)})
     rows += [
-        # 3-1. 이온경로 - 연결성
+        # ── 이온경로: 연결성 ──
+        {'지표': '── 이온경로: 연결성 ──', '값': ''},
         {'지표': 'SE-SE CN mean', '값': round(cn['mean'], 2)},
         {'지표': 'SE Cluster 수', '값': perc['n_components']},
         {'지표': 'SE Percolation(%)', '값': round(perc['percolation_pct'], 1)},
         {'지표': 'Top Reachable(%)', '값': round(perc['top_reachable_pct'], 1)},
-        # 3-2. 이온경로 - 경로 효율
+        # ── 이온경로: 경로 효율 ──
+        {'지표': '── 이온경로: 경로 효율 ──', '값': ''},
         {'지표': 'Tortuosity mean', '값': round(tau['mean'], 2) if tau['mean'] else 'N/A'},
         {'지표': 'Tortuosity std', '값': round(tau['std'], 2) if tau['std'] else 'N/A'},
         {'지표': 'GB Density(hops/μm)', '값': '-'},  # placeholder, updated after cluster calc
-        # 3-3. 이온경로 - 경로 품질
+        # ── 이온경로: 경로 품질 ──
+        {'지표': '── 이온경로: 경로 품질 ──', '값': ''},
         {'지표': 'Path Hop Area mean(μm²)', '값': '-'},
         {'지표': 'Path Bottleneck(μm²)', '값': '-'},
         {'지표': 'Path Conductance(μm²)', '값': '-'},
-        # 4. 활성도
+        # ── 활성도 ──
+        {'지표': '── 활성도 ──', '값': ''},
         {'지표': 'Ionic Active AM(%)', '값': round(ionic['active_pct'], 1)},
     ]
-    # 5. 응력 (상대값)
+    # ── 응력 ──
     stress = results.get('stress')
     if stress:
+        rows.append({'지표': '── 응력 ──', '값': ''})
         rows.append({'지표': 'Stress CV(%)', '값': round(stress['vm_cv'], 1)})
         for tn in ['AM_P', 'AM_S', 'SE']:
             if tn in stress['type_stress']:

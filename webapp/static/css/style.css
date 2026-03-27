@@ -184,6 +184,13 @@ select.input { cursor: pointer; }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tr:hover { background: rgba(255,255,255,.02); }
 .data-table.compact th, .data-table.compact td { padding: 7px 10px; font-size: .8rem; }
+.data-table tr.section-header td {
+  color: var(--accent); font-weight: 700; font-size: .75rem;
+  letter-spacing: .5px; padding: 12px 10px 6px;
+  border-bottom: 1px solid var(--accent);
+  background: transparent;
+}
+.data-table tr.section-header:hover { background: transparent; }
 .table-scroll { overflow-x: auto; }
 .actions { display: flex; gap: 6px; flex-wrap: wrap; }
 

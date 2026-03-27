@@ -60,7 +60,11 @@
         <thead><tr>{% for col in tbl.columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
         <tbody>
           {% for row in tbl.data %}
+          {% if row[0] is string and row[0].startswith('──') %}
+          <tr class="section-header"><td colspan="{{ tbl.columns|length }}">{{ row[0] }}</td></tr>
+          {% else %}
           <tr>{% for val in row %}<td>{{ val }}</td>{% endfor %}</tr>
+          {% endif %}
           {% endfor %}
         </tbody>
       </table>

@@ -709,7 +709,3 @@ function showPathOnlyView(renderer, scene, camera, state) {
     overlay.remove();
   });
 }
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-}

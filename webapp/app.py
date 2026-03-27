@@ -546,6 +546,9 @@ def group():
             ('σ_AM_P/σ_mean', '', 'stress_ratio_AM_P'),
             ('σ_AM_S/σ_mean', '', 'stress_ratio_AM_S'),
             ('σ_SE/σ_mean', '', 'stress_ratio_SE'),
+            ('GB Density', '(hops/μm)', 'gb_density_mean'),
+            ('Path Conductance', '(μm²)', 'path_conductance_mean'),
+            ('Bottleneck', '(μm²)', 'path_hop_area_min_mean'),
         ]
         rows = []
         for cid in selected:

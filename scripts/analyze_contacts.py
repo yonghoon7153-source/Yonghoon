@@ -245,6 +245,11 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         'tortuosity_std': tau['std'],
         'ionic_active_pct': ionic['active_pct'],
     }
+
+    # GB density and path conductance from cluster paths (exact per-hop contact area)
+    perc_clusters_path = os.path.join(output_dir, 'se_clusters.json')
+    # Will be computed later, add placeholder; actual values filled after cluster computation
+
     metrics.update(particle_info)
     for ct, v in results['interface'].items():
         safe = ct.replace('-', '_')
@@ -306,7 +311,15 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                 random.seed(42)
                 random.shuffle(src_candidates)
                 random.shuffle(tgt_candidates)
-                # Sample up to 30 candidates, keep best 10
+
+                # Build contact area lookup: (id1,id2) → area (sim units)
+                contact_area_map = {}
+                for c in contacts_raw:
+                    i1, i2 = c['id1'], c['id2']
+                    contact_area_map[(min(i1,i2), max(i1,i2))] = c['contact_area']
+
+                area_conv = 1.0 / (scale ** 2) * 1e12  # sim m² → real μm²
+
                 all_paths = []
                 seen_pairs = set()
                 for si in range(min(15, len(src_candidates))):
@@ -321,9 +334,11 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                         seen_pairs.add(pair)
                         try:
                             path = nx.shortest_path(G, src, tgt, weight='distance')
-                            # Minimum image convention for periodic x,y
-                            box_xy = 0.05  # sim units
+                            box_xy = 0.05
                             path_len = 0
+                            # Exact per-hop contact area and resistance
+                            hop_areas = []  # real μm²
+                            sum_inv_a = 0  # Σ(1/A_i) for resistance
                             for ki in range(len(path)-1):
                                 a1, a2 = atoms_raw[path[ki]], atoms_raw[path[ki+1]]
                                 dx = abs(a1['x'] - a2['x'])
@@ -332,13 +347,28 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                                 dx = min(dx, box_xy - dx)
                                 dy = min(dy, box_xy - dy)
                                 path_len += np.sqrt(dx**2 + dy**2 + dz**2)
+                                # Lookup actual contact area
+                                pair_key = (min(path[ki], path[ki+1]), max(path[ki], path[ki+1]))
+                                ca = contact_area_map.get(pair_key, 0)
+                                ca_real = ca * area_conv  # → μm²
+                                hop_areas.append(ca_real)
+                                if ca_real > 0:
+                                    sum_inv_a += 1.0 / ca_real
                             z_dist = abs(atoms_raw[tgt]['z'] - atoms_raw[src]['z'])
+                            n_hop = len(path) - 1
                             if z_dist > 0:
+                                gb_density = round(n_hop / (z_dist * scale), 3)  # hops/μm
+                                path_conductance = round(1.0 / sum_inv_a, 6) if sum_inv_a > 0 else 0  # μm² (effective)
                                 all_paths.append({
                                     'ids': path,
                                     'tortuosity': round(path_len / z_dist, 2),
                                     'path_length': round(path_len * scale, 1),
                                     'z_distance': round(z_dist * scale, 1),
+                                    'n_hop': n_hop,
+                                    'gb_density': gb_density,
+                                    'path_conductance': path_conductance,
+                                    'hop_area_mean': round(np.mean(hop_areas), 4) if hop_areas else 0,
+                                    'hop_area_min': round(min(hop_areas), 4) if hop_areas else 0,
                                 })
                         except nx.NetworkXNoPath:
                             pass
@@ -379,6 +409,53 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
 
         with open(os.path.join(output_dir, 'se_clusters.json'), 'w') as f:
             json.dump({'clusters': clusters, 'se_cluster_map': se_cluster_map}, f)
+
+        # Update metrics with GB density and path conductance from percolating cluster paths
+        all_perc_paths = []
+        for cl in clusters:
+            if cl.get('paths'):
+                all_perc_paths.extend(cl['paths'])
+        if all_perc_paths:
+            gb_densities = [p['gb_density'] for p in all_perc_paths if 'gb_density' in p]
+            conductances = [p['path_conductance'] for p in all_perc_paths if p.get('path_conductance', 0) > 0]
+            hop_areas = [p['hop_area_mean'] for p in all_perc_paths if 'hop_area_mean' in p]
+            hop_area_mins = [p['hop_area_min'] for p in all_perc_paths if 'hop_area_min' in p]
+
+            metrics_update = {}
+            if gb_densities:
+                metrics_update['gb_density_mean'] = round(float(np.mean(gb_densities)), 3)
+            if conductances:
+                metrics_update['path_conductance_mean'] = round(float(np.mean(conductances)), 6)
+            if hop_areas:
+                metrics_update['path_hop_area_mean'] = round(float(np.mean(hop_areas)), 4)
+            if hop_area_mins:
+                metrics_update['path_hop_area_min_mean'] = round(float(np.mean(hop_area_mins)), 4)
+
+            # Re-read and update full_metrics.json
+            metrics_path = os.path.join(output_dir, 'full_metrics.json')
+            if os.path.exists(metrics_path):
+                with open(metrics_path) as f:
+                    existing = json.load(f)
+                existing.update(metrics_update)
+                with open(metrics_path, 'w') as f:
+                    json.dump(existing, f, indent=2, default=str)
+
+            # Also update network_summary.csv
+            ns_path = os.path.join(output_dir, 'network_summary.csv')
+            if os.path.exists(ns_path):
+                ns_df = pd.read_csv(ns_path)
+                new_rows = []
+                if gb_densities:
+                    new_rows.append({'지표': 'GB Density(hops/μm)', '값': round(float(np.mean(gb_densities)), 3)})
+                if conductances:
+                    new_rows.append({'지표': 'Path Conductance(μm²)', '값': round(float(np.mean(conductances)), 6)})
+                if hop_areas:
+                    new_rows.append({'지표': 'Path Hop Area mean(μm²)', '값': round(float(np.mean(hop_areas)), 4)})
+                if hop_area_mins:
+                    new_rows.append({'지표': 'Path Bottleneck(μm²)', '값': round(float(np.mean(hop_area_mins)), 4)})
+                if new_rows:
+                    ns_df = pd.concat([ns_df, pd.DataFrame(new_rows)], ignore_index=True)
+                    ns_df.to_csv(ns_path, index=False)
 
     # Save tortuosity sample paths for 3D viewer (legacy)
     tau = results['tortuosity']

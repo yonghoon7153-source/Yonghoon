@@ -376,19 +376,20 @@ function highlightCluster(idx, scene, state, infoEl, pathIdx) {
   state.currentClusterPaths = allPaths;
   state.currentPathIdx = pathIdx || 0;
 
-  /* cluster SE = bright blue, rest = very dark (visible but subdued) */
+  /* Path ON: cluster = blue, rest = yellow, all opacity 0.1 */
   const clusterSet = new Set(cluster.ids);
   const mesh = state.meshes.SE;
   const col = new THREE.Color();
   particles.forEach((p, i) => {
     if (clusterSet.has(p.id)) {
-      col.setHex(0x2196F3);  // bright blue
+      col.setHex(0x2196F3);  // blue
     } else {
-      col.setHex(0x2a2520);  // very dark brown (visible but subdued)
+      col.setHex(COL.SE);    // yellow
     }
     mesh.setColorAt(i, col);
   });
   mesh.instanceColor.needsUpdate = true;
+  mesh.material.opacity = 0.1;
 
   /* info text */
   const pi = state.currentPathIdx;

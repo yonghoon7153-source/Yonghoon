@@ -24,13 +24,14 @@ function buildControls(container) {
     <label><input type="checkbox" data-layer="AM_S" checked> AM_S</label>
     <label><input type="checkbox" data-layer="SE" checked> SE</label>
     <hr>
-    <div style="font-size:10px;color:#7c8194;margin-bottom:2px">SE Cluster (크기순)</div>
+    <div style="font-size:10px;color:#e4e6f0;margin-bottom:2px">Percolating Path</div>
     <div style="display:flex;gap:4px;align-items:center">
-      <input type="number" id="cluster-input" min="0" value="0"
-        style="width:50px;background:#1c1f2e;border:1px solid #2a2d3e;color:#e4e6f0;border-radius:4px;padding:2px 5px;font-size:11px">
-      <span id="cluster-total" style="font-size:10px;color:#7c8194">/ -</span>
+      <button id="path-prev" style="background:#555;color:#fff;border:none;border-radius:3px;padding:1px 6px;cursor:pointer;font-size:12px">&lt;</button>
+      <span id="path-current" style="font-size:11px;color:#e4e6f0;min-width:30px;text-align:center">-</span>
+      <button id="path-next" style="background:#555;color:#fff;border:none;border-radius:3px;padding:1px 6px;cursor:pointer;font-size:12px">&gt;</button>
+      <span id="path-total" style="font-size:10px;color:#7c8194">/ -</span>
     </div>
-    <div id="cluster-info" style="font-size:10px;color:#7c8194;margin-top:3px;line-height:1.4"></div>
+    <div id="cluster-info" style="font-size:10px;color:#e4e6f0;margin-top:3px;line-height:1.5"></div>
     <hr>
     <button data-action="resetView">Reset</button>
     <button data-action="screenshot">Screenshot</button>`;
@@ -114,23 +115,34 @@ export function initElectrodeViewer(containerId, dataUrl) {
     buildScene(scene, camera, controls, data, state);
     wireControls(ctrlDiv, renderer, camera, controls, scene, state);
 
-    // Setup cluster input
+    // Setup percolating path navigation
     const clusters = (data.clusters || {}).clusters || [];
-    const totalEl = ctrlDiv.querySelector('#cluster-total');
-    const inputEl = ctrlDiv.querySelector('#cluster-input');
+    const percClusters = clusters.filter(c => c.percolating && c.path);
+    state.percClusters = percClusters;
+    state.percIdx = 0;
+
+    const totalEl = ctrlDiv.querySelector('#path-total');
+    const currentEl = ctrlDiv.querySelector('#path-current');
     const infoEl = ctrlDiv.querySelector('#cluster-info');
-    if (totalEl) totalEl.textContent = `/ ${clusters.length - 1}`;
-    if (inputEl) {
-      inputEl.max = Math.max(0, clusters.length - 1);
-      inputEl.addEventListener('change', () => {
-        const idx = parseInt(inputEl.value) || 0;
-        highlightCluster(idx, scene, state, infoEl);
-      });
-      inputEl.addEventListener('input', () => {
-        const idx = parseInt(inputEl.value) || 0;
-        highlightCluster(idx, scene, state, infoEl);
-      });
+    const prevBtn = ctrlDiv.querySelector('#path-prev');
+    const nextBtn = ctrlDiv.querySelector('#path-next');
+
+    if (totalEl) totalEl.textContent = `/ ${percClusters.length}`;
+
+    function showPercCluster(idx) {
+      if (!percClusters.length) { if (infoEl) infoEl.innerHTML = 'No percolating clusters'; return; }
+      idx = ((idx % percClusters.length) + percClusters.length) % percClusters.length;
+      state.percIdx = idx;
+      if (currentEl) currentEl.textContent = idx + 1;
+      // Find the original cluster index
+      const origIdx = clusters.indexOf(percClusters[idx]);
+      highlightCluster(origIdx, scene, state, infoEl);
     }
+
+    if (prevBtn) prevBtn.addEventListener('click', () => showPercCluster(state.percIdx - 1));
+    if (nextBtn) nextBtn.addEventListener('click', () => showPercCluster(state.percIdx + 1));
+
+    if (percClusters.length > 0) showPercCluster(0);
 
     animate();
   }).catch(err => {
@@ -245,12 +257,13 @@ function addAxisLabels(scene, box) {
   ];
   labels.forEach(l => {
     const canvas = document.createElement('canvas');
-    canvas.width = 160; canvas.height = 48;
+    canvas.width = 256; canvas.height = 64;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#333333';
-    ctx.font = 'bold 22px Inter, sans-serif';
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 36px Arial, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(l.text, 80, 32);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(l.text, 128, 32);
     const tex = new THREE.CanvasTexture(canvas);
     const mat = new THREE.SpriteMaterial({ map: tex, depthWrite: false });
     const sprite = new THREE.Sprite(mat);
@@ -338,10 +351,17 @@ function highlightCluster(idx, scene, state, infoEl) {
 
     if (pts.length >= 2) {
       const group = new THREE.Group();
-      const curve = new THREE.CatmullRomCurve3(pts);
-      const tubeGeo = new THREE.TubeGeometry(curve, Math.min(pts.length * 4, 200), 0.8, 8, false);
+
+      /* straight line segments between SE centers */
+      const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+      const lineMat = new THREE.LineBasicMaterial({ color: COL.PATH, linewidth: 2 });
+      group.add(new THREE.Line(lineGeo, lineMat));
+
+      /* also add thin tube for visibility */
+      const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.01);
+      const tubeGeo = new THREE.TubeGeometry(curve, pts.length * 2, 0.4, 6, false);
       const tubeMat = new THREE.MeshPhongMaterial({
-        color: COL.PATH, emissive: COL.PATH, emissiveIntensity: 0.4,
+        color: COL.PATH, emissive: COL.PATH, emissiveIntensity: 0.3,
       });
       group.add(new THREE.Mesh(tubeGeo, tubeMat));
 

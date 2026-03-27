@@ -320,9 +320,8 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
 
             clusters.append(cluster_info)
 
-        # Sort by size (largest first), limit to top 50 for performance
+        # Sort by size (largest first)
         clusters.sort(key=lambda c: c['size'], reverse=True)
-        clusters = clusters[:50]
 
         # Build SE id → cluster index map
         se_cluster_map = {}

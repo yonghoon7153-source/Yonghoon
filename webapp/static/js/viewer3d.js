@@ -352,18 +352,16 @@ function highlightCluster(idx, scene, state, infoEl) {
     if (pts.length >= 2) {
       const group = new THREE.Group();
 
-      /* straight line segments between SE centers */
-      const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
-      const lineMat = new THREE.LineBasicMaterial({ color: COL.PATH, linewidth: 2 });
-      group.add(new THREE.Line(lineGeo, lineMat));
-
-      /* also add thin tube for visibility */
-      const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.01);
-      const tubeGeo = new THREE.TubeGeometry(curve, pts.length * 2, 0.4, 6, false);
-      const tubeMat = new THREE.MeshPhongMaterial({
-        color: COL.PATH, emissive: COL.PATH, emissiveIntensity: 0.3,
-      });
-      group.add(new THREE.Mesh(tubeGeo, tubeMat));
+      /* straight tube segments between SE centers */
+      for (let j = 0; j < pts.length - 1; j++) {
+        const seg = new THREE.TubeGeometry(
+          new THREE.LineCurve3(pts[j], pts[j+1]), 1, 0.5, 6, false
+        );
+        const mat = new THREE.MeshPhongMaterial({
+          color: COL.PATH, emissive: COL.PATH, emissiveIntensity: 0.3,
+        });
+        group.add(new THREE.Mesh(seg, mat));
+      }
 
       /* start(bottom)/end(top) markers */
       const mkSphere = (pos, color) => {

@@ -441,6 +441,12 @@ def analyze(case_id):
     with open(meta_file, 'w') as f:
         json.dump(meta, f, indent=2)
 
+    # Clear previous results for clean re-analysis
+    results_dir = get_results_dir(case_id)
+    if os.path.exists(results_dir):
+        shutil.rmtree(results_dir)
+    os.makedirs(results_dir, exist_ok=True)
+
     result = run_pipeline(case_id, meta['mode'], meta['type_map'], meta.get('scale', 1000))
 
     meta['status'] = 'done' if result.get('success') else 'error'

@@ -102,6 +102,7 @@
           {% endif %}
           {% if case.has_results %}
           <a href="/single/{{ case.id }}" class="btn btn-sm btn-view">결과 보기</a>
+          <button class="btn btn-sm btn-run" onclick="runAnalysis('{{ case.id }}')">재분석</button>
           <button class="btn btn-sm btn-archive" onclick="quickSave('{{ case.id }}')">보관함 저장</button>
           {% endif %}
           <button class="btn btn-sm btn-del" onclick="deleteCase('{{ case.id }}')">삭제</button>

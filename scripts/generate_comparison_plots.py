@@ -843,7 +843,7 @@ def plot_rgb_fitting(data_list, names, outdir):
 
     ax.set_xlabel("GB Density (hops/μm)", fontsize=12)
     ax.set_ylabel("log(σ_brug / σ_proxy)", fontsize=12)
-    ax.set_title(f"R_gb Fitting → b = {r_gb:.2f},  ln(k) = {log_k:.2f},  R² = {r_squared:.4f}", fontsize=13, fontweight='bold')
+    ax.set_title("R_gb Fitting", fontsize=13, fontweight='bold')
     ax.legend(fontsize=10, loc='upper left')
     ax.text(0.95, 0.05, f"b = {r_gb:.2f}\nln(k) = {log_k:.2f}\nR² = {r_squared:.4f}\nn = {len(x_pts)}",
             transform=ax.transAxes, fontsize=11, ha='right', va='bottom',

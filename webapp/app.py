@@ -651,6 +651,12 @@ def group():
                 else:
                     metrics['area_AM_S_SE_total'] = metrics['area_AM_SE_total']
 
+            # Force metric fallbacks: AM_P↔AM_S
+            if 'fn_AM_P_AM_P_mean' not in metrics and 'fn_AM_S_AM_S_mean' in metrics:
+                metrics['fn_AM_P_AM_P_mean'] = metrics['fn_AM_S_AM_S_mean']
+            if 'fn_AM_P_SE_mean' not in metrics and 'fn_AM_S_SE_mean' in metrics:
+                metrics['fn_AM_P_SE_mean'] = metrics['fn_AM_S_SE_mean']
+
             row = {'케이스': case_name}
             for label, unit, key in display_keys:
                 val = metrics.get(key, '')

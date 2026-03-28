@@ -278,11 +278,6 @@ def _generate_ai_analysis(all_metrics, case_names, title, notes):
         ('Ionic Active AM(%)', 'ionic_active_pct'),
         ('Coverage AM_P(%)', 'coverage_AM_P_mean'),
         ('Coverage AM_S(%)', 'coverage_AM_S_mean'),
-        ('φ_SE', 'phi_se'),
-        ('GB Density(hops/μm)', 'gb_density_mean'),
-        ('σ_brug(mS/cm)', 'sigma_brug'),
-        ('σ_eff(mS/cm)', 'sigma_eff'),
-        ('σ_proxy(μm²)', 'sigma_proxy'),
     ]
     rows = []
     for i, name in enumerate(case_names):
@@ -554,10 +549,6 @@ def group():
             ('GB Density', '(hops/μm)', 'gb_density_mean'),
             ('Path Conductance', '(μm²)', 'path_conductance_mean'),
             ('Bottleneck', '(μm²)', 'path_hop_area_min_mean'),
-            ('φ_SE', '', 'phi_se'),
-            ('σ_brug', '(mS/cm)', 'sigma_brug'),
-            ('σ_eff', '(mS/cm)', 'sigma_eff'),
-            ('σ_proxy', '(μm²)', 'sigma_proxy'),
         ]
         rows = []
         for cid in selected:
@@ -791,10 +782,6 @@ def group_report():
         ('Top Reachable(%)', 'top_reachable_pct'),
         ('Tortuosity', 'tortuosity_mean'),
         ('Ionic Active(%)', 'ionic_active_pct'),
-        ('φ_SE', 'phi_se'),
-        ('σ_brug(mS/cm)', 'sigma_brug'),
-        ('σ_eff(mS/cm)', 'sigma_eff'),
-        ('σ_proxy(μm²)', 'sigma_proxy'),
     ]
     for i, name in enumerate(case_names):
         row = {'Case': name}
@@ -835,11 +822,6 @@ def group_report():
     if se_totals:
         max_se = max(se_totals, key=lambda x: x[1])
         L.append(f'- **SE-SE Total Area 최대**: {max_se[0]} ({max_se[1]:,.1f} μm²)')
-
-    sigma_effs = [(case_names[i], m.get('sigma_eff', 0)) for i, m in enumerate(all_metrics) if m.get('sigma_eff')]
-    if sigma_effs:
-        max_sig = max(sigma_effs, key=lambda x: x[1])
-        L.append(f'- **σ_eff 최대**: {max_sig[0]} ({max_sig[1]:.4f} mS/cm)')
 
     L.append('')
 

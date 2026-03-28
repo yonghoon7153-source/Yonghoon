@@ -32,13 +32,6 @@ def calc_porosity(atoms, plate_z, box_xy=0.05):
     return porosity
 
 
-def calc_se_volume_fraction(atoms, plate_z, se_types, box_xy=0.05):
-    """φ_SE = V_SE / V_box (SE volume fraction, dimensionless)."""
-    V_se = sum(4/3 * np.pi * a['radius']**3 for a in atoms.values() if a['type'] in se_types)
-    V_box = box_xy * box_xy * plate_z
-    return V_se / V_box if V_box > 0 else 0
-
-
 def get_plate_z(results_dir, atoms, scale):
     """Get plate_z from mesh_info.json, or estimate from atoms."""
     mesh_file = os.path.join(results_dir, 'mesh_info.json')
@@ -418,10 +411,9 @@ def run_full_analysis(atoms_raw, contacts_raw, type_map, scale, results_dir, box
 
     print(f"  plate_z = {plate_z:.6f} ({pz_source}), thickness = {thickness_um:.1f} μm")
 
-    # 1. Porosity & SE volume fraction
+    # 1. Porosity
     porosity = calc_porosity(atoms_raw, plate_z, box_xy)
-    phi_se = calc_se_volume_fraction(atoms_raw, plate_z, se_types, box_xy)
-    print(f"  Porosity: {porosity:.2f}%, φ_SE: {phi_se:.4f}")
+    print(f"  Porosity: {porosity:.2f}%")
 
     # 2. Interface Area
     iface = calc_interface_area(atoms_raw, contacts_raw, type_map, scale)
@@ -465,7 +457,6 @@ def run_full_analysis(atoms_raw, contacts_raw, type_map, scale, results_dir, box
         'plate_z_source': pz_source,
         'thickness_um': thickness_um,
         'porosity': porosity,
-        'phi_se': phi_se,
         'interface': iface,
         'coverage': cov,
         'se_se_cn': cn,

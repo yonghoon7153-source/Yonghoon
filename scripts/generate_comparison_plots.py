@@ -1054,7 +1054,6 @@ PLOT_REGISTRY = {
         "title": "Effective Conductivity (Bruggeman)",
         "description": "σ_eff/σ_bulk = φ_SE × f_perc / τ²\n\nSE 부피 분율(φ_SE), percolation(f_perc), tortuosity(τ) 기반 추정.\n입계(GB) 저항을 무시한 이론값 → 실제보다 과대평가 가능.",
         "origin_tip": "Line+Symbol (Green) + Bar (φ_SE, Blue).",
-        "min_groups": 2,
     },
     "rgb_fitting": {
         "func": plot_rgb_fitting,

@@ -613,7 +613,10 @@ def plot_ion_path_quality(data_list, names, outdir):
 
     fig.tight_layout(rect=[0, 0, 1, 0.95])
     fig.suptitle("Ion Path Quality", fontsize=14, fontweight='bold', x=0.5, y=0.99, ha='center')
-    return _save(fig, outdir, "ion_path_quality.png")
+    path = os.path.join(outdir, "ion_path_quality.png")
+    fig.savefig(path, dpi=DPI, bbox_inches="tight", facecolor='white', pad_inches=0.3)
+    plt.close(fig)
+    return path
 
 
 # ─── Plot dispatch table ─────────────────────────────────────────────────────

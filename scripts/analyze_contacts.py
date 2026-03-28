@@ -53,6 +53,7 @@ def load_contacts_raw(csv_path):
         contacts.append({
             'id1': int(row['id1']), 'id2': int(row['id2']),
             'fn': np.sqrt(row['fn_x']**2 + row['fn_y']**2 + row['fn_z']**2),
+            'fn_x': row.get('fn_x', 0), 'fn_y': row.get('fn_y', 0), 'fn_z': row.get('fn_z', 0),
             'ft': np.sqrt(row['ft_x']**2 + row['ft_y']**2 + row['ft_z']**2),
             'contact_area': row['contact_area'],
             'delta': row['delta'],
@@ -568,12 +569,12 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     force_chains = []
     fn_values = []
     for c in contacts_raw:
-        fn = np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
+        fn = c.get('fn', 0) or np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
         fn_values.append(fn)
     fn_threshold = np.percentile(fn_values, 75) if fn_values else 0  # top 25%
     for c in contacts_raw:
         if c['id1'] in atoms_raw and c['id2'] in atoms_raw:
-            fn = np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
+            fn = c.get('fn', 0) or np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
             if fn >= fn_threshold:
                 a1, a2 = atoms_raw[c['id1']], atoms_raw[c['id2']]
                 t1 = type_map.get(a1['type'], '?')

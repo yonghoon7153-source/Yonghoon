@@ -352,7 +352,7 @@ def calc_contact_force_distribution(atoms, contacts, type_map, scale):
             t1 = type_map.get(atoms[c['id1']]['type'], '?')
             t2 = type_map.get(atoms[c['id2']]['type'], '?')
             ct = '-'.join(sorted([t1, t2]))
-            fn = np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
+            fn = c.get('fn', 0) or np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
             forces_by_type[ct].append(fn * force_conv)
 
     result = {}
@@ -384,7 +384,7 @@ def calc_contact_pressure(atoms, contacts, type_map, scale):
             t1 = type_map.get(atoms[c['id1']]['type'], '?')
             t2 = type_map.get(atoms[c['id2']]['type'], '?')
             ct = '-'.join(sorted([t1, t2]))
-            fn = np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
+            fn = c.get('fn', 0) or np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
             pressure = fn / ca / 1e6  # Pa → MPa
             pressures_by_type[ct].append(pressure)
 

@@ -70,29 +70,21 @@
     <table class="data-table compact group-table">
       <thead>
         <tr>
-          <th class="group-th sticky-col sticky-col-1">
-            <span class="th-name">케이스 (P:S)</span>
-          </th>
           {% for col in comparison.columns %}
-          {% if loop.index > 2 %}
-          <th class="group-th{% if comparison.categories and loop.index0 > 0 and comparison.categories[loop.index0] != comparison.categories[loop.index0 - 1] %} cat-border{% endif %}" data-col-metric="{{ col }}">
+          <th class="group-th{% if loop.index == 1 %} sticky-col sticky-col-1{% elif loop.index == 2 %} sticky-col sticky-col-2{% endif %}{% if comparison.categories and loop.index0 > 0 and comparison.categories[loop.index0] != comparison.categories[loop.index0 - 1] %} cat-border{% endif %}" data-col-metric="{{ col }}">
             <span class="th-name">{{ col }}</span>
             {% if comparison.units[loop.index0] %}
             <span class="th-unit">{{ comparison.units[loop.index0] }}</span>
             {% endif %}
           </th>
-          {% endif %}
           {% endfor %}
         </tr>
       </thead>
       <tbody>
         {% for row in tbl.rows %}
         <tr>
-          <td class="sticky-col sticky-col-1">{{ row['케이스'] if row['케이스'] is defined else '-' }} <span style="color:var(--dim)">{{ row['P:S'] if row['P:S'] is defined else '' }}</span></td>
           {% for col in comparison.columns %}
-          {% if loop.index > 2 %}
-          <td class="{% if row.__best__ is defined and col in row.__best__ %}best-val{% endif %}{% if comparison.categories and loop.index0 > 0 and comparison.categories[loop.index0] != comparison.categories[loop.index0 - 1] %} cat-border{% endif %}">{{ row[col] if row[col] is defined else '-' }}</td>
-          {% endif %}
+          <td class="{% if loop.index == 1 %}sticky-col sticky-col-1{% elif loop.index == 2 %}sticky-col sticky-col-2{% endif %}{% if row.__best__ is defined and col in row.__best__ %} best-val{% endif %}{% if comparison.categories and loop.index0 > 0 and comparison.categories[loop.index0] != comparison.categories[loop.index0 - 1] %} cat-border{% endif %}">{{ row[col] if row[col] is defined else '-' }}</td>
           {% endfor %}
         </tr>
         {% endfor %}

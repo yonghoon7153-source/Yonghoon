@@ -556,7 +556,7 @@ def plot_am_vulnerability(data_list, names, outdir):
 
 
 def plot_effective_conductivity(data_list, names, outdir):
-    """Effective ionic conductivity: Bruggeman vs GB-corrected, side by side."""
+    """Effective ionic conductivity: Bruggeman vs GB-corrected with R_gb estimation."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     x = np.arange(len(names))
 
@@ -567,16 +567,51 @@ def plot_effective_conductivity(data_list, names, outdir):
     g_path = [_get(d, "path_conductance_mean") for d in data_list]
     gb_dens = [_get(d, "gb_density_mean") for d in data_list]
 
-    # Corrected: σ_eff_real ∝ G_path × f_perc / τ  (path conductance already has hop area series resistance)
-    sigma_corr = []
+    # Estimate R_gb from data:
+    # σ_real ∝ G_path × f_perc / τ (normalized)
+    # σ_brug / σ_real_normalized = 1 + R_gb × GB_density
+    sigma_real_raw = []
     for i in range(len(data_list)):
         if g_path[i] > 0 and tau[i] > 0:
-            sigma_corr.append(g_path[i] * perc[i] / tau[i])
+            sigma_real_raw.append(g_path[i] * perc[i] / tau[i])
         else:
-            sigma_corr.append(0)
+            sigma_real_raw.append(0)
 
-    # Left: Bruggeman (φ × perc / τ²)
-    ax1.plot(x, sigma_brug, 's-', color=GREEN, markersize=10, linewidth=2.5)
+    # Normalize σ_real to same scale as σ_brug for R_gb fitting
+    valid = [(i, sigma_brug[i], sigma_real_raw[i], gb_dens[i])
+             for i in range(len(data_list))
+             if sigma_real_raw[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0]
+
+    r_gb = 0
+    if len(valid) >= 2:
+        # Scale factor k: σ_brug = k × σ_real × (1 + R_gb × GB_density)
+        # Fit k and R_gb by least squares
+        from scipy.optimize import minimize_scalar
+        def cost(r):
+            residuals = []
+            for _, sb, sr, gd in valid:
+                correction = 1.0 / (1.0 + r * gd)
+                # k that best maps sr*correction to sb
+                residuals.append((sb, sr * correction))
+            # Find best k
+            num = sum(sb * sr_c for sb, sr_c in residuals)
+            den = sum(sr_c ** 2 for _, sr_c in residuals)
+            k = num / den if den > 0 else 1
+            return sum((sb - k * sr_c) ** 2 for sb, sr_c in residuals)
+        try:
+            res = minimize_scalar(cost, bounds=(0, 100), method='bounded')
+            r_gb = res.x
+        except Exception:
+            r_gb = 1.0  # fallback
+
+    # Compute corrected σ_eff
+    sigma_corr = []
+    for i in range(len(data_list)):
+        corr = sigma_brug[i] / (1.0 + r_gb * gb_dens[i]) if gb_dens[i] > 0 else sigma_brug[i]
+        sigma_corr.append(corr)
+
+    # Left: Bruggeman
+    ax1.plot(x, sigma_brug, 's-', color=GREEN, markersize=10, linewidth=2.5, label="Bruggeman")
     ax1b = ax1.twinx()
     ax1b.bar(x, phi, 0.4, color=BLUE, alpha=0.25)
     ax1b.set_ylabel("φ_SE", fontsize=10, color=BLUE)
@@ -586,15 +621,17 @@ def plot_effective_conductivity(data_list, names, outdir):
     _apply_style(ax1, "σ_eff / σ_bulk", names)
     ax1.set_title("Bruggeman (φ·f_perc/τ²)", fontsize=11, fontweight='bold')
 
-    # Right: Corrected (G_path × perc / τ)
-    ax2.plot(x, sigma_corr, 's-', color=RED, markersize=10, linewidth=2.5)
+    # Right: GB-Corrected
+    ax2.plot(x, sigma_corr, 's-', color=RED, markersize=10, linewidth=2.5,
+             label=f"GB-Corrected (R_gb={r_gb:.2f})")
     ax2b = ax2.twinx()
     ax2b.bar(x, gb_dens, 0.4, color=GRAY, alpha=0.3)
     ax2b.set_ylabel("GB Density (hops/μm)", fontsize=10, color=GRAY)
     ax2b.tick_params(axis='y', labelcolor=GRAY)
     ax2b.spines["top"].set_visible(False)
-    _apply_style(ax2, "G_path·f_perc/τ  (μm²)", names)
-    ax2.set_title("GB-Corrected (G_path·f_perc/τ)", fontsize=11, fontweight='bold')
+    _apply_style(ax2, "σ_eff_real / σ_bulk", names)
+    ax2.set_title(f"GB-Corrected (R_gb={r_gb:.2f})", fontsize=11, fontweight='bold')
+    ax2.legend(fontsize=8, loc='upper right')
 
     fig.suptitle("Effective Ionic Conductivity: Bruggeman vs GB-Corrected",
                  fontsize=13, fontweight='bold')

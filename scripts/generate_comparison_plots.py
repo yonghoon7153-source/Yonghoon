@@ -777,11 +777,48 @@ def plot_rgb_fitting(data_list, names, outdir):
     x_pts = np.array([gb_dens[i] for i in valid_idx])
     y_pts = np.array([np.log(sigma_brug[i] / sigma_proxy[i]) for i in valid_idx])
 
-    ax.scatter(x_pts, y_pts, s=100, c=BLUE, zorder=5, edgecolors='white', linewidth=1.5)
-    for j, i in enumerate(valid_idx):
-        ax.annotate(names[i], (x_pts[j], y_pts[j]),
-                   fontsize=8, ha='left', va='bottom', xytext=(5, 5),
-                   textcoords='offset points', color=BLACK)
+    # Group-colored scatter
+    if _GROUP_INFO:
+        sizes, gnames = _GROUP_INFO
+        boundaries = []
+        pos = 0
+        for sz in sizes:
+            boundaries.append((pos, pos + sz))
+            pos += sz
+        for j, i in enumerate(valid_idx):
+            gi = 0
+            for g_idx, (start, end) in enumerate(boundaries):
+                if i >= start and i < end:
+                    gi = g_idx
+                    break
+            ax.scatter(x_pts[j], y_pts[j], s=100, c=GROUP_COLORS[gi % len(GROUP_COLORS)],
+                      zorder=5, edgecolors='white', linewidth=1.5)
+        # Group labels at bottom center of each cluster
+        for gi, (start, end) in enumerate(boundaries):
+            group_js = [j for j, i in enumerate(valid_idx) if start <= i < end]
+            if group_js:
+                cx = np.mean([x_pts[j] for j in group_js])
+                cy = min([y_pts[j] for j in group_js])
+                ax.text(cx, cy - 0.3, gnames[gi], ha='center', va='top',
+                       fontsize=9, fontweight='bold', color=GROUP_COLORS[gi % len(GROUP_COLORS)],
+                       bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
+                                edgecolor=GROUP_COLORS[gi % len(GROUP_COLORS)], alpha=0.8))
+    else:
+        ax.scatter(x_pts, y_pts, s=100, c=BLUE, zorder=5, edgecolors='white', linewidth=1.5)
+
+    # Non-overlapping labels using adjustText
+    try:
+        from adjustText import adjust_text
+        texts = []
+        for j, i in enumerate(valid_idx):
+            texts.append(ax.text(x_pts[j], y_pts[j], names[i], fontsize=8, color=BLACK))
+        adjust_text(texts, x=x_pts, y=y_pts, ax=ax,
+                   arrowprops=dict(arrowstyle='-', color='gray', lw=0.5))
+    except ImportError:
+        for j, i in enumerate(valid_idx):
+            ax.annotate(names[i], (x_pts[j], y_pts[j]),
+                       fontsize=8, ha='left', va='bottom', xytext=(5, 5),
+                       textcoords='offset points', color=BLACK)
 
     # Linear fit with intercept: log(y) = b × GB_d + ln(k)
     x_line = np.linspace(min(x_pts) * 0.9, max(x_pts) * 1.15, 100)

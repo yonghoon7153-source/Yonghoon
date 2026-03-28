@@ -3,6 +3,7 @@ pandas
 numpy
 matplotlib
 scipy
+adjustText
 networkx
 markdown
 anthropic

@@ -402,7 +402,7 @@ async function generatePlots() {
             <div class="deriv-label">2. Path Conductance (입계 반영)</div>
             <div class="deriv-formula">σ_proxy = G_path × f_perc / τ</div>
             <div class="deriv-desc">G_path = 1/Σ(1/A_i) : 경로의 직렬 저항 모델. 각 hop 접촉면적 반영</div>
-            <div class="deriv-desc">τ가 아닌 τ² 인 이유: G_path가 이미 경로 길이(hop 수) 반영 → 투영 효과만 ÷τ</div>
+            <div class="deriv-desc">τ² 가 아닌 τ인 이유: G_path가 이미 경로 길이(hop 수) 반영 → 투영 효과만 ÷τ</div>
           </div>
           <div class="deriv-section">
             <div class="deriv-label">3. 둘의 비율 → 입계 효과 분리</div>

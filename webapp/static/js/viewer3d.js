@@ -113,7 +113,8 @@ export function initElectrodeViewer(containerId, dataUrl) {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.12;
-  controls.enableZoom = false;  // disable wheel zoom (use UI slider instead)
+  controls.enableZoom = true;
+  controls.zoomSpeed = 1.0;
 
   /* lights */
   scene.add(new THREE.AmbientLight(0xffffff, 0.4));
@@ -542,6 +543,12 @@ function wireControls(ctrlDiv, renderer, camera, controls, scene, state) {
     slider.addEventListener('input', () => setZoom(parseInt(slider.value)));
     zoomIn.addEventListener('click', () => setZoom(parseInt(slider.value) - 20));
     zoomOut.addEventListener('click', () => setZoom(parseInt(slider.value) + 20));
+
+    // Sync slider when wheel zoom changes camera distance
+    controls.addEventListener('change', () => {
+      const dist = camera.position.distanceTo(controls.target);
+      slider.value = Math.max(30, Math.min(350, Math.round(dist)));
+    });
   }
 }
 
@@ -624,7 +631,8 @@ function showPathOnlyView(renderer, scene, camera, state) {
   const ctrl2 = new OrbitControls(c2, r2.domElement);
   ctrl2.enableDamping = true;
   ctrl2.dampingFactor = 0.12;
-  ctrl2.enableZoom = false;
+  ctrl2.enableZoom = true;
+  ctrl2.zoomSpeed = 1.0;
 
   s2.add(new THREE.AmbientLight(0xffffff, 0.5));
   const dl = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -683,6 +691,12 @@ function showPathOnlyView(renderer, scene, camera, state) {
   document.getElementById('pv-zs').addEventListener('input', e => setZoom2(parseInt(e.target.value)));
   document.getElementById('pv-zi').addEventListener('click', () => setZoom2(parseInt(document.getElementById('pv-zs').value) - 20));
   document.getElementById('pv-zo').addEventListener('click', () => setZoom2(parseInt(document.getElementById('pv-zs').value) + 20));
+
+  // Sync slider when wheel zoom changes camera distance
+  ctrl2.addEventListener('change', () => {
+    const dist = c2.position.distanceTo(ctrl2.target);
+    document.getElementById('pv-zs').value = Math.max(30, Math.min(350, Math.round(dist)));
+  });
 
   // Screenshot
   document.getElementById('path-screenshot-btn').addEventListener('click', () => {

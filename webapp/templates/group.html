@@ -62,10 +62,11 @@
 
 <!-- Comparison Results -->
 {% if comparison and comparison.tables %}
-{% for tbl in comparison.tables %}
 <div class="card">
-  <h3 style="{% if tbl.color %}border-left:4px solid {{ tbl.color }};padding-left:10px{% endif %}">{{ tbl.name or '비교 결과' }}</h3>
+  <h3>비교 결과</h3>
   <div class="table-scroll">
+    {% for tbl in comparison.tables %}
+    {% if tbl.name %}<div class="group-table-label" style="border-left:4px solid {{ tbl.color }};padding:6px 12px;margin:{{ '20px' if not loop.first else '0' }} 0 8px;font-weight:700;font-size:.9rem;color:{{ tbl.color }}">{{ tbl.name }}</div>{% endif %}
     <table class="data-table compact group-table">
       <thead>
         <tr>
@@ -89,9 +90,9 @@
         {% endfor %}
       </tbody>
     </table>
+    {% endfor %}
   </div>
 </div>
-{% endfor %}
 
 <!-- Comparison Plots -->
 <div class="card">

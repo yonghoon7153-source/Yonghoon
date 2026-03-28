@@ -438,7 +438,7 @@ thead .sticky-col { z-index: 3; }
   border-radius: 6px 6px 0 0; background: var(--bg); color: var(--text);
   cursor: pointer; font-size: .85rem; transition: .15s;
 }
-.case-group-tab.active { background: var(--card); border-bottom-width: 3px; }
+.case-group-tab.active { background: var(--accent); color: #fff; border-bottom-width: 3px; }
 .case-group-name-row {
   display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
 }

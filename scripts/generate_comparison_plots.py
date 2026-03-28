@@ -617,27 +617,28 @@ def _fit_r_gb(data_list, names):
     valid_idx = [i for i in range(len(data_list))
                  if sigma_proxy[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0]
 
-    r_gb, log_k_best = 0.5, 0
+    r_gb, k_val = 0.5, 1.0
     if len(valid_idx) >= 2:
+        # Linear regression: y = a + b*x where y = σ_brug/σ_proxy, x = GB_d
+        # a = k, b = k*R_gb → R_gb = b/a
         y_vals = np.array([sigma_brug[i] / sigma_proxy[i] for i in valid_idx])
         x_vals = np.array([gb_dens[i] for i in valid_idx])
-        log_y = np.log(y_vals)
-        best_r, best_cost = 0.5, 1e30
-        for r_try in np.arange(0.1, 30.0, 0.05):
-            model = np.log(1 + r_try * x_vals)
-            log_k = np.mean(log_y - model)
-            cost = np.sum((log_y - log_k - model) ** 2)
-            if cost < best_cost:
-                best_cost = cost
-                best_r = r_try
-                log_k_best = log_k
-        r_gb = best_r
-    return r_gb, log_k_best, valid_idx
+        n = len(valid_idx)
+        x_mean, y_mean = np.mean(x_vals), np.mean(y_vals)
+        b = np.sum((x_vals - x_mean) * (y_vals - y_mean)) / np.sum((x_vals - x_mean)**2)
+        a = y_mean - b * x_mean
+        if a > 0:
+            r_gb = b / a
+            k_val = a
+        else:
+            r_gb = 0.5
+            k_val = 1.0
+    return r_gb, k_val, valid_idx
 
 
 def plot_rgb_fitting(data_list, names, outdir):
     """R_gb fitting scatter: log(σ_brug/σ_proxy) vs GB_density."""
-    r_gb, log_k, valid_idx = _fit_r_gb(data_list, names)
+    r_gb, k_val, valid_idx = _fit_r_gb(data_list, names)
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     perc = [_get(d, "percolation_pct") / 100 for d in data_list]
@@ -650,7 +651,7 @@ def plot_rgb_fitting(data_list, names, outdir):
     fig, ax = plt.subplots(figsize=FIG_SINGLE)
 
     x_pts = np.array([gb_dens[i] for i in valid_idx])
-    y_pts = np.array([np.log(sigma_brug[i] / sigma_proxy[i]) for i in valid_idx])
+    y_pts = np.array([sigma_brug[i] / sigma_proxy[i] for i in valid_idx])
 
     ax.scatter(x_pts, y_pts, s=100, c=BLUE, zorder=5, edgecolors='white', linewidth=1.5)
     for j, i in enumerate(valid_idx):
@@ -658,19 +659,20 @@ def plot_rgb_fitting(data_list, names, outdir):
                    fontsize=8, ha='left', va='bottom', xytext=(5, 5),
                    textcoords='offset points', color=BLACK)
 
+    # Linear fit line: y = k × (1 + R_gb × x)
     x_line = np.linspace(0, max(x_pts) * 1.15, 100)
-    y_line = log_k + np.log(1 + r_gb * x_line)
+    y_line = k_val * (1 + r_gb * x_line)
     ax.plot(x_line, y_line, '-', color=RED, linewidth=2.5,
-            label=f"y = log(k·(1 + {r_gb:.2f}·GB_d))")
+            label=f"y = {k_val:.1f} × (1 + {r_gb:.2f}·GB_d)")
 
     # R² calculation
-    y_pred = log_k + np.log(1 + r_gb * x_pts)
+    y_pred = k_val * (1 + r_gb * x_pts)
     ss_res = np.sum((y_pts - y_pred) ** 2)
     ss_tot = np.sum((y_pts - np.mean(y_pts)) ** 2)
     r_squared = 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
     ax.set_xlabel("GB Density (hops/μm)", fontsize=12)
-    ax.set_ylabel("log(σ_brug / σ_proxy)", fontsize=12)
+    ax.set_ylabel("σ_brug / σ_proxy", fontsize=12)
     ax.set_title(f"R_gb Fitting → R_gb = {r_gb:.2f},  R² = {r_squared:.4f}", fontsize=13, fontweight='bold')
     ax.legend(fontsize=10, loc='upper left')
     ax.text(0.95, 0.05, f"R² = {r_squared:.4f}\nn = {len(x_pts)}",
@@ -681,7 +683,7 @@ def plot_rgb_fitting(data_list, names, outdir):
     ax.spines["right"].set_visible(False)
 
     _write_csv(outdir, 'rgb_fitting.csv',
-               ['GB_density', 'log(σ_brug/σ_proxy)', 'σ_brug', 'σ_proxy'],
+               ['GB_density', 'σ_brug/σ_proxy', 'σ_brug', 'σ_proxy'],
                [names[i] for i in valid_idx],
                list(x_pts), list(y_pts),
                [sigma_brug[i] for i in valid_idx],

@@ -885,14 +885,14 @@ PLOT_REGISTRY = {
         "func": plot_rgb_fitting,
         "file": "rgb_fitting.png",
         "title": "R_gb Fitting",
-        "description": "σ_brug/σ_proxy = k × (1 + R_gb × GB_d)\nlog space에서 fitting → R_gb 결정.\n\nX축: GB Density (hops/μm)\nY축: log(σ_brug / σ_proxy)\n빨간 선이 데이터에 잘 맞으면 R_gb 신뢰 가능.",
-        "origin_tip": "Scatter + Fit line.\nBlue dots: data, Red line: fitted curve.",
+        "description": "log(σ_brug/σ_proxy) = a + b × GB_d\n→ σ_brug/σ_proxy = e^(a+b·GB_d)\n\n선형 회귀로 b(입계 저항 계수) 결정.\nX축: GB Density, Y축: σ_brug/σ_proxy (log scale)\nR²가 높으면 입계 저항이 GB_density에 비례함을 확인.",
+        "origin_tip": "Scatter + Fit line (log Y scale).\nBlue dots: data, Red line: fitted.",
     },
     "gb_corrected": {
         "func": plot_gb_corrected,
         "file": "gb_corrected.png",
         "title": "GB-Corrected σ_eff",
-        "description": "σ_eff_real = σ_bulk × φ_SE × f_perc / τ² × 1/(1 + R_gb × GB_density)\n\nR_gb: Path Conductance 데이터에서 역산한 입계 저항 계수\nσ_bulk = 1.3 mS/cm (Li₆PS₅Cl, cold-pressed)\n\nBruggeman + 입계 보정 = 실제 이온전도 성능에 가까운 값.\n오렌지 점선: 절대값 σ_eff_real (mS/cm).",
+        "description": "σ_eff_real = σ_brug / e^(b·(GB_d − GB_d_min))\n= φ_SE × f_perc / τ² / e^(b·ΔGB_d)\n\nb: log(σ_brug/σ_proxy) vs GB_d 회귀 기울기\nGB_d_min 기준 상대 보정 → 입계 적은 케이스 = 보정 없음\nσ_bulk = 1.3 mS/cm (Li₆PS₅Cl)\n오렌지 점선: σ_eff_real 절대값 (mS/cm)",
         "origin_tip": "Line (Red, σ_corr/σ_bulk) + Dashed (Orange, mS/cm).",
     },
     "ion_path_quality": {

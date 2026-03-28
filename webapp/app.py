@@ -661,8 +661,8 @@ def group():
             for label, unit, key in display_keys:
                 val = metrics.get(key, '')
                 if isinstance(val, float):
-                    if 0 < abs(val) < 0.01:
-                        val = f"{val:.2e}"
+                    if key in ('path_conductance_mean', 'path_hop_area_min_mean'):
+                        val = f"{val:.2e}" if val > 0 else '-'
                     else:
                         val = round(val, 2)
                 row[label] = val if val != '' else '-'

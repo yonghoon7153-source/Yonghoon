@@ -715,10 +715,14 @@ def group():
                                 pass
                         if vals:
                             if label in lower_better:
-                                best_ri = min(vals, key=lambda x: x[1])[0]
+                                best_val = min(vals, key=lambda x: x[1])
+                                worst_val = max(vals, key=lambda x: x[1])
                             else:
-                                best_ri = max(vals, key=lambda x: x[1])[0]
-                            best_marks[(label, best_ri)] = True
+                                best_val = max(vals, key=lambda x: x[1])
+                                worst_val = min(vals, key=lambda x: x[1])
+                            # Skip if all same value
+                            if best_val[1] != worst_val[1]:
+                                best_marks[(label, best_val[0])] = True
                     for ri, r in enumerate(group_rows):
                         r['__best__'] = {label for (label, idx), _ in best_marks.items() if idx == ri}
 

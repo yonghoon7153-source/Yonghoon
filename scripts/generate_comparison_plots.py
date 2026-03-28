@@ -773,7 +773,7 @@ def plot_ion_path_quality(data_list, names, outdir):
                names, gb, ha, bn, gc)
 
     fig.tight_layout(rect=[0, 0, 1, 0.95])
-    fig.suptitle("Ion Path Quality", fontsize=14, fontweight='bold', x=0.5, y=0.99, ha='center')
+    fig.suptitle("Ion Path Quality (G_path, GB_d)", fontsize=14, fontweight='bold', x=0.5, y=0.99, ha='center')
     path = os.path.join(outdir, "ion_path_quality.png")
     fig.savefig(path, dpi=DPI, bbox_inches="tight", facecolor='white', pad_inches=0.3)
     plt.close(fig)
@@ -898,7 +898,7 @@ PLOT_REGISTRY = {
     "ion_path_quality": {
         "func": plot_ion_path_quality,
         "file": "ion_path_quality.png",
-        "title": "Ion Path Quality",
+        "title": "Ion Path Quality (G_path, GB_d)",
         "description": "이온 경로 품질 4종:\n• GB Density = N_hops / L_z (hops/μm) — ↓ 좋음\n• Path Hop Area = mean(각 hop의 접촉면적) — ↑ 좋음\n• Bottleneck = mean(각 경로의 최소 접촉면적) — ↑ 좋음\n• Path Conductance = 1/Σ(1/A_i) (μm²) — ↑ 좋음\n\n경로의 실질적 이온 전도 능력. Conductance가 가장 종합적 지표.",
         "origin_tip": "2×2 Subplots → GB Density (Blue), Hop Area (Orange), Bottleneck (Red), Conductance (Green).",
     },

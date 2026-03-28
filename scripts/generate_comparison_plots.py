@@ -1023,7 +1023,7 @@ PLOT_REGISTRY = {
         "file": "ion_path_quality.png",
         "title": "Ion Path Quality (G_path, GB_d)",
 
-        "description": "이온 경로 품질 4종:\n\n• GB Density = N_hops / L_z (hops/μm)\n  → ↓ 좋음\n• Path Hop Area = mean(각 hop의 접촉면적)\n  → ↑ 좋음\n• Bottleneck = mean(각 경로의 최소 접촉면적)\n  → ↑ 좋음\n• Path Conductance = 1/Σ(1/A_i) (μm²)\n  → ↑ 좋음\n\n경로의 실질적 이온 전도 능력.\nConductance가 가장 종합적 지표.",
+        "description": "이온 경로 품질 4종 (모두 percolating 경로들의 mean):\n\n• GB Density = mean(N_hops / L_z) (hops/μm)\n  → ↓ 좋음 (입계 적을수록 저항↓)\n• Path Hop Area = mean(각 hop의 접촉면적)\n  → ↑ 좋음\n• Bottleneck = mean(각 경로의 최소 접촉면적)\n  → ↑ 좋음\n• Path Conductance = mean(1/Σ(1/A_i)) (μm²)\n  → ↑ 좋음 (직렬 저항 모델의 유효 면적)\n\n각 경로별로 계산 후 전체 경로 평균.\nConductance가 가장 종합적 지표.",
         "origin_tip": "2×2 Subplots → GB Density (Blue), Hop Area (Orange), Bottleneck (Red), Conductance (Green).",
     },
     "stress_z_layer": {

@@ -16,6 +16,7 @@
           {% if metrics.thickness_um is defined %}<span class="badge">두께: {{ "%.1f"|format(metrics.thickness_um) }}μm</span>{% endif %}
           {% if metrics.percolation_pct is defined %}<span class="badge">Percolation: {{ "%.1f"|format(metrics.percolation_pct) }}%</span>{% endif %}
           {% if metrics.ionic_active_pct is defined %}<span class="badge badge-{{ 'standard' if metrics.ionic_active_pct >= 95 else 'bimodal' }}">Ionic Active: {{ "%.1f"|format(metrics.ionic_active_pct) }}%</span>{% endif %}
+          {% if metrics.sigma_eff is defined and metrics.sigma_eff %}<span class="badge">σ_eff: {{ "%.4f"|format(metrics.sigma_eff) }} mS/cm</span>{% endif %}
         {% endif %}
       </p>
     </div>

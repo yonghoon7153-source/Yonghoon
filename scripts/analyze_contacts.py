@@ -162,6 +162,7 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     rows = [
         # 1. 구조
         {'지표': 'Porosity(%)', '값': round(results['porosity'], 2)},
+        {'지표': 'φ_SE', '값': round(results.get('phi_se', 0), 4)},
         {'지표': '전극두께(μm)', '값': round(results['thickness_um'], 2)},
         # 2. 계면
         {'지표': 'AM-SE Total(μm²)', '값': round(results['interface'].get('AM전체-SE', {}).get('total_area', 0), 2)},
@@ -183,6 +184,10 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         {'지표': 'Path Hop Area mean(μm²)', '값': '-'},
         {'지표': 'Path Bottleneck(μm²)', '값': '-'},
         {'지표': 'Path Conductance(μm²)', '값': '-'},
+        # 3-4. 유효 이온전도도 (σ_bulk=1.3 mS/cm 기준)
+        {'지표': 'σ_brug(mS/cm)', '값': '-'},   # σ_bulk × φ_SE × f_perc / τ²
+        {'지표': 'σ_eff(mS/cm)', '값': '-'},     # σ_brug × exp(-b×GB_d)
+        {'지표': 'σ_proxy(μm²)', '값': '-'},     # G_path × f_perc / τ
         # 4. 활성도
         {'지표': 'Ionic Active AM(%)', '값': round(ionic['active_pct'], 1)},
     ]
@@ -243,6 +248,7 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         'thickness_um': results['thickness_um'],
         'plate_z_source': results['plate_z_source'],
         'ps_ratio': ps_ratio,
+        'phi_se': round(results.get('phi_se', 0), 4),
         'se_se_cn': cn['mean'],
         'percolation_pct': perc['percolation_pct'],
         'top_reachable_pct': perc['top_reachable_pct'],
@@ -437,11 +443,44 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
             if hop_area_mins:
                 metrics_update['path_hop_area_min_mean'] = round(float(np.mean(hop_area_mins)), 4)
 
-            # Re-read and update full_metrics.json
+            # ── Bulk conductivity formulas ──
+            # σ_bulk = 1.3 mS/cm (Li₆PS₅Cl argyrodite, RT default)
+            # b = 0.3 (grain boundary resistance coefficient, empirical)
+            SIGMA_BULK = 1.3  # mS/cm
+            B_GB = 0.3        # empirical GB resistance coefficient
             metrics_path = os.path.join(output_dir, 'full_metrics.json')
             if os.path.exists(metrics_path):
                 with open(metrics_path) as f:
                     existing = json.load(f)
+
+                phi_se = existing.get('phi_se', 0)
+                f_perc = existing.get('percolation_pct', 0) / 100.0
+                tau_mean = existing.get('tortuosity_mean', None)
+                gb_d = metrics_update.get('gb_density_mean', existing.get('gb_density_mean', 0))
+                g_path = metrics_update.get('path_conductance_mean', existing.get('path_conductance_mean', 0))
+
+                if tau_mean and tau_mean > 0 and f_perc > 0:
+                    tau2 = tau_mean ** 2
+                    # 1. σ_brug = σ_bulk × φ_SE × f_perc / τ²  (Bruggeman, no GB)
+                    sigma_brug = SIGMA_BULK * phi_se * f_perc / tau2
+                    metrics_update['sigma_brug'] = round(sigma_brug, 4)
+                    metrics_update['sigma_brug_ratio'] = round(phi_se * f_perc / tau2, 6)
+
+                    # 2. σ_eff = σ_bulk × φ_SE × f_perc / τ² × exp(-b × GB_d)  (with GB correction)
+                    import math
+                    gb_factor = math.exp(-B_GB * gb_d) if gb_d > 0 else 1.0
+                    sigma_eff = sigma_brug * gb_factor
+                    metrics_update['sigma_eff'] = round(sigma_eff, 4)
+                    metrics_update['sigma_eff_ratio'] = round(phi_se * f_perc / tau2 * gb_factor, 6)
+
+                    # 3. σ_proxy = σ_bulk × G_path × f_perc / τ  (path conductance proxy)
+                    if g_path > 0:
+                        sigma_proxy_raw = g_path * f_perc / tau_mean  # μm² (proxy, unnormalized)
+                        metrics_update['sigma_proxy'] = round(sigma_proxy_raw, 6)
+
+                    metrics_update['sigma_bulk'] = SIGMA_BULK
+                    metrics_update['b_gb'] = B_GB
+
                 existing.update(metrics_update)
                 with open(metrics_path, 'w') as f:
                     json.dump(existing, f, indent=2, default=str)
@@ -459,6 +498,13 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                     update_map['Path Bottleneck(μm²)'] = round(float(np.mean(hop_area_mins)), 4)
                 if conductances:
                     update_map['Path Conductance(μm²)'] = round(float(np.mean(conductances)), 6)
+                # Bulk conductivity metrics
+                if 'sigma_brug' in metrics_update:
+                    update_map['σ_brug(mS/cm)'] = metrics_update['sigma_brug']
+                if 'sigma_eff' in metrics_update:
+                    update_map['σ_eff(mS/cm)'] = metrics_update['sigma_eff']
+                if 'sigma_proxy' in metrics_update:
+                    update_map['σ_proxy(μm²)'] = metrics_update['sigma_proxy']
                 for label, val in update_map.items():
                     mask = ns_df['지표'] == label
                     if mask.any():

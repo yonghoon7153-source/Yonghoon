@@ -421,7 +421,9 @@ async function generatePlots() {
           <div class="deriv-section">
             <div class="deriv-label">4. 최종 보정식</div>
             <div class="deriv-formula">σ_eff_real = σ_brug / e^(b × (GB_d − GB_d_min))</div>
-            <div class="deriv-desc">GB_d_min 기준 상대 보정. 입계 적은 케이스 = 보정 없음, 입계 많으면 깎임</div>
+            <div class="deriv-desc">GB_d_min = 전체 케이스 중 가장 낮은 GB Density (= 가장 입계가 적은 케이스)</div>
+            <div class="deriv-desc">→ GB_d = GB_d_min인 케이스: e^0 = 1 → 보정 없음 (기준점)</div>
+            <div class="deriv-desc">→ GB_d > GB_d_min인 케이스: e^양수 > 1 → σ_brug를 나눠서 깎음 (입계가 많으니까)</div>
             <div class="deriv-formula">σ_eff_real (mS/cm) = σ_eff_real × σ_bulk</div>
             <div class="deriv-desc">σ_bulk = 1.3 mS/cm (Li₆PS₅Cl, cold-pressed)</div>
           </div>`;

@@ -19,6 +19,21 @@
   </div>
 
   <form id="group-form" method="GET" action="/group">
+    <!-- Case Group Selector -->
+    <div class="case-group-header">
+      <div class="case-group-tabs">
+        <button type="button" class="case-group-tab active" onclick="switchCaseGroup(0)">Case A</button>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button type="button" class="btn btn-sm btn-secondary" onclick="addCaseGroup()">+ Case 추가</button>
+        <button type="button" class="btn btn-sm btn-del" onclick="removeCaseGroup()" id="remove-group-btn" style="display:none">Case 삭제</button>
+      </div>
+    </div>
+    <div class="case-group-name-row">
+      <label>Case 이름:</label>
+      <input type="text" class="input case-group-name" id="group-name-input" placeholder="예: SE 0.5μm" style="width:250px">
+    </div>
+
     <!-- Dashboard cases -->
     <div id="src-dashboard" class="source-panel active">
       <div class="case-select-grid">
@@ -26,6 +41,7 @@
         {% if case.has_results %}
         <div class="case-checkbox" onclick="toggleCase(this, '{{ case.id }}')">
           <span class="order-num"></span>
+          <span class="group-badge"></span>
           <input type="hidden" name="cases" value="{{ case.id }}" disabled>
           <div class="case-label">
             <strong>{{ case.name }}</strong>
@@ -37,25 +53,8 @@
       </div>
     </div>
 
-    <!-- Archive cases -->
-    <div id="src-archive" class="source-panel">
-      {% if archive_folders %}
-      <div class="form-group" style="margin-bottom:12px">
-        <label>보관함 폴더 선택</label>
-        <select id="archive-folder-select" class="input" onchange="loadArchiveCases(this.value)">
-          <option value="">-- 폴더 선택 --</option>
-          {% for af in archive_folders %}
-          <option value="{{ af.path }}">{{ af.path }} ({{ af.case_count }}개 케이스)</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div id="archive-cases-grid" class="case-select-grid"></div>
-      {% else %}
-      <p class="empty-state" style="padding:20px 0">보관함에 저장된 케이스가 없습니다.</p>
-      {% endif %}
-    </div>
-
     <div id="ordered-inputs"></div>
+    <input type="hidden" name="case_groups" id="case-groups-json" value="[]">
     <button type="submit" class="btn btn-primary">비교하기</button>
   </form>
 </div>
@@ -192,107 +191,145 @@
 
 {% block scripts %}
 <script>
-// Source switching (Dashboard / Archive)
-function switchSource(btn, panelId) {
-  btn.closest('.tabs').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.querySelectorAll('.source-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById(panelId).classList.add('active');
-  // Clear selections when switching
-  caseOrder = [];
-  document.querySelectorAll('.case-checkbox').forEach(el => {
-    el.classList.remove('case-selected');
-    const input = el.querySelector('input[name="cases"]');
-    if (input) input.disabled = true;
-    const num = el.querySelector('.order-num');
-    if (num) { num.textContent = ''; num.style.display = 'none'; }
-  });
+// Case Group management
+const GROUP_COLORS = ['#6c8cff', '#ff6b6b', '#51cf66', '#ffd43b', '#cc5de8', '#ff922b'];
+const GROUP_LETTERS = 'ABCDEFGHIJ';
+let caseGroups = [{name: '', cases: []}];  // [{name, cases: [caseId,...]}]
+let activeGroupIdx = 0;
+
+function addCaseGroup() {
+  if (caseGroups.length >= 6) return;
+  caseGroups.push({name: '', cases: []});
+  renderGroupTabs();
+  switchCaseGroup(caseGroups.length - 1);
 }
 
-// Load archive cases for a folder
-async function loadArchiveCases(folder) {
-  const grid = document.getElementById('archive-cases-grid');
-  if (!folder) { grid.innerHTML = ''; return; }
-  const res = await fetch(`/group/archive-cases?folder=${encodeURIComponent(folder)}`);
-  const data = await res.json();
-  grid.innerHTML = '';
-  data.cases.forEach(c => {
-    const div = document.createElement('div');
-    div.className = 'case-checkbox';
-    div.onclick = () => toggleCase(div, c.id);
-    div.innerHTML = `
-      <span class="order-num"></span>
-      <input type="hidden" name="cases" value="${c.id}" disabled>
-      <div class="case-label">
-        <strong>${c.name}</strong>
-        <span class="badge">${c.ps_ratio || ''}</span>
-      </div>`;
-    grid.appendChild(div);
+function removeCaseGroup() {
+  if (caseGroups.length <= 1) return;
+  // Unassign cases from this group
+  caseGroups[activeGroupIdx].cases.forEach(cid => {
+    document.querySelectorAll('.case-checkbox').forEach(el => {
+      const input = el.querySelector('input[name="cases"]');
+      if (input.value === cid) {
+        el.classList.remove('case-selected');
+        el.querySelector('.group-badge').textContent = '';
+        el.querySelector('.group-badge').style.display = 'none';
+      }
+    });
   });
+  caseGroups.splice(activeGroupIdx, 1);
+  activeGroupIdx = Math.min(activeGroupIdx, caseGroups.length - 1);
+  renderGroupTabs();
+  switchCaseGroup(activeGroupIdx);
 }
 
-// Ordered case selection
-let caseOrder = [];
-{% if selected %}caseOrder = {{ selected | tojson }};{% endif %}
+function switchCaseGroup(idx) {
+  // Save current group name
+  caseGroups[activeGroupIdx].name = document.getElementById('group-name-input').value;
+  activeGroupIdx = idx;
+  renderGroupTabs();
+  document.getElementById('group-name-input').value = caseGroups[idx].name || '';
+  document.getElementById('remove-group-btn').style.display = caseGroups.length > 1 ? '' : 'none';
+  updateCaseDisplay();
+}
 
-// Intercept form submit to inject ordered cases
-document.getElementById('group-form').addEventListener('submit', (e) => {
-  // Disable all individual case inputs
-  document.querySelectorAll('.case-checkbox input[name="cases"]').forEach(i => i.disabled = true);
-  // Inject ordered inputs
-  const container = document.getElementById('ordered-inputs');
-  container.innerHTML = '';
-  caseOrder.forEach(cid => {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'cases';
-    input.value = cid;
-    container.appendChild(input);
+function renderGroupTabs() {
+  const tabs = document.querySelector('.case-group-tabs');
+  tabs.innerHTML = '';
+  caseGroups.forEach((g, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'case-group-tab' + (i === activeGroupIdx ? ' active' : '');
+    btn.style.borderBottomColor = GROUP_COLORS[i];
+    btn.textContent = `Case ${GROUP_LETTERS[i]}${g.name ? ` (${g.name})` : ''}`;
+    btn.onclick = () => switchCaseGroup(i);
+    tabs.appendChild(btn);
   });
-});
+}
 
 function toggleCase(el, caseId) {
-  const idx = caseOrder.indexOf(caseId);
-  const input = el.querySelector('input[name="cases"]');
-  if (idx >= 0) {
-    caseOrder.splice(idx, 1);
-    input.disabled = true;
-    el.classList.remove('case-selected');
-  } else {
-    caseOrder.push(caseId);
-    input.disabled = false;
-    el.classList.add('case-selected');
+  // Check if already in another group
+  for (let gi = 0; gi < caseGroups.length; gi++) {
+    const idx = caseGroups[gi].cases.indexOf(caseId);
+    if (idx >= 0) {
+      // Remove from that group
+      caseGroups[gi].cases.splice(idx, 1);
+      if (gi === activeGroupIdx) {
+        el.classList.remove('case-selected');
+        el.querySelector('.group-badge').textContent = '';
+        el.querySelector('.group-badge').style.display = 'none';
+        updateCaseDisplay();
+        return;
+      }
+    }
   }
-  updateOrderNums();
+  // Add to active group
+  caseGroups[activeGroupIdx].cases.push(caseId);
+  el.classList.add('case-selected');
+  updateCaseDisplay();
 }
 
-function updateOrderNums() {
+function updateCaseDisplay() {
   document.querySelectorAll('.case-checkbox').forEach(el => {
     const input = el.querySelector('input[name="cases"]');
+    const cid = input.value;
+    const badge = el.querySelector('.group-badge');
     const num = el.querySelector('.order-num');
-    const idx = caseOrder.indexOf(input.value);
-    if (idx >= 0) {
-      num.textContent = idx + 1;
-      num.style.display = 'flex';
-    } else {
+    let found = false;
+    for (let gi = 0; gi < caseGroups.length; gi++) {
+      const idx = caseGroups[gi].cases.indexOf(cid);
+      if (idx >= 0) {
+        found = true;
+        el.classList.add('case-selected');
+        badge.textContent = GROUP_LETTERS[gi];
+        badge.style.display = 'flex';
+        badge.style.background = GROUP_COLORS[gi];
+        num.textContent = idx + 1;
+        num.style.display = 'flex';
+        input.disabled = false;
+        break;
+      }
+    }
+    if (!found) {
+      el.classList.remove('case-selected');
+      badge.textContent = '';
+      badge.style.display = 'none';
       num.textContent = '';
       num.style.display = 'none';
+      input.disabled = true;
     }
   });
 }
 
-// Restore selection on page load
-document.addEventListener('DOMContentLoaded', () => {
-  caseOrder.forEach(cid => {
-    document.querySelectorAll('.case-checkbox').forEach(el => {
-      const input = el.querySelector('input[name="cases"]');
-      if (input.value === cid) {
-        input.disabled = false;
-        el.classList.add('case-selected');
-      }
+// Form submit: inject case_groups JSON
+document.getElementById('group-form').addEventListener('submit', (e) => {
+  // Save current group name
+  caseGroups[activeGroupIdx].name = document.getElementById('group-name-input').value;
+  document.getElementById('case-groups-json').value = JSON.stringify(caseGroups);
+  // Also inject flat case list for backward compat
+  document.querySelectorAll('.case-checkbox input[name="cases"]').forEach(i => i.disabled = true);
+  const container = document.getElementById('ordered-inputs');
+  container.innerHTML = '';
+  caseGroups.forEach(g => {
+    g.cases.forEach(cid => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'cases';
+      input.value = cid;
+      container.appendChild(input);
     });
   });
-  updateOrderNums();
+});
+
+// Restore from URL on page load
+let caseOrder = [];
+{% if selected %}caseOrder = {{ selected | tojson }};{% endif %}
+document.addEventListener('DOMContentLoaded', () => {
+  if (caseOrder.length > 0 && caseGroups[0].cases.length === 0) {
+    caseGroups[0].cases = [...caseOrder];
+  }
+  renderGroupTabs();
+  updateCaseDisplay();
 });
 
 async function generateReport() {
@@ -317,8 +354,11 @@ async function generatePlots() {
   btn.disabled = true; btn.textContent = '생성 중...';
   loading.style.display = 'block';
 
+  // Save current group name
+  caseGroups[activeGroupIdx].name = document.getElementById('group-name-input').value;
   const form = new FormData();
-  {% for cid in selected %}form.append('cases', '{{ cid }}');{% endfor %}
+  caseGroups.forEach(g => g.cases.forEach(cid => form.append('cases', cid)));
+  form.append('case_groups', JSON.stringify(caseGroups));
   plots.forEach(p => form.append('plots', p));
 
   try {

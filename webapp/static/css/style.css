@@ -427,6 +427,27 @@ thead .sticky-col { z-index: 3; }
   .plot-item { grid-template-columns: 1fr; }
 }
 
+/* Case Group */
+.case-group-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 8px;
+}
+.case-group-tabs { display: flex; gap: 4px; }
+.case-group-tab {
+  padding: 6px 14px; border: 1px solid var(--border); border-bottom: 3px solid transparent;
+  border-radius: 6px 6px 0 0; background: var(--bg); color: var(--text);
+  cursor: pointer; font-size: .85rem; transition: .15s;
+}
+.case-group-tab.active { background: var(--card); border-bottom-width: 3px; }
+.case-group-name-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+}
+.case-group-name-row label { font-size: .85rem; color: var(--dim); white-space: nowrap; }
+.group-badge {
+  display: none; width: 20px; height: 20px; border-radius: 4px;
+  color: #fff; font-size: .7rem; font-weight: 700;
+  align-items: center; justify-content: center; flex-shrink: 0;
+}
 /* ===== Group ===== */
 .case-select-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

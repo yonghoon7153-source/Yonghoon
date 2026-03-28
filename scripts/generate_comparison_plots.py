@@ -33,12 +33,15 @@ GRAY = "#888888"
 DPI = 150
 FIG_SINGLE = (7, 4.5)
 FIG_FOUR = (14, 10)
+GROUP_COLORS = ['#6c8cff', '#ff6b6b', '#51cf66', '#ffd43b', '#cc5de8', '#ff922b']
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
+_GROUP_INFO = None  # Set by main()
+
 def _apply_style(ax, ylabel, names):
-    """Apply common academic style."""
+    """Apply common academic style with group separators."""
     ax.set_xticks(range(len(names)))
     ax.set_xticklabels(names, fontsize=10)
     ax.set_xlabel("P:S Configuration", fontsize=10)
@@ -48,6 +51,18 @@ def _apply_style(ax, ylabel, names):
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.tick_params(axis='both', labelsize=9)
+    # Add group separators
+    if _GROUP_INFO:
+        sizes, gnames = _GROUP_INFO
+        pos = 0
+        for gi, sz in enumerate(sizes):
+            if gi > 0:
+                ax.axvline(pos - 0.5, color='#888888', linestyle='--', linewidth=1, alpha=0.6)
+            mid = pos + sz / 2 - 0.5
+            ax.text(mid, ax.get_ylim()[1], gnames[gi], ha='center', va='bottom',
+                    fontsize=9, fontweight='bold', color=GROUP_COLORS[gi % len(GROUP_COLORS)],
+                    bbox=dict(boxstyle='round,pad=0.2', facecolor='white', edgecolor=GROUP_COLORS[gi % len(GROUP_COLORS)], alpha=0.8))
+            pos += sz
 
 
 def _save(fig, outdir, fname):
@@ -918,7 +933,17 @@ def main():
     parser.add_argument("-o", "--output", required=True)
     parser.add_argument("-p", "--plots", nargs="+",
                         default=list(PLOT_REGISTRY.keys()) + ["four_panel"])
+    parser.add_argument("--group-sizes", default="")  # e.g. "3,5"
+    parser.add_argument("--group-names", default="")  # e.g. "Case A,Case B"
     args = parser.parse_args()
+
+    # Parse group info
+    if args.group_sizes:
+        args.group_sizes_list = [int(x) for x in args.group_sizes.split(',')]
+        args.group_names_list = args.group_names.split(',') if args.group_names else [f"Case {chr(65+i)}" for i in range(len(args.group_sizes_list))]
+    else:
+        args.group_sizes_list = None
+        args.group_names_list = None
 
     if len(args.inputs) != len(args.names):
         print(f"ERROR: inputs ({len(args.inputs)}) != names ({len(args.names)})")
@@ -940,6 +965,13 @@ def main():
 
     os.makedirs(args.output, exist_ok=True)
     plot_info = {}
+
+    # Set global group info for _apply_style
+    global _GROUP_INFO
+    if args.group_sizes_list and len(args.group_sizes_list) > 1:
+        _GROUP_INFO = (args.group_sizes_list, args.group_names_list)
+    else:
+        _GROUP_INFO = None
 
     # Generate particle info table as first plot
     if 'particle_info' in args.plots or True:  # always generate

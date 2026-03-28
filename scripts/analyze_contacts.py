@@ -166,7 +166,6 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         {'지표': '── 구조 ──', '값': ''},
         {'지표': 'Porosity(%)', '값': round(results['porosity'], 2)},
         {'지표': '전극두께(μm)', '값': round(results['thickness_um'], 2)},
-        {'지표': 'SE Volume Fraction', '값': round(eff_cond['phi_se'], 3) if eff_cond else '-'},
         # ── 계면 ──
         {'지표': '── 계면 ──', '값': ''},
         {'지표': 'AM-SE Total(μm²)', '값': round(results['interface'].get('AM전체-SE', {}).get('total_area', 0), 2)},
@@ -203,6 +202,7 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     # ── 이온전도 ──
     if eff_cond:
         rows.append({'지표': '── 이온전도 ──', '값': ''})
+        rows.append({'지표': 'SE Volume Fraction', '값': round(eff_cond['phi_se'], 3)})
         rows.append({'지표': 'σ_eff/σ_bulk', '값': round(eff_cond['sigma_ratio'], 4)})
     # ── 접촉력 ──
     force_dist = results.get('force_dist', {})

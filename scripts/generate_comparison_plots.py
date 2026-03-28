@@ -746,16 +746,18 @@ def _fit_r_gb(data_list, names):
                  if sigma_proxy[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0]
 
     r_gb = 0.5
+    ln_k = 0
     if len(valid_idx) >= 2:
-        # Zero-intercept regression: log(σ_brug/σ_proxy) = b × GB_d
-        # → b = Σ(log_y × x) / Σ(x²)
+        # Linear regression with intercept: log(σ_brug/σ_proxy) = b × GB_d + ln(k)
+        # slope = b (grain boundary resistance), intercept = ln(k) (unit conversion)
         y_vals = np.array([sigma_brug[i] / sigma_proxy[i] for i in valid_idx])
         x_vals = np.array([gb_dens[i] for i in valid_idx])
         log_y = np.log(y_vals)
-        b = np.sum(log_y * x_vals) / np.sum(x_vals ** 2)
-        r_gb = b
-        k_val = 0  # no intercept
-    return r_gb, k_val, valid_idx
+        from scipy import stats as sp_stats
+        slope, intercept, _, _, _ = sp_stats.linregress(x_vals, log_y)
+        r_gb = slope
+        ln_k = intercept
+    return r_gb, ln_k, valid_idx
 
 
 def plot_rgb_fitting(data_list, names, outdir):
@@ -781,23 +783,23 @@ def plot_rgb_fitting(data_list, names, outdir):
                    fontsize=8, ha='left', va='bottom', xytext=(5, 5),
                    textcoords='offset points', color=BLACK)
 
-    # Zero-intercept fit: log(y) = b × GB_d (through origin)
-    x_line = np.linspace(0, max(x_pts) * 1.15, 100)
-    y_line = r_gb * x_line
+    # Linear fit with intercept: log(y) = b × GB_d + ln(k)
+    x_line = np.linspace(min(x_pts) * 0.9, max(x_pts) * 1.15, 100)
+    y_line = r_gb * x_line + log_k
     ax.plot(x_line, y_line, '-', color=RED, linewidth=2.5,
-            label=f"log(y) = {r_gb:.2f}·GB_d")
+            label=f"y = {r_gb:.2f}·x + {log_k:.2f}")
 
-    # R² for zero-intercept regression
-    y_pred = r_gb * x_pts
+    # R² for linear regression with intercept
+    y_pred = r_gb * x_pts + log_k
     ss_res = np.sum((y_pts - y_pred) ** 2)
-    ss_tot = np.sum(y_pts ** 2)  # zero-intercept: SS_tot from origin
+    ss_tot = np.sum((y_pts - np.mean(y_pts)) ** 2)
     r_squared = 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
     ax.set_xlabel("GB Density (hops/μm)", fontsize=12)
     ax.set_ylabel("log(σ_brug / σ_proxy)", fontsize=12)
-    ax.set_title(f"R_gb Fitting → b = {r_gb:.2f},  R² = {r_squared:.4f}", fontsize=13, fontweight='bold')
+    ax.set_title(f"R_gb Fitting → b = {r_gb:.2f},  ln(k) = {log_k:.2f},  R² = {r_squared:.4f}", fontsize=13, fontweight='bold')
     ax.legend(fontsize=10, loc='upper left')
-    ax.text(0.95, 0.05, f"R² = {r_squared:.4f}\nn = {len(x_pts)}",
+    ax.text(0.95, 0.05, f"b = {r_gb:.2f}\nln(k) = {log_k:.2f}\nR² = {r_squared:.4f}\nn = {len(x_pts)}",
             transform=ax.transAxes, fontsize=11, ha='right', va='bottom',
             bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.8))
     ax.yaxis.grid(True, linestyle="--", linewidth=0.4, alpha=0.7)
@@ -1008,7 +1010,7 @@ PLOT_REGISTRY = {
         "func": plot_rgb_fitting,
         "file": "rgb_fitting.png",
         "title": "R_gb Fitting",
-        "description": "log(σ_brug/σ_proxy) = b × GB_d  (원점 통과)\n→ σ_brug/σ_proxy = e^(b·GB_d)\n\n원점 통과 선형 회귀로 b(입계 저항 계수) 결정.\nX축: GB Density, Y축: log(σ_brug/σ_proxy)\nR²가 높으면 입계 저항이 GB_density에 비례함을 확인.\n\nb는 한 번 구하면 같은 재료/조건에서 재사용 가능.",
+        "description": "log(σ_brug/σ_proxy) = b × GB_d + ln(k)\n\n선형 회귀로 b(기울기=입계 저항 계수)와 ln(k)(절편=단위 변환)를 분리.\nX축: GB Density, Y축: log(σ_brug/σ_proxy)\nR²가 높으면 입계 저항이 GB_density에 비례함을 확인.\n\nb는 한 번 구하면 같은 재료/조건에서 재사용 가능.",
         "origin_tip": "Scatter + Fit line (log Y scale).\nBlue dots: data, Red line: fitted.",
     },
     "gb_corrected": {

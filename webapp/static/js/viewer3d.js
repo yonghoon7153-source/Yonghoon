@@ -530,7 +530,7 @@ function wireControls(ctrlDiv, renderer, camera, controls, scene, state) {
                 const t = fnMax > fnMin ? (c.fn - fnMin) / (fnMax - fnMin) : 0.5;
                 // Color: blue(low) → yellow → red(high)
                 const color = new THREE.Color();
-                color.setHSL(0.15 - t * 0.15, 1, 0.55);  // yellow(low) → red(high)
+                color.setHSL(0.15 - t * 0.15, 1, 0.85 - t * 0.45);  // light yellow(low) → dark red(high)
                 const radius = 0.5 + t * 2.0;  // thicker = stronger
                 const curve = new THREE.LineCurve3(p1, p2);
                 const geo = new THREE.TubeGeometry(curve, 1, radius, 4, false);

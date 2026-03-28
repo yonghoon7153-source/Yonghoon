@@ -744,7 +744,7 @@ def plot_ion_path_quality(data_list, names, outdir):
     vals = [_get(d, "gb_density_mean") for d in data_list]
     axes[0,0].plot(x, vals, 's-', color=BLUE, markersize=8, linewidth=2)
     _apply_style(axes[0,0], "GB Density (hops/μm)", names)
-    axes[0,0].set_title("Grain Boundary Density  (↓ better)", fontsize=11, fontweight='bold')
+    axes[0,0].set_title("Grain Boundary Density (GB_d)  ↓ better", fontsize=11, fontweight='bold')
 
     # Path Hop Area mean (higher is better)
     vals = [_get(d, "path_hop_area_mean") for d in data_list]
@@ -762,7 +762,7 @@ def plot_ion_path_quality(data_list, names, outdir):
     vals = [_get(d, "path_conductance_mean") for d in data_list]
     axes[1,1].plot(x, vals, 's-', color=GREEN, markersize=8, linewidth=2)
     _apply_style(axes[1,1], "Conductance (μm²)", names)
-    axes[1,1].set_title("Path Conductance  (↑ better)", fontsize=11, fontweight='bold')
+    axes[1,1].set_title("Path Conductance (G_path)  ↑ better", fontsize=11, fontweight='bold')
 
     gb = [_get(d, "gb_density_mean") for d in data_list]
     ha = [_get(d, "path_hop_area_mean") for d in data_list]
@@ -773,7 +773,7 @@ def plot_ion_path_quality(data_list, names, outdir):
                names, gb, ha, bn, gc)
 
     fig.tight_layout(rect=[0, 0, 1, 0.95])
-    fig.suptitle("Ion Path Quality (G_path, GB_d)", fontsize=14, fontweight='bold', x=0.5, y=0.99, ha='center')
+    fig.suptitle("Ion Path Quality", fontsize=14, fontweight='bold', x=0.5, y=0.99, ha='center')
     path = os.path.join(outdir, "ion_path_quality.png")
     fig.savefig(path, dpi=DPI, bbox_inches="tight", facecolor='white', pad_inches=0.3)
     plt.close(fig)

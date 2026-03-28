@@ -623,7 +623,7 @@ def _fit_r_gb(data_list, names):
         x_vals = np.array([gb_dens[i] for i in valid_idx])
         log_y = np.log(y_vals)
         best_r, best_cost = 0.5, 1e30
-        for r_try in np.arange(0.1, 15.0, 0.05):
+        for r_try in np.arange(0.1, 30.0, 0.05):
             model = np.log(1 + r_try * x_vals)
             log_k = np.mean(log_y - model)
             cost = np.sum((log_y - log_k - model) ** 2)
@@ -663,10 +663,19 @@ def plot_rgb_fitting(data_list, names, outdir):
     ax.plot(x_line, y_line, '-', color=RED, linewidth=2.5,
             label=f"y = log(k·(1 + {r_gb:.2f}·GB_d))")
 
+    # R² calculation
+    y_pred = log_k + np.log(1 + r_gb * x_pts)
+    ss_res = np.sum((y_pts - y_pred) ** 2)
+    ss_tot = np.sum((y_pts - np.mean(y_pts)) ** 2)
+    r_squared = 1 - ss_res / ss_tot if ss_tot > 0 else 0
+
     ax.set_xlabel("GB Density (hops/μm)", fontsize=12)
     ax.set_ylabel("log(σ_brug / σ_proxy)", fontsize=12)
-    ax.set_title(f"R_gb Fitting from Data → R_gb = {r_gb:.2f}", fontsize=13, fontweight='bold')
+    ax.set_title(f"R_gb Fitting → R_gb = {r_gb:.2f},  R² = {r_squared:.4f}", fontsize=13, fontweight='bold')
     ax.legend(fontsize=10, loc='upper left')
+    ax.text(0.95, 0.05, f"R² = {r_squared:.4f}\nn = {len(x_pts)}",
+            transform=ax.transAxes, fontsize=11, ha='right', va='bottom',
+            bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.8))
     ax.yaxis.grid(True, linestyle="--", linewidth=0.4, alpha=0.7)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)

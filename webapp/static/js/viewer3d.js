@@ -532,22 +532,23 @@ function wireControls(ctrlDiv, renderer, camera, controls, scene, state) {
     const zoomIn = zoomDiv.querySelector('#zoom-in');
     const zoomOut = zoomDiv.querySelector('#zoom-out');
 
-    function setZoom(dist) {
-      dist = Math.max(30, Math.min(350, dist));
+    function setZoom(sliderVal) {
+      sliderVal = Math.max(30, Math.min(350, sliderVal));
+      const dist = 380 - sliderVal;  // slider↑ = closer
       const dir = camera.position.clone().sub(controls.target).normalize();
       camera.position.copy(controls.target).addScaledVector(dir, dist);
       controls.update();
-      slider.value = dist;
+      slider.value = sliderVal;
     }
 
     slider.addEventListener('input', () => setZoom(parseInt(slider.value)));
-    zoomIn.addEventListener('click', () => setZoom(parseInt(slider.value) - 20));
-    zoomOut.addEventListener('click', () => setZoom(parseInt(slider.value) + 20));
+    zoomIn.addEventListener('click', () => setZoom(parseInt(slider.value) + 20));
+    zoomOut.addEventListener('click', () => setZoom(parseInt(slider.value) - 20));
 
     // Sync slider when wheel zoom changes camera distance
     controls.addEventListener('change', () => {
       const dist = camera.position.distanceTo(controls.target);
-      slider.value = Math.max(30, Math.min(350, Math.round(dist)));
+      slider.value = Math.max(30, Math.min(350, 380 - Math.round(dist)));
     });
   }
 }
@@ -681,21 +682,22 @@ function showPathOnlyView(renderer, scene, camera, state) {
   container.style.position = 'relative';
   container.appendChild(zoomDiv);
 
-  function setZoom2(d) {
-    d = Math.max(30, Math.min(350, d));
+  function setZoom2(sliderVal) {
+    sliderVal = Math.max(30, Math.min(350, sliderVal));
+    const dist = 380 - sliderVal;  // slider↑ = closer
     const dir = c2.position.clone().sub(ctrl2.target).normalize();
-    c2.position.copy(ctrl2.target).addScaledVector(dir, d);
+    c2.position.copy(ctrl2.target).addScaledVector(dir, dist);
     ctrl2.update();
-    document.getElementById('pv-zs').value = d;
+    document.getElementById('pv-zs').value = sliderVal;
   }
   document.getElementById('pv-zs').addEventListener('input', e => setZoom2(parseInt(e.target.value)));
-  document.getElementById('pv-zi').addEventListener('click', () => setZoom2(parseInt(document.getElementById('pv-zs').value) - 20));
-  document.getElementById('pv-zo').addEventListener('click', () => setZoom2(parseInt(document.getElementById('pv-zs').value) + 20));
+  document.getElementById('pv-zi').addEventListener('click', () => setZoom2(parseInt(document.getElementById('pv-zs').value) + 20));
+  document.getElementById('pv-zo').addEventListener('click', () => setZoom2(parseInt(document.getElementById('pv-zs').value) - 20));
 
   // Sync slider when wheel zoom changes camera distance
   ctrl2.addEventListener('change', () => {
     const dist = c2.position.distanceTo(ctrl2.target);
-    document.getElementById('pv-zs').value = Math.max(30, Math.min(350, Math.round(dist)));
+    document.getElementById('pv-zs').value = Math.max(30, Math.min(350, 380 - Math.round(dist)));
   });
 
   // Screenshot

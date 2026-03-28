@@ -416,8 +416,10 @@ async function generatePlots() {
             <div class="deriv-desc">σ_proxy는 <b>입계 저항이 반영된 실측값</b>이지만, 단위가 μm²</div>
             <div class="deriv-desc">σ_eff_real = σ_proxy × k 로 무차원 비율로 변환해야 하지만, <b>k(단위 변환 계수)를 모름</b></div>
             <div class="deriv-desc" style="margin-top:8px">→ 대신 σ_brug(과대평가)와 σ_proxy(실측)의 <b>비율</b>을 이용:</div>
-            <div class="deriv-formula">log(σ_brug / σ_proxy) = b × GB_d  (원점 통과 직선!)</div>
-            <div class="deriv-desc">이 비율에서 k가 상쇄됨 → b (R_gb)만 결정하면 σ_eff_real 계산 가능</div>
+            <div class="deriv-formula">log(σ_brug / σ_proxy) = b × GB_d + ln(k)</div>
+            <div class="deriv-desc">k(단위 변환 계수)는 상쇄되지 않고 절편 ln(k)로 남음</div>
+            <div class="deriv-desc">→ 원점 통과 회귀로 구하는 값은 순수한 b가 아니라 k를 포함한 <b>b'(유효 계수)</b></div>
+            <div class="deriv-desc">→ b'를 사용하면 같은 프레임워크 내에서 σ_eff_real 추정 가능</div>
             <div class="deriv-desc" style="margin-top:8px">⚠ b (R_gb)는 같은 SE 재료/가압 조건에서 유효. 조건이 달라지면(다른 SE, 다른 압력) 재결정 필요</div>
           </div>
           <div class="deriv-section">

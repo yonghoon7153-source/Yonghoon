@@ -395,35 +395,28 @@ async function generatePlots() {
           <h4>📐 유효 이온전도도 유도</h4>
           <div class="deriv-section">
             <div class="deriv-label">1. Bruggeman 추정 (입계 무시)</div>
-            <div class="deriv-formula">σ_eff / σ_bulk = φ_SE × f_perc / τ²</div>
+            <div class="deriv-formula">σ_brug = φ_SE × f_perc / τ²</div>
             <div class="deriv-desc">φ_SE: SE 부피 분율 | f_perc: 관통 SE 비율 | τ: tortuosity</div>
-            <div class="deriv-desc">⚠ 입계(GB) 저항을 무시 → SE가 작아서 GB_d가 높아도 반영 못함 → <b>과대평가</b></div>
+            <div class="deriv-desc">⚠ 입계(GB) 저항을 무시 → GB_d가 높아도 반영 못함 → <b>과대평가</b></div>
           </div>
           <div class="deriv-section">
-            <div class="deriv-label">2. Path Conductance (입계 반영)</div>
-            <div class="deriv-formula">σ_proxy = G_path × f_perc / τ</div>
-            <div class="deriv-desc">G_path = 1/Σ(1/A_i) : 경로의 직렬 저항 모델. 각 hop 접촉면적 반영</div>
-            <div class="deriv-desc">τ² 가 아닌 τ인 이유: G_path가 이미 경로 길이(hop 수) 반영 → 투영 효과만 ÷τ</div>
+            <div class="deriv-label">2. 실제 유효전도도는 입계 보정이 필요</div>
+            <div class="deriv-formula">σ_eff_real = σ_brug × e^(-b × (GB_d − GB_d_min))</div>
+            <div class="deriv-desc">σ_brug에서 입계 저항만큼 깎아낸 값 = 실제 유효전도도</div>
+            <div class="deriv-desc">b = 입계 저항 계수 | GB_d = 입계 밀도 (hops/μm) | GB_d_min = 가장 적은 케이스 기준</div>
+            <div class="deriv-desc">→ GB_d = GB_d_min: 보정 없음 (기준점) | GB_d > GB_d_min: 입계 많을수록 깎임</div>
           </div>
           <div class="deriv-section">
-            <div class="deriv-label">왜 두 가지가 필요한가?</div>
-            <div class="deriv-desc">• σ_brug (Bruggeman): 입계 저항을 무시 → <b>과대평가</b>. 하지만 무차원 비율(σ_eff/σ_bulk)을 줌</div>
-            <div class="deriv-desc">• σ_proxy (Path Conductance): 입계 반영 → 실제에 가까움. 하지만 단위가 μm²라서 직접 σ_eff/σ_bulk로 쓸 수 없음</div>
-            <div class="deriv-desc">→ σ_proxy에 스케일 팩터 k를 곱하면 σ_eff_real이 되지만, k를 모름</div>
-            <div class="deriv-desc">→ 대신 <b>둘의 비율</b>로 입계 효과만 분리해서 σ_brug를 보정!</div>
+            <div class="deriv-label">3. b는 어떻게 구하나? → σ_proxy 활용</div>
+            <div class="deriv-desc">σ_proxy = G_path × f_perc / τ (μm² 단위, 입계 반영된 실측값)</div>
+            <div class="deriv-desc">G_path = 1/Σ(1/A_i) : 경로상 각 hop 접촉면적의 직렬 저항</div>
+            <div class="deriv-desc">σ_brug는 과대평가, σ_proxy는 실제에 가까움 → <b>둘의 비율 = 과대평가 정도</b></div>
+            <div class="deriv-formula">log(σ_brug / σ_proxy) = a + b × GB_d  →  직선!</div>
+            <div class="deriv-desc">GB_d에 대해 선형 회귀 → 기울기 = b (입계 저항 계수)</div>
+            <div class="deriv-desc">b는 한 번만 구하면 됨. 이후 새 케이스에서는 σ_brug와 GB_d만으로 σ_eff_real 계산 가능</div>
           </div>
           <div class="deriv-section">
-            <div class="deriv-label">3. 둘의 비율 → 입계 효과 분리</div>
-            <div class="deriv-formula">σ_brug / σ_proxy = k × e^(b × GB_d)</div>
-            <div class="deriv-desc">GB_d가 클수록 과대평가 비율 커짐 → 지수 관계 (log space에서 직선)</div>
-            <div class="deriv-desc">b = 입계 저항 계수 (데이터에서 선형 회귀로 결정)</div>
-          </div>
-          <div class="deriv-section">
-            <div class="deriv-label">4. 최종 보정식</div>
-            <div class="deriv-formula">σ_eff_real = σ_brug / e^(b × (GB_d − GB_d_min))</div>
-            <div class="deriv-desc">GB_d_min = 전체 케이스 중 가장 낮은 GB Density (= 가장 입계가 적은 케이스)</div>
-            <div class="deriv-desc">→ GB_d = GB_d_min인 케이스: e^0 = 1 → 보정 없음 (기준점)</div>
-            <div class="deriv-desc">→ GB_d > GB_d_min인 케이스: e^양수 > 1 → σ_brug를 나눠서 깎음 (입계가 많으니까)</div>
+            <div class="deriv-label">4. 절대값 변환</div>
             <div class="deriv-formula">σ_eff_real (mS/cm) = σ_eff_real × σ_bulk</div>
             <div class="deriv-desc">σ_bulk = 1.3 mS/cm (Li₆PS₅Cl, cold-pressed)</div>
           </div>`;

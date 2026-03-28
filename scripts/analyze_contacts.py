@@ -508,6 +508,31 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                         ns_df.loc[mask, '값'] = val
                 ns_df.to_csv(ns_path, index=False)
 
+    # Force chain data for 3D viewer
+    force_chains = []
+    fn_values = []
+    for c in contacts_raw:
+        fn = c.get('fn', 0) or np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
+        fn_values.append(fn)
+    fn_threshold = np.percentile(fn_values, 75) if fn_values else 0  # top 25%
+    print(f"  Force chains: {len(fn_values)} contacts, threshold={fn_threshold:.6f}, max fn={max(fn_values) if fn_values else 0:.6f}")
+    for c in contacts_raw:
+        if c['id1'] in atoms_raw and c['id2'] in atoms_raw:
+            fn = c.get('fn', 0) or np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
+            if fn >= fn_threshold:
+                a1, a2 = atoms_raw[c['id1']], atoms_raw[c['id2']]
+                t1 = type_map.get(a1['type'], '?')
+                t2 = type_map.get(a2['type'], '?')
+                force_chains.append({
+                    'p1': [a1['x'] * scale, a1['z'] * scale, a1['y'] * scale],
+                    'p2': [a2['x'] * scale, a2['z'] * scale, a2['y'] * scale],
+                    'fn': round(fn * 1e6 / scale**2, 3),  # μN
+                    'type': '-'.join(sorted([t1, t2])),
+                })
+    print(f"  Force chains saved: {len(force_chains)} chains")
+    with open(os.path.join(output_dir, 'force_chains.json'), 'w') as f:
+        json.dump(force_chains, f)
+
     # Save tortuosity sample paths for 3D viewer (legacy)
     tau = results['tortuosity']
     if tau.get('mean') and 'graph' in perc:
@@ -543,31 +568,6 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                 pass
         with open(os.path.join(output_dir, 'tortuosity_paths.json'), 'w') as f:
             json.dump(paths_data, f)
-
-    # Force chain data for 3D viewer
-    force_chains = []
-    fn_values = []
-    for c in contacts_raw:
-        fn = c.get('fn', 0) or np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
-        fn_values.append(fn)
-    fn_threshold = np.percentile(fn_values, 75) if fn_values else 0  # top 25%
-    print(f"  Force chains: {len(fn_values)} contacts, threshold={fn_threshold:.6f}, max fn={max(fn_values) if fn_values else 0:.6f}")
-    for c in contacts_raw:
-        if c['id1'] in atoms_raw and c['id2'] in atoms_raw:
-            fn = c.get('fn', 0) or np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
-            if fn >= fn_threshold:
-                a1, a2 = atoms_raw[c['id1']], atoms_raw[c['id2']]
-                t1 = type_map.get(a1['type'], '?')
-                t2 = type_map.get(a2['type'], '?')
-                force_chains.append({
-                    'p1': [a1['x'] * scale, a1['z'] * scale, a1['y'] * scale],
-                    'p2': [a2['x'] * scale, a2['z'] * scale, a2['y'] * scale],
-                    'fn': round(fn * 1e6 / scale**2, 3),  # μN
-                    'type': '-'.join(sorted([t1, t2])),
-                })
-    print(f"  Force chains saved: {len(force_chains)} chains")
-    with open(os.path.join(output_dir, 'force_chains.json'), 'w') as f:
-        json.dump(force_chains, f)
 
     # Analyzed CSVs
     df_atom['type_name'] = df_atom['type'].map(type_map)

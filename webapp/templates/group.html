@@ -61,9 +61,10 @@
 </div>
 
 <!-- Comparison Results -->
-{% if comparison and comparison.rows %}
+{% if comparison and comparison.tables %}
+{% for tbl in comparison.tables %}
 <div class="card">
-  <h3>비교 결과</h3>
+  <h3 style="{% if tbl.color %}border-left:4px solid {{ tbl.color }};padding-left:10px{% endif %}">{{ tbl.name or '비교 결과' }}</h3>
   <div class="table-scroll">
     <table class="data-table compact group-table">
       <thead>
@@ -79,25 +80,18 @@
         </tr>
       </thead>
       <tbody>
-        {% for row in comparison.rows %}
-        {% if row.__group__ is defined %}
-        <tr class="group-separator-row" style="--group-color: {{ ['#6c8cff','#ff6b6b','#51cf66','#ffd43b'][row.__color__ % 4] }}">
-          <td class="group-separator-cell sticky-col sticky-col-1" style="border-right:none">{{ row.__group__ }}</td>
-          <td class="group-separator-cell sticky-col sticky-col-2" style="border-left:none"></td>
-          {% for col in comparison.columns %}{% if loop.index > 2 %}<td class="group-separator-cell" style="border-left:none"></td>{% endif %}{% endfor %}
-        </tr>
-        {% else %}
+        {% for row in tbl.rows %}
         <tr>
           {% for col in comparison.columns %}
-          <td{% if loop.index <= 2 %} class="sticky-col sticky-col-{{ loop.index }}"{% endif %}>{% if loop.index == 1 and row.__group_prefix__ is defined %}<span class="table-group-badge" style="background:{{ ['#6c8cff','#ff6b6b','#51cf66','#ffd43b'][row.__group_color__ % 4] }}">{{ row.__group_prefix__ }}</span> {% endif %}{{ row[col] if row[col] is defined else '-' }}</td>
+          <td{% if loop.index <= 2 %} class="sticky-col sticky-col-{{ loop.index }}"{% endif %}>{{ row[col] if row[col] is defined else '-' }}</td>
           {% endfor %}
         </tr>
-        {% endif %}
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+{% endfor %}
 
 <!-- Comparison Plots -->
 <div class="card">

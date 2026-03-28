@@ -680,27 +680,29 @@ def group():
             for label, unit, key in display_keys:
                 col_headers.append({'name': label, 'unit': unit})
 
-            # Tag rows with group name prefix
-            grouped_rows = []
+            # Split into case group tables
             if case_groups_parsed and len(case_groups_parsed) > 1:
+                tables = []
                 row_idx = 0
                 for gi, g in enumerate(case_groups_parsed):
                     gname = g.get('name', '') or f"Case {chr(65+gi)}"
-                    grouped_rows.append({'__group__': gname, '__color__': gi})
+                    group_rows = []
                     for _ in g.get('cases', []):
                         if row_idx < len(rows):
-                            rows[row_idx]['__group_prefix__'] = chr(65+gi)
-                            rows[row_idx]['__group_color__'] = gi
-                            grouped_rows.append(rows[row_idx])
+                            group_rows.append(rows[row_idx])
                             row_idx += 1
+                    tables.append({'name': gname, 'rows': group_rows, 'color': ['#6c8cff','#ff6b6b','#51cf66','#ffd43b'][gi % 4]})
+                comparison_data = {
+                    'columns': [c['name'] for c in col_headers],
+                    'units': [c['unit'] for c in col_headers],
+                    'tables': tables
+                }
             else:
-                grouped_rows = rows
-
-            comparison_data = {
-                'columns': [c['name'] for c in col_headers],
-                'units': [c['unit'] for c in col_headers],
-                'rows': grouped_rows
-            }
+                comparison_data = {
+                    'columns': [c['name'] for c in col_headers],
+                    'units': [c['unit'] for c in col_headers],
+                    'tables': [{'name': '', 'rows': rows, 'color': ''}]
+                }
 
     # Scan archive for folders with full_metrics.json
     archive_folders = []

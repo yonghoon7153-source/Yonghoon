@@ -103,7 +103,10 @@ def _break_lines_at_groups(fig):
         for line in ax.get_lines():
             xd = line.get_xdata()
             yd = line.get_ydata()
-            if len(xd) == n_total:
+            # Only process data lines (not grid, axvline, etc.)
+            if len(xd) != n_total or not line.get_marker() or line.get_marker() == 'None':
+                continue
+            if True:
                 new_x, new_y = [], []
                 idx = 0
                 for gi, sz in enumerate(sizes):

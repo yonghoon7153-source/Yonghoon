@@ -801,28 +801,24 @@ def plot_rgb_fitting(data_list, names, outdir):
     else:
         ax.scatter(x_pts, y_pts, s=100, c=BLUE, zorder=5, edgecolors='white', linewidth=1.5)
 
-    # Non-overlapping labels using adjustText
-    try:
-        from adjustText import adjust_text
-        texts = []
-        for j, i in enumerate(valid_idx):
-            gi = point_groups[j]
-            c = GROUP_COLORS[gi % len(GROUP_COLORS)] if _GROUP_INFO else BLACK
-            texts.append(ax.text(x_pts[j], y_pts[j], names[i], fontsize=8, fontweight='bold', color=c))
-        adjust_text(texts, x=x_pts, y=y_pts, ax=ax,
-                   arrowprops=dict(arrowstyle='-', color='gray', lw=0.5),
-                   force_text=(0.8, 0.8), expand=(1.2, 1.4))
-    except ImportError:
-        for j, i in enumerate(valid_idx):
-            ax.annotate(names[i], (x_pts[j], y_pts[j]),
-                       fontsize=8, ha='left', va='bottom', xytext=(5, 5),
-                       textcoords='offset points', color=BLACK)
+    # Individual point labels (P:S ratio)
+    for j, i in enumerate(valid_idx):
+        ax.annotate(names[i], (x_pts[j], y_pts[j]),
+                   fontsize=8, ha='left', va='bottom', xytext=(5, 5),
+                   textcoords='offset points', color=BLACK, zorder=6)
 
-    # Group name in legend instead of on plot
+    # Group labels at bottom center of each cluster
     if _GROUP_INFO:
-        for gi, gname in enumerate(gnames):
-            ax.scatter([], [], s=80, c=GROUP_COLORS[gi % len(GROUP_COLORS)],
-                      edgecolors='white', linewidth=1, label=gname)
+        for gi, (start, end) in enumerate(group_boundaries):
+            group_js = [j for j, i in enumerate(valid_idx) if start <= i < end]
+            if group_js:
+                cx = np.mean([x_pts[j] for j in group_js])
+                cy = min([y_pts[j] for j in group_js])
+                ax.text(cx, cy, gnames[gi], ha='center', va='top',
+                       fontsize=9, fontweight='bold', color=GROUP_COLORS[gi % len(GROUP_COLORS)],
+                       bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
+                                edgecolor=GROUP_COLORS[gi % len(GROUP_COLORS)], alpha=0.8),
+                       transform=ax.transData, xycoords='data')
 
     # Linear fit with intercept: log(y) = b × GB_d + ln(k)
     x_line = np.linspace(min(x_pts) * 0.9, max(x_pts) * 1.15, 100)
@@ -843,6 +839,9 @@ def plot_rgb_fitting(data_list, names, outdir):
     ax.text(0.95, 0.05, f"b = {r_gb:.2f}\nln(k) = {log_k:.2f}\nR² = {r_squared:.4f}\nn = {len(x_pts)}",
             transform=ax.transAxes, fontsize=11, ha='right', va='bottom',
             bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.8))
+    # Y축 하단 여백 확보 (그룹 라벨 공간)
+    y_margin = (max(y_pts) - min(y_pts)) * 0.15
+    ax.set_ylim(min(y_pts) - y_margin, max(y_pts) + y_margin)
     ax.yaxis.grid(True, linestyle="--", linewidth=0.4, alpha=0.7)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)

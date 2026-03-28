@@ -556,30 +556,53 @@ def plot_am_vulnerability(data_list, names, outdir):
 
 
 def plot_effective_conductivity(data_list, names, outdir):
-    """Effective ionic conductivity ratio (σ_eff/σ_bulk) with SE volume fraction."""
-    fig, ax1 = plt.subplots(figsize=FIG_SINGLE)
+    """Effective ionic conductivity: Bruggeman vs GB-corrected, side by side."""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     x = np.arange(len(names))
 
-    sigma = [_get(d, "sigma_ratio") for d in data_list]
+    sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     phi = [_get(d, "phi_se") for d in data_list]
+    perc = [_get(d, "percolation_pct") / 100 for d in data_list]
+    tau = [_get(d, "tortuosity_mean", 1) for d in data_list]
+    g_path = [_get(d, "path_conductance_mean") for d in data_list]
+    gb_dens = [_get(d, "gb_density_mean") for d in data_list]
 
-    color1, color2 = GREEN, BLUE
-    ax1.plot(x, sigma, 's-', color=color1, markersize=10, linewidth=2.5, label="σ_eff/σ_bulk")
+    # Corrected: σ_eff_real ∝ G_path × f_perc / τ  (path conductance already has hop area series resistance)
+    sigma_corr = []
+    for i in range(len(data_list)):
+        if g_path[i] > 0 and tau[i] > 0:
+            sigma_corr.append(g_path[i] * perc[i] / tau[i])
+        else:
+            sigma_corr.append(0)
+
+    # Left: Bruggeman (φ × perc / τ²)
+    ax1.plot(x, sigma_brug, 's-', color=GREEN, markersize=10, linewidth=2.5)
+    ax1b = ax1.twinx()
+    ax1b.bar(x, phi, 0.4, color=BLUE, alpha=0.25)
+    ax1b.set_ylabel("φ_SE", fontsize=10, color=BLUE)
+    ax1b.set_ylim(0.2, max(phi) * 1.15 if phi else 0.4)
+    ax1b.tick_params(axis='y', labelcolor=BLUE)
+    ax1b.spines["top"].set_visible(False)
     _apply_style(ax1, "σ_eff / σ_bulk", names)
-    ax1.tick_params(axis='y', labelcolor=color1)
+    ax1.set_title("Bruggeman (φ·f_perc/τ²)", fontsize=11, fontweight='bold')
 
-    ax2 = ax1.twinx()
-    ax2.bar(x, phi, 0.4, color=color2, alpha=0.3, label="φ_SE")
-    ax2.set_ylabel("SE Volume Fraction", fontsize=11, color=color2)
-    ax2.set_ylim(0.2, max(phi) * 1.15 if phi else 0.4)
-    ax2.tick_params(axis='y', labelcolor=color2)
-    ax2.spines["top"].set_visible(False)
+    # Right: Corrected (G_path × perc / τ)
+    ax2.plot(x, sigma_corr, 's-', color=RED, markersize=10, linewidth=2.5)
+    ax2b = ax2.twinx()
+    ax2b.bar(x, gb_dens, 0.4, color=GRAY, alpha=0.3)
+    ax2b.set_ylabel("GB Density (hops/μm)", fontsize=10, color=GRAY)
+    ax2b.tick_params(axis='y', labelcolor=GRAY)
+    ax2b.spines["top"].set_visible(False)
+    _apply_style(ax2, "G_path·f_perc/τ  (μm²)", names)
+    ax2.set_title("GB-Corrected (G_path·f_perc/τ)", fontsize=11, fontweight='bold')
 
-    lines1, labels1 = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper right')
-    ax1.set_title("Effective Ionic Conductivity", fontsize=12, fontweight='bold')
-    return _save(fig, outdir, "effective_conductivity.png")
+    fig.suptitle("Effective Ionic Conductivity: Bruggeman vs GB-Corrected",
+                 fontsize=13, fontweight='bold')
+    fig.tight_layout(rect=[0, 0, 1, 0.93])
+    path = os.path.join(outdir, "effective_conductivity.png")
+    fig.savefig(path, dpi=DPI, bbox_inches="tight", facecolor='white', pad_inches=0.3)
+    plt.close(fig)
+    return path
 
 
 def plot_ion_path_quality(data_list, names, outdir):

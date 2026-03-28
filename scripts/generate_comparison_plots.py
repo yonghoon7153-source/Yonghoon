@@ -575,108 +575,94 @@ def plot_am_vulnerability(data_list, names, outdir):
 
 
 def plot_effective_conductivity(data_list, names, outdir):
-    """Effective ionic conductivity: Bruggeman vs GB-corrected with R_gb estimation."""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    """Bruggeman effective ionic conductivity."""
+    fig, ax1 = plt.subplots(figsize=FIG_SINGLE)
     x = np.arange(len(names))
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     phi = [_get(d, "phi_se") for d in data_list]
-    perc = [_get(d, "percolation_pct") / 100 for d in data_list]
-    tau = [_get(d, "tortuosity_mean", 1) for d in data_list]
-    g_path = [_get(d, "path_conductance_mean") for d in data_list]
-    gb_dens = [_get(d, "gb_density_mean") for d in data_list]
 
-    # Estimate R_gb from data:
-    # σ_real ∝ G_path × f_perc / τ (normalized)
-    # σ_brug / σ_real_normalized = 1 + R_gb × GB_density
-    sigma_real_raw = []
-    for i in range(len(data_list)):
-        if g_path[i] > 0 and tau[i] > 0:
-            sigma_real_raw.append(g_path[i] * perc[i] / tau[i])
-        else:
-            sigma_real_raw.append(0)
+    ax1.plot(x, sigma_brug, 's-', color=GREEN, markersize=10, linewidth=2.5, label="σ_eff/σ_bulk")
+    _apply_style(ax1, "σ_eff / σ_bulk", names)
+    ax1.tick_params(axis='y', labelcolor=GREEN)
 
-    # Normalize σ_real to same scale as σ_brug for R_gb fitting
-    valid = [(i, sigma_brug[i], sigma_real_raw[i], gb_dens[i])
-             for i in range(len(data_list))
-             if sigma_real_raw[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0]
-
-    r_gb = 0
-    if len(valid) >= 2:
-        # Scale factor k: σ_brug = k × σ_real × (1 + R_gb × GB_density)
-        # Fit k and R_gb by least squares
-        from scipy.optimize import minimize_scalar
-        def cost(r):
-            residuals = []
-            for _, sb, sr, gd in valid:
-                correction = 1.0 / (1.0 + r * gd)
-                # k that best maps sr*correction to sb
-                residuals.append((sb, sr * correction))
-            # Find best k
-            num = sum(sb * sr_c for sb, sr_c in residuals)
-            den = sum(sr_c ** 2 for _, sr_c in residuals)
-            k = num / den if den > 0 else 1
-            return sum((sb - k * sr_c) ** 2 for sb, sr_c in residuals)
-        try:
-            res = minimize_scalar(cost, bounds=(0, 100), method='bounded')
-            r_gb = res.x
-        except Exception:
-            r_gb = 1.0  # fallback
-
-    # Compute corrected σ_eff
-    sigma_corr = []
-    for i in range(len(data_list)):
-        corr = sigma_brug[i] / (1.0 + r_gb * gb_dens[i]) if gb_dens[i] > 0 else sigma_brug[i]
-        sigma_corr.append(corr)
-
-    # Left: Bruggeman
-    ax1.plot(x, sigma_brug, 's-', color=GREEN, markersize=10, linewidth=2.5, label="Bruggeman")
     ax1b = ax1.twinx()
-    ax1b.bar(x, phi, 0.4, color=BLUE, alpha=0.25)
+    ax1b.bar(x, phi, 0.4, color=BLUE, alpha=0.25, label="φ_SE")
     ax1b.set_ylabel("φ_SE", fontsize=10, color=BLUE)
     ax1b.set_ylim(0.2, max(phi) * 1.15 if phi else 0.4)
     ax1b.tick_params(axis='y', labelcolor=BLUE)
     ax1b.spines["top"].set_visible(False)
-    _apply_style(ax1, "σ_eff / σ_bulk", names)
-    ax1.set_title("Bruggeman (φ·f_perc/τ²)", fontsize=11, fontweight='bold')
 
-    # Right: GB-Corrected with absolute σ_eff (LPSCl σ_bulk = 1.3 mS/cm)
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax1b.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper right')
+    ax1.set_title("Bruggeman: σ_eff/σ_bulk = φ_SE × f_perc / τ²", fontsize=12, fontweight='bold')
+
+    _write_csv(outdir, 'effective_conductivity.csv',
+               ['φ_SE', 'σ_eff/σ_bulk'], names, phi, sigma_brug)
+    return _save(fig, outdir, "effective_conductivity.png")
+
+
+def plot_gb_corrected(data_list, names, outdir):
+    """GB-corrected effective conductivity with R_gb fitted from Path Conductance."""
+    fig, ax = plt.subplots(figsize=FIG_SINGLE)
+    x = np.arange(len(names))
     SIGMA_BULK = 1.3  # mS/cm, Li₆PS₅Cl cold-pressed
+
+    sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
+    perc = [_get(d, "percolation_pct") / 100 for d in data_list]
+    tau = [_get(d, "tortuosity_mean", 1) for d in data_list]
+    g_path = [_get(d, "path_conductance_mean") for d in data_list]
+    gb_dens = [_get(d, "gb_density_mean") for d in data_list]
+    phi = [_get(d, "phi_se") for d in data_list]
+
+    # Estimate R_gb: corrected Bruggeman should correlate with G_path × f_perc / τ
+    sigma_proxy = [g_path[i] * perc[i] / tau[i] if g_path[i] > 0 and tau[i] > 0 else 0
+                   for i in range(len(data_list))]
+
+    valid = [(sigma_brug[i], sigma_proxy[i], gb_dens[i])
+             for i in range(len(data_list))
+             if sigma_proxy[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0]
+
+    r_gb = 0.5
+    if len(valid) >= 2:
+        best_r, best_corr = 0.1, -1
+        for r_try in np.arange(0.05, 5.0, 0.05):
+            corrected = [sb / (1 + r_try * gd) for sb, _, gd in valid]
+            proxy = [sr for _, sr, _ in valid]
+            if np.std(corrected) > 0 and np.std(proxy) > 0:
+                corr = np.corrcoef(corrected, proxy)[0, 1]
+                if corr > best_corr:
+                    best_corr = corr
+                    best_r = r_try
+        r_gb = best_r
+
+    sigma_corr = [sigma_brug[i] / (1 + r_gb * gb_dens[i]) if gb_dens[i] > 0 else sigma_brug[i]
+                  for i in range(len(data_list))]
     sigma_abs = [s * SIGMA_BULK for s in sigma_corr]
 
-    ax2.plot(x, sigma_corr, 's-', color=RED, markersize=10, linewidth=2.5,
-             label=f"σ_eff_real/σ_bulk (R_gb={r_gb:.2f})")
-    ax2b = ax2.twinx()
-    ax2b.plot(x, sigma_abs, 'D--', color=ORANGE, markersize=7, linewidth=1.5,
-              label=f"σ_eff_real (mS/cm)")
-    ax2b.set_ylabel("σ_eff_real (mS/cm)", fontsize=10, color=ORANGE)
-    ax2b.tick_params(axis='y', labelcolor=ORANGE)
-    ax2b.spines["top"].set_visible(False)
-    _apply_style(ax2, "σ_eff_real / σ_bulk", names)
-    ax2.set_title(f"GB-Corrected (R_gb={r_gb:.2f})", fontsize=11, fontweight='bold')
-    lines1, labels1 = ax2.get_legend_handles_labels()
-    lines2, labels2 = ax2b.get_legend_handles_labels()
-    ax2.legend(lines1 + lines2, labels1 + labels2, fontsize=7, loc='upper right')
+    ax.plot(x, sigma_corr, 's-', color=RED, markersize=10, linewidth=2.5, label="σ_eff_real/σ_bulk")
+    _apply_style(ax, "σ_eff_real / σ_bulk", names)
+    ax.tick_params(axis='y', labelcolor=RED)
 
-    # CSV export
-    import csv
-    csv_path = os.path.join(outdir, "effective_conductivity.csv")
-    with open(csv_path, 'w', newline='') as f:
-        w = csv.writer(f)
-        w.writerow(['Case', 'φ_SE', 'f_perc', 'τ', 'GB_density', 'σ_brug/σ_bulk',
-                     'R_gb', 'σ_corr/σ_bulk', 'σ_eff_real(mS/cm)'])
-        for i, name in enumerate(names):
-            w.writerow([name, f'{phi[i]:.3f}', f'{perc[i]:.3f}', f'{tau[i]:.2f}',
-                        f'{gb_dens[i]:.3f}', f'{sigma_brug[i]:.4f}', f'{r_gb:.2f}',
-                        f'{sigma_corr[i]:.4f}', f'{sigma_abs[i]:.4f}'])
+    ax2 = ax.twinx()
+    ax2.plot(x, sigma_abs, 'D--', color=ORANGE, markersize=8, linewidth=2, label="σ_eff_real (mS/cm)")
+    ax2.set_ylabel("σ_eff_real (mS/cm)", fontsize=11, color=ORANGE)
+    ax2.tick_params(axis='y', labelcolor=ORANGE)
+    ax2.spines["top"].set_visible(False)
 
-    fig.suptitle("Effective Ionic Conductivity: Bruggeman vs GB-Corrected",
-                 fontsize=13, fontweight='bold')
-    fig.tight_layout(rect=[0, 0, 1, 0.93])
-    path = os.path.join(outdir, "effective_conductivity.png")
-    fig.savefig(path, dpi=DPI, bbox_inches="tight", facecolor='white', pad_inches=0.3)
-    plt.close(fig)
-    return path
+    lines1, labels1 = ax.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper right')
+    ax.set_title(f"σ_eff_real = σ_bulk × φ·f_perc/τ² × 1/(1+R_gb·GB_d)\nR_gb={r_gb:.2f}, σ_bulk={SIGMA_BULK} mS/cm (LPSCl)",
+                 fontsize=10, fontweight='bold')
+
+    _write_csv(outdir, 'gb_corrected.csv',
+               ['φ_SE', 'f_perc', 'τ', 'GB_density', 'R_gb',
+                'σ_brug/σ_bulk', 'σ_corr/σ_bulk', 'σ_eff_real(mS/cm)'],
+               names, phi, perc, tau, gb_dens,
+               [r_gb]*len(names), sigma_brug, sigma_corr, sigma_abs)
+    return _save(fig, outdir, "gb_corrected.png")
 
 
 def plot_ion_path_quality(data_list, names, outdir):
@@ -821,9 +807,16 @@ PLOT_REGISTRY = {
     "effective_conductivity": {
         "func": plot_effective_conductivity,
         "file": "effective_conductivity.png",
-        "title": "Effective Conductivity",
-        "description": "좌: Bruggeman 추정  σ_eff/σ_bulk = φ_SE × f_perc / τ²\n우: GB 보정  σ_eff_real = σ_bulk × φ_SE × f_perc / τ² × 1/(1+R_gb×GB_density)\n\nR_gb는 Path Conductance 데이터에서 역산.\nσ_bulk = 1.3 mS/cm (Li₆PS₅Cl, cold-pressed).\n\nBruggeman은 입계 저항을 무시 → 세트1을 과대평가.\nGB-Corrected가 실제 이온전도 성능에 가까움.",
-        "origin_tip": "Left: Bruggeman (Green line + φ_SE bar).\nRight: GB-Corrected (Red line + σ_abs Orange dashed).",
+        "title": "Effective Conductivity (Bruggeman)",
+        "description": "σ_eff/σ_bulk = φ_SE × f_perc / τ²\n\nSE 부피 분율(φ_SE), percolation(f_perc), tortuosity(τ) 기반 추정.\n입계(GB) 저항을 무시한 이론값 → 실제보다 과대평가 가능.",
+        "origin_tip": "Line+Symbol (Green) + Bar (φ_SE, Blue).",
+    },
+    "gb_corrected": {
+        "func": plot_gb_corrected,
+        "file": "gb_corrected.png",
+        "title": "GB-Corrected σ_eff",
+        "description": "σ_eff_real = σ_bulk × φ_SE × f_perc / τ² × 1/(1 + R_gb × GB_density)\n\nR_gb: Path Conductance 데이터에서 역산한 입계 저항 계수\nσ_bulk = 1.3 mS/cm (Li₆PS₅Cl, cold-pressed)\n\nBruggeman + 입계 보정 = 실제 이온전도 성능에 가까운 값.\n오렌지 점선: 절대값 σ_eff_real (mS/cm).",
+        "origin_tip": "Line (Red, σ_corr/σ_bulk) + Dashed (Orange, mS/cm).",
     },
     "ion_path_quality": {
         "func": plot_ion_path_quality,

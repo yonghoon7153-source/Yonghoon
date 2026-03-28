@@ -100,27 +100,43 @@
   <div class="plot-select-grid">
     <div class="plot-category">
       <span class="plot-cat-label">구조/계면</span>
-      <label class="plot-checkbox"><input type="checkbox" value="porosity" checked> Porosity</label>
-      <label class="plot-checkbox"><input type="checkbox" value="am_se_interface" checked> AM-SE 계면적</label>
-      <label class="plot-checkbox"><input type="checkbox" value="se_se_tradeoff" checked> SE-SE Trade-off</label>
-      <label class="plot-checkbox"><input type="checkbox" value="se_se_total" checked> SE-SE Total Area</label>
-      <label class="plot-checkbox"><input type="checkbox" value="coverage"> Coverage</label>
+      <div class="plot-row">
+        <label class="plot-checkbox"><input type="checkbox" value="porosity" checked> Porosity</label>
+        <label class="plot-checkbox"><input type="checkbox" value="am_se_interface" checked> AM-SE 계면적</label>
+      </div>
+      <div class="plot-row">
+        <label class="plot-checkbox"><input type="checkbox" value="se_se_tradeoff" checked> SE-SE Trade-off</label>
+        <label class="plot-checkbox"><input type="checkbox" value="se_se_total" checked> SE-SE Total Area</label>
+      </div>
+      <div class="plot-row">
+        <label class="plot-checkbox"><input type="checkbox" value="coverage"> Coverage</label>
+      </div>
     </div>
     <div class="plot-category">
       <span class="plot-cat-label">이온경로</span>
-      <label class="plot-checkbox"><input type="checkbox" value="percolation_tortuosity" checked> Percolation + Tortuosity</label>
-      <label class="plot-checkbox"><input type="checkbox" value="se_network"> SE-SE CN + Cluster</label>
-      <label class="plot-checkbox"><input type="checkbox" value="ionic_active"> Ionic Active AM</label>
-      <label class="plot-checkbox"><input type="checkbox" value="effective_conductivity"> σ_eff/σ_bulk</label>
-      <label class="plot-checkbox"><input type="checkbox" value="ion_path_quality"> 경로 품질 (GB/Conductance/Bottleneck)</label>
-      <label class="plot-checkbox"><input type="checkbox" value="am_vulnerability"> AM 취약성 + AM-SE CN</label>
+      <div class="plot-row">
+        <label class="plot-checkbox"><input type="checkbox" value="percolation_tortuosity" checked> Percolation + Tortuosity</label>
+        <label class="plot-checkbox"><input type="checkbox" value="se_network"> SE-SE CN + Cluster</label>
+      </div>
+      <div class="plot-row">
+        <label class="plot-checkbox"><input type="checkbox" value="ionic_active"> Ionic Active AM</label>
+        <label class="plot-checkbox"><input type="checkbox" value="effective_conductivity"> σ_eff/σ_bulk</label>
+      </div>
+      <div class="plot-row">
+        <label class="plot-checkbox"><input type="checkbox" value="ion_path_quality"> 경로 품질</label>
+        <label class="plot-checkbox"><input type="checkbox" value="am_vulnerability"> AM 취약성</label>
+      </div>
     </div>
     <div class="plot-category">
       <span class="plot-cat-label">접촉력/응력</span>
-      <label class="plot-checkbox"><input type="checkbox" value="contact_force"> 접촉력 분포</label>
-      <label class="plot-checkbox"><input type="checkbox" value="contact_pressure"> 접촉 압력</label>
-      <label class="plot-checkbox"><input type="checkbox" value="stress_cv"> Stress CV</label>
-      <label class="plot-checkbox"><input type="checkbox" value="stress_ratio"> Stress Ratio</label>
+      <div class="plot-row">
+        <label class="plot-checkbox"><input type="checkbox" value="contact_force"> 접촉력 분포</label>
+        <label class="plot-checkbox"><input type="checkbox" value="contact_pressure"> 접촉 압력</label>
+      </div>
+      <div class="plot-row">
+        <label class="plot-checkbox"><input type="checkbox" value="stress_cv"> Stress CV</label>
+        <label class="plot-checkbox"><input type="checkbox" value="stress_ratio"> Stress Ratio</label>
+      </div>
     </div>
   </div>
 

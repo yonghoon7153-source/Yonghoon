@@ -331,42 +331,45 @@ const METRIC_TIPS = {
   }
 };
 
-// Create single tooltip element
-const ttEl = document.createElement('div');
-ttEl.id = 'metric-tooltip';
-document.body.appendChild(ttEl);
+// Inline tooltip: insert/remove a row below on hover
+let activeTooltipRow = null;
 
 document.querySelectorAll('.metric-label[data-metric]').forEach(td => {
   const key = td.dataset.metric;
   const tip = METRIC_TIPS[key];
   if (!tip) return;
+  const tr = td.closest('tr');
 
-  td.addEventListener('mouseenter', (e) => {
-    ttEl.innerHTML = `<div class="tt-title">${tip.title}</div>`
+  tr.addEventListener('mouseenter', () => {
+    // Remove any existing tooltip row
+    if (activeTooltipRow) { activeTooltipRow.remove(); activeTooltipRow = null; }
+    const colCount = tr.children.length;
+    const ttRow = document.createElement('tr');
+    ttRow.className = 'tooltip-row';
+    ttRow.innerHTML = `<td colspan="${colCount}"><div class="tt-inner">`
+      + `<div class="tt-title">${tip.title}</div>`
       + `<div class="tt-formula">${tip.formula.replace(/\n/g, '<br>')}</div>`
       + `<div class="tt-desc">${tip.desc}</div>`
-      + `<div class="tt-meaning">${tip.meaning}</div>`;
-    // Position next to the label
-    const rect = td.getBoundingClientRect();
-    let left = rect.right + 16;
-    let top = rect.top;
-    // If overflows right, show on left side
-    if (left + 460 > window.innerWidth) {
-      left = rect.left - 460;
-    }
-    // If overflows bottom, shift up
-    if (top + ttEl.offsetHeight > window.innerHeight - 20) {
-      top = window.innerHeight - ttEl.offsetHeight - 20;
-    }
-    if (top < 10) top = 10;
-    ttEl.style.left = left + 'px';
-    ttEl.style.top = top + 'px';
-    ttEl.classList.add('visible');
+      + `<div class="tt-meaning">${tip.meaning}</div>`
+      + `</div></td>`;
+    tr.after(ttRow);
+    activeTooltipRow = ttRow;
   });
 
-  td.addEventListener('mouseleave', () => {
-    ttEl.classList.remove('visible');
+  tr.addEventListener('mouseleave', (e) => {
+    // Don't remove if moving into the tooltip row
+    if (activeTooltipRow && e.relatedTarget && activeTooltipRow.contains(e.relatedTarget)) return;
+    if (activeTooltipRow) { activeTooltipRow.remove(); activeTooltipRow = null; }
   });
+});
+
+// Also remove tooltip when leaving the tooltip row itself
+document.addEventListener('mouseover', (e) => {
+  if (activeTooltipRow && !activeTooltipRow.contains(e.target) &&
+      !activeTooltipRow.previousElementSibling?.contains(e.target)) {
+    activeTooltipRow.remove();
+    activeTooltipRow = null;
+  }
 });
 </script>
 {% endblock %}

@@ -626,16 +626,19 @@ def plot_gb_corrected(data_list, names, outdir):
 
     r_gb = 0.5
     if len(valid) >= 2:
-        best_r, best_corr = 0.1, -1
-        for r_try in np.arange(0.05, 5.0, 0.05):
-            corrected = [sb / (1 + r_try * gd) for sb, _, gd in valid]
-            proxy = [sr for _, sr, _ in valid]
-            if np.std(corrected) > 0 and np.std(proxy) > 0:
-                corr = np.corrcoef(corrected, proxy)[0, 1]
-                if corr > best_corr:
-                    best_corr = corr
-                    best_r = r_try
-        r_gb = best_r
+        # Linear regression: y = σ_brug / σ_proxy = k × (1 + R_gb × GB_d)
+        # → y = a + b × GB_d, where a = k, R_gb = b/a
+        y_vals = np.array([sb / sp for sb, sp, _ in valid])
+        x_vals = np.array([gd for _, _, gd in valid])
+        # Least squares: y = a + b*x
+        n = len(valid)
+        x_mean, y_mean = np.mean(x_vals), np.mean(y_vals)
+        b = np.sum((x_vals - x_mean) * (y_vals - y_mean)) / np.sum((x_vals - x_mean)**2) if np.sum((x_vals - x_mean)**2) > 0 else 0
+        a = y_mean - b * x_mean
+        if a > 0 and b >= 0:
+            r_gb = b / a
+        else:
+            r_gb = 0.5  # fallback
 
     sigma_corr = [sigma_brug[i] / (1 + r_gb * gb_dens[i]) if gb_dens[i] > 0 else sigma_brug[i]
                   for i in range(len(data_list))]

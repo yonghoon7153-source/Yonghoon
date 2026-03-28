@@ -61,27 +61,6 @@ def _apply_style(ax, ylabel, names):
         for sz in sizes[:-1]:
             pos += sz
             boundaries.append(pos - 0.5)
-        # Collect lines from all axes sharing this plot area
-        all_lines = []
-        for sibling_ax in ax.figure.get_axes():
-            all_lines.extend(sibling_ax.get_lines())
-        for line in all_lines:
-            xd = line.get_xdata().copy()
-            yd = line.get_ydata().copy()
-            if len(xd) == n_total:
-                new_x, new_y = [], []
-                idx = 0
-                for gi, sz in enumerate(sizes):
-                    if gi > 0:
-                        new_x.append(float('nan'))
-                        new_y.append(float('nan'))
-                    for j in range(sz):
-                        if idx < len(xd):
-                            new_x.append(float(xd[idx]))
-                            new_y.append(float(yd[idx]))
-                            idx += 1
-                line.set_xdata(new_x)
-                line.set_ydata(new_y)
         # Draw separators and labels
         pos = 0
         for gi, sz in enumerate(sizes):
@@ -114,7 +93,34 @@ def _group_break_data(xs, ys):
     return new_x, new_y
 
 
+def _break_lines_at_groups(fig):
+    """Insert NaN at group boundaries for all lines in all axes."""
+    if not _GROUP_INFO:
+        return
+    sizes = _GROUP_INFO[0]
+    n_total = sum(sizes)
+    for ax in fig.get_axes():
+        for line in ax.get_lines():
+            xd = line.get_xdata()
+            yd = line.get_ydata()
+            if len(xd) == n_total:
+                new_x, new_y = [], []
+                idx = 0
+                for gi, sz in enumerate(sizes):
+                    if gi > 0:
+                        new_x.append(float('nan'))
+                        new_y.append(float('nan'))
+                    for j in range(sz):
+                        if idx < len(xd):
+                            new_x.append(float(xd[idx]))
+                            new_y.append(float(yd[idx]))
+                            idx += 1
+                line.set_xdata(new_x)
+                line.set_ydata(new_y)
+
+
 def _save(fig, outdir, fname):
+    _break_lines_at_groups(fig)
     fig.tight_layout(pad=1.5)
     fig.subplots_adjust(right=0.85, bottom=0.22 if _GROUP_INFO else 0.15)
     path = os.path.join(outdir, fname)
@@ -876,6 +882,7 @@ def plot_ion_path_quality(data_list, names, outdir):
                ['GB Density(hops/μm)', 'Hop Area mean(μm²)', 'Bottleneck(μm²)', 'Conductance(μm²)'],
                names, gb, ha, bn, gc)
 
+    _break_lines_at_groups(fig)
     fig.tight_layout(rect=[0, 0, 1, 0.95])
     fig.suptitle("Ion Path Quality", fontsize=14, fontweight='bold', x=0.5, y=0.99, ha='center')
     path = os.path.join(outdir, "ion_path_quality.png")

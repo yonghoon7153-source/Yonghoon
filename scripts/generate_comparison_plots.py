@@ -84,7 +84,7 @@ def _apply_style(ax, ylabel, names):
             if gi > 0:
                 ax.axvline(pos - 0.5, color='#888888', linestyle='--', linewidth=1, alpha=0.6)
             mid_frac = (pos + sz / 2 - 0.5) / max(n_total - 1, 1)
-            ax.text(mid_frac, 1.08, gnames[gi], ha='center', va='bottom',
+            ax.text(mid_frac, 0.95, gnames[gi], ha='center', va='top',
                     transform=ax.transAxes,
                     fontsize=9, fontweight='bold', color=GROUP_COLORS[gi % len(GROUP_COLORS)],
                     bbox=dict(boxstyle='round,pad=0.2', facecolor='white', edgecolor=GROUP_COLORS[gi % len(GROUP_COLORS)], alpha=0.8))
@@ -112,7 +112,7 @@ def _group_break_data(xs, ys):
 
 def _save(fig, outdir, fname):
     fig.tight_layout(pad=1.5)
-    fig.subplots_adjust(right=0.85, top=0.88 if _GROUP_INFO else 0.92)
+    fig.subplots_adjust(right=0.85)
     path = os.path.join(outdir, fname)
     fig.savefig(path, dpi=DPI, bbox_inches="tight", facecolor='white', pad_inches=0.2)
     plt.close(fig)

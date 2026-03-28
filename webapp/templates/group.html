@@ -401,10 +401,11 @@ async function generatePlots() {
           </div>
           <div class="deriv-section">
             <div class="deriv-label">2. 실제 유효전도도는 입계 보정이 필요</div>
-            <div class="deriv-formula">σ_eff_real = σ_brug × e^(-b × (GB_d − GB_d_min))</div>
+            <div class="deriv-formula">σ_eff_real = σ_brug × e^(-b × GB_d)</div>
             <div class="deriv-desc">σ_brug에서 입계 저항만큼 깎아낸 값 = 실제 유효전도도</div>
-            <div class="deriv-desc">b = 입계 저항 계수 | GB_d = 입계 밀도 (hops/μm) | GB_d_min = 가장 적은 케이스 기준</div>
-            <div class="deriv-desc">→ GB_d = GB_d_min: 보정 없음 (기준점) | GB_d > GB_d_min: 입계 많을수록 깎임</div>
+            <div class="deriv-desc">b = 입계 저항 계수 | GB_d = 입계 밀도 (hops/μm)</div>
+            <div class="deriv-desc">→ GB_d = 0 (입계 없음): σ_eff_real = σ_brug (Bruggeman 정확)</div>
+            <div class="deriv-desc">→ GB_d ↑: 입계 많을수록 지수적으로 깎임</div>
           </div>
           <div class="deriv-section">
             <div class="deriv-label">3. b는 어떻게 구하나? → σ_proxy 활용</div>

@@ -745,18 +745,16 @@ def _fit_r_gb(data_list, names):
     valid_idx = [i for i in range(len(data_list))
                  if sigma_proxy[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0]
 
-    r_gb, k_val = 0.5, 1.0
+    r_gb = 0.5
     if len(valid_idx) >= 2:
-        # Exponential model: σ_brug/σ_proxy = e^(a + b*GB_d)
-        # → log(σ_brug/σ_proxy) = a + b*GB_d  (linear regression on log(y) vs x)
+        # Zero-intercept regression: log(σ_brug/σ_proxy) = b × GB_d
+        # → b = Σ(log_y × x) / Σ(x²)
         y_vals = np.array([sigma_brug[i] / sigma_proxy[i] for i in valid_idx])
         x_vals = np.array([gb_dens[i] for i in valid_idx])
         log_y = np.log(y_vals)
-        x_mean, log_y_mean = np.mean(x_vals), np.mean(log_y)
-        b = np.sum((x_vals - x_mean) * (log_y - log_y_mean)) / np.sum((x_vals - x_mean)**2)
-        a = log_y_mean - b * x_mean
-        r_gb = b       # slope = GB resistance coefficient
-        k_val = a       # intercept (log scale)
+        b = np.sum(log_y * x_vals) / np.sum(x_vals ** 2)
+        r_gb = b
+        k_val = 0  # no intercept
     return r_gb, k_val, valid_idx
 
 
@@ -783,16 +781,16 @@ def plot_rgb_fitting(data_list, names, outdir):
                    fontsize=8, ha='left', va='bottom', xytext=(5, 5),
                    textcoords='offset points', color=BLACK)
 
-    # Fit line in log space: log(y) = a + b*x
+    # Zero-intercept fit: log(y) = b × GB_d (through origin)
     x_line = np.linspace(0, max(x_pts) * 1.15, 100)
-    y_line = log_k + r_gb * x_line
+    y_line = r_gb * x_line
     ax.plot(x_line, y_line, '-', color=RED, linewidth=2.5,
-            label=f"log(y) = {log_k:.2f} + {r_gb:.2f}·GB_d")
+            label=f"log(y) = {r_gb:.2f}·GB_d")
 
-    # R² calculation
-    y_pred = log_k + r_gb * x_pts
+    # R² for zero-intercept regression
+    y_pred = r_gb * x_pts
     ss_res = np.sum((y_pts - y_pred) ** 2)
-    ss_tot = np.sum((y_pts - np.mean(y_pts)) ** 2)
+    ss_tot = np.sum(y_pts ** 2)  # zero-intercept: SS_tot from origin
     r_squared = 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
     ax.set_xlabel("GB Density (hops/μm)", fontsize=12)
@@ -826,10 +824,9 @@ def plot_gb_corrected(data_list, names, outdir):
     perc = [_get(d, "percolation_pct") / 100 for d in data_list]
     tau = [_get(d, "tortuosity_mean", 1) for d in data_list]
 
-    # σ_eff_real = σ_brug / e^(b × (GB_d - GB_d_min))
-    # GB_d_min case gets no correction, others get penalized proportionally
-    gb_min = min(gb_dens[i] for i in range(len(data_list)) if gb_dens[i] > 0)
-    sigma_corr = [sigma_brug[i] / np.exp(r_gb * (gb_dens[i] - gb_min)) if gb_dens[i] > 0 else sigma_brug[i]
+    # σ_eff_real = σ_brug × e^(-b × GB_d)
+    # GB_d = 0: no GB → σ_eff_real = σ_brug (Bruggeman exact)
+    sigma_corr = [sigma_brug[i] * np.exp(-r_gb * gb_dens[i]) if gb_dens[i] > 0 else sigma_brug[i]
                   for i in range(len(data_list))]
     sigma_abs = [s * SIGMA_BULK for s in sigma_corr]
 
@@ -849,7 +846,7 @@ def plot_gb_corrected(data_list, names, outdir):
     lines1, labels1 = ax.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
     ax.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper right')
-    ax.set_title(f"σ_eff_real = σ_brug / e^(b·(GB_d - GB_d_min))\nb={r_gb:.2f}, σ_bulk={SIGMA_BULK} mS/cm (LPSCl)",
+    ax.set_title(f"σ_eff_real = σ_brug × e^(-b·GB_d)\nb={r_gb:.2f}, σ_bulk={SIGMA_BULK} mS/cm (LPSCl)",
                  fontsize=10, fontweight='bold')
 
     _write_csv(outdir, 'gb_corrected.csv',
@@ -1018,7 +1015,7 @@ PLOT_REGISTRY = {
         "func": plot_gb_corrected,
         "file": "gb_corrected.png",
         "title": "GB-Corrected σ_eff",
-        "description": "σ_eff_real = σ_brug / e^(b·(GB_d − GB_d_min))\n= φ_SE × f_perc / τ² / e^(b·ΔGB_d)\n\nb: log(σ_brug/σ_proxy) vs GB_d 회귀 기울기\nGB_d_min 기준 상대 보정 → 입계 적은 케이스 = 보정 없음\nσ_bulk = 1.3 mS/cm (Li₆PS₅Cl)\n오렌지 점선: σ_eff_real 절대값 (mS/cm)",
+        "description": "σ_eff_real = σ_brug × e^(-b × GB_d)\n= φ_SE × f_perc / τ² × e^(-b × GB_d)\n\nb: log(σ_brug/σ_proxy) vs GB_d 원점 통과 회귀 기울기\nGB_d=0 → Bruggeman 정확 | GB_d↑ → 지수적 감소\nσ_bulk = 1.3 mS/cm (Li₆PS₅Cl)\n오렌지 점선: σ_eff_real 절대값 (mS/cm)",
         "origin_tip": "Line (Red, σ_corr/σ_bulk) + Dashed (Orange, mS/cm).",
     },
     "ion_path_quality": {

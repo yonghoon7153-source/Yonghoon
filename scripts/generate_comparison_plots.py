@@ -896,7 +896,7 @@ def plot_gb_corrected(data_list, names, outdir):
 
     lines1, labels1 = ax.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
-    ax.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper right')
+    ax.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='best')
     ax.set_title(f"σ_eff_real = σ_brug × e^(-b·GB_d)\nb={r_gb:.2f}, σ_bulk={SIGMA_BULK} mS/cm (LPSCl)",
                  fontsize=10, fontweight='bold')
 
@@ -1066,7 +1066,7 @@ PLOT_REGISTRY = {
         "func": plot_gb_corrected,
         "file": "gb_corrected.png",
         "title": "GB-Corrected σ_eff",
-        "description": "σ_eff_real = σ_brug × e^(-b × GB_d)\n= φ_SE × f_perc / τ² × e^(-b × GB_d)\n\nb: log(σ_brug/σ_proxy) vs GB_d 원점 통과 회귀 기울기\nGB_d=0 → Bruggeman 정확 | GB_d↑ → 지수적 감소\nσ_bulk = 1.3 mS/cm (Li₆PS₅Cl)\n오렌지 점선: σ_eff_real 절대값 (mS/cm)",
+        "description": "σ_eff_real = σ_brug × e^(-b × GB_d)\n= σ_bulk × φ_SE × f_perc / τ² × e^(-b × GB_d)\n\nb: log(σ_brug/σ_proxy) vs GB_d 선형회귀 기울기\nGB_d=0 → Bruggeman 정확 | GB_d↑ → 지수적 감소\nσ_bulk = 1.3 mS/cm (Li₆PS₅Cl)\n빨간 실선: σ_eff_real/σ_bulk (비율)\n오렌지 점선: σ_eff_real 절대값 (mS/cm)",
         "origin_tip": "Line (Red, σ_corr/σ_bulk) + Dashed (Orange, mS/cm).",
     },
     "ion_path_quality": {

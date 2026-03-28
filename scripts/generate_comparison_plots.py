@@ -422,53 +422,96 @@ def plot_four_panel(all_data, names, outdir):
 
 
 def _generate_particle_info(all_data, ps_labels, case_names, outdir):
-    """Generate a particle info summary table as PNG."""
-    fig, ax = plt.subplots(figsize=(max(7, len(ps_labels)*1.5 + 2), 3))
-    ax.axis('off')
+    """Generate particle info summary table(s) as PNG, split by group if available."""
+    global _GROUP_INFO
 
-    # Build table data
-    headers = ['P:S'] + ps_labels
-    rows_data = []
+    if _GROUP_INFO and len(_GROUP_INFO[0]) > 1:
+        sizes, gnames = _GROUP_INFO
+        n_groups = len(sizes)
+        fig, axes = plt.subplots(n_groups, 1, figsize=(max(7, max(sizes)*1.5 + 2), 3 * n_groups))
+        if n_groups == 1:
+            axes = [axes]
 
-    # Particle counts
-    for ptype in ['AM_P', 'AM_S', 'SE']:
-        row = [f'{ptype} Count']
-        for d in all_data:
-            key = f'n_{ptype}'
-            val = d.get(key, '-')
-            row.append(str(int(val)) if val != '-' else '-')
-        rows_data.append(row)
+        idx = 0
+        for gi, (sz, gname) in enumerate(zip(sizes, gnames)):
+            ax = axes[gi]
+            ax.axis('off')
+            ax.set_title(gname, fontsize=12, fontweight='bold', color=GROUP_COLORS[gi % len(GROUP_COLORS)], pad=10)
 
-    # Radii
-    for ptype in ['AM_P', 'AM_S', 'SE']:
-        row = [f'{ptype} R (um)']
-        for d in all_data:
-            val = d.get(f'r_{ptype}', '-')
-            row.append(str(val) if val != '-' else '-')
-        rows_data.append(row)
+            group_data = all_data[idx:idx+sz]
+            group_labels = ps_labels[idx:idx+sz]
 
-    # If no data available, show P:S and basic info
-    table = ax.table(cellText=rows_data, colLabels=headers,
-                     loc='center', cellLoc='center')
-    table.auto_set_font_size(False)
-    table.set_fontsize(9)
-    table.scale(1, 1.4)
+            headers = ['P:S'] + group_labels
+            rows_data = []
+            for ptype in ['AM_P', 'AM_S', 'SE']:
+                row = [f'{ptype} Count']
+                for d in group_data:
+                    val = d.get(f'n_{ptype}', '-')
+                    row.append(str(int(val)) if val != '-' else '-')
+                rows_data.append(row)
+            for ptype in ['AM_P', 'AM_S', 'SE']:
+                row = [f'{ptype} R (μm)']
+                for d in group_data:
+                    val = d.get(f'r_{ptype}', '-')
+                    row.append(str(val) if val != '-' else '-')
+                rows_data.append(row)
 
-    # Style header
-    for j in range(len(headers)):
-        cell = table[0, j]
-        cell.set_facecolor('#4472C4')
-        cell.set_text_props(color='white', fontweight='bold')
+            table = ax.table(cellText=rows_data, colLabels=headers, loc='center', cellLoc='center')
+            table.auto_set_font_size(False)
+            table.set_fontsize(9)
+            table.scale(1, 1.4)
+            for j in range(len(headers)):
+                cell = table[0, j]
+                cell.set_facecolor(GROUP_COLORS[gi % len(GROUP_COLORS)])
+                cell.set_text_props(color='white', fontweight='bold')
+            for i in range(len(rows_data)):
+                for j in range(len(headers)):
+                    cell = table[i+1, j]
+                    cell.set_facecolor('#f0f0f0' if i % 2 == 0 else 'white')
 
-    for i in range(len(rows_data)):
+            idx += sz
+
+        fig.tight_layout()
+        fig.savefig(os.path.join(outdir, 'particle_info.png'), dpi=DPI,
+                    bbox_inches='tight', facecolor='white', pad_inches=0.1)
+        plt.close(fig)
+    else:
+        # Single group (original behavior)
+        fig, ax = plt.subplots(figsize=(max(7, len(ps_labels)*1.5 + 2), 3))
+        ax.axis('off')
+
+        headers = ['P:S'] + ps_labels
+        rows_data = []
+        for ptype in ['AM_P', 'AM_S', 'SE']:
+            row = [f'{ptype} Count']
+            for d in all_data:
+                val = d.get(f'n_{ptype}', '-')
+                row.append(str(int(val)) if val != '-' else '-')
+            rows_data.append(row)
+        for ptype in ['AM_P', 'AM_S', 'SE']:
+            row = [f'{ptype} R (μm)']
+            for d in all_data:
+                val = d.get(f'r_{ptype}', '-')
+                row.append(str(val) if val != '-' else '-')
+            rows_data.append(row)
+
+        table = ax.table(cellText=rows_data, colLabels=headers, loc='center', cellLoc='center')
+        table.auto_set_font_size(False)
+        table.set_fontsize(9)
+        table.scale(1, 1.4)
         for j in range(len(headers)):
-            cell = table[i+1, j]
-            cell.set_facecolor('#f0f0f0' if i % 2 == 0 else 'white')
+            cell = table[0, j]
+            cell.set_facecolor('#4472C4')
+            cell.set_text_props(color='white', fontweight='bold')
+        for i in range(len(rows_data)):
+            for j in range(len(headers)):
+                cell = table[i+1, j]
+                cell.set_facecolor('#f0f0f0' if i % 2 == 0 else 'white')
 
-    fig.tight_layout()
-    fig.savefig(os.path.join(outdir, 'particle_info.png'), dpi=DPI,
-                bbox_inches='tight', facecolor='white', pad_inches=0.1)
-    plt.close(fig)
+        fig.tight_layout()
+        fig.savefig(os.path.join(outdir, 'particle_info.png'), dpi=DPI,
+                    bbox_inches='tight', facecolor='white', pad_inches=0.1)
+        plt.close(fig)
 
 
 # ─── New Plots ─────────────────────────────────────────────────────────────────

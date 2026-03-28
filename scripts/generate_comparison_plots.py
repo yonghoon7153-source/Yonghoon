@@ -208,14 +208,17 @@ def plot_percolation_tortuosity(all_data, names, ax=None):
 
     xs = list(range(len(names)))
     perc = [_get(d, "percolation_pct") for d in all_data]
+    top_reach = [_get(d, "top_reachable_pct") for d in all_data]
     tort = [_get(d, "tortuosity_mean") for d in all_data]
 
     ax.plot(xs, perc, marker="s", color=BLUE, linewidth=2, markersize=8,
             zorder=3, label="Percolation %")
-    _apply_style(ax, "Percolation (%)", names)
+    ax.plot(xs, top_reach, marker="D", color="#00B0F0", linewidth=1.5, markersize=7,
+            linestyle="--", zorder=3, label="Top Reachable %")
+    _apply_style(ax, "SE Connectivity (%)", names)
     ax.tick_params(axis="y", labelcolor=BLUE)
-    ax.set_title("Percolation & Tortuosity", fontsize=13, fontweight="bold", pad=10)
-    ax.legend(loc="center left", fontsize=9, frameon=False)
+    ax.set_title("Percolation / Top Reachable & Tortuosity", fontsize=13, fontweight="bold", pad=10)
+    ax.legend(loc="center left", fontsize=8, frameon=False)
 
     ax2 = ax.twinx()
     ax2.plot(xs, tort, marker="^", color=RED, linewidth=2, markersize=9,
@@ -448,6 +451,34 @@ ORANGE = "#ED7D31"
 PURPLE = "#7030A0"
 
 
+def plot_se_network(data_list, names, outdir):
+    """SE-SE CN mean + SE Cluster count (dual Y axis)."""
+    fig, ax1 = plt.subplots(figsize=FIG_SINGLE)
+    x = np.arange(len(names))
+
+    cn = [_get(d, "se_se_cn") for d in data_list]
+    clusters = [_get(d, "n_components") for d in data_list]
+    large_clusters = [_get(d, "n_large_components") for d in data_list]
+
+    color1, color2 = BLUE, ORANGE
+    ax1.plot(x, cn, 's-', color=color1, markersize=10, linewidth=2.5, label="SE-SE CN mean")
+    _apply_style(ax1, "SE-SE CN mean", names)
+    ax1.tick_params(axis='y', labelcolor=color1)
+
+    ax2 = ax1.twinx()
+    ax2.bar(x - 0.15, clusters, 0.3, color=color2, alpha=0.4, label="Total Clusters")
+    ax2.bar(x + 0.15, large_clusters, 0.3, color=color2, alpha=0.85, label="Large (≥10)")
+    ax2.set_ylabel("SE Cluster Count", fontsize=11, color=color2)
+    ax2.tick_params(axis='y', labelcolor=color2)
+    ax2.spines["top"].set_visible(False)
+
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=8, loc='upper right')
+    ax1.set_title("SE Network: CN & Clusters", fontsize=12, fontweight='bold')
+    return _save(fig, outdir, "se_network.png")
+
+
 def plot_contact_force(data_list, names, outdir):
     """Contact force distribution by type (grouped bar)."""
     fig, ax = plt.subplots(figsize=FIG_SINGLE)
@@ -551,29 +582,35 @@ def plot_effective_conductivity(data_list, names, outdir):
 
 
 def plot_ion_path_quality(data_list, names, outdir):
-    """Ion path quality: GB Density, Path Conductance, Bottleneck (3 subplots)."""
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
+    """Ion path quality: GB Density, Hop Area, Bottleneck, Conductance (2x2)."""
+    fig, axes = plt.subplots(2, 2, figsize=(12, 9))
     x = np.arange(len(names))
 
-    # GB Density
+    # GB Density (lower is better)
     vals = [_get(d, "gb_density_mean") for d in data_list]
-    axes[0].plot(x, vals, 's-', color=BLUE, markersize=8, linewidth=2)
-    _apply_style(axes[0], "GB Density (hops/μm)", names)
-    axes[0].set_title("Grain Boundary Density", fontsize=11, fontweight='bold')
+    axes[0,0].plot(x, vals, 's-', color=BLUE, markersize=8, linewidth=2)
+    _apply_style(axes[0,0], "GB Density (hops/μm)", names)
+    axes[0,0].set_title("Grain Boundary Density  (↓ better)", fontsize=11, fontweight='bold')
 
-    # Path Conductance
-    vals = [_get(d, "path_conductance_mean") for d in data_list]
-    axes[1].plot(x, vals, 's-', color=GREEN, markersize=8, linewidth=2)
-    _apply_style(axes[1], "Path Conductance (μm²)", names)
-    axes[1].set_title("Path Conductance", fontsize=11, fontweight='bold')
+    # Path Hop Area mean (higher is better)
+    vals = [_get(d, "path_hop_area_mean") for d in data_list]
+    axes[0,1].plot(x, vals, 's-', color=ORANGE, markersize=8, linewidth=2)
+    _apply_style(axes[0,1], "Hop Area mean (μm²)", names)
+    axes[0,1].set_title("Path Hop Area  (↑ better)", fontsize=11, fontweight='bold')
 
-    # Bottleneck
+    # Bottleneck (higher is better)
     vals = [_get(d, "path_hop_area_min_mean") for d in data_list]
-    axes[2].plot(x, vals, 's-', color=RED, markersize=8, linewidth=2)
-    _apply_style(axes[2], "Bottleneck (μm²)", names)
-    axes[2].set_title("Path Bottleneck", fontsize=11, fontweight='bold')
+    axes[1,0].plot(x, vals, 's-', color=RED, markersize=8, linewidth=2)
+    _apply_style(axes[1,0], "Bottleneck (μm²)", names)
+    axes[1,0].set_title("Path Bottleneck  (↑ better)", fontsize=11, fontweight='bold')
 
-    fig.suptitle("Ion Path Quality", fontsize=13, fontweight='bold', y=1.02)
+    # Path Conductance (higher is better)
+    vals = [_get(d, "path_conductance_mean") for d in data_list]
+    axes[1,1].plot(x, vals, 's-', color=GREEN, markersize=8, linewidth=2)
+    _apply_style(axes[1,1], "Conductance (μm²)", names)
+    axes[1,1].set_title("Path Conductance  (↑ better)", fontsize=11, fontweight='bold')
+
+    fig.suptitle("Ion Path Quality", fontsize=13, fontweight='bold')
     return _save(fig, outdir, "ion_path_quality.png")
 
 
@@ -642,6 +679,13 @@ PLOT_REGISTRY = {
         "title": "Stress Ratio by Type",
         "description": "입자 유형별 응력 비율 (σ_type / σ_mean).\n\n> 1.0 = 평균보다 응력 집중\n< 1.0 = 평균보다 하중 적음\n\nSE > 1.0이면 SE에 응력 집중 → 소성변형 유발.",
         "origin_tip": "Multi-line → X: P:S, Y: σ/σ_mean.\nAM_P: Red, AM_S: Orange, SE: Green.\ny=1.0에 점선 (mean baseline).",
+    },
+    "se_network": {
+        "func": plot_se_network,
+        "file": "se_network.png",
+        "title": "SE Network",
+        "description": "SE-SE 배위수(CN)와 클러스터 수.\nCN↑ = 조밀한 네트워크, Cluster↓ = 분절 적음.\nLarge(≥10) 클러스터만 이온 경로에 유의미.",
+        "origin_tip": "Dual-Y → Left: Line (CN, Blue).\nRight: Bar (Clusters, Orange).",
     },
     "contact_force": {
         "func": plot_contact_force,

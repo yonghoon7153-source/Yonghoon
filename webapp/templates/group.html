@@ -95,6 +95,7 @@
 <div class="card">
   <div class="card-header-row">
     <h3>비교 플롯</h3>
+    <button class="btn btn-secondary" onclick="document.querySelectorAll('.plot-checkbox input').forEach(c=>c.checked=true)">모두 선택</button>
     <button class="btn btn-primary" onclick="generatePlots()" id="plot-btn">선택 플롯 생성</button>
   </div>
   <div class="plot-select-grid">

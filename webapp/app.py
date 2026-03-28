@@ -592,9 +592,11 @@ def group():
             ('SE-SE Total', '(μm²)', 'area_SE_SE_total'),
             ('SE-SE CN', '', 'se_se_cn'),
             ('SE Cluster', '', 'n_components'),
+            ('Large(≥10)', '', 'n_large_components'),
             ('Percolation', '(%)', 'percolation_pct'),
             ('Top Reachable', '(%)', 'top_reachable_pct'),
             ('Tortuosity', '', 'tortuosity_mean'),
+            ('τ std', '', 'tortuosity_std'),
             ('Ionic Active', '(%)', 'ionic_active_pct'),
             ('Coverage P', '(%)', 'coverage_AM_P_mean'),
             ('Coverage S', '(%)', 'coverage_AM_S_mean'),
@@ -603,6 +605,7 @@ def group():
             ('σ_AM_S/σ_mean', '', 'stress_ratio_AM_S'),
             ('σ_SE/σ_mean', '', 'stress_ratio_SE'),
             ('GB Density', '(hops/μm)', 'gb_density_mean'),
+            ('Hop Area', '(μm²)', 'path_hop_area_mean'),
             ('Path Conductance', '(μm²)', 'path_conductance_mean'),
             ('Bottleneck', '(μm²)', 'path_hop_area_min_mean'),
             ('AM-SE CN', '', 'am_se_cn_mean'),
@@ -614,6 +617,8 @@ def group():
             ('Fn SE-SE', '(μN)', 'fn_SE_SE_mean'),
             ('CP mean', '(MPa)', 'contact_pressure_mean'),
             ('CP max', '(MPa)', 'contact_pressure_max'),
+            ('SE-SE N', '', 'area_SE_SE_n'),
+            ('SE-SE Mean', '(μm²)', 'area_SE_SE_mean'),
         ]
         rows = []
         for cid in selected:
@@ -667,7 +672,7 @@ def group():
             for label, unit, key in display_keys:
                 val = metrics.get(key, '')
                 if isinstance(val, float):
-                    if key in ('path_conductance_mean', 'path_hop_area_min_mean'):
+                    if key in ('path_conductance_mean', 'path_hop_area_min_mean', 'path_hop_area_mean'):
                         val = f"{val:.2e}" if val > 0 else '-'
                     else:
                         val = round(val, 2)

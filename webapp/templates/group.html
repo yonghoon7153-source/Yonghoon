@@ -71,7 +71,10 @@
       <thead>
         <tr>
           {% for col in comparison.columns %}
-          <th class="group-th{% if loop.index <= 2 %} sticky-col sticky-col-{{ loop.index }}{% endif %}" data-col-metric="{{ col }}">
+          <th class="group-th{% if loop.index <= 2 %} sticky-col sticky-col-{{ loop.index }}{% endif %}{% if comparison.categories and loop.index0 > 0 and comparison.categories[loop.index0] != comparison.categories[loop.index0 - 1] %} cat-border{% endif %}" data-col-metric="{{ col }}">
+            {% if comparison.categories and loop.index0 > 0 and comparison.categories[loop.index0] != comparison.categories[loop.index0 - 1] %}
+            <span class="cat-label">{{ comparison.categories[loop.index0] }}</span>
+            {% endif %}
             <span class="th-name">{{ col }}</span>
             {% if comparison.units[loop.index0] %}
             <span class="th-unit">{{ comparison.units[loop.index0] }}</span>
@@ -84,7 +87,7 @@
         {% for row in tbl.rows %}
         <tr>
           {% for col in comparison.columns %}
-          <td{% if loop.index <= 2 %} class="sticky-col sticky-col-{{ loop.index }}"{% endif %}{% if row.__best__ is defined and col in row.__best__ %} class="best-val"{% endif %}>{{ row[col] if row[col] is defined else '-' }}</td>
+          <td class="{% if loop.index <= 2 %}sticky-col sticky-col-{{ loop.index }}{% endif %}{% if row.__best__ is defined and col in row.__best__ %} best-val{% endif %}{% if comparison.categories and loop.index0 > 0 and comparison.categories[loop.index0] != comparison.categories[loop.index0 - 1] %} cat-border{% endif %}">{{ row[col] if row[col] is defined else '-' }}</td>
           {% endfor %}
         </tr>
         {% endfor %}

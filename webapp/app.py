@@ -583,43 +583,51 @@ def group():
     except:
         pass
     if selected:
-        # Key metrics for comparison (from full_metrics.json)
-        display_keys = [
-            ('P:S', '', 'ps_ratio'),
-            ('Porosity', '(%)', 'porosity'),
-            ('두께', '(μm)', 'thickness_um'),
-            ('AM-SE Total', '(μm²)', 'area_AM전체_SE_total'),
-            ('SE-SE Total', '(μm²)', 'area_SE_SE_total'),
-            ('SE-SE CN', '', 'se_se_cn'),
-            ('SE Cluster', '', 'n_components'),
-            ('Large(≥10)', '', 'n_large_components'),
-            ('Percolation', '(%)', 'percolation_pct'),
-            ('Top Reachable', '(%)', 'top_reachable_pct'),
-            ('Tortuosity', '', 'tortuosity_mean'),
-            ('τ std', '', 'tortuosity_std'),
-            ('Ionic Active', '(%)', 'ionic_active_pct'),
-            ('Coverage P', '(%)', 'coverage_AM_P_mean'),
-            ('Coverage S', '(%)', 'coverage_AM_S_mean'),
-            ('Stress CV', '(%)', 'stress_cv'),
-            ('σ_AM_P/σ_mean', '', 'stress_ratio_AM_P'),
-            ('σ_AM_S/σ_mean', '', 'stress_ratio_AM_S'),
-            ('σ_SE/σ_mean', '', 'stress_ratio_SE'),
-            ('GB Density', '(hops/μm)', 'gb_density_mean'),
-            ('Hop Area', '(μm²)', 'path_hop_area_mean'),
-            ('Path Conductance', '(μm²)', 'path_conductance_mean'),
-            ('Bottleneck', '(μm²)', 'path_hop_area_min_mean'),
-            ('AM-SE CN', '', 'am_se_cn_mean'),
-            ('Vulnerable', '(%)', 'am_vulnerable_pct'),
-            ('φ_SE', '', 'phi_se'),
-            ('σ_eff/σ_bulk', '', 'sigma_ratio'),
-            ('Fn AM-AM', '(μN)', 'fn_AM_P_AM_P_mean'),
-            ('Fn AM-SE', '(μN)', 'fn_AM_P_SE_mean'),
-            ('Fn SE-SE', '(μN)', 'fn_SE_SE_mean'),
-            ('CP mean', '(MPa)', 'contact_pressure_mean'),
-            ('CP max', '(MPa)', 'contact_pressure_max'),
-            ('SE-SE N', '', 'area_SE_SE_n'),
-            ('SE-SE Mean', '(μm²)', 'area_SE_SE_mean'),
+        # Key metrics grouped by category
+        # (label, unit, key, category)
+        display_keys_raw = [
+            # ── 구조/계면 ──
+            ('P:S', '', 'ps_ratio', '구조/계면'),
+            ('Porosity', '(%)', 'porosity', '구조/계면'),
+            ('두께', '(μm)', 'thickness_um', '구조/계면'),
+            ('AM-SE Total', '(μm²)', 'area_AM전체_SE_total', '구조/계면'),
+            ('SE-SE Total', '(μm²)', 'area_SE_SE_total', '구조/계면'),
+            ('SE-SE N', '', 'area_SE_SE_n', '구조/계면'),
+            ('SE-SE Mean', '(μm²)', 'area_SE_SE_mean', '구조/계면'),
+            ('Coverage P', '(%)', 'coverage_AM_P_mean', '구조/계면'),
+            ('Coverage S', '(%)', 'coverage_AM_S_mean', '구조/계면'),
+            # ── 이온경로 ──
+            ('SE-SE CN', '', 'se_se_cn', '이온경로'),
+            ('SE Cluster', '', 'n_components', '이온경로'),
+            ('Large(≥10)', '', 'n_large_components', '이온경로'),
+            ('Percolation', '(%)', 'percolation_pct', '이온경로'),
+            ('Top Reachable', '(%)', 'top_reachable_pct', '이온경로'),
+            ('Tortuosity', '', 'tortuosity_mean', '이온경로'),
+            ('τ std', '', 'tortuosity_std', '이온경로'),
+            ('GB Density', '(hops/μm)', 'gb_density_mean', '이온경로'),
+            ('Hop Area', '(μm²)', 'path_hop_area_mean', '이온경로'),
+            ('Bottleneck', '(μm²)', 'path_hop_area_min_mean', '이온경로'),
+            ('Path Conductance', '(μm²)', 'path_conductance_mean', '이온경로'),
+            # ── 활성도/전도 ──
+            ('Ionic Active', '(%)', 'ionic_active_pct', '활성도'),
+            ('AM-SE CN', '', 'am_se_cn_mean', '활성도'),
+            ('Vulnerable', '(%)', 'am_vulnerable_pct', '활성도'),
+            ('φ_SE', '', 'phi_se', '활성도'),
+            ('σ_eff/σ_bulk', '', 'sigma_ratio', '활성도'),
+            # ── 접촉력/응력 ──
+            ('Fn AM-AM', '(μN)', 'fn_AM_P_AM_P_mean', '접촉력/응력'),
+            ('Fn AM-SE', '(μN)', 'fn_AM_P_SE_mean', '접촉력/응력'),
+            ('Fn SE-SE', '(μN)', 'fn_SE_SE_mean', '접촉력/응력'),
+            ('CP mean', '(MPa)', 'contact_pressure_mean', '접촉력/응력'),
+            ('CP max', '(MPa)', 'contact_pressure_max', '접촉력/응력'),
+            ('Stress CV', '(%)', 'stress_cv', '접촉력/응력'),
+            ('σ_AM_P/σ_mean', '', 'stress_ratio_AM_P', '접촉력/응력'),
+            ('σ_AM_S/σ_mean', '', 'stress_ratio_AM_S', '접촉력/응력'),
+            ('σ_SE/σ_mean', '', 'stress_ratio_SE', '접촉력/응력'),
         ]
+        display_keys = [(l, u, k) for l, u, k, _ in display_keys_raw]
+        # Track category boundaries for column separators
+        col_categories = [''] + [cat for _, _, _, cat in display_keys_raw]
         rows = []
         for cid in selected:
             # Handle archive: prefix
@@ -730,12 +738,14 @@ def group():
                 comparison_data = {
                     'columns': [c['name'] for c in col_headers],
                     'units': [c['unit'] for c in col_headers],
+                    'categories': col_categories,
                     'tables': tables
                 }
             else:
                 comparison_data = {
                     'columns': [c['name'] for c in col_headers],
                     'units': [c['unit'] for c in col_headers],
+                    'categories': col_categories,
                     'tables': [{'name': '', 'rows': rows, 'color': ''}]
                 }
 

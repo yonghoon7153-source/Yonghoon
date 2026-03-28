@@ -232,6 +232,11 @@ thead .sticky-col { z-index: 3; }
   text-align: left !important;
   position: sticky; left: 0; z-index: 2;
 }
+.table-group-badge {
+  display: inline-block; width: 18px; height: 18px; border-radius: 4px;
+  color: #fff; font-size: .65rem; font-weight: 700; text-align: center;
+  line-height: 18px; vertical-align: middle; margin-right: 4px;
+}
 .th-name {
   font-weight: 600; color: var(--text);
   font-size: .78rem; white-space: nowrap; line-height: 1.3;

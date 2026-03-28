@@ -89,7 +89,7 @@
         {% else %}
         <tr>
           {% for col in comparison.columns %}
-          <td{% if loop.index <= 2 %} class="sticky-col sticky-col-{{ loop.index }}"{% endif %}>{{ row[col] if row[col] is defined else '-' }}</td>
+          <td{% if loop.index <= 2 %} class="sticky-col sticky-col-{{ loop.index }}"{% endif %}>{% if loop.index == 1 and row.__group_prefix__ is defined %}<span class="table-group-badge" style="background:{{ ['#6c8cff','#ff6b6b','#51cf66','#ffd43b'][row.__group_color__ % 4] }}">{{ row.__group_prefix__ }}</span> {% endif %}{{ row[col] if row[col] is defined else '-' }}</td>
           {% endfor %}
         </tr>
         {% endif %}

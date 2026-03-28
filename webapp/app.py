@@ -680,7 +680,7 @@ def group():
             for label, unit, key in display_keys:
                 col_headers.append({'name': label, 'unit': unit})
 
-            # Insert group separator rows if multiple groups
+            # Tag rows with group name prefix
             grouped_rows = []
             if case_groups_parsed and len(case_groups_parsed) > 1:
                 row_idx = 0
@@ -689,6 +689,8 @@ def group():
                     grouped_rows.append({'__group__': gname, '__color__': gi})
                     for _ in g.get('cases', []):
                         if row_idx < len(rows):
+                            rows[row_idx]['__group_prefix__'] = chr(65+gi)
+                            rows[row_idx]['__group_color__'] = gi
                             grouped_rows.append(rows[row_idx])
                             row_idx += 1
             else:

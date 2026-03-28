@@ -1165,7 +1165,12 @@ def main():
             func(all_data, plot_names, ax=ax)
             outpath = _save(fig, args.output, entry["file"])
 
+        # Check for CSV from csv_map (legacy) or standalone _write_csv
         csv_file = f"{plot_name}.csv" if plot_name in csv_map else None
+        if csv_file is None:
+            standalone_csv = os.path.join(args.output, f"{plot_name}.csv")
+            if os.path.exists(standalone_csv):
+                csv_file = f"{plot_name}.csv"
         plot_info[plot_name] = {
             "file": entry["file"],
             "csv": csv_file,

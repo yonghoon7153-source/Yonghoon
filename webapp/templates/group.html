@@ -84,7 +84,7 @@
         {% for row in tbl.rows %}
         <tr>
           {% for col in comparison.columns %}
-          <td{% if loop.index <= 2 %} class="sticky-col sticky-col-{{ loop.index }}"{% endif %}>{{ row[col] if row[col] is defined else '-' }}</td>
+          <td{% if loop.index <= 2 %} class="sticky-col sticky-col-{{ loop.index }}"{% endif %}{% if row.__best__ is defined and col in row.__best__ %} class="best-val"{% endif %}>{{ row[col] if row[col] is defined else '-' }}</td>
           {% endfor %}
         </tr>
         {% endfor %}

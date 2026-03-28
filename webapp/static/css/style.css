@@ -232,6 +232,9 @@ thead .sticky-col { z-index: 3; }
   text-align: left !important;
   position: sticky; left: 0; z-index: 2;
 }
+.best-val {
+  color: #34d399 !important; font-weight: 700 !important;
+}
 .table-group-badge {
   display: inline-block; width: 18px; height: 18px; border-radius: 4px;
   color: #fff; font-size: .65rem; font-weight: 700; text-align: center;

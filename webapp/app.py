@@ -696,6 +696,32 @@ def group():
                         if row_idx < len(rows):
                             group_rows.append(rows[row_idx])
                             row_idx += 1
+                    # Mark best values per column
+                    # lower_better: Porosity, 두께, Tortuosity, τ std, Stress CV, GB Density, Vulnerable, CP mean, CP max
+                    # higher_better: everything else (except P:S, 케이스 which are labels)
+                    lower_better = {'Porosity', '두께', 'Tortuosity', 'τ std', 'Stress CV',
+                                    'GB Density', 'Vulnerable', 'CP mean', 'CP max', 'SE Cluster'}
+                    skip_cols = {'P:S', '케이스'}
+                    best_marks = {}  # col -> best row index
+                    for label, unit, key in display_keys:
+                        if label in skip_cols:
+                            continue
+                        vals = []
+                        for ri, r in enumerate(group_rows):
+                            v = r.get(label, '-')
+                            try:
+                                vals.append((ri, float(str(v).replace('e', 'E').strip())))
+                            except (ValueError, TypeError):
+                                pass
+                        if vals:
+                            if label in lower_better:
+                                best_ri = min(vals, key=lambda x: x[1])[0]
+                            else:
+                                best_ri = max(vals, key=lambda x: x[1])[0]
+                            best_marks[(label, best_ri)] = True
+                    for ri, r in enumerate(group_rows):
+                        r['__best__'] = {label for (label, idx), _ in best_marks.items() if idx == ri}
+
                     tables.append({'name': gname, 'rows': group_rows, 'color': ['#6c8cff','#ff6b6b','#51cf66','#ffd43b'][gi % 4]})
                 comparison_data = {
                     'columns': [c['name'] for c in col_headers],

@@ -323,12 +323,26 @@ document.getElementById('group-form').addEventListener('submit', (e) => {
 });
 
 // Restore from URL on page load
-let caseOrder = [];
-{% if selected %}caseOrder = {{ selected | tojson }};{% endif %}
 document.addEventListener('DOMContentLoaded', () => {
-  if (caseOrder.length > 0 && caseGroups[0].cases.length === 0) {
-    caseGroups[0].cases = [...caseOrder];
+  try {
+    const saved = {{ case_groups_json | tojson }};
+    const parsed = JSON.parse(saved);
+    if (parsed && parsed.length > 0 && parsed[0].cases && parsed[0].cases.length > 0) {
+      caseGroups = parsed;
+    } else {
+      // Fallback: put all selected in Case A
+      {% if selected %}
+      caseGroups = [{name: '', cases: {{ selected | tojson }}}];
+      {% endif %}
+    }
+  } catch(e) {
+    {% if selected %}
+    caseGroups = [{name: '', cases: {{ selected | tojson }}}];
+    {% endif %}
   }
+  activeGroupIdx = 0;
+  document.getElementById('group-name-input').value = caseGroups[0].name || '';
+  document.getElementById('remove-group-btn').style.display = caseGroups.length > 1 ? '' : 'none';
   renderGroupTabs();
   updateCaseDisplay();
 });

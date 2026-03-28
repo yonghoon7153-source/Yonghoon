@@ -574,6 +574,7 @@ def group():
     """Group comparison page."""
     cases = list_cases()
     selected = request.args.getlist('cases')
+    case_groups_param = request.args.get('case_groups', '[]')
 
     comparison_data = {}
     if selected:
@@ -695,7 +696,8 @@ def group():
                 archive_folders.append({'path': rel if rel != '.' else '(최상위)', 'case_count': case_count})
 
     return render_template('group.html', cases=cases, selected=selected,
-                         comparison=comparison_data, archive_folders=archive_folders)
+                         comparison=comparison_data, archive_folders=archive_folders,
+                         case_groups_json=case_groups_param)
 
 @app.route('/group/archive-cases')
 def group_archive_cases():

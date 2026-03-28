@@ -1008,7 +1008,7 @@ PLOT_REGISTRY = {
         "func": plot_rgb_fitting,
         "file": "rgb_fitting.png",
         "title": "R_gb Fitting",
-        "description": "log(σ_brug/σ_proxy) = a + b × GB_d\n→ σ_brug/σ_proxy = e^(a+b·GB_d)\n\n선형 회귀로 b(입계 저항 계수) 결정.\nX축: GB Density, Y축: σ_brug/σ_proxy (log scale)\nR²가 높으면 입계 저항이 GB_density에 비례함을 확인.",
+        "description": "log(σ_brug/σ_proxy) = b × GB_d  (원점 통과)\n→ σ_brug/σ_proxy = e^(b·GB_d)\n\n원점 통과 선형 회귀로 b(입계 저항 계수) 결정.\nX축: GB Density, Y축: log(σ_brug/σ_proxy)\nR²가 높으면 입계 저항이 GB_density에 비례함을 확인.\n\nb는 한 번 구하면 같은 재료/조건에서 재사용 가능.",
         "origin_tip": "Scatter + Fit line (log Y scale).\nBlue dots: data, Red line: fitted.",
     },
     "gb_corrected": {

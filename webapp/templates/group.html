@@ -423,8 +423,8 @@ async function generatePlots() {
           </div>
           <div class="deriv-section">
             <div class="deriv-label">4. 절대값 변환</div>
-            <div class="deriv-formula">σ_eff_real (mS/cm) = σ_brug × e^(-b × GB_d)</div>
-            <div class="deriv-desc">σ_brug에 이미 σ_bulk (1.3 mS/cm, Li₆PS₅Cl cold-pressed)가 포함되어 있으므로 결과가 바로 mS/cm 단위</div>
+            <div class="deriv-formula">σ_eff_real (mS/cm) = σ_bulk × φ_SE × f_perc / τ² × e^(-b × GB_d)</div>
+            <div class="deriv-desc">σ_bulk = 1.3 mS/cm (Li₆PS₅Cl, cold-pressed) → 결과가 바로 mS/cm 단위</div>
             <div class="deriv-desc" style="margin-top:8px">⚠ DEM 특성상 절대값은 실측과 차이가 있을 수 있음 → 실험 EIS 비교 필요</div>
           </div>`;
         grid.appendChild(box);

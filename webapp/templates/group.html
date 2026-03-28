@@ -82,7 +82,9 @@
         {% for row in comparison.rows %}
         {% if row.__group__ is defined %}
         <tr class="group-separator-row" style="--group-color: {{ ['#6c8cff','#ff6b6b','#51cf66','#ffd43b'][row.__color__ % 4] }}">
-          <td colspan="{{ comparison.columns|length }}" class="group-separator-cell">{{ row.__group__ }}</td>
+          <td class="group-separator-cell sticky-col sticky-col-1" style="border-right:none">{{ row.__group__ }}</td>
+          <td class="group-separator-cell sticky-col sticky-col-2" style="border-left:none"></td>
+          {% for col in comparison.columns %}{% if loop.index > 2 %}<td class="group-separator-cell" style="border-left:none"></td>{% endif %}{% endfor %}
         </tr>
         {% else %}
         <tr>

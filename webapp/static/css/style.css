@@ -218,6 +218,12 @@ tr.tooltip-row .tt-meaning { color: #a5f3c4; margin-top: 8px; }
 .group-table td:first-child { text-align: left; font-weight: 500; }
 .group-table thead th { vertical-align: top; }
 .group-th { padding: 10px 8px 6px !important; }
+.sticky-col {
+  position: sticky; background: var(--card); z-index: 2;
+}
+.sticky-col-1 { left: 0; }
+.sticky-col-2 { left: 120px; }
+thead .sticky-col { z-index: 3; }
 .th-name {
   font-weight: 600; color: var(--text);
   font-size: .78rem; white-space: nowrap; line-height: 1.3;

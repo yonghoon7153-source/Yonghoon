@@ -69,7 +69,7 @@
       <thead>
         <tr>
           {% for col in comparison.columns %}
-          <th class="group-th">
+          <th class="group-th{% if loop.index <= 2 %} sticky-col sticky-col-{{ loop.index }}{% endif %}">
             <span class="th-name">{{ col }}</span>
             {% if comparison.units[loop.index0] %}
             <span class="th-unit">{{ comparison.units[loop.index0] }}</span>
@@ -82,7 +82,7 @@
         {% for row in comparison.rows %}
         <tr>
           {% for col in comparison.columns %}
-          <td>{{ row[col] if row[col] is defined else '-' }}</td>
+          <td{% if loop.index <= 2 %} class="sticky-col sticky-col-{{ loop.index }}"{% endif %}>{{ row[col] if row[col] is defined else '-' }}</td>
           {% endfor %}
         </tr>
         {% endfor %}

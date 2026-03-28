@@ -601,8 +601,8 @@ def group():
             ('Bottleneck', '(μm²)', 'path_hop_area_min_mean'),
             ('AM-SE CN', '', 'am_se_cn_mean'),
             ('Vulnerable', '(%)', 'am_vulnerable_pct'),
-            ('σ_eff/σ_bulk', '', 'sigma_ratio'),
             ('φ_SE', '', 'phi_se'),
+            ('σ_eff/σ_bulk', '', 'sigma_ratio'),
             ('Fn AM-AM', '(μN)', 'fn_AM_P_AM_P_mean'),
             ('Fn AM-SE', '(μN)', 'fn_AM_P_SE_mean'),
             ('Fn SE-SE', '(μN)', 'fn_SE_SE_mean'),
@@ -661,7 +661,10 @@ def group():
             for label, unit, key in display_keys:
                 val = metrics.get(key, '')
                 if isinstance(val, float):
-                    val = round(val, 2)
+                    if 0 < abs(val) < 0.01:
+                        val = f"{val:.2e}"
+                    else:
+                        val = round(val, 2)
                 row[label] = val if val != '' else '-'
             rows.append(row)
 

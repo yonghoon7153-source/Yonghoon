@@ -818,7 +818,7 @@ def plot_rgb_fitting(data_list, names, outdir):
                        fontsize=9, fontweight='bold', color=GROUP_COLORS[gi % len(GROUP_COLORS)],
                        bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
                                 edgecolor=GROUP_COLORS[gi % len(GROUP_COLORS)], alpha=0.8),
-                       transform=ax.transData, xycoords='data')
+                       )
 
     # Linear fit with intercept: log(y) = b × GB_d + ln(k)
     x_line = np.linspace(min(x_pts) * 0.9, max(x_pts) * 1.15, 100)

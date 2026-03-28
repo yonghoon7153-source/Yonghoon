@@ -611,8 +611,8 @@ def plot_ion_path_quality(data_list, names, outdir):
     _apply_style(axes[1,1], "Conductance (μm²)", names)
     axes[1,1].set_title("Path Conductance  (↑ better)", fontsize=11, fontweight='bold')
 
-    fig.suptitle("Ion Path Quality", fontsize=14, fontweight='bold', y=0.98)
     fig.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.suptitle("Ion Path Quality", fontsize=14, fontweight='bold', x=0.5, y=0.99, ha='center')
     return _save(fig, outdir, "ion_path_quality.png")
 
 

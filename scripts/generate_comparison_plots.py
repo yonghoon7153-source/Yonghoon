@@ -619,20 +619,16 @@ def _fit_r_gb(data_list, names):
 
     r_gb, k_val = 0.5, 1.0
     if len(valid_idx) >= 2:
-        # Linear regression: y = a + b*x where y = σ_brug/σ_proxy, x = GB_d
-        # a = k, b = k*R_gb → R_gb = b/a
+        # Exponential model: σ_brug/σ_proxy = e^(a + b*GB_d)
+        # → log(σ_brug/σ_proxy) = a + b*GB_d  (linear regression on log(y) vs x)
         y_vals = np.array([sigma_brug[i] / sigma_proxy[i] for i in valid_idx])
         x_vals = np.array([gb_dens[i] for i in valid_idx])
-        n = len(valid_idx)
-        x_mean, y_mean = np.mean(x_vals), np.mean(y_vals)
-        b = np.sum((x_vals - x_mean) * (y_vals - y_mean)) / np.sum((x_vals - x_mean)**2)
-        a = y_mean - b * x_mean
-        if a > 0:
-            r_gb = b / a
-            k_val = a
-        else:
-            r_gb = 0.5
-            k_val = 1.0
+        log_y = np.log(y_vals)
+        x_mean, log_y_mean = np.mean(x_vals), np.mean(log_y)
+        b = np.sum((x_vals - x_mean) * (log_y - log_y_mean)) / np.sum((x_vals - x_mean)**2)
+        a = log_y_mean - b * x_mean
+        r_gb = b       # slope = GB resistance coefficient
+        k_val = a       # intercept (log scale)
     return r_gb, k_val, valid_idx
 
 
@@ -659,22 +655,24 @@ def plot_rgb_fitting(data_list, names, outdir):
                    fontsize=8, ha='left', va='bottom', xytext=(5, 5),
                    textcoords='offset points', color=BLACK)
 
-    # Linear fit line: y = k × (1 + R_gb × x)
+    # Exponential fit: log(y) = a + b*x → y = e^(a + b*x)
+    log_y_pts = np.log(y_pts)
     x_line = np.linspace(0, max(x_pts) * 1.15, 100)
-    y_line = k_val * (1 + r_gb * x_line)
+    # k_val = a (intercept), r_gb = b (slope) in log space
+    y_line = np.exp(k_val + r_gb * x_line)
     ax.plot(x_line, y_line, '-', color=RED, linewidth=2.5,
-            label=f"y = {k_val:.1f} × (1 + {r_gb:.2f}·GB_d)")
+            label=f"log(y) = {k_val:.2f} + {r_gb:.2f}·GB_d")
 
-    # R² calculation
-    y_pred = k_val * (1 + r_gb * x_pts)
-    ss_res = np.sum((y_pts - y_pred) ** 2)
-    ss_tot = np.sum((y_pts - np.mean(y_pts)) ** 2)
+    # R² in log space (where the fit was done)
+    log_y_pred = k_val + r_gb * x_pts
+    ss_res = np.sum((log_y_pts - log_y_pred) ** 2)
+    ss_tot = np.sum((log_y_pts - np.mean(log_y_pts)) ** 2)
     r_squared = 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
     ax.set_yscale('log')
     ax.set_xlabel("GB Density (hops/μm)", fontsize=12)
-    ax.set_ylabel("σ_brug / σ_proxy (log scale)", fontsize=12)
-    ax.set_title(f"R_gb Fitting → R_gb = {r_gb:.2f},  R² = {r_squared:.4f}", fontsize=13, fontweight='bold')
+    ax.set_ylabel("σ_brug / σ_proxy", fontsize=12)
+    ax.set_title(f"R_gb Fitting → b = {r_gb:.2f},  R² = {r_squared:.4f}", fontsize=13, fontweight='bold')
     ax.legend(fontsize=10, loc='upper left')
     ax.text(0.95, 0.05, f"R² = {r_squared:.4f}\nn = {len(x_pts)}",
             transform=ax.transAxes, fontsize=11, ha='right', va='bottom',
@@ -703,7 +701,18 @@ def plot_gb_corrected(data_list, names, outdir):
     perc = [_get(d, "percolation_pct") / 100 for d in data_list]
     tau = [_get(d, "tortuosity_mean", 1) for d in data_list]
 
-    sigma_corr = [sigma_brug[i] / (1 + r_gb * gb_dens[i]) if gb_dens[i] > 0 else sigma_brug[i]
+    # Exponential correction: σ_corrected = σ_brug / e^(a + b*GB_d)  → σ_brug × e^(-a - b*GB_d)
+    # But we want σ_eff_real/σ_bulk, so divide by e^(a) to remove scale factor k
+    sigma_corr = [sigma_brug[i] * np.exp(-k_val - r_gb * gb_dens[i]) if gb_dens[i] > 0 else sigma_brug[i]
+                  for i in range(len(data_list))]
+    # Normalize: σ_proxy × k should give σ_eff_real, proxy already captures GB
+    # Actually: σ_eff_real/σ_bulk = σ_brug / (σ_brug/σ_proxy × 1/k) = σ_proxy × k_factor
+    # Simpler: σ_corrected = σ_brug × e^(-b × GB_d) / e^a ... this removes all overestimation
+    # But this makes σ_corrected dependent on arbitrary k. Let's normalize so max ≈ σ_brug max
+    # Better approach: σ_eff_real = σ_brug / e^(b × (GB_d - GB_d_min))
+    # This way GB_d_min case gets no correction, others get penalized
+    gb_min = min(gb_dens[i] for i in range(len(data_list)) if gb_dens[i] > 0)
+    sigma_corr = [sigma_brug[i] / np.exp(r_gb * (gb_dens[i] - gb_min)) if gb_dens[i] > 0 else sigma_brug[i]
                   for i in range(len(data_list))]
     sigma_abs = [s * SIGMA_BULK for s in sigma_corr]
 
@@ -723,7 +732,7 @@ def plot_gb_corrected(data_list, names, outdir):
     lines1, labels1 = ax.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
     ax.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper right')
-    ax.set_title(f"σ_eff_real = σ_bulk × φ·f_perc/τ² × 1/(1+R_gb·GB_d)\nR_gb={r_gb:.2f}, σ_bulk={SIGMA_BULK} mS/cm (LPSCl)",
+    ax.set_title(f"σ_eff_real = σ_brug / e^(b·(GB_d - GB_d_min))\nb={r_gb:.2f}, σ_bulk={SIGMA_BULK} mS/cm (LPSCl)",
                  fontsize=10, fontweight='bold')
 
     _write_csv(outdir, 'gb_corrected.csv',

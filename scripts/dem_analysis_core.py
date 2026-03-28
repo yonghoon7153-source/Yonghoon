@@ -237,7 +237,8 @@ def _periodic_dist(a1, a2, box_x=0.05, box_y=0.05):
 def calc_tortuosity(atoms, perc_result, n_samples=200, box_xy=0.05):
     """tortuosity = path length / z distance.
     Uses distance-weighted shortest path (physical shortest distance)
-    with periodic boundary correction."""
+    with periodic boundary correction.
+    Includes all top-reachable SE (not just percolating) as sources."""
     G = perc_result['graph']
     top_reachable_se = perc_result['top_reachable_se']
     bottom_se = perc_result['bottom_se']
@@ -246,18 +247,29 @@ def calc_tortuosity(atoms, perc_result, n_samples=200, box_xy=0.05):
     if not top_reachable_se:
         return {'mean': None, 'std': None, 'n_samples': 0}
 
-    reach_bottom = list(bottom_se & top_reachable_se)
     reach_top = list(top_se & top_reachable_se)
+    if not reach_top:
+        return {'mean': None, 'std': None, 'n_samples': 0}
 
-    if not reach_bottom or not reach_top:
+    # Sources: lowest-z SE in each top-reachable component (not just bottom_se)
+    components = list(nx.connected_components(G))
+    src_candidates = []
+    for comp in components:
+        comp_top_reach = comp & top_reachable_se
+        if not comp_top_reach:
+            continue
+        # Pick the lowest-z SE in this component as source
+        lowest = min(comp_top_reach, key=lambda sid: atoms[sid]['z'])
+        src_candidates.append(lowest)
+
+    if not src_candidates:
         return {'mean': None, 'std': None, 'n_samples': 0}
 
     taus = []
-    for i in range(min(n_samples, max(len(reach_bottom), len(reach_top)))):
-        src = reach_bottom[i % len(reach_bottom)]
+    for i in range(min(n_samples, max(len(src_candidates), len(reach_top)))):
+        src = src_candidates[i % len(src_candidates)]
         tgt = reach_top[i % len(reach_top)]
         try:
-            # Distance-weighted shortest path (physical shortest route)
             path = nx.shortest_path(G, src, tgt, weight='distance')
             path_len = sum(
                 _periodic_dist(atoms[path[k]], atoms[path[k+1]], box_xy, box_xy)

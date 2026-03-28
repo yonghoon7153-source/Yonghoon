@@ -225,8 +225,9 @@ tr.tooltip-row .tt-meaning { color: #a5f3c4; margin-top: 8px; }
 .sticky-col-1 { left: 0; min-width: 100px; }
 .sticky-col-2 { left: 100px; min-width: 45px; border-right: 2px solid var(--border); }
 thead .sticky-col { z-index: 3; }
+.group-separator-row { position: sticky; top: 36px; z-index: 3; }
 .group-separator-row .group-separator-cell {
-  background: rgba(108,140,255,.1); color: var(--group-color, var(--accent));
+  background: var(--bg2); color: var(--group-color, var(--accent));
   font-weight: 700; font-size: .82rem; letter-spacing: .5px;
   padding: 8px 12px !important; border-left: 3px solid var(--group-color, var(--accent));
   text-align: left !important;

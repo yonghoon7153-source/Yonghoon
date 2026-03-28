@@ -518,6 +518,7 @@ function wireControls(ctrlDiv, renderer, camera, controls, scene, state) {
           try {
             const res = await fetch(url);
             const chains = await res.json();
+            console.log('Force chains loaded:', chains.length, 'chains');
             const group = new THREE.Group();
             if (chains.length > 0) {
               const fnValues = chains.map(c => c.fn);
@@ -529,8 +530,8 @@ function wireControls(ctrlDiv, renderer, camera, controls, scene, state) {
                 const t = fnMax > fnMin ? (c.fn - fnMin) / (fnMax - fnMin) : 0.5;
                 // Color: blue(low) → yellow → red(high)
                 const color = new THREE.Color();
-                color.setHSL(0.1 - t * 0.1, 1, 0.5);  // red=high, orange=mid, yellow=low
-                const radius = 0.3 + t * 1.2;  // thicker = stronger
+                color.setHSL(0.15 - t * 0.15, 1, 0.55);  // yellow(low) → red(high)
+                const radius = 0.5 + t * 2.0;  // thicker = stronger
                 const curve = new THREE.LineCurve3(p1, p2);
                 const geo = new THREE.TubeGeometry(curve, 1, radius, 4, false);
                 const mat = new THREE.MeshBasicMaterial({color, transparent: true, opacity: 0.7});

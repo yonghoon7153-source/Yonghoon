@@ -204,20 +204,6 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         rows.append({'지표': '── 이온전도 ──', '값': ''})
         rows.append({'지표': 'SE Volume Fraction', '값': round(eff_cond['phi_se'], 3)})
         rows.append({'지표': 'σ_eff/σ_bulk', '값': round(eff_cond['sigma_ratio'], 4)})
-    # ── 접촉력 ──
-    force_dist = results.get('force_dist', {})
-    if force_dist:
-        rows.append({'지표': '── 접촉력 ──', '값': ''})
-        for ct in sorted(force_dist.keys()):
-            v = force_dist[ct]
-            rows.append({'지표': f'Fn {ct} mean(μN)', '값': round(v['mean'], 3)})
-            rows.append({'지표': f'Fn {ct} max(μN)', '값': round(v['max'], 3)})
-    # ── 접촉 압력 ──
-    cp = results.get('contact_pressure', {})
-    if cp.get('overall'):
-        rows.append({'지표': '── 접촉 압력 ──', '값': ''})
-        rows.append({'지표': 'Contact Pressure mean(MPa)', '값': round(cp['overall']['mean'], 1)})
-        rows.append({'지표': 'Contact Pressure max(MPa)', '값': round(cp['overall']['max'], 1)})
     # ── 응력 ──
     stress = results.get('stress')
     if stress:

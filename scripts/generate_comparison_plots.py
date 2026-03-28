@@ -634,7 +634,7 @@ def _fit_r_gb(data_list, names):
 
 def plot_rgb_fitting(data_list, names, outdir):
     """R_gb fitting scatter: log(σ_brug/σ_proxy) vs GB_density."""
-    r_gb, k_val, valid_idx = _fit_r_gb(data_list, names)
+    r_gb, log_k, valid_idx = _fit_r_gb(data_list, names)
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     perc = [_get(d, "percolation_pct") / 100 for d in data_list]

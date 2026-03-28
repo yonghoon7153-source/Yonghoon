@@ -31,7 +31,8 @@
     </div>
     <div class="case-group-name-row">
       <label>Case 이름:</label>
-      <input type="text" class="input case-group-name" id="group-name-input" placeholder="예: SE 0.5μm" style="width:250px">
+      <input type="text" class="input case-group-name" id="group-name-input" placeholder="예: SE 0.5μm" style="width:250px"
+             oninput="this.value=this.value.replace(/um\b/g,'μm').replace(/degC/g,'°C')">
     </div>
 
     <!-- Dashboard cases -->

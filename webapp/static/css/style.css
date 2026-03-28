@@ -221,8 +221,8 @@ tr.tooltip-row .tt-meaning { color: #a5f3c4; margin-top: 8px; }
 .sticky-col {
   position: sticky; background: var(--card); z-index: 2;
 }
-.sticky-col-1 { left: 0; }
-.sticky-col-2 { left: 120px; }
+.sticky-col-1 { left: 0; min-width: 100px; }
+.sticky-col-2 { left: 100px; min-width: 45px; border-right: 2px solid var(--border); }
 thead .sticky-col { z-index: 3; }
 .th-name {
   font-weight: 600; color: var(--text);

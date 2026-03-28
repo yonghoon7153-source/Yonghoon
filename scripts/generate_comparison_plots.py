@@ -879,32 +879,21 @@ def plot_gb_corrected(data_list, names, outdir):
     # GB_d = 0: no GB → σ_eff_real = σ_brug (Bruggeman exact)
     sigma_corr = [sigma_brug[i] * np.exp(-r_gb * gb_dens[i]) if gb_dens[i] > 0 else sigma_brug[i]
                   for i in range(len(data_list))]
-    sigma_abs = [s * SIGMA_BULK for s in sigma_corr]
 
     fig, ax = plt.subplots(figsize=FIG_SINGLE)
     x = np.arange(len(names))
 
     ax.plot(x, sigma_corr, 's-', color=RED, markersize=10, linewidth=2.5, label="σ_eff_real/σ_bulk")
     _apply_style(ax, "σ_eff_real / σ_bulk", names)
-    ax.tick_params(axis='y', labelcolor=RED)
-
-    ax2 = ax.twinx()
-    ax2.plot(x, sigma_abs, 'D--', color=ORANGE, markersize=8, linewidth=2, label="σ_eff_real (mS/cm)")
-    ax2.set_ylabel("σ_eff_real (mS/cm)", fontsize=11, color=ORANGE)
-    ax2.tick_params(axis='y', labelcolor=ORANGE)
-    ax2.spines["top"].set_visible(False)
-
-    lines1, labels1 = ax.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    ax.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='best')
-    ax.set_title(f"σ_eff_real = σ_brug × e^(-b·GB_d)\nb={r_gb:.2f}, σ_bulk={SIGMA_BULK} mS/cm (LPSCl)",
-                 fontsize=10, fontweight='bold')
+    ax.legend(fontsize=9, loc='best')
+    ax.set_title(f"GB-Corrected σ_eff/σ_bulk  (b={r_gb:.2f})",
+                 fontsize=12, fontweight='bold')
 
     _write_csv(outdir, 'gb_corrected.csv',
                ['φ_SE', 'f_perc', 'τ', 'GB_density', 'R_gb',
-                'σ_brug/σ_bulk', 'σ_corr/σ_bulk', 'σ_eff_real(mS/cm)'],
+                'σ_brug/σ_bulk', 'σ_corr/σ_bulk'],
                names, phi, perc, tau, gb_dens,
-               [r_gb]*len(names), sigma_brug, sigma_corr, sigma_abs)
+               [r_gb]*len(names), sigma_brug, sigma_corr)
     return _save(fig, outdir, "gb_corrected.png")
 
 
@@ -1066,7 +1055,7 @@ PLOT_REGISTRY = {
         "func": plot_gb_corrected,
         "file": "gb_corrected.png",
         "title": "GB-Corrected σ_eff",
-        "description": "σ_eff_real = σ_brug × e^(-b × GB_d)\n= σ_bulk × φ_SE × f_perc / τ² × e^(-b × GB_d)\n\nb: log(σ_brug/σ_proxy) vs GB_d 선형회귀 기울기\nGB_d=0 → Bruggeman 정확 | GB_d↑ → 지수적 감소\nσ_bulk = 1.3 mS/cm (Li₆PS₅Cl)\n빨간 실선: σ_eff_real/σ_bulk (비율)\n오렌지 점선: σ_eff_real 절대값 (mS/cm)",
+        "description": "σ_eff_real/σ_bulk = φ_SE × f_perc / τ² × e^(-b × GB_d)\n\nb: R_gb fitting에서 결정된 입계 저항 계수\nGB_d=0 → Bruggeman 정확 | GB_d↑ → 지수적 감소\n\n⚠ 케이스 간 상대 비교용.\nDEM 구형 입자 + Hertz 접촉 한계로\n절대값(mS/cm)은 실측과 차이가 클 수 있음.",
         "origin_tip": "Line (Red, σ_corr/σ_bulk) + Dashed (Orange, mS/cm).",
     },
     "ion_path_quality": {

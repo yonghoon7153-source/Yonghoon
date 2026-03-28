@@ -647,7 +647,7 @@ def plot_rgb_fitting(data_list, names, outdir):
     fig, ax = plt.subplots(figsize=FIG_SINGLE)
 
     x_pts = np.array([gb_dens[i] for i in valid_idx])
-    y_pts = np.array([sigma_brug[i] / sigma_proxy[i] for i in valid_idx])
+    y_pts = np.array([np.log(sigma_brug[i] / sigma_proxy[i]) for i in valid_idx])
 
     ax.scatter(x_pts, y_pts, s=100, c=BLUE, zorder=5, edgecolors='white', linewidth=1.5)
     for j, i in enumerate(valid_idx):
@@ -655,23 +655,20 @@ def plot_rgb_fitting(data_list, names, outdir):
                    fontsize=8, ha='left', va='bottom', xytext=(5, 5),
                    textcoords='offset points', color=BLACK)
 
-    # Exponential fit: log(y) = a + b*x → y = e^(a + b*x)
-    log_y_pts = np.log(y_pts)
+    # Fit line in log space: log(y) = a + b*x
     x_line = np.linspace(0, max(x_pts) * 1.15, 100)
-    # k_val = a (intercept), r_gb = b (slope) in log space
-    y_line = np.exp(k_val + r_gb * x_line)
+    y_line = log_k + r_gb * x_line
     ax.plot(x_line, y_line, '-', color=RED, linewidth=2.5,
-            label=f"log(y) = {k_val:.2f} + {r_gb:.2f}·GB_d")
+            label=f"log(y) = {log_k:.2f} + {r_gb:.2f}·GB_d")
 
-    # R² in log space (where the fit was done)
-    log_y_pred = k_val + r_gb * x_pts
-    ss_res = np.sum((log_y_pts - log_y_pred) ** 2)
-    ss_tot = np.sum((log_y_pts - np.mean(log_y_pts)) ** 2)
+    # R² calculation
+    y_pred = log_k + r_gb * x_pts
+    ss_res = np.sum((y_pts - y_pred) ** 2)
+    ss_tot = np.sum((y_pts - np.mean(y_pts)) ** 2)
     r_squared = 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
-    ax.set_yscale('log')
     ax.set_xlabel("GB Density (hops/μm)", fontsize=12)
-    ax.set_ylabel("σ_brug / σ_proxy", fontsize=12)
+    ax.set_ylabel("log(σ_brug / σ_proxy)", fontsize=12)
     ax.set_title(f"R_gb Fitting → b = {r_gb:.2f},  R² = {r_squared:.4f}", fontsize=13, fontweight='bold')
     ax.legend(fontsize=10, loc='upper left')
     ax.text(0.95, 0.05, f"R² = {r_squared:.4f}\nn = {len(x_pts)}",
@@ -682,7 +679,7 @@ def plot_rgb_fitting(data_list, names, outdir):
     ax.spines["right"].set_visible(False)
 
     _write_csv(outdir, 'rgb_fitting.csv',
-               ['GB_density', 'σ_brug/σ_proxy', 'σ_brug', 'σ_proxy'],
+               ['GB_density', 'log(σ_brug/σ_proxy)', 'σ_brug', 'σ_proxy'],
                [names[i] for i in valid_idx],
                list(x_pts), list(y_pts),
                [sigma_brug[i] for i in valid_idx],

@@ -551,6 +551,7 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         fn = c.get('fn', 0) or np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
         fn_values.append(fn)
     fn_threshold = np.percentile(fn_values, 75) if fn_values else 0  # top 25%
+    print(f"  Force chains: {len(fn_values)} contacts, threshold={fn_threshold:.6f}, max fn={max(fn_values) if fn_values else 0:.6f}")
     for c in contacts_raw:
         if c['id1'] in atoms_raw and c['id2'] in atoms_raw:
             fn = c.get('fn', 0) or np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
@@ -564,6 +565,7 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                     'fn': round(fn * 1e6 / scale**2, 3),  # μN
                     'type': '-'.join(sorted([t1, t2])),
                 })
+    print(f"  Force chains saved: {len(force_chains)} chains")
     with open(os.path.join(output_dir, 'force_chains.json'), 'w') as f:
         json.dump(force_chains, f)
 

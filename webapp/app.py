@@ -1021,6 +1021,16 @@ def serve_3d_data(case_id):
         'clusters': clusters,
     })
 
+@app.route('/results/<case_id>/force-chains')
+def serve_force_chains(case_id):
+    """Serve force chain data for 3D viewer."""
+    results_dir = get_results_dir(case_id)
+    fc_path = os.path.join(results_dir, 'force_chains.json')
+    if os.path.exists(fc_path):
+        with open(fc_path) as f:
+            return jsonify(json.load(f))
+    return jsonify([])
+
 @app.route('/results/<case_id>/report')
 def serve_report(case_id):
     """Generate MD report on-the-fly from analysis CSVs."""

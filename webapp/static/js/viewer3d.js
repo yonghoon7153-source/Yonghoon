@@ -35,6 +35,8 @@ function buildControls(container) {
       <div id="cluster-info" style="font-size:10px;color:#e4e6f0;margin-top:3px;line-height:1.5"></div>
     </div>
     <hr>
+    <label><input type="checkbox" id="force-chain-toggle"> <span style="font-size:11px">Force Chain</span></label>
+    <hr>
     <button data-action="pathOnly">Path Only View</button>
     <button data-action="resetView">Reset</button>
     <button data-action="screenshot">Screenshot</button>`;
@@ -133,6 +135,7 @@ export function initElectrodeViewer(containerId, dataUrl) {
   state.infoEl = ctrlDiv._infoEl || document.getElementById('viewer-info');
 
   /* ── data fetch & build ──────────────────────────────────── */
+  state.dataUrl = dataUrl;
   fetch(dataUrl).then(r => r.json()).then(data => {
     state.data = data;
     buildScene(scene, camera, controls, data, state);
@@ -498,13 +501,55 @@ function wireControls(ctrlDiv, renderer, camera, controls, scene, state) {
       const layer = cb.dataset.layer;
       if (layer === 'percolation') {
         applyPercolation(state, cb.checked);
-      } else if (layer === 'forceChains') {
-        /* placeholder for force chains */
       } else if (state.meshes[layer]) {
         state.meshes[layer].visible = cb.checked;
       }
     });
   });
+
+  // Force chain toggle
+  const fcToggle = ctrlDiv.querySelector('#force-chain-toggle');
+  if (fcToggle) {
+    fcToggle.addEventListener('change', async () => {
+      if (fcToggle.checked) {
+        if (!state.forceChainGroup) {
+          // Load and build force chain lines
+          const url = state.dataUrl.replace('/3d-data', '/force-chains');
+          try {
+            const res = await fetch(url);
+            const chains = await res.json();
+            const group = new THREE.Group();
+            if (chains.length > 0) {
+              const fnValues = chains.map(c => c.fn);
+              const fnMax = Math.max(...fnValues);
+              const fnMin = Math.min(...fnValues);
+              chains.forEach(c => {
+                const p1 = new THREE.Vector3(...c.p1);
+                const p2 = new THREE.Vector3(...c.p2);
+                const t = fnMax > fnMin ? (c.fn - fnMin) / (fnMax - fnMin) : 0.5;
+                // Color: blue(low) → yellow → red(high)
+                const color = new THREE.Color();
+                color.setHSL(0.1 - t * 0.1, 1, 0.5);  // red=high, orange=mid, yellow=low
+                const radius = 0.3 + t * 1.2;  // thicker = stronger
+                const curve = new THREE.LineCurve3(p1, p2);
+                const geo = new THREE.TubeGeometry(curve, 1, radius, 4, false);
+                const mat = new THREE.MeshBasicMaterial({color, transparent: true, opacity: 0.7});
+                group.add(new THREE.Mesh(geo, mat));
+              });
+            }
+            state.forceChainGroup = group;
+            scene.add(group);
+          } catch(e) {
+            console.warn('Force chain data not available:', e);
+          }
+        } else {
+          state.forceChainGroup.visible = true;
+        }
+      } else if (state.forceChainGroup) {
+        state.forceChainGroup.visible = false;
+      }
+    });
+  }
 
   ctrlDiv.querySelectorAll('button').forEach(btn => {
     const action = btn.dataset.action;

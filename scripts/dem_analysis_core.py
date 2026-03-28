@@ -337,6 +337,175 @@ def calc_ionic_active_am(atoms, contacts, perc_result, se_types, am_types, type_
     return result
 
 
+# ─── Contact Force Distribution ───────────────────────────────────────────
+
+def calc_contact_force_distribution(atoms, contacts, type_map, scale):
+    """Normal force distribution by contact type. Returns stats in real units (μN)."""
+    # Force conversion: sim N → real μN = sim / scale² × 1e6
+    # In DEM: F_sim = E_sim * L_sim² proportional quantities
+    # Real force = F_sim / scale² (length²) × 1e6 (N→μN)
+    force_conv = 1.0 / (scale ** 2) * 1e6
+
+    forces_by_type = defaultdict(list)
+    for c in contacts:
+        if c['id1'] in atoms and c['id2'] in atoms:
+            t1 = type_map.get(atoms[c['id1']]['type'], '?')
+            t2 = type_map.get(atoms[c['id2']]['type'], '?')
+            ct = '-'.join(sorted([t1, t2]))
+            fn = np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
+            forces_by_type[ct].append(fn * force_conv)
+
+    result = {}
+    for ct, forces in forces_by_type.items():
+        f = np.array(forces)
+        result[ct] = {
+            'mean': float(np.mean(f)),
+            'std': float(np.std(f)),
+            'max': float(np.max(f)),
+            'n': len(f),
+        }
+    return result
+
+
+# ─── Contact Pressure ────────────────────────────────────────────────────
+
+def calc_contact_pressure(atoms, contacts, type_map, scale):
+    """Contact pressure = Fn / contact_area per contact. Returns stats in MPa."""
+    # Pressure = Force / Area. In sim units pressure is already Pa-like.
+    # Real pressure = F_real(N) / A_real(m²)
+    # F_real = F_sim / scale², A_real = A_sim / scale²  → P_real = F_sim / A_sim (same ratio!)
+    # Convert to MPa: / 1e6
+    pressures_by_type = defaultdict(list)
+    for c in contacts:
+        if c['id1'] in atoms and c['id2'] in atoms:
+            ca = c.get('contact_area', 0)
+            if ca <= 0:
+                continue
+            t1 = type_map.get(atoms[c['id1']]['type'], '?')
+            t2 = type_map.get(atoms[c['id2']]['type'], '?')
+            ct = '-'.join(sorted([t1, t2]))
+            fn = np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
+            pressure = fn / ca / 1e6  # Pa → MPa
+            pressures_by_type[ct].append(pressure)
+
+    result = {}
+    for ct, pressures in pressures_by_type.items():
+        p = np.array(pressures)
+        result[ct] = {
+            'mean': float(np.mean(p)),
+            'std': float(np.std(p)),
+            'max': float(np.max(p)),
+        }
+    # Overall
+    all_p = []
+    for v in pressures_by_type.values():
+        all_p.extend(v)
+    if all_p:
+        ap = np.array(all_p)
+        result['overall'] = {
+            'mean': float(np.mean(ap)),
+            'std': float(np.std(ap)),
+            'max': float(np.max(ap)),
+        }
+    return result
+
+
+# ─── Overlap Ratio ────────────────────────────────────────────────────────
+
+def calc_overlap_ratio(atoms, contacts):
+    """δ/R ratio for each contact. High values (>5%) indicate DEM inaccuracy."""
+    ratios = []
+    for c in contacts:
+        delta = abs(c.get('delta', 0))
+        if delta <= 0:
+            continue
+        if c['id1'] in atoms and c['id2'] in atoms:
+            r1 = atoms[c['id1']]['radius']
+            r2 = atoms[c['id2']]['radius']
+            r_eff = min(r1, r2)
+            if r_eff > 0:
+                ratios.append(delta / r_eff * 100)  # percentage
+
+    if not ratios:
+        return None
+    r = np.array(ratios)
+    return {
+        'mean': float(np.mean(r)),
+        'std': float(np.std(r)),
+        'max': float(np.max(r)),
+        'pct_above_5': float(np.sum(r > 5) / len(r) * 100),
+    }
+
+
+# ─── AM Isolation Risk ───────────────────────────────────────────────────
+
+def calc_am_isolation_risk(atoms, contacts, type_map):
+    """AM particles connected to only 1 SE = vulnerable (single point of failure)."""
+    am_types = [k for k, v in type_map.items() if 'AM' in v]
+    se_types = [k for k, v in type_map.items() if v == 'SE']
+
+    am_se_count = defaultdict(int)
+    for c in contacts:
+        if c['id1'] in atoms and c['id2'] in atoms:
+            t1 = atoms[c['id1']]['type']
+            t2 = atoms[c['id2']]['type']
+            if t1 in am_types and t2 in se_types:
+                am_se_count[c['id1']] += 1
+            elif t2 in am_types and t1 in se_types:
+                am_se_count[c['id2']] += 1
+
+    am_ids = [aid for aid, a in atoms.items() if a['type'] in am_types]
+    n_am = len(am_ids)
+    if n_am == 0:
+        return None
+
+    no_se = sum(1 for aid in am_ids if am_se_count.get(aid, 0) == 0)
+    single_se = sum(1 for aid in am_ids if am_se_count.get(aid, 0) == 1)
+    counts = [am_se_count.get(aid, 0) for aid in am_ids]
+
+    return {
+        'no_se_pct': float(no_se / n_am * 100),
+        'single_se_pct': float(single_se / n_am * 100),
+        'vulnerable_pct': float((no_se + single_se) / n_am * 100),
+        'am_se_cn_mean': float(np.mean(counts)),
+        'am_se_cn_std': float(np.std(counts)),
+    }
+
+
+# ─── Effective Ionic Conductivity ─────────────────────────────────────────
+
+def calc_effective_conductivity(atoms, perc_result, porosity, tortuosity_result, type_map, plate_z, box_xy=0.05):
+    """Estimate σ_eff / σ_bulk using Bruggeman-like relation.
+    σ_eff/σ_bulk = ε_SE^α / τ²  where α ≈ 1 (connected fraction)."""
+    se_types = [k for k, v in type_map.items() if v == 'SE']
+    se_ids = [aid for aid, a in atoms.items() if a['type'] in se_types]
+
+    if not se_ids:
+        return None
+
+    # SE volume fraction
+    v_electrode = box_xy * box_xy * plate_z
+    v_se = sum(4/3 * np.pi * atoms[aid]['radius']**3 for aid in se_ids)
+    phi_se = v_se / v_electrode if v_electrode > 0 else 0
+
+    tau = tortuosity_result.get('mean')
+    if not tau or tau <= 0:
+        return None
+
+    # Connected SE fraction (percolating)
+    perc_pct = perc_result.get('percolation_pct', 0) / 100
+
+    # Effective conductivity ratio
+    sigma_ratio = phi_se * perc_pct / (tau ** 2)
+
+    return {
+        'phi_se': float(phi_se),
+        'tau': float(tau),
+        'perc_fraction': float(perc_pct),
+        'sigma_ratio': float(sigma_ratio),
+    }
+
+
 # ─── Von Mises Stress Analysis ─────────────────────────────────────────────
 
 def calc_von_mises_stress(atoms_raw, type_map, scale, plate_z, n_layers=10):
@@ -466,6 +635,32 @@ def run_full_analysis(atoms_raw, contacts_raw, type_map, scale, results_dir, box
     else:
         print("  Stress: N/A (no stress data)")
 
+    # 9. Contact Force Distribution
+    force_dist = calc_contact_force_distribution(atoms_raw, contacts_raw, type_map, scale)
+    for ct, v in force_dist.items():
+        print(f"  Force {ct}: {v['mean']:.3f} ± {v['std']:.3f} μN (max {v['max']:.3f})")
+
+    # 10. Contact Pressure
+    contact_pressure = calc_contact_pressure(atoms_raw, contacts_raw, type_map, scale)
+    if 'overall' in contact_pressure:
+        cp = contact_pressure['overall']
+        print(f"  Contact Pressure: {cp['mean']:.1f} ± {cp['std']:.1f} MPa (max {cp['max']:.1f})")
+
+    # 11. Overlap Ratio
+    overlap = calc_overlap_ratio(atoms_raw, contacts_raw)
+    if overlap:
+        print(f"  Overlap δ/R: {overlap['mean']:.2f}% ± {overlap['std']:.2f}% (max {overlap['max']:.2f}%, >5%: {overlap['pct_above_5']:.1f}%)")
+
+    # 12. AM Isolation Risk
+    am_risk = calc_am_isolation_risk(atoms_raw, contacts_raw, type_map)
+    if am_risk:
+        print(f"  AM Risk: vulnerable {am_risk['vulnerable_pct']:.1f}% (no SE: {am_risk['no_se_pct']:.1f}%, single SE: {am_risk['single_se_pct']:.1f}%)")
+
+    # 13. Effective Ionic Conductivity
+    eff_cond = calc_effective_conductivity(atoms_raw, perc, porosity, tau, type_map, plate_z, box_xy)
+    if eff_cond:
+        print(f"  σ_eff/σ_bulk: {eff_cond['sigma_ratio']:.4f} (φ_SE={eff_cond['phi_se']:.3f}, τ={eff_cond['tau']:.2f})")
+
     return {
         'plate_z': plate_z,
         'plate_z_source': pz_source,
@@ -478,4 +673,9 @@ def run_full_analysis(atoms_raw, contacts_raw, type_map, scale, results_dir, box
         'tortuosity': tau,
         'ionic_active': ionic,
         'stress': stress,
+        'force_dist': force_dist,
+        'contact_pressure': contact_pressure,
+        'overlap_ratio': overlap,
+        'am_isolation_risk': am_risk,
+        'effective_conductivity': eff_cond,
     }

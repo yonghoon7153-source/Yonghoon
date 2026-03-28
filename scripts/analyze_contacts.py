@@ -192,6 +192,31 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         {'지표': '── 활성도 ──', '값': ''},
         {'지표': 'Ionic Active AM(%)', '값': round(ionic['active_pct'], 1)},
     ]
+    # ── 활성도: AM 취약성 ──
+    am_risk = results.get('am_isolation_risk')
+    if am_risk:
+        rows.append({'지표': 'AM Vulnerable(%)', '값': round(am_risk['vulnerable_pct'], 1)})
+        rows.append({'지표': 'AM-SE CN mean', '값': round(am_risk['am_se_cn_mean'], 2)})
+    # ── 이온전도 ──
+    eff_cond = results.get('effective_conductivity')
+    if eff_cond:
+        rows.append({'지표': '── 이온전도 ──', '값': ''})
+        rows.append({'지표': 'σ_eff/σ_bulk', '값': round(eff_cond['sigma_ratio'], 4)})
+        rows.append({'지표': 'SE Volume Fraction', '값': round(eff_cond['phi_se'], 3)})
+    # ── 접촉력 ──
+    force_dist = results.get('force_dist', {})
+    if force_dist:
+        rows.append({'지표': '── 접촉력 ──', '값': ''})
+        for ct in sorted(force_dist.keys()):
+            v = force_dist[ct]
+            rows.append({'지표': f'Fn {ct} mean(μN)', '값': round(v['mean'], 3)})
+            rows.append({'지표': f'Fn {ct} max(μN)', '값': round(v['max'], 3)})
+    # ── 접촉 압력 ──
+    cp = results.get('contact_pressure', {})
+    if cp.get('overall'):
+        rows.append({'지표': '── 접촉 압력 ──', '값': ''})
+        rows.append({'지표': 'Contact Pressure mean(MPa)', '값': round(cp['overall']['mean'], 1)})
+        rows.append({'지표': 'Contact Pressure max(MPa)', '값': round(cp['overall']['max'], 1)})
     # ── 응력 ──
     stress = results.get('stress')
     if stress:
@@ -200,6 +225,13 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         for tn in ['AM_P', 'AM_S', 'SE']:
             if tn in stress['type_stress']:
                 rows.append({'지표': f'σ_{tn}/σ_mean', '값': round(stress['type_stress'][tn]['ratio'], 3)})
+    # ── DEM 검증 ──
+    overlap = results.get('overlap_ratio')
+    if overlap:
+        rows.append({'지표': '── DEM 검증 ──', '값': ''})
+        rows.append({'지표': 'Overlap δ/R mean(%)', '값': round(overlap['mean'], 2)})
+        rows.append({'지표': 'Overlap δ/R max(%)', '값': round(overlap['max'], 2)})
+        rows.append({'지표': 'Overlap >5%(%)', '값': round(overlap['pct_above_5'], 1)})
     pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'network_summary.csv'), index=False)
 
     # Auto-detect P:S ratio from mass (count × volume × density)
@@ -280,6 +312,29 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         for tn, sv in stress['type_stress'].items():
             metrics[f'stress_ratio_{tn}'] = sv['ratio']
         metrics['stress_z_layer_cv'] = stress['z_layer_cv']
+    # New metrics
+    force_dist = results.get('force_dist', {})
+    for ct, v in force_dist.items():
+        safe = ct.replace('-', '_')
+        metrics[f'fn_{safe}_mean'] = v['mean']
+        metrics[f'fn_{safe}_max'] = v['max']
+    cp = results.get('contact_pressure', {})
+    if cp.get('overall'):
+        metrics['contact_pressure_mean'] = cp['overall']['mean']
+        metrics['contact_pressure_max'] = cp['overall']['max']
+    overlap = results.get('overlap_ratio')
+    if overlap:
+        metrics['overlap_mean'] = overlap['mean']
+        metrics['overlap_max'] = overlap['max']
+        metrics['overlap_pct_above_5'] = overlap['pct_above_5']
+    am_risk = results.get('am_isolation_risk')
+    if am_risk:
+        metrics['am_vulnerable_pct'] = am_risk['vulnerable_pct']
+        metrics['am_se_cn_mean'] = am_risk['am_se_cn_mean']
+    eff_cond = results.get('effective_conductivity')
+    if eff_cond:
+        metrics['sigma_ratio'] = eff_cond['sigma_ratio']
+        metrics['phi_se'] = eff_cond['phi_se']
     with open(os.path.join(output_dir, 'full_metrics.json'), 'w') as f:
         json.dump(metrics, f, indent=2, default=str)
 
@@ -508,6 +563,29 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                 pass
         with open(os.path.join(output_dir, 'tortuosity_paths.json'), 'w') as f:
             json.dump(paths_data, f)
+
+    # Force chain data for 3D viewer
+    force_chains = []
+    fn_values = []
+    for c in contacts_raw:
+        fn = np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
+        fn_values.append(fn)
+    fn_threshold = np.percentile(fn_values, 75) if fn_values else 0  # top 25%
+    for c in contacts_raw:
+        if c['id1'] in atoms_raw and c['id2'] in atoms_raw:
+            fn = np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
+            if fn >= fn_threshold:
+                a1, a2 = atoms_raw[c['id1']], atoms_raw[c['id2']]
+                t1 = type_map.get(a1['type'], '?')
+                t2 = type_map.get(a2['type'], '?')
+                force_chains.append({
+                    'p1': [a1['x'] * scale, a1['z'] * scale, a1['y'] * scale],
+                    'p2': [a2['x'] * scale, a2['z'] * scale, a2['y'] * scale],
+                    'fn': round(fn * 1e6 / scale**2, 3),  # μN
+                    'type': '-'.join(sorted([t1, t2])),
+                })
+    with open(os.path.join(output_dir, 'force_chains.json'), 'w') as f:
+        json.dump(force_chains, f)
 
     # Analyzed CSVs
     df_atom['type_name'] = df_atom['type'].map(type_map)

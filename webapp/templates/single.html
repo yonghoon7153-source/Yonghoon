@@ -328,8 +328,85 @@ const METRIC_TIPS = {
     formula: 'σ_ratio = 평균(SE의 σ_VM) / 평균(전체 입자의 σ_VM)',
     desc: '고체전해질(SE)의 평균 Von Mises 응력을 전체 평균 응력으로 나눈 비율입니다.',
     meaning: 'SE는 AM보다 기계적 강도가 낮은 경우가 많습니다. SE 응력비가 1에 가까우면 고르게 분담하는 것이고, 높으면 SE에 과도한 하중이 걸려 분해/열화 위험이 있습니다.'
+  },
+  'AM Vulnerable(%)': {
+    title: 'AM Vulnerable (취약 AM 비율)',
+    formula: 'Vulnerable = (SE 0개 접촉 AM + SE 1개 접촉 AM) / 전체 AM × 100',
+    desc: 'SE와 접촉이 없거나 1개의 SE와만 접촉한 AM 입자의 비율입니다. SE 1개 접촉 = single point of failure.',
+    meaning: '취약 AM은 하나의 SE-AM 접촉이 끊기면 즉시 ionic dead가 됩니다. 이 비율이 높으면 사이클링 중 접촉 손실에 의한 용량 감소 위험이 큽니다.'
+  },
+  'AM-SE CN mean': {
+    title: 'AM-SE Coordination Number',
+    formula: 'CN = AM 입자 하나가 접촉하고 있는 SE 입자의 수 (평균)',
+    desc: '활물질(AM) 입자가 평균적으로 몇 개의 SE 입자와 접촉하는지를 나타냅니다.',
+    meaning: 'AM-SE CN이 높을수록 이온 공급 경로가 다양하여 안정적입니다. CN ≥ 3이면 한두 개 접촉이 끊겨도 활성 상태를 유지할 수 있습니다.'
+  },
+  'σ_eff/σ_bulk': {
+    title: 'Effective Ionic Conductivity Ratio',
+    formula: 'σ_eff/σ_bulk = φ_SE × f_perc / τ²\nφ_SE = SE 부피 분율\nf_perc = percolating SE 비율\nτ = tortuosity',
+    desc: 'SE 벌크 전도도 대비 전극 내 유효 이온 전도도의 비율입니다. Bruggeman 관계식 기반 추정값입니다.',
+    meaning: '이 값이 1에 가까울수록 SE가 벌크와 비슷한 전도 성능을 발휘합니다. 실제로는 0.01~0.3 범위이며, 값이 클수록 이온 전도 손실이 적은 전극 구조입니다.'
+  },
+  'SE Volume Fraction': {
+    title: 'SE Volume Fraction (SE 부피 분율)',
+    formula: 'φ_SE = V_SE / V_electrode\nV_SE = Σ(4/3 π r³) for all SE',
+    desc: '전극 전체 부피 중 SE가 차지하는 부피 비율입니다.',
+    meaning: 'SE 부피 분율이 높을수록 이온 전도 네트워크 형성에 유리하지만, 그만큼 AM 비율이 줄어 에너지 밀도가 떨어집니다. 최적의 trade-off를 찾는 것이 핵심입니다.'
+  },
+  'Contact Pressure mean(MPa)': {
+    title: 'Contact Pressure (접촉 압력 평균)',
+    formula: 'P = F_n / A_contact\nF_n = 법선 접촉력\nA_contact = 접촉 면적',
+    desc: '각 접촉점에서의 법선력을 접촉 면적으로 나눈 압력(MPa)의 전체 평균입니다.',
+    meaning: '같은 힘이라도 접촉 면적이 작으면 압력이 높아집니다. 높은 접촉 압력은 SE 분해, 계면 반응층 성장, 미세 크랙의 원인이 됩니다.'
+  },
+  'Contact Pressure max(MPa)': {
+    title: 'Contact Pressure (접촉 압력 최대)',
+    formula: 'P_max = max(F_n / A_contact)',
+    desc: '전체 접촉점 중 가장 높은 접촉 압력(MPa)입니다.',
+    meaning: '최대 압력 지점이 failure의 시작점이 됩니다. 이 값이 SE의 파괴 강도를 초과하면 국부적 크랙이 발생합니다.'
+  },
+  'Overlap δ/R mean(%)': {
+    title: 'Overlap Ratio 평균 (δ/R)',
+    formula: 'δ/R = (입자 겹침량) / min(R₁, R₂) × 100',
+    desc: 'DEM에서 접촉하는 두 입자의 겹침(overlap)을 작은 쪽 반지름으로 나눈 비율(%)입니다.',
+    meaning: 'DEM은 입자가 약간 겹치는 것으로 접촉력을 계산합니다. δ/R < 5%이면 정상, > 5%이면 과도한 변형으로 시뮬레이션 정확도가 떨어질 수 있습니다.'
+  },
+  'Overlap δ/R max(%)': {
+    title: 'Overlap Ratio 최대 (δ/R)',
+    formula: 'δ/R_max = max(δ_i / min(R₁, R₂)_i) × 100',
+    desc: '전체 접촉 중 가장 큰 겹침 비율(%)입니다.',
+    meaning: '최대 overlap이 10%를 넘으면 해당 접촉의 물리적 의미가 약해집니다. DEM 파라미터(강성, 시간 스텝) 검토가 필요합니다.'
+  },
+  'Overlap >5%(%)': {
+    title: 'Overlap > 5% 비율',
+    formula: '(δ/R > 5%인 접촉 수 / 전체 접촉 수) × 100',
+    desc: '과도한 겹침(δ/R > 5%)을 가진 접촉의 비율(%)입니다.',
+    meaning: '이 비율이 0%에 가까우면 DEM 결과가 신뢰할 만합니다. 높으면 전체적으로 과도한 변형이 일어나고 있어 시뮬레이션 조건(가압 속도, 강성 등) 재검토가 필요합니다.'
   }
 };
+
+// Dynamic tooltip for Fn rows (contact type varies)
+document.querySelectorAll('.metric-label[data-metric]').forEach(td => {
+  const key = td.dataset.metric;
+  if (key.startsWith('Fn ') && key.includes('mean')) {
+    const ct = key.replace('Fn ', '').replace(' mean(μN)', '');
+    METRIC_TIPS[key] = {
+      title: `접촉력 ${ct} (평균)`,
+      formula: `F_n = √(fn_x² + fn_y² + fn_z²)`,
+      desc: `${ct} 접촉쌍의 법선 접촉력 평균(μN)입니다.`,
+      meaning: '접촉력이 크면 접촉 면적도 크지만, 과도하면 입자 파쇄/SE 분해 위험이 있습니다. AM-AM 접촉력이 가장 클 수 있으며, 이는 대립자끼리 직접 하중을 전달하기 때문입니다.'
+    };
+  }
+  if (key.startsWith('Fn ') && key.includes('max')) {
+    const ct = key.replace('Fn ', '').replace(' max(μN)', '');
+    METRIC_TIPS[key] = {
+      title: `접촉력 ${ct} (최대)`,
+      formula: `F_n_max = max(√(fn_x² + fn_y² + fn_z²))`,
+      desc: `${ct} 접촉쌍 중 가장 큰 법선력(μN)입니다.`,
+      meaning: '최대 접촉력 지점이 파손/크랙의 시작점이 될 수 있습니다. AM-AM 최대 접촉력이 높으면 대립자 파쇄 위험을 나타냅니다.'
+    };
+  }
+});
 
 // Inline tooltip: insert/remove a row below on hover
 let activeTooltipRow = null;

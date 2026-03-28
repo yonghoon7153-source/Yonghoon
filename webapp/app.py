@@ -591,9 +591,9 @@ def group():
             ('Porosity', '(%)', 'porosity', '구조/계면'),
             ('두께', '(μm)', 'thickness_um', '구조/계면'),
             ('AM-SE Total', '(μm²)', 'area_AM전체_SE_total', '구조/계면'),
-            ('SE-SE Total', '(μm²)', 'area_SE_SE_total', '구조/계면'),
             ('SE-SE N', '', 'area_SE_SE_n', '구조/계면'),
             ('SE-SE Mean', '(μm²)', 'area_SE_SE_mean', '구조/계면'),
+            ('SE-SE Total', '(μm²)', 'area_SE_SE_total', '구조/계면'),
             ('Coverage P', '(%)', 'coverage_AM_P_mean', '구조/계면'),
             ('Coverage S', '(%)', 'coverage_AM_S_mean', '구조/계면'),
             # ── 이온경로 ──

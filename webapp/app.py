@@ -101,6 +101,12 @@ def list_cases():
 
 def run_pipeline(case_id, mode, type_map, scale=1000):
     """Run the DEM analysis pipeline for a case."""
+    # Clear pyc cache to ensure latest code runs
+    import glob as globmod
+    scripts_dir = os.path.join(os.path.dirname(__file__), '..', 'scripts')
+    for pyc in globmod.glob(os.path.join(scripts_dir, '__pycache__', '*.pyc')):
+        os.remove(pyc)
+
     case_dir = get_case_dir(case_id)
     results_dir = get_results_dir(case_id)
     figures_dir = os.path.join(results_dir, 'figures')
@@ -593,6 +599,15 @@ def group():
             ('GB Density', '(hops/μm)', 'gb_density_mean'),
             ('Path Conductance', '(μm²)', 'path_conductance_mean'),
             ('Bottleneck', '(μm²)', 'path_hop_area_min_mean'),
+            ('AM-SE CN', '', 'am_se_cn_mean'),
+            ('Vulnerable', '(%)', 'am_vulnerable_pct'),
+            ('σ_eff/σ_bulk', '', 'sigma_ratio'),
+            ('φ_SE', '', 'phi_se'),
+            ('Fn AM-AM', '(μN)', 'fn_AM_P_AM_P_mean'),
+            ('Fn AM-SE', '(μN)', 'fn_AM_P_SE_mean'),
+            ('Fn SE-SE', '(μN)', 'fn_SE_SE_mean'),
+            ('CP mean', '(MPa)', 'contact_pressure_mean'),
+            ('CP max', '(MPa)', 'contact_pressure_max'),
         ]
         rows = []
         for cid in selected:

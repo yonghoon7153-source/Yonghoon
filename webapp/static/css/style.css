@@ -333,13 +333,23 @@ tr.tooltip-row .tt-meaning { color: #a5f3c4; margin-top: 8px; }
 
 /* ===== Group Plots ===== */
 .plot-select-grid {
-  display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;
+  display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;
+}
+.plot-category {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  padding: 10px 12px; background: rgba(108,140,255,.05);
+  border: 1px solid var(--border); border-radius: 8px;
+  flex: 1; min-width: 280px;
+}
+.plot-cat-label {
+  width: 100%; font-size: .75rem; font-weight: 700;
+  color: var(--accent); letter-spacing: .5px; margin-bottom: 2px;
 }
 .plot-checkbox {
   display: flex; align-items: center; gap: 6px;
-  padding: 6px 12px; background: var(--bg);
+  padding: 4px 10px; background: var(--bg);
   border: 1px solid var(--border); border-radius: 6px;
-  cursor: pointer; font-size: .85rem; transition: .15s;
+  cursor: pointer; font-size: .82rem; transition: .15s;
 }
 .plot-checkbox:hover { border-color: var(--accent); }
 .plot-checkbox input { accent-color: var(--accent); }

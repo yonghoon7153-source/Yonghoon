@@ -442,6 +442,141 @@ def _generate_particle_info(all_data, ps_labels, case_names, outdir):
     plt.close(fig)
 
 
+# ─── New Plots ─────────────────────────────────────────────────────────────────
+
+ORANGE = "#ED7D31"
+PURPLE = "#7030A0"
+
+
+def plot_contact_force(data_list, names, outdir):
+    """Contact force distribution by type (grouped bar)."""
+    fig, ax = plt.subplots(figsize=FIG_SINGLE)
+    n = len(names)
+    x = np.arange(n)
+    types = ['AM_P-AM_P', 'AM_P-SE', 'SE-SE', 'AM_P-AM_S', 'AM_S-SE']
+    colors = [RED, GREEN, BLUE, ORANGE, LIGHT_GREEN]
+
+    # Find which types actually have data
+    active = []
+    for ct, color in zip(types, colors):
+        key = f"fn_{ct.replace('-','_')}_mean"
+        vals = [_get(d, key) for d in data_list]
+        if any(v > 0 for v in vals):
+            active.append((ct, key, color, vals))
+
+    if not active:
+        plt.close(fig)
+        return None
+
+    w = 0.8 / len(active)
+    for i, (ct, key, color, vals) in enumerate(active):
+        offset = (i - len(active)/2 + 0.5) * w
+        bars = ax.bar(x + offset, vals, w, label=ct, color=color, alpha=0.85)
+
+    _apply_style(ax, "Fn mean (μN)", names)
+    ax.legend(fontsize=8, loc='upper right')
+    ax.set_title("Contact Force by Type", fontsize=12, fontweight='bold')
+    return _save(fig, outdir, "contact_force.png")
+
+
+def plot_contact_pressure(data_list, names, outdir):
+    """Contact pressure mean & max (dual bar)."""
+    fig, ax = plt.subplots(figsize=FIG_SINGLE)
+    n = len(names)
+    x = np.arange(n)
+    w = 0.35
+
+    means = [_get(d, "contact_pressure_mean") for d in data_list]
+    maxes = [_get(d, "contact_pressure_max") for d in data_list]
+
+    ax.bar(x - w/2, means, w, label="Mean", color=BLUE, alpha=0.85)
+    ax.bar(x + w/2, maxes, w, label="Max", color=RED, alpha=0.85)
+
+    _apply_style(ax, "Contact Pressure (MPa)", names)
+    ax.legend(fontsize=9)
+    ax.set_title("Contact Pressure", fontsize=12, fontweight='bold')
+    return _save(fig, outdir, "contact_pressure.png")
+
+
+def plot_am_vulnerability(data_list, names, outdir):
+    """AM vulnerability + AM-SE CN (dual Y axis)."""
+    fig, ax1 = plt.subplots(figsize=FIG_SINGLE)
+    x = np.arange(len(names))
+
+    vuln = [_get(d, "am_vulnerable_pct") for d in data_list]
+    cn = [_get(d, "am_se_cn_mean") for d in data_list]
+
+    color1, color2 = RED, BLUE
+    ax1.bar(x, vuln, 0.5, color=color1, alpha=0.7, label="Vulnerable AM (%)")
+    _apply_style(ax1, "Vulnerable AM (%)", names)
+    ax1.tick_params(axis='y', labelcolor=color1)
+
+    ax2 = ax1.twinx()
+    ax2.plot(x, cn, 'o-', color=color2, markersize=8, linewidth=2, label="AM-SE CN")
+    ax2.set_ylabel("AM-SE CN mean", fontsize=11, color=color2)
+    ax2.tick_params(axis='y', labelcolor=color2)
+    ax2.spines["top"].set_visible(False)
+
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper right')
+    ax1.set_title("AM Vulnerability & SE Connectivity", fontsize=12, fontweight='bold')
+    return _save(fig, outdir, "am_vulnerability.png")
+
+
+def plot_effective_conductivity(data_list, names, outdir):
+    """Effective ionic conductivity ratio (σ_eff/σ_bulk) with SE volume fraction."""
+    fig, ax1 = plt.subplots(figsize=FIG_SINGLE)
+    x = np.arange(len(names))
+
+    sigma = [_get(d, "sigma_ratio") for d in data_list]
+    phi = [_get(d, "phi_se") for d in data_list]
+
+    color1, color2 = GREEN, BLUE
+    ax1.plot(x, sigma, 's-', color=color1, markersize=10, linewidth=2.5, label="σ_eff/σ_bulk")
+    _apply_style(ax1, "σ_eff / σ_bulk", names)
+    ax1.tick_params(axis='y', labelcolor=color1)
+
+    ax2 = ax1.twinx()
+    ax2.bar(x, phi, 0.4, color=color2, alpha=0.3, label="φ_SE")
+    ax2.set_ylabel("SE Volume Fraction", fontsize=11, color=color2)
+    ax2.tick_params(axis='y', labelcolor=color2)
+    ax2.spines["top"].set_visible(False)
+
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper left')
+    ax1.set_title("Effective Ionic Conductivity", fontsize=12, fontweight='bold')
+    return _save(fig, outdir, "effective_conductivity.png")
+
+
+def plot_ion_path_quality(data_list, names, outdir):
+    """Ion path quality: GB Density, Path Conductance, Bottleneck (3 subplots)."""
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
+    x = np.arange(len(names))
+
+    # GB Density
+    vals = [_get(d, "gb_density_mean") for d in data_list]
+    axes[0].plot(x, vals, 's-', color=BLUE, markersize=8, linewidth=2)
+    _apply_style(axes[0], "GB Density (hops/μm)", names)
+    axes[0].set_title("Grain Boundary Density", fontsize=11, fontweight='bold')
+
+    # Path Conductance
+    vals = [_get(d, "path_conductance_mean") for d in data_list]
+    axes[1].plot(x, vals, 's-', color=GREEN, markersize=8, linewidth=2)
+    _apply_style(axes[1], "Path Conductance (μm²)", names)
+    axes[1].set_title("Path Conductance", fontsize=11, fontweight='bold')
+
+    # Bottleneck
+    vals = [_get(d, "path_hop_area_min_mean") for d in data_list]
+    axes[2].plot(x, vals, 's-', color=RED, markersize=8, linewidth=2)
+    _apply_style(axes[2], "Bottleneck (μm²)", names)
+    axes[2].set_title("Path Bottleneck", fontsize=11, fontweight='bold')
+
+    fig.suptitle("Ion Path Quality", fontsize=13, fontweight='bold', y=1.02)
+    return _save(fig, outdir, "ion_path_quality.png")
+
+
 # ─── Plot dispatch table ─────────────────────────────────────────────────────
 
 PLOT_REGISTRY = {
@@ -507,6 +642,41 @@ PLOT_REGISTRY = {
         "title": "Stress Ratio by Type",
         "description": "입자 유형별 응력 비율 (σ_type / σ_mean).\n\n> 1.0 = 평균보다 응력 집중\n< 1.0 = 평균보다 하중 적음\n\nSE > 1.0이면 SE에 응력 집중 → 소성변형 유발.",
         "origin_tip": "Multi-line → X: P:S, Y: σ/σ_mean.\nAM_P: Red, AM_S: Orange, SE: Green.\ny=1.0에 점선 (mean baseline).",
+    },
+    "contact_force": {
+        "func": plot_contact_force,
+        "file": "contact_force.png",
+        "title": "Contact Force",
+        "description": "접촉 유형별(AM-AM, AM-SE, SE-SE) 법선력 평균.\n대립자 간 접촉력이 가장 크며, P:S 변화에 따라 하중 분담 변화 관찰.",
+        "origin_tip": "Grouped Bar → X: Configuration, Y: Fn mean (μN).\nAM-AM: Red, AM-SE: Green, SE-SE: Blue.",
+    },
+    "contact_pressure": {
+        "func": plot_contact_pressure,
+        "file": "contact_pressure.png",
+        "title": "Contact Pressure",
+        "description": "접촉 압력 평균/최대. 같은 힘이라도 면적이 작으면 압력↑.\nMax는 failure 시작점, Mean은 전체 경향.",
+        "origin_tip": "Dual Bar → X: Configuration, Y: Pressure (MPa).\nMean: Blue, Max: Red.",
+    },
+    "am_vulnerability": {
+        "func": plot_am_vulnerability,
+        "file": "am_vulnerability.png",
+        "title": "AM Vulnerability",
+        "description": "취약 AM 비율(SE 0~1개 접촉)과 AM-SE 배위수.\nVulnerable↓ + CN↑ = 안정적 이온 공급.",
+        "origin_tip": "Dual-Y → Left: Bar (Vulnerable %, Red).\nRight: Line (AM-SE CN, Blue).",
+    },
+    "effective_conductivity": {
+        "func": plot_effective_conductivity,
+        "file": "effective_conductivity.png",
+        "title": "Effective Conductivity",
+        "description": "유효 이온전도도 비율 σ_eff/σ_bulk.\nSE 부피 분율(φ_SE)과 함께 표시. 높을수록 이온 전도 손실 적음.",
+        "origin_tip": "Dual-Y → Left: Line (σ_eff/σ_bulk, Green).\nRight: Bar (φ_SE, Blue, alpha=0.3).",
+    },
+    "ion_path_quality": {
+        "func": plot_ion_path_quality,
+        "file": "ion_path_quality.png",
+        "title": "Ion Path Quality",
+        "description": "이온 경로 품질 3종: GB Density(↓ 좋음), Path Conductance(↑ 좋음), Bottleneck(↑ 좋음).\n경로의 실질적 이온 전도 능력.",
+        "origin_tip": "3 Subplots → GB Density (Blue), Conductance (Green), Bottleneck (Red).\nLine+Symbol.",
     },
     "stress_z_layer": {
         "func": plot_stress_z_layer,

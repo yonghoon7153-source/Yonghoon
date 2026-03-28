@@ -603,50 +603,100 @@ def plot_effective_conductivity(data_list, names, outdir):
     return _save(fig, outdir, "effective_conductivity.png")
 
 
-def plot_gb_corrected(data_list, names, outdir):
-    """GB-corrected effective conductivity with R_gb fitted from Path Conductance."""
-    fig, ax = plt.subplots(figsize=FIG_SINGLE)
-    x = np.arange(len(names))
-    SIGMA_BULK = 1.3  # mS/cm, Li₆PS₅Cl cold-pressed
+def _fit_r_gb(data_list, names):
+    """Fit R_gb from Bruggeman vs Path Conductance data. Returns r_gb, log_k, valid data."""
+    sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
+    perc = [_get(d, "percolation_pct") / 100 for d in data_list]
+    tau = [_get(d, "tortuosity_mean", 1) for d in data_list]
+    g_path = [_get(d, "path_conductance_mean") for d in data_list]
+    gb_dens = [_get(d, "gb_density_mean") for d in data_list]
+
+    sigma_proxy = [g_path[i] * perc[i] / tau[i] if g_path[i] > 0 and tau[i] > 0 else 0
+                   for i in range(len(data_list))]
+
+    valid_idx = [i for i in range(len(data_list))
+                 if sigma_proxy[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0]
+
+    r_gb, log_k_best = 0.5, 0
+    if len(valid_idx) >= 2:
+        y_vals = np.array([sigma_brug[i] / sigma_proxy[i] for i in valid_idx])
+        x_vals = np.array([gb_dens[i] for i in valid_idx])
+        log_y = np.log(y_vals)
+        best_r, best_cost = 0.5, 1e30
+        for r_try in np.arange(0.1, 15.0, 0.05):
+            model = np.log(1 + r_try * x_vals)
+            log_k = np.mean(log_y - model)
+            cost = np.sum((log_y - log_k - model) ** 2)
+            if cost < best_cost:
+                best_cost = cost
+                best_r = r_try
+                log_k_best = log_k
+        r_gb = best_r
+    return r_gb, log_k_best, valid_idx
+
+
+def plot_rgb_fitting(data_list, names, outdir):
+    """R_gb fitting scatter: log(σ_brug/σ_proxy) vs GB_density."""
+    r_gb, log_k, valid_idx = _fit_r_gb(data_list, names)
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     perc = [_get(d, "percolation_pct") / 100 for d in data_list]
     tau = [_get(d, "tortuosity_mean", 1) for d in data_list]
     g_path = [_get(d, "path_conductance_mean") for d in data_list]
     gb_dens = [_get(d, "gb_density_mean") for d in data_list]
-    phi = [_get(d, "phi_se") for d in data_list]
-
-    # Estimate R_gb: corrected Bruggeman should correlate with G_path × f_perc / τ
     sigma_proxy = [g_path[i] * perc[i] / tau[i] if g_path[i] > 0 and tau[i] > 0 else 0
                    for i in range(len(data_list))]
 
-    valid = [(sigma_brug[i], sigma_proxy[i], gb_dens[i])
-             for i in range(len(data_list))
-             if sigma_proxy[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0]
+    fig, ax = plt.subplots(figsize=FIG_SINGLE)
 
-    r_gb = 0.5
-    if len(valid) >= 2:
-        # Log-space regression: log(σ_brug/σ_proxy) vs GB_d
-        # σ_brug/σ_proxy = k × (1 + R_gb × GB_d)
-        # In log space, fit R_gb by minimizing residuals
-        y_vals = np.array([sb / sp for sb, sp, _ in valid])
-        x_vals = np.array([gd for _, _, gd in valid])
-        log_y = np.log(y_vals)
-        # Grid search R_gb: minimize sum of (log(y) - log(k × (1+R_gb×x)))²
-        best_r, best_cost = 0.5, 1e30
-        for r_try in np.arange(0.1, 10.0, 0.05):
-            model = np.log(1 + r_try * x_vals)
-            # Optimal log(k) = mean(log_y - model)
-            log_k = np.mean(log_y - model)
-            cost = np.sum((log_y - log_k - model) ** 2)
-            if cost < best_cost:
-                best_cost = cost
-                best_r = r_try
-        r_gb = best_r
+    x_pts = np.array([gb_dens[i] for i in valid_idx])
+    y_pts = np.array([np.log(sigma_brug[i] / sigma_proxy[i]) for i in valid_idx])
+
+    ax.scatter(x_pts, y_pts, s=100, c=BLUE, zorder=5, edgecolors='white', linewidth=1.5)
+    for j, i in enumerate(valid_idx):
+        ax.annotate(names[i], (x_pts[j], y_pts[j]),
+                   fontsize=8, ha='left', va='bottom', xytext=(5, 5),
+                   textcoords='offset points', color=BLACK)
+
+    x_line = np.linspace(0, max(x_pts) * 1.15, 100)
+    y_line = log_k + np.log(1 + r_gb * x_line)
+    ax.plot(x_line, y_line, '-', color=RED, linewidth=2.5,
+            label=f"y = log(k·(1 + {r_gb:.2f}·GB_d))")
+
+    ax.set_xlabel("GB Density (hops/μm)", fontsize=12)
+    ax.set_ylabel("log(σ_brug / σ_proxy)", fontsize=12)
+    ax.set_title(f"R_gb Fitting from Data → R_gb = {r_gb:.2f}", fontsize=13, fontweight='bold')
+    ax.legend(fontsize=10, loc='upper left')
+    ax.yaxis.grid(True, linestyle="--", linewidth=0.4, alpha=0.7)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    _write_csv(outdir, 'rgb_fitting.csv',
+               ['GB_density', 'log(σ_brug/σ_proxy)', 'σ_brug', 'σ_proxy'],
+               [names[i] for i in valid_idx],
+               list(x_pts), list(y_pts),
+               [sigma_brug[i] for i in valid_idx],
+               [sigma_proxy[i] for i in valid_idx])
+    return _save(fig, outdir, "rgb_fitting.png")
+
+
+def plot_gb_corrected(data_list, names, outdir):
+    """GB-corrected effective conductivity using fitted R_gb."""
+    r_gb, _, _ = _fit_r_gb(data_list, names)
+    SIGMA_BULK = 1.3  # mS/cm, Li₆PS₅Cl cold-pressed
+
+    sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
+    gb_dens = [_get(d, "gb_density_mean") for d in data_list]
+    phi = [_get(d, "phi_se") for d in data_list]
+    perc = [_get(d, "percolation_pct") / 100 for d in data_list]
+    tau = [_get(d, "tortuosity_mean", 1) for d in data_list]
 
     sigma_corr = [sigma_brug[i] / (1 + r_gb * gb_dens[i]) if gb_dens[i] > 0 else sigma_brug[i]
                   for i in range(len(data_list))]
     sigma_abs = [s * SIGMA_BULK for s in sigma_corr]
+
+    fig, ax = plt.subplots(figsize=FIG_SINGLE)
+    x = np.arange(len(names))
 
     ax.plot(x, sigma_corr, 's-', color=RED, markersize=10, linewidth=2.5, label="σ_eff_real/σ_bulk")
     _apply_style(ax, "σ_eff_real / σ_bulk", names)
@@ -817,6 +867,13 @@ PLOT_REGISTRY = {
         "title": "Effective Conductivity (Bruggeman)",
         "description": "σ_eff/σ_bulk = φ_SE × f_perc / τ²\n\nSE 부피 분율(φ_SE), percolation(f_perc), tortuosity(τ) 기반 추정.\n입계(GB) 저항을 무시한 이론값 → 실제보다 과대평가 가능.",
         "origin_tip": "Line+Symbol (Green) + Bar (φ_SE, Blue).",
+    },
+    "rgb_fitting": {
+        "func": plot_rgb_fitting,
+        "file": "rgb_fitting.png",
+        "title": "R_gb Fitting",
+        "description": "σ_brug/σ_proxy = k × (1 + R_gb × GB_d)\nlog space에서 fitting → R_gb 결정.\n\nX축: GB Density (hops/μm)\nY축: log(σ_brug / σ_proxy)\n빨간 선이 데이터에 잘 맞으면 R_gb 신뢰 가능.",
+        "origin_tip": "Scatter + Fit line.\nBlue dots: data, Red line: fitted curve.",
     },
     "gb_corrected": {
         "func": plot_gb_corrected,

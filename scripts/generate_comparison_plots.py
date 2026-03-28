@@ -626,19 +626,23 @@ def plot_gb_corrected(data_list, names, outdir):
 
     r_gb = 0.5
     if len(valid) >= 2:
-        # Linear regression: y = σ_brug / σ_proxy = k × (1 + R_gb × GB_d)
-        # → y = a + b × GB_d, where a = k, R_gb = b/a
+        # Log-space regression: log(σ_brug/σ_proxy) vs GB_d
+        # σ_brug/σ_proxy = k × (1 + R_gb × GB_d)
+        # In log space, fit R_gb by minimizing residuals
         y_vals = np.array([sb / sp for sb, sp, _ in valid])
         x_vals = np.array([gd for _, _, gd in valid])
-        # Least squares: y = a + b*x
-        n = len(valid)
-        x_mean, y_mean = np.mean(x_vals), np.mean(y_vals)
-        b = np.sum((x_vals - x_mean) * (y_vals - y_mean)) / np.sum((x_vals - x_mean)**2) if np.sum((x_vals - x_mean)**2) > 0 else 0
-        a = y_mean - b * x_mean
-        if a > 0 and b >= 0:
-            r_gb = b / a
-        else:
-            r_gb = 0.5  # fallback
+        log_y = np.log(y_vals)
+        # Grid search R_gb: minimize sum of (log(y) - log(k × (1+R_gb×x)))²
+        best_r, best_cost = 0.5, 1e30
+        for r_try in np.arange(0.1, 10.0, 0.05):
+            model = np.log(1 + r_try * x_vals)
+            # Optimal log(k) = mean(log_y - model)
+            log_k = np.mean(log_y - model)
+            cost = np.sum((log_y - log_k - model) ** 2)
+            if cost < best_cost:
+                best_cost = cost
+                best_r = r_try
+        r_gb = best_r
 
     sigma_corr = [sigma_brug[i] / (1 + r_gb * gb_dens[i]) if gb_dens[i] > 0 else sigma_brug[i]
                   for i in range(len(data_list))]

@@ -701,16 +701,8 @@ def plot_gb_corrected(data_list, names, outdir):
     perc = [_get(d, "percolation_pct") / 100 for d in data_list]
     tau = [_get(d, "tortuosity_mean", 1) for d in data_list]
 
-    # Exponential correction: σ_corrected = σ_brug / e^(a + b*GB_d)  → σ_brug × e^(-a - b*GB_d)
-    # But we want σ_eff_real/σ_bulk, so divide by e^(a) to remove scale factor k
-    sigma_corr = [sigma_brug[i] * np.exp(-k_val - r_gb * gb_dens[i]) if gb_dens[i] > 0 else sigma_brug[i]
-                  for i in range(len(data_list))]
-    # Normalize: σ_proxy × k should give σ_eff_real, proxy already captures GB
-    # Actually: σ_eff_real/σ_bulk = σ_brug / (σ_brug/σ_proxy × 1/k) = σ_proxy × k_factor
-    # Simpler: σ_corrected = σ_brug × e^(-b × GB_d) / e^a ... this removes all overestimation
-    # But this makes σ_corrected dependent on arbitrary k. Let's normalize so max ≈ σ_brug max
-    # Better approach: σ_eff_real = σ_brug / e^(b × (GB_d - GB_d_min))
-    # This way GB_d_min case gets no correction, others get penalized
+    # σ_eff_real = σ_brug / e^(b × (GB_d - GB_d_min))
+    # GB_d_min case gets no correction, others get penalized proportionally
     gb_min = min(gb_dens[i] for i in range(len(data_list)) if gb_dens[i] > 0)
     sigma_corr = [sigma_brug[i] / np.exp(r_gb * (gb_dens[i] - gb_min)) if gb_dens[i] > 0 else sigma_brug[i]
                   for i in range(len(data_list))]

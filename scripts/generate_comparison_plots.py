@@ -51,23 +51,68 @@ def _apply_style(ax, ylabel, names):
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.tick_params(axis='both', labelsize=9)
-    # Add group separators
+    # Add group separators and break lines at boundaries
     if _GROUP_INFO:
         sizes, gnames = _GROUP_INFO
+        n_total = sum(sizes)
+        # Break existing lines at group boundaries
+        boundaries = []
+        pos = 0
+        for sz in sizes[:-1]:
+            pos += sz
+            boundaries.append(pos - 0.5)
+        for line in ax.get_lines():
+            xd = line.get_xdata().copy()
+            yd = line.get_ydata().copy()
+            if len(xd) == n_total:
+                new_x, new_y = [], []
+                idx = 0
+                for gi, sz in enumerate(sizes):
+                    if gi > 0:
+                        new_x.append(float('nan'))
+                        new_y.append(float('nan'))
+                    for j in range(sz):
+                        if idx < len(xd):
+                            new_x.append(float(xd[idx]))
+                            new_y.append(float(yd[idx]))
+                            idx += 1
+                line.set_xdata(new_x)
+                line.set_ydata(new_y)
+        # Draw separators and labels
         pos = 0
         for gi, sz in enumerate(sizes):
             if gi > 0:
                 ax.axvline(pos - 0.5, color='#888888', linestyle='--', linewidth=1, alpha=0.6)
-            mid = pos + sz / 2 - 0.5
-            ax.text(mid, ax.get_ylim()[1], gnames[gi], ha='center', va='bottom',
+            mid_frac = (pos + sz / 2 - 0.5) / max(n_total - 1, 1)
+            ax.text(mid_frac, 1.08, gnames[gi], ha='center', va='bottom',
+                    transform=ax.transAxes,
                     fontsize=9, fontweight='bold', color=GROUP_COLORS[gi % len(GROUP_COLORS)],
                     bbox=dict(boxstyle='round,pad=0.2', facecolor='white', edgecolor=GROUP_COLORS[gi % len(GROUP_COLORS)], alpha=0.8))
             pos += sz
 
 
+def _group_break_data(xs, ys):
+    """Insert NaN at group boundaries so matplotlib breaks the line."""
+    if not _GROUP_INFO:
+        return xs, ys
+    sizes = _GROUP_INFO[0]
+    new_x, new_y = [], []
+    pos = 0
+    for gi, sz in enumerate(sizes):
+        if gi > 0:
+            new_x.append(float('nan'))
+            new_y.append(float('nan'))
+        for i in range(pos, pos + sz):
+            if i < len(xs):
+                new_x.append(xs[i] if not isinstance(xs, np.ndarray) else float(xs[i]))
+                new_y.append(ys[i] if not isinstance(ys, np.ndarray) else float(ys[i]))
+        pos += sz
+    return new_x, new_y
+
+
 def _save(fig, outdir, fname):
     fig.tight_layout(pad=1.5)
-    fig.subplots_adjust(right=0.85)  # dual Y-axis 우측 여백 확보
+    fig.subplots_adjust(right=0.85, top=0.88 if _GROUP_INFO else 0.92)
     path = os.path.join(outdir, fname)
     fig.savefig(path, dpi=DPI, bbox_inches="tight", facecolor='white', pad_inches=0.2)
     plt.close(fig)

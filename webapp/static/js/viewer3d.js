@@ -534,7 +534,7 @@ function wireControls(ctrlDiv, renderer, camera, controls, scene, state) {
                 const radius = 0.5 + t * 2.0;  // thicker = stronger
                 const curve = new THREE.LineCurve3(p1, p2);
                 const geo = new THREE.TubeGeometry(curve, 1, radius, 4, false);
-                const mat = new THREE.MeshBasicMaterial({color, transparent: true, opacity: 0.7});
+                const mat = new THREE.MeshBasicMaterial({color, transparent: true, opacity: 0.15 + t * 0.85});
                 group.add(new THREE.Mesh(geo, mat));
               });
             }

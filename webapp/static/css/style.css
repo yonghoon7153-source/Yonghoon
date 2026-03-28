@@ -373,6 +373,7 @@ thead .sticky-col { z-index: 3; }
 .plot-item img {
   width: 100%; height: auto; cursor: pointer;
   padding: 12px; transition: .2s;
+  object-fit: contain; display: block; margin: auto;
 }
 .plot-item img:hover { opacity: .9; }
 .plot-info {

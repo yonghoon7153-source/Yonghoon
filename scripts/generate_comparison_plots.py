@@ -671,8 +671,9 @@ def plot_rgb_fitting(data_list, names, outdir):
     ss_tot = np.sum((y_pts - np.mean(y_pts)) ** 2)
     r_squared = 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
+    ax.set_yscale('log')
     ax.set_xlabel("GB Density (hops/μm)", fontsize=12)
-    ax.set_ylabel("σ_brug / σ_proxy", fontsize=12)
+    ax.set_ylabel("σ_brug / σ_proxy (log scale)", fontsize=12)
     ax.set_title(f"R_gb Fitting → R_gb = {r_gb:.2f},  R² = {r_squared:.4f}", fontsize=13, fontweight='bold')
     ax.legend(fontsize=10, loc='upper left')
     ax.text(0.95, 0.05, f"R² = {r_squared:.4f}\nn = {len(x_pts)}",

@@ -61,7 +61,11 @@ def _apply_style(ax, ylabel, names):
         for sz in sizes[:-1]:
             pos += sz
             boundaries.append(pos - 0.5)
-        for line in ax.get_lines():
+        # Collect lines from all axes sharing this plot area
+        all_lines = []
+        for sibling_ax in ax.figure.get_axes():
+            all_lines.extend(sibling_ax.get_lines())
+        for line in all_lines:
             xd = line.get_xdata().copy()
             yd = line.get_ydata().copy()
             if len(xd) == n_total:

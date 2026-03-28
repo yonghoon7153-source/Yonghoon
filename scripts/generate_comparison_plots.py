@@ -869,25 +869,25 @@ def plot_ion_path_quality(data_list, names, outdir):
     vals = [_get(d, "gb_density_mean") for d in data_list]
     axes[0,0].plot(x, vals, 's-', color=BLUE, markersize=8, linewidth=2)
     _apply_style(axes[0,0], "GB Density (hops/μm)", names)
-    axes[0,0].set_title("Grain Boundary Density ($\\mathbf{GB_d}$)  (↓ better)", fontsize=11, fontweight='bold')
+    axes[0,0].set_title("Grain Boundary Density (GB_d)\n↓ better", fontsize=10, fontweight='bold')
 
     # Path Hop Area mean (higher is better)
     vals = [_get(d, "path_hop_area_mean") for d in data_list]
     axes[0,1].plot(x, vals, 's-', color=ORANGE, markersize=8, linewidth=2)
     _apply_style(axes[0,1], "Hop Area mean (μm²)", names)
-    axes[0,1].set_title("Path Hop Area  (↑ better)", fontsize=10, fontweight='bold')
+    axes[0,1].set_title("Path Hop Area\n↑ better", fontsize=10, fontweight='bold')
 
     # Bottleneck (higher is better)
     vals = [_get(d, "path_hop_area_min_mean") for d in data_list]
     axes[1,0].plot(x, vals, 's-', color=RED, markersize=8, linewidth=2)
     _apply_style(axes[1,0], "Bottleneck (μm²)", names)
-    axes[1,0].set_title("Path Bottleneck  (↑ better)", fontsize=10, fontweight='bold')
+    axes[1,0].set_title("Path Bottleneck\n↑ better", fontsize=10, fontweight='bold')
 
     # Path Conductance (higher is better)
     vals = [_get(d, "path_conductance_mean") for d in data_list]
     axes[1,1].plot(x, vals, 's-', color=GREEN, markersize=8, linewidth=2)
     _apply_style(axes[1,1], "Conductance (μm²)", names)
-    axes[1,1].set_title("Path Conductance ($\\mathbf{G_{path}}$)  (↑ better)", fontsize=10, fontweight='bold')
+    axes[1,1].set_title("Path Conductance (G_path)\n↑ better", fontsize=10, fontweight='bold')
 
     gb = [_get(d, "gb_density_mean") for d in data_list]
     ha = [_get(d, "path_hop_area_mean") for d in data_list]

@@ -226,13 +226,6 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         for tn in ['AM_P', 'AM_S', 'SE']:
             if tn in stress['type_stress']:
                 rows.append({'지표': f'σ_{tn}/σ_mean', '값': round(stress['type_stress'][tn]['ratio'], 3)})
-    # ── DEM 검증 ──
-    overlap = results.get('overlap_ratio')
-    if overlap:
-        rows.append({'지표': '── DEM 검증 ──', '값': ''})
-        rows.append({'지표': 'Overlap δ/R mean(%)', '값': round(overlap['mean'], 2)})
-        rows.append({'지표': 'Overlap δ/R max(%)', '값': round(overlap['max'], 2)})
-        rows.append({'지표': 'Overlap >5%(%)', '값': round(overlap['pct_above_5'], 1)})
     pd.DataFrame(rows).to_csv(os.path.join(output_dir, 'network_summary.csv'), index=False)
 
     # Auto-detect P:S ratio from mass (count × volume × density)

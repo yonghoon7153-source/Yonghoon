@@ -69,7 +69,7 @@
       <thead>
         <tr>
           {% for col in comparison.columns %}
-          <th class="group-th{% if loop.index <= 2 %} sticky-col sticky-col-{{ loop.index }}{% endif %}">
+          <th class="group-th{% if loop.index <= 2 %} sticky-col sticky-col-{{ loop.index }}{% endif %}" data-col-metric="{{ col }}">
             <span class="th-name">{{ col }}</span>
             {% if comparison.units[loop.index0] %}
             <span class="th-unit">{{ comparison.units[loop.index0] }}</span>
@@ -442,5 +442,57 @@ function copyGroupReport() {
     setTimeout(() => btn.textContent = '복사', 1500);
   });
 }
+// Group table header tooltips
+const COL_TIPS = {
+  'Porosity': 'ε = (1 − V_particles/V_electrode) × 100\n전극 내 빈 공간 비율. 낮을수록 충전 밀도 높음.',
+  '두께': 'T = z_max − z_min (μm)\n가압 후 전극의 실제 두께.',
+  'AM-SE Total': 'Σ(AM-SE 접촉 면적)\ncharge transfer 반응이 일어나는 활성 면적.',
+  'SE-SE Total': 'Σ(SE-SE 접촉 면적)\n이온 전도 네트워크의 총 단면적.',
+  'SE-SE CN': 'SE 입자당 평균 SE 이웃 수\nCN≥4이면 안정적 3D 네트워크.',
+  'SE Cluster': '연결된 SE 덩어리 수\n적을수록 네트워크 분절 적음.',
+  'Percolation': '상하 관통 SE 비율 (%)\n100%에 가까울수록 이온 경로 완전.',
+  'Top Reachable': '상단 도달 가능 SE 비율 (%)\nPercolation보다 넓은 개념.',
+  'Tortuosity': 'τ = L_path / L_direct\n경로 꼬임. 1에 가까울수록 직선. σ_eff ∝ 1/τ².',
+  'Ionic Active': 'SE 네트워크에 연결된 AM 비율\n100% = 모든 AM 이온 공급 가능.',
+  'Coverage P': 'AM_P 표면의 SE 피복률 (%)',
+  'Coverage S': 'AM_S 표면의 SE 피복률 (%)',
+  'Stress CV': 'Von Mises 응력 변동계수\n낮을수록 응력 균일.',
+  'σ_AM_P/σ_mean': 'AM_P 응력 / 전체 평균 응력\n>1이면 응력 집중.',
+  'σ_AM_S/σ_mean': 'AM_S 응력 / 전체 평균 응력',
+  'σ_SE/σ_mean': 'SE 응력 / 전체 평균 응력',
+  'GB Density': 'N_hops / L_z (hops/μm)\nμm당 입계 수. 낮을수록 유리.',
+  'Path Conductance': 'G = 1/Σ(1/A_i) (μm²)\n경로의 유효 전도 면적. 높을수록 좋음.',
+  'Bottleneck': 'min(A_i) per path (μm²)\n경로의 가장 좁은 접촉점.',
+  'AM-SE CN': 'AM당 SE 접촉 수 평균\n높을수록 이온 공급 안정적.',
+  'Vulnerable': '(SE 0~1개 접촉 AM) / 전체 AM × 100\n취약 AM 비율.',
+  'φ_SE': 'V_SE / V_electrode\nSE 부피 분율.',
+  'σ_eff/σ_bulk': 'φ_SE × f_perc / τ²\nBruggeman 유효 전도도 비율.',
+  'Fn AM-AM': 'AM-AM 법선 접촉력 평균 (μN)',
+  'Fn AM-SE': 'AM-SE 법선 접촉력 평균 (μN)',
+  'Fn SE-SE': 'SE-SE 법선 접촉력 평균 (μN)',
+  'CP mean': '접촉 압력 평균 = Fn/A (MPa)',
+  'CP max': '접촉 압력 최대값 (MPa)',
+};
+
+// Create tooltip element
+const colTip = document.createElement('div');
+colTip.id = 'col-tooltip';
+colTip.style.cssText = 'position:fixed;background:#1a1d30;border:1px solid var(--accent);border-radius:8px;padding:12px 16px;z-index:9999;font-size:.8rem;line-height:1.6;color:#e4e6f0;max-width:320px;white-space:pre-wrap;pointer-events:none;opacity:0;transition:opacity .15s;box-shadow:0 8px 32px rgba(0,0,0,.5)';
+document.body.appendChild(colTip);
+
+document.querySelectorAll('th[data-col-metric]').forEach(th => {
+  const key = th.dataset.colMetric;
+  const tip = COL_TIPS[key];
+  if (!tip) return;
+  th.style.cursor = 'help';
+  th.addEventListener('mouseenter', () => {
+    colTip.textContent = tip;
+    const rect = th.getBoundingClientRect();
+    colTip.style.left = rect.left + 'px';
+    colTip.style.top = (rect.bottom + 6) + 'px';
+    colTip.style.opacity = '1';
+  });
+  th.addEventListener('mouseleave', () => { colTip.style.opacity = '0'; });
+});
 </script>
 {% endblock %}

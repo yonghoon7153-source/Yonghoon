@@ -69,6 +69,17 @@ def _get(data, key, default=0.0):
         return default
 
 
+def _write_csv(outdir, fname, headers, names, *columns):
+    """Write comparison CSV with case names and data columns."""
+    import csv
+    with open(os.path.join(outdir, fname), 'w', newline='') as f:
+        w = csv.writer(f)
+        w.writerow(['Case'] + headers)
+        for i, name in enumerate(names):
+            row = [name] + [c[i] if i < len(c) else '' for c in columns]
+            w.writerow(row)
+
+
 def _resolve_am_se(d):
     """Standard: AM-SE → P:S에 맞게 AM_P-SE or AM_S-SE로 분배."""
     am_p = _get(d, "area_AM_P_SE_total")
@@ -476,6 +487,8 @@ def plot_se_network(data_list, names, outdir):
     lines2, labels2 = ax2.get_legend_handles_labels()
     ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=8, loc='upper right')
     ax1.set_title("SE Network: CN & Clusters", fontsize=12, fontweight='bold')
+    _write_csv(outdir, 'se_network.csv', ['SE-SE CN', 'Total Clusters', 'Large(≥10)'],
+               names, cn, clusters, large_clusters)
     return _save(fig, outdir, "se_network.png")
 
 
@@ -507,6 +520,10 @@ def plot_contact_force(data_list, names, outdir):
     _apply_style(ax, "Fn mean (μN)", names)
     ax.legend(fontsize=8, loc='upper right')
     ax.set_title("Contact Force by Type", fontsize=12, fontweight='bold')
+    # CSV
+    headers = [ct for ct, _, _, _ in active]
+    cols = [vals for _, _, _, vals in active]
+    _write_csv(outdir, 'contact_force.csv', [f'Fn {h} mean(μN)' for h in headers], names, *cols)
     return _save(fig, outdir, "contact_force.png")
 
 
@@ -526,6 +543,7 @@ def plot_contact_pressure(data_list, names, outdir):
     _apply_style(ax, "Contact Pressure (MPa)", names)
     ax.legend(fontsize=9)
     ax.set_title("Contact Pressure", fontsize=12, fontweight='bold')
+    _write_csv(outdir, 'contact_pressure.csv', ['CP mean(MPa)', 'CP max(MPa)'], names, means, maxes)
     return _save(fig, outdir, "contact_pressure.png")
 
 
@@ -552,6 +570,7 @@ def plot_am_vulnerability(data_list, names, outdir):
     lines2, labels2 = ax2.get_legend_handles_labels()
     ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper right')
     ax1.set_title("AM Vulnerability & SE Connectivity", fontsize=12, fontweight='bold')
+    _write_csv(outdir, 'am_vulnerability.csv', ['Vulnerable(%)', 'AM-SE CN'], names, vuln, cn)
     return _save(fig, outdir, "am_vulnerability.png")
 
 
@@ -621,17 +640,35 @@ def plot_effective_conductivity(data_list, names, outdir):
     _apply_style(ax1, "σ_eff / σ_bulk", names)
     ax1.set_title("Bruggeman (φ·f_perc/τ²)", fontsize=11, fontweight='bold')
 
-    # Right: GB-Corrected
+    # Right: GB-Corrected with absolute σ_eff (LPSCl σ_bulk = 1.3 mS/cm)
+    SIGMA_BULK = 1.3  # mS/cm, Li₆PS₅Cl cold-pressed
+    sigma_abs = [s * SIGMA_BULK for s in sigma_corr]
+
     ax2.plot(x, sigma_corr, 's-', color=RED, markersize=10, linewidth=2.5,
-             label=f"GB-Corrected (R_gb={r_gb:.2f})")
+             label=f"σ_eff_real/σ_bulk (R_gb={r_gb:.2f})")
     ax2b = ax2.twinx()
-    ax2b.bar(x, gb_dens, 0.4, color=GRAY, alpha=0.3)
-    ax2b.set_ylabel("GB Density (hops/μm)", fontsize=10, color=GRAY)
-    ax2b.tick_params(axis='y', labelcolor=GRAY)
+    ax2b.plot(x, sigma_abs, 'D--', color=ORANGE, markersize=7, linewidth=1.5,
+              label=f"σ_eff_real (mS/cm)")
+    ax2b.set_ylabel("σ_eff_real (mS/cm)", fontsize=10, color=ORANGE)
+    ax2b.tick_params(axis='y', labelcolor=ORANGE)
     ax2b.spines["top"].set_visible(False)
     _apply_style(ax2, "σ_eff_real / σ_bulk", names)
     ax2.set_title(f"GB-Corrected (R_gb={r_gb:.2f})", fontsize=11, fontweight='bold')
-    ax2.legend(fontsize=8, loc='upper right')
+    lines1, labels1 = ax2.get_legend_handles_labels()
+    lines2, labels2 = ax2b.get_legend_handles_labels()
+    ax2.legend(lines1 + lines2, labels1 + labels2, fontsize=7, loc='upper right')
+
+    # CSV export
+    import csv
+    csv_path = os.path.join(outdir, "effective_conductivity.csv")
+    with open(csv_path, 'w', newline='') as f:
+        w = csv.writer(f)
+        w.writerow(['Case', 'φ_SE', 'f_perc', 'τ', 'GB_density', 'σ_brug/σ_bulk',
+                     'R_gb', 'σ_corr/σ_bulk', 'σ_eff_real(mS/cm)'])
+        for i, name in enumerate(names):
+            w.writerow([name, f'{phi[i]:.3f}', f'{perc[i]:.3f}', f'{tau[i]:.2f}',
+                        f'{gb_dens[i]:.3f}', f'{sigma_brug[i]:.4f}', f'{r_gb:.2f}',
+                        f'{sigma_corr[i]:.4f}', f'{sigma_abs[i]:.4f}'])
 
     fig.suptitle("Effective Ionic Conductivity: Bruggeman vs GB-Corrected",
                  fontsize=13, fontweight='bold')
@@ -670,6 +707,14 @@ def plot_ion_path_quality(data_list, names, outdir):
     axes[1,1].plot(x, vals, 's-', color=GREEN, markersize=8, linewidth=2)
     _apply_style(axes[1,1], "Conductance (μm²)", names)
     axes[1,1].set_title("Path Conductance  (↑ better)", fontsize=11, fontweight='bold')
+
+    gb = [_get(d, "gb_density_mean") for d in data_list]
+    ha = [_get(d, "path_hop_area_mean") for d in data_list]
+    bn = [_get(d, "path_hop_area_min_mean") for d in data_list]
+    gc = [_get(d, "path_conductance_mean") for d in data_list]
+    _write_csv(outdir, 'ion_path_quality.csv',
+               ['GB Density(hops/μm)', 'Hop Area mean(μm²)', 'Bottleneck(μm²)', 'Conductance(μm²)'],
+               names, gb, ha, bn, gc)
 
     fig.tight_layout(rect=[0, 0, 1, 0.95])
     fig.suptitle("Ion Path Quality", fontsize=14, fontweight='bold', x=0.5, y=0.99, ha='center')
@@ -749,43 +794,43 @@ PLOT_REGISTRY = {
         "func": plot_se_network,
         "file": "se_network.png",
         "title": "SE Network",
-        "description": "SE-SE 배위수(CN)와 클러스터 수.\nCN↑ = 조밀한 네트워크, Cluster↓ = 분절 적음.\nLarge(≥10) 클러스터만 이온 경로에 유의미.",
+        "description": "SE-SE 배위수(CN)와 클러스터 수.\nCN = SE 입자 하나가 접촉하는 SE 이웃 수\nCN↑ = 조밀한 네트워크 (CN≥4: 안정적 3D percolation)\nCluster↓ = 분절 적음. Large(≥10) 클러스터만 이온 경로에 유의미.",
         "origin_tip": "Dual-Y → Left: Line (CN, Blue).\nRight: Bar (Clusters, Orange).",
     },
     "contact_force": {
         "func": plot_contact_force,
         "file": "contact_force.png",
         "title": "Contact Force",
-        "description": "접촉 유형별(AM-AM, AM-SE, SE-SE) 법선력 평균.\n대립자 간 접촉력이 가장 크며, P:S 변화에 따라 하중 분담 변화 관찰.",
+        "description": "접촉 유형별(AM-AM, AM-SE, SE-SE) 법선력 평균.\nFn = √(fn_x² + fn_y² + fn_z²), 단위: μN\nF_real = F_sim / scale²\n대립자 간 접촉력이 가장 크며, P:S 변화에 따라 하중 분담 변화 관찰.",
         "origin_tip": "Grouped Bar → X: Configuration, Y: Fn mean (μN).\nAM-AM: Red, AM-SE: Green, SE-SE: Blue.",
     },
     "contact_pressure": {
         "func": plot_contact_pressure,
         "file": "contact_pressure.png",
         "title": "Contact Pressure",
-        "description": "접촉 압력 평균/최대. 같은 힘이라도 면적이 작으면 압력↑.\nMax는 failure 시작점, Mean은 전체 경향.",
+        "description": "접촉 압력 P = Fn / A_contact (MPa).\n같은 힘이라도 면적이 작으면 압력↑.\nMax는 failure 시작점, Mean은 전체 경향.",
         "origin_tip": "Dual Bar → X: Configuration, Y: Pressure (MPa).\nMean: Blue, Max: Red.",
     },
     "am_vulnerability": {
         "func": plot_am_vulnerability,
         "file": "am_vulnerability.png",
         "title": "AM Vulnerability",
-        "description": "취약 AM 비율(SE 0~1개 접촉)과 AM-SE 배위수.\nVulnerable↓ + CN↑ = 안정적 이온 공급.",
+        "description": "Vulnerable = (SE 0개 + SE 1개 접촉 AM) / 전체 AM × 100\nAM-SE CN = AM당 SE 접촉 수 평균\nVulnerable↓ + CN↑ = 안정적 이온 공급.\nSE 1개 접촉 = single point of failure.",
         "origin_tip": "Dual-Y → Left: Bar (Vulnerable %, Red).\nRight: Line (AM-SE CN, Blue).",
     },
     "effective_conductivity": {
         "func": plot_effective_conductivity,
         "file": "effective_conductivity.png",
         "title": "Effective Conductivity",
-        "description": "유효 이온전도도 비율 σ_eff/σ_bulk.\nSE 부피 분율(φ_SE)과 함께 표시. 높을수록 이온 전도 손실 적음.",
-        "origin_tip": "Dual-Y → Left: Line (σ_eff/σ_bulk, Green).\nRight: Bar (φ_SE, Blue, alpha=0.3).",
+        "description": "좌: Bruggeman 추정  σ_eff/σ_bulk = φ_SE × f_perc / τ²\n우: GB 보정  σ_eff_real = σ_bulk × φ_SE × f_perc / τ² × 1/(1+R_gb×GB_density)\n\nR_gb는 Path Conductance 데이터에서 역산.\nσ_bulk = 1.3 mS/cm (Li₆PS₅Cl, cold-pressed).\n\nBruggeman은 입계 저항을 무시 → 세트1을 과대평가.\nGB-Corrected가 실제 이온전도 성능에 가까움.",
+        "origin_tip": "Left: Bruggeman (Green line + φ_SE bar).\nRight: GB-Corrected (Red line + σ_abs Orange dashed).",
     },
     "ion_path_quality": {
         "func": plot_ion_path_quality,
         "file": "ion_path_quality.png",
         "title": "Ion Path Quality",
-        "description": "이온 경로 품질 3종: GB Density(↓ 좋음), Path Conductance(↑ 좋음), Bottleneck(↑ 좋음).\n경로의 실질적 이온 전도 능력.",
-        "origin_tip": "3 Subplots → GB Density (Blue), Conductance (Green), Bottleneck (Red).\nLine+Symbol.",
+        "description": "이온 경로 품질 4종:\n• GB Density = N_hops / L_z (hops/μm) — ↓ 좋음\n• Path Hop Area = mean(각 hop의 접촉면적) — ↑ 좋음\n• Bottleneck = mean(각 경로의 최소 접촉면적) — ↑ 좋음\n• Path Conductance = 1/Σ(1/A_i) (μm²) — ↑ 좋음\n\n경로의 실질적 이온 전도 능력. Conductance가 가장 종합적 지표.",
+        "origin_tip": "2×2 Subplots → GB Density (Blue), Hop Area (Orange), Bottleneck (Red), Conductance (Green).",
     },
     "stress_z_layer": {
         "func": plot_stress_z_layer,

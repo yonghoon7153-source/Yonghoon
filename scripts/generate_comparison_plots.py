@@ -843,9 +843,16 @@ def main():
             continue
 
         entry = PLOT_REGISTRY[plot_name]
-        fig, ax = plt.subplots(figsize=FIG_SINGLE)
-        entry["func"](all_data, plot_names, ax=ax)
-        outpath = _save(fig, args.output, entry["file"])
+        func = entry["func"]
+        import inspect
+        params = inspect.signature(func).parameters
+        if 'outdir' in params:
+            # Standalone plot (creates own fig, saves itself)
+            outpath = func(all_data, plot_names, args.output)
+        else:
+            fig, ax = plt.subplots(figsize=FIG_SINGLE)
+            func(all_data, plot_names, ax=ax)
+            outpath = _save(fig, args.output, entry["file"])
 
         csv_file = f"{plot_name}.csv" if plot_name in csv_map else None
         plot_info[plot_name] = {

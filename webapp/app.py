@@ -577,6 +577,11 @@ def group():
     case_groups_param = request.args.get('case_groups', '[]')
 
     comparison_data = {}
+    case_groups_parsed = []
+    try:
+        case_groups_parsed = json.loads(case_groups_param)
+    except:
+        pass
     if selected:
         # Key metrics for comparison (from full_metrics.json)
         display_keys = [
@@ -675,10 +680,24 @@ def group():
             for label, unit, key in display_keys:
                 col_headers.append({'name': label, 'unit': unit})
 
+            # Insert group separator rows if multiple groups
+            grouped_rows = []
+            if case_groups_parsed and len(case_groups_parsed) > 1:
+                row_idx = 0
+                for gi, g in enumerate(case_groups_parsed):
+                    gname = g.get('name', '') or f"Case {chr(65+gi)}"
+                    grouped_rows.append({'__group__': gname, '__color__': gi})
+                    for _ in g.get('cases', []):
+                        if row_idx < len(rows):
+                            grouped_rows.append(rows[row_idx])
+                            row_idx += 1
+            else:
+                grouped_rows = rows
+
             comparison_data = {
                 'columns': [c['name'] for c in col_headers],
                 'units': [c['unit'] for c in col_headers],
-                'rows': rows
+                'rows': grouped_rows
             }
 
     # Scan archive for folders with full_metrics.json

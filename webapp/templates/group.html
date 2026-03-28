@@ -80,11 +80,17 @@
       </thead>
       <tbody>
         {% for row in comparison.rows %}
+        {% if row.__group__ is defined %}
+        <tr class="group-separator-row" style="--group-color: {{ ['#6c8cff','#ff6b6b','#51cf66','#ffd43b'][row.__color__ % 4] }}">
+          <td colspan="{{ comparison.columns|length }}" class="group-separator-cell">{{ row.__group__ }}</td>
+        </tr>
+        {% else %}
         <tr>
           {% for col in comparison.columns %}
           <td{% if loop.index <= 2 %} class="sticky-col sticky-col-{{ loop.index }}"{% endif %}>{{ row[col] if row[col] is defined else '-' }}</td>
           {% endfor %}
         </tr>
+        {% endif %}
         {% endfor %}
       </tbody>
     </table>

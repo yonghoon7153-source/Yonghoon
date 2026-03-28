@@ -514,7 +514,7 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     for c in contacts_raw:
         fn = c.get('fn', 0) or np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
         fn_values.append(fn)
-    fn_threshold = np.percentile(fn_values, 75) if fn_values else 0  # top 25%
+    fn_threshold = np.percentile(fn_values, 90) if fn_values else 0  # top 10%
     print(f"  Force chains: {len(fn_values)} contacts, threshold={fn_threshold:.6f}, max fn={max(fn_values) if fn_values else 0:.6f}")
     for c in contacts_raw:
         if c['id1'] in atoms_raw and c['id2'] in atoms_raw:

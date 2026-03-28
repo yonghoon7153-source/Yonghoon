@@ -518,13 +518,18 @@ function wireControls(ctrlDiv, renderer, camera, controls, scene, state) {
           try {
             const res = await fetch(url);
             const chains = await res.json();
-            console.log('Force chains loaded:', chains.length, 'chains');
+            // Limit to top N chains by force for performance
+            let display = chains;
+            if (chains.length > 5000) {
+              display = chains.sort((a, b) => b.fn - a.fn).slice(0, 5000);
+            }
+            console.log('Force chains loaded:', chains.length, ', displaying:', display.length);
             const group = new THREE.Group();
-            if (chains.length > 0) {
-              const fnValues = chains.map(c => c.fn);
+            if (display.length > 0) {
+              const fnValues = display.map(c => c.fn);
               const fnMax = Math.max(...fnValues);
               const fnMin = Math.min(...fnValues);
-              chains.forEach(c => {
+              display.forEach(c => {
                 const p1 = new THREE.Vector3(...c.p1);
                 const p2 = new THREE.Vector3(...c.p2);
                 const t = fnMax > fnMin ? (c.fn - fnMin) / (fnMax - fnMin) : 0.5;

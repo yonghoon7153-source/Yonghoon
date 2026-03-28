@@ -680,7 +680,7 @@ def group():
             for label, unit, key in display_keys:
                 val = metrics.get(key, '')
                 if isinstance(val, float):
-                    if key in ('path_conductance_mean', 'path_hop_area_min_mean', 'path_hop_area_mean'):
+                    if key in ('path_conductance_mean', 'path_hop_area_min_mean'):
                         val = f"{val:.2e}" if val > 0 else '-'
                     else:
                         val = round(val, 2)

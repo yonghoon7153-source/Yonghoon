@@ -411,7 +411,8 @@ async function generatePlots() {
           <div class="deriv-section">
             <div class="deriv-label">3. b는 어떻게 구하나? → σ_proxy 활용</div>
             <div class="deriv-formula">σ_proxy = G_path × f_perc / τ</div>
-            <div class="deriv-desc">G_path = 1/Σ(1/A_i) : 경로상 각 hop 접촉면적의 직렬 저항 모델</div>
+            <div class="deriv-desc">G_path = mean(1/Σ(1/A_i)) : 경로별 직렬 저항 모델의 유효 면적 → 전체 경로 평균</div>
+            <div class="deriv-desc">GB_d, G_path, τ 모두 percolating 경로들의 <b>mean</b> 사용 (경로 안=직렬, 경로끼리=병렬 → mean=품질, f_perc=수량)</div>
             <div class="deriv-desc">σ_proxy는 <b>입계 저항이 반영된 실측값</b>이지만, 단위가 μm²</div>
             <div class="deriv-desc">σ_eff_real = σ_proxy × k 로 무차원 비율로 변환해야 하지만, <b>k(단위 변환 계수)를 모름</b></div>
             <div class="deriv-desc" style="margin-top:8px">→ 대신 σ_brug(과대평가)와 σ_proxy(실측)의 <b>비율</b>을 이용:</div>

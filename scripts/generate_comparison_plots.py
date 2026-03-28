@@ -801,11 +801,20 @@ def plot_rgb_fitting(data_list, names, outdir):
     else:
         ax.scatter(x_pts, y_pts, s=100, c=BLUE, zorder=5, edgecolors='white', linewidth=1.5)
 
-    # Individual point labels (P:S ratio)
-    for j, i in enumerate(valid_idx):
-        ax.annotate(names[i], (x_pts[j], y_pts[j]),
-                   fontsize=8, ha='left', va='bottom', xytext=(5, 5),
-                   textcoords='offset points', color=BLACK, zorder=6)
+    # Individual point labels (P:S ratio) - adjustText for non-overlapping
+    try:
+        from adjustText import adjust_text
+        texts = []
+        for j, i in enumerate(valid_idx):
+            texts.append(ax.text(x_pts[j], y_pts[j], names[i], fontsize=8, color=BLACK, zorder=6))
+        adjust_text(texts, x=list(x_pts), y=list(y_pts), ax=ax,
+                   arrowprops=dict(arrowstyle='-', color='gray', lw=0.5),
+                   force_text=(0.5, 0.5), expand=(1.3, 1.5))
+    except ImportError:
+        for j, i in enumerate(valid_idx):
+            ax.annotate(names[i], (x_pts[j], y_pts[j]),
+                       fontsize=8, ha='left', va='bottom', xytext=(5, 5),
+                       textcoords='offset points', color=BLACK, zorder=6)
 
     # Group labels at bottom center of each cluster
     if _GROUP_INFO:
@@ -814,11 +823,11 @@ def plot_rgb_fitting(data_list, names, outdir):
             if group_js:
                 cx = np.mean([x_pts[j] for j in group_js])
                 cy = min([y_pts[j] for j in group_js])
-                ax.text(cx, cy, gnames[gi], ha='center', va='top',
+                ax.text(cx, cy - (max(y_pts) - min(y_pts)) * 0.08, gnames[gi],
+                       ha='center', va='top',
                        fontsize=9, fontweight='bold', color=GROUP_COLORS[gi % len(GROUP_COLORS)],
                        bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
-                                edgecolor=GROUP_COLORS[gi % len(GROUP_COLORS)], alpha=0.8),
-                       )
+                                edgecolor=GROUP_COLORS[gi % len(GROUP_COLORS)], alpha=0.8))
 
     # Linear fit with intercept: log(y) = b × GB_d + ln(k)
     x_line = np.linspace(min(x_pts) * 0.9, max(x_pts) * 1.15, 100)

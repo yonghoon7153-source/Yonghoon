@@ -1054,6 +1054,7 @@ PLOT_REGISTRY = {
         "title": "Effective Conductivity (Bruggeman)",
         "description": "σ_eff/σ_bulk = φ_SE × f_perc / τ²\n\nSE 부피 분율(φ_SE), percolation(f_perc), tortuosity(τ) 기반 추정.\n입계(GB) 저항을 무시한 이론값 → 실제보다 과대평가 가능.",
         "origin_tip": "Line+Symbol (Green) + Bar (φ_SE, Blue).",
+        "min_groups": 2,
     },
     "rgb_fitting": {
         "func": plot_rgb_fitting,
@@ -1061,6 +1062,7 @@ PLOT_REGISTRY = {
         "title": "R_gb Fitting",
         "description": "log(σ_brug/σ_proxy) = b × GB_d + ln(k)\n\n선형 회귀로 b(기울기=입계 저항 계수)와 ln(k)(절편=단위 변환)를 분리.\nX축: GB Density, Y축: log(σ_brug/σ_proxy)\nR²가 높으면 입계 저항이 GB_density에 비례함을 확인.\n\nb는 한 번 구하면 같은 재료/조건에서 재사용 가능.",
         "origin_tip": "Scatter + Fit line (log Y scale).\nBlue dots: data, Red line: fitted.",
+        "min_groups": 2,
     },
     "gb_corrected": {
         "func": plot_gb_corrected,
@@ -1068,6 +1070,7 @@ PLOT_REGISTRY = {
         "title": "GB-Corrected σ_eff",
         "description": "σ_eff_real = σ_bulk × φ_SE × f_perc / τ² × e^(-b × GB_d)\n\nb: R_gb fitting에서 결정된 입계 저항 계수\nGB_d=0 → Bruggeman 정확 | GB_d↑ → 지수적 감소\nσ_bulk = 1.3 mS/cm (Li₆PS₅Cl)\n빨간 실선: σ_eff_real/σ_bulk (비율)\n오렌지 점선: σ_eff_real 절대값 (mS/cm)\n\n⚠ DEM 특성상 절대값은 실측과 차이가 있을 수 있음.\n케이스 간 상대 비교(트렌드)는 신뢰 가능.",
         "origin_tip": "Line (Red, σ_corr/σ_bulk) + Dashed (Orange, mS/cm).",
+        "min_groups": 2,
     },
     "ion_path_quality": {
         "func": plot_ion_path_quality,
@@ -1215,6 +1218,12 @@ def main():
             continue
 
         entry = PLOT_REGISTRY[plot_name]
+        # min_groups check: skip if not enough case groups
+        min_groups = entry.get("min_groups", 1)
+        n_groups = len(_GROUP_INFO[0]) if _GROUP_INFO else 1
+        if n_groups < min_groups:
+            print(f"  [SKIP] {plot_name}: requires {min_groups}+ case groups (have {n_groups})")
+            continue
         func = entry["func"]
         import inspect
         params = inspect.signature(func).parameters

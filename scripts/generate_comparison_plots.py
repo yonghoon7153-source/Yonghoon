@@ -869,25 +869,25 @@ def plot_ion_path_quality(data_list, names, outdir):
     vals = [_get(d, "gb_density_mean") for d in data_list]
     axes[0,0].plot(x, vals, 's-', color=BLUE, markersize=8, linewidth=2)
     _apply_style(axes[0,0], "GB Density (hops/μm)", names)
-    axes[0,0].set_title("Grain Boundary Density (GB_d)\n↓ better", fontsize=10, fontweight='bold')
+    axes[0,0].set_title("Grain Boundary Density (GB_d)  ↓ better", fontsize=10, fontweight='bold')
 
     # Path Hop Area mean (higher is better)
     vals = [_get(d, "path_hop_area_mean") for d in data_list]
     axes[0,1].plot(x, vals, 's-', color=ORANGE, markersize=8, linewidth=2)
     _apply_style(axes[0,1], "Hop Area mean (μm²)", names)
-    axes[0,1].set_title("Path Hop Area\n↑ better", fontsize=10, fontweight='bold')
+    axes[0,1].set_title("Path Hop Area  (↑ better)", fontsize=10, fontweight='bold')
 
     # Bottleneck (higher is better)
     vals = [_get(d, "path_hop_area_min_mean") for d in data_list]
     axes[1,0].plot(x, vals, 's-', color=RED, markersize=8, linewidth=2)
     _apply_style(axes[1,0], "Bottleneck (μm²)", names)
-    axes[1,0].set_title("Path Bottleneck\n↑ better", fontsize=10, fontweight='bold')
+    axes[1,0].set_title("Path Bottleneck  (↑ better)", fontsize=10, fontweight='bold')
 
     # Path Conductance (higher is better)
     vals = [_get(d, "path_conductance_mean") for d in data_list]
     axes[1,1].plot(x, vals, 's-', color=GREEN, markersize=8, linewidth=2)
     _apply_style(axes[1,1], "Conductance (μm²)", names)
-    axes[1,1].set_title("Path Conductance (G_path)\n↑ better", fontsize=10, fontweight='bold')
+    axes[1,1].set_title("Path Conductance (G_path)  (↑ better)", fontsize=10, fontweight='bold')
 
     gb = [_get(d, "gb_density_mean") for d in data_list]
     ha = [_get(d, "path_hop_area_mean") for d in data_list]
@@ -1026,7 +1026,7 @@ PLOT_REGISTRY = {
         "file": "ion_path_quality.png",
         "title": "Ion Path Quality (G_path, GB_d)",
 
-        "description": "이온 경로 품질 4종:\n• GB Density = N_hops / L_z (hops/μm) — ↓ 좋음\n• Path Hop Area = mean(각 hop의 접촉면적) — ↑ 좋음\n• Bottleneck = mean(각 경로의 최소 접촉면적) — ↑ 좋음\n• Path Conductance = 1/Σ(1/A_i) (μm²) — ↑ 좋음\n\n경로의 실질적 이온 전도 능력. Conductance가 가장 종합적 지표.",
+        "description": "이온 경로 품질 4종:\n\n• GB Density = N_hops / L_z (hops/μm)\n  → ↓ 좋음\n• Path Hop Area = mean(각 hop의 접촉면적)\n  → ↑ 좋음\n• Bottleneck = mean(각 경로의 최소 접촉면적)\n  → ↑ 좋음\n• Path Conductance = 1/Σ(1/A_i) (μm²)\n  → ↑ 좋음\n\n경로의 실질적 이온 전도 능력.\nConductance가 가장 종합적 지표.",
         "origin_tip": "2×2 Subplots → GB Density (Blue), Hop Area (Orange), Bottleneck (Red), Conductance (Green).",
     },
     "stress_z_layer": {

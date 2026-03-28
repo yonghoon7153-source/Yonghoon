@@ -505,7 +505,7 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                 for label, val in update_map.items():
                     mask = ns_df['지표'] == label
                     if mask.any():
-                        ns_df.loc[mask, '값'] = val
+                        ns_df.loc[mask, '값'] = str(val)
                 ns_df.to_csv(ns_path, index=False)
 
     # Force chain data for 3D viewer

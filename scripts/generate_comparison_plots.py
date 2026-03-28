@@ -571,12 +571,13 @@ def plot_effective_conductivity(data_list, names, outdir):
     ax2 = ax1.twinx()
     ax2.bar(x, phi, 0.4, color=color2, alpha=0.3, label="φ_SE")
     ax2.set_ylabel("SE Volume Fraction", fontsize=11, color=color2)
+    ax2.set_ylim(0.2, max(phi) * 1.15 if phi else 0.4)
     ax2.tick_params(axis='y', labelcolor=color2)
     ax2.spines["top"].set_visible(False)
 
     lines1, labels1 = ax1.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
-    ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper left')
+    ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper right')
     ax1.set_title("Effective Ionic Conductivity", fontsize=12, fontweight='bold')
     return _save(fig, outdir, "effective_conductivity.png")
 

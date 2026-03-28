@@ -423,9 +423,8 @@ async function generatePlots() {
           </div>
           <div class="deriv-section">
             <div class="deriv-label">4. 한계</div>
-            <div class="deriv-desc">⚠ DEM(구형 입자 + Hertz 접촉) 한계로 <b>절대값(mS/cm)은 실측과 차이가 클 수 있음</b></div>
-            <div class="deriv-desc">→ σ_eff_real/σ_bulk 비율을 <b>케이스 간 상대 비교 도구</b>로 활용</div>
-            <div class="deriv-desc">→ "A 조건이 B보다 전도도 좋다"는 신뢰 가능, 정확한 수치 예측은 불가</div>
+            <div class="deriv-desc">⚠ DEM(구형 입자 + Hertz 접촉) 특성상 절대값은 조건에 따라 실측과 차이가 있을 수 있음</div>
+            <div class="deriv-desc">→ 케이스 간 <b>상대 비교(트렌드)</b>는 신뢰 가능</div>
           </div>`;
         grid.appendChild(box);
       }

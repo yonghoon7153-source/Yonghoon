@@ -1055,7 +1055,7 @@ PLOT_REGISTRY = {
         "func": plot_gb_corrected,
         "file": "gb_corrected.png",
         "title": "GB-Corrected σ_eff",
-        "description": "σ_eff_real/σ_bulk = φ_SE × f_perc / τ² × e^(-b × GB_d)\n\nb: R_gb fitting에서 결정된 입계 저항 계수\nGB_d=0 → Bruggeman 정확 | GB_d↑ → 지수적 감소\n\n⚠ 케이스 간 상대 비교용.\nDEM 구형 입자 + Hertz 접촉 한계로\n절대값(mS/cm)은 실측과 차이가 클 수 있음.",
+        "description": "σ_eff_real/σ_bulk = φ_SE × f_perc / τ² × e^(-b × GB_d)\n\nb: R_gb fitting에서 결정된 입계 저항 계수\nGB_d=0 → Bruggeman 정확 | GB_d↑ → 지수적 감소\n\n⚠ DEM(구형 입자 + Hertz 접촉) 특성상\n절대값은 조건에 따라 실측과 차이가 있을 수 있음.\n케이스 간 상대 비교(트렌드)는 신뢰 가능.",
         "origin_tip": "Line (Red, σ_corr/σ_bulk) + Dashed (Orange, mS/cm).",
     },
     "ion_path_quality": {

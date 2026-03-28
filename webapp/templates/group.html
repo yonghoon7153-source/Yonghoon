@@ -387,6 +387,38 @@ async function generatePlots() {
     const grid = document.getElementById('plots-grid');
     grid.innerHTML = '';
     data.plots.forEach(p => {
+      // Insert derivation box before R_gb fitting plot
+      if (p.file === 'rgb_fitting.png') {
+        const box = document.createElement('div');
+        box.className = 'derivation-box';
+        box.innerHTML = `
+          <h4>📐 유효 이온전도도 유도</h4>
+          <div class="deriv-section">
+            <div class="deriv-label">1. Bruggeman 추정 (입계 무시)</div>
+            <div class="deriv-formula">σ_eff / σ_bulk = φ_SE × f_perc / τ²</div>
+            <div class="deriv-desc">φ_SE: SE 부피 분율 | f_perc: 관통 SE 비율 | τ: tortuosity</div>
+          </div>
+          <div class="deriv-section">
+            <div class="deriv-label">2. Path Conductance (입계 반영)</div>
+            <div class="deriv-formula">σ_proxy = G_path × f_perc / τ</div>
+            <div class="deriv-desc">G_path = 1/Σ(1/A_i) : 경로의 직렬 저항 모델. 각 hop 접촉면적 반영</div>
+            <div class="deriv-desc">τ가 아닌 τ² 인 이유: G_path가 이미 경로 길이(hop 수) 반영 → 투영 효과만 ÷τ</div>
+          </div>
+          <div class="deriv-section">
+            <div class="deriv-label">3. 둘의 비율 → 입계 효과 분리</div>
+            <div class="deriv-formula">σ_brug / σ_proxy = k × e^(b × GB_d)</div>
+            <div class="deriv-desc">GB_d가 클수록 과대평가 비율 커짐 → 지수 관계 (log space에서 직선)</div>
+            <div class="deriv-desc">b = 입계 저항 계수 (데이터에서 선형 회귀로 결정)</div>
+          </div>
+          <div class="deriv-section">
+            <div class="deriv-label">4. 최종 보정식</div>
+            <div class="deriv-formula">σ_eff_real = σ_brug / e^(b × (GB_d − GB_d_min))</div>
+            <div class="deriv-desc">GB_d_min 기준 상대 보정. 입계 적은 케이스 = 보정 없음, 입계 많으면 깎임</div>
+            <div class="deriv-formula">σ_eff_real (mS/cm) = σ_eff_real × σ_bulk</div>
+            <div class="deriv-desc">σ_bulk = 1.3 mS/cm (Li₆PS₅Cl, cold-pressed)</div>
+          </div>`;
+        grid.appendChild(box);
+      }
       const item = document.createElement('div');
       item.className = 'plot-item';
       item.innerHTML = `

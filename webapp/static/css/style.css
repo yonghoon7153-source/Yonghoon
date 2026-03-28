@@ -233,6 +233,21 @@ thead .sticky-col { z-index: 3; }
   text-align: left !important;
   position: sticky; left: 0; z-index: 2;
 }
+/* Derivation box */
+.derivation-box {
+  background: linear-gradient(135deg, #1a1d30, #1e2240);
+  border: 1px solid var(--accent); border-radius: 12px;
+  padding: 24px 28px; margin-bottom: 16px;
+}
+.derivation-box h4 { color: var(--accent); margin-bottom: 16px; font-size: 1.05rem; }
+.deriv-section { margin-bottom: 14px; padding-left: 12px; border-left: 3px solid var(--border); }
+.deriv-label { color: var(--text); font-weight: 700; font-size: .85rem; margin-bottom: 4px; }
+.deriv-formula {
+  font-family: var(--mono); font-size: .88rem; color: #c9d1ff;
+  background: rgba(108,140,255,.1); border-radius: 6px;
+  padding: 8px 14px; margin: 4px 0;
+}
+.deriv-desc { color: var(--dim); font-size: .78rem; line-height: 1.5; margin-top: 4px; }
 .best-val {
   color: #34d399 !important; font-weight: 700 !important;
 }

@@ -324,9 +324,21 @@ def plot_ionic_active(all_data, names, ax=None):
     xs = list(range(len(names)))
     ys = [_get(d, "ionic_active_pct") for d in all_data]
 
-    ax.plot(xs, ys, marker="o", color=GREEN, linewidth=2, markersize=9, zorder=3)
-    ax.fill_between(xs, ys, 100, color=RED, alpha=0.12, label="Dead zone")
-    ax.fill_between(xs, 0, ys, color=GREEN, alpha=0.12, label="Active zone")
+    # Fill per group to avoid cross-group shading
+    if _GROUP_INFO and len(_GROUP_INFO[0]) > 1:
+        sizes = _GROUP_INFO[0]
+        pos = 0
+        for gi, sz in enumerate(sizes):
+            gx = xs[pos:pos+sz]
+            gy = ys[pos:pos+sz]
+            ax.plot(gx, gy, marker="o", color=GREEN, linewidth=2, markersize=9, zorder=3)
+            ax.fill_between(gx, gy, 100, color=RED, alpha=0.12, label="Dead zone" if gi == 0 else None)
+            ax.fill_between(gx, 0, gy, color=GREEN, alpha=0.12, label="Active zone" if gi == 0 else None)
+            pos += sz
+    else:
+        ax.plot(xs, ys, marker="o", color=GREEN, linewidth=2, markersize=9, zorder=3)
+        ax.fill_between(xs, ys, 100, color=RED, alpha=0.12, label="Dead zone")
+        ax.fill_between(xs, 0, ys, color=GREEN, alpha=0.12, label="Active zone")
     if ys:
         ymin = max(min(ys) - 3, 0)
         ax.set_ylim(ymin, 101)

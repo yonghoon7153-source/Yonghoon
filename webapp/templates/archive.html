@@ -80,7 +80,7 @@
           <span class="folder-icon">&#x1F4C1;</span>
           <div class="folder-info">
             <strong>{{ f.name }}</strong>
-            <small>{{ f.file_count }} 파일{% if f.subfolder_count %}, {{ f.subfolder_count }} 하위폴더{% endif %}{% if f.has_metrics %} ✓{% endif %}</small>
+            <small>{{ f.file_count }} 파일{% if f.subfolder_count %} · {{ f.subfolder_count }} 하위폴더{% endif %}{% if f.has_metrics %} · ✓{% endif %}</small>
           </div>
           <div class="folder-actions" onclick="event.preventDefault();event.stopPropagation()">
             {% if f.has_metrics %}
@@ -97,42 +97,34 @@
 
     {% if files %}
     <div class="card">
-      <h4>파일</h4>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>파일명</th>
-            <th>크기</th>
-            <th>액션</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for f in files %}
-          <tr>
-            <td>
-              <span class="file-ext-icon
-                {% if f.ext == '.png' %}ext-img
-                {% elif f.ext == '.md' %}ext-md
-                {% elif f.ext == '.csv' %}ext-csv
-                {% else %}ext-other{% endif %}">
-                {{ f.ext or '?' }}
-              </span>
-              <span class="file-name-text">{{ f.name }}</span>
-            </td>
-            <td class="dim">{{ "%.1f"|format(f.size/1024) }} KB</td>
-            <td class="actions">
-              {% if f.ext == '.png' %}
-              <button class="btn btn-sm btn-view" onclick="previewImage('/archive/preview/{{ f.path }}', '{{ f.name }}')">미리보기</button>
-              {% elif f.ext in ['.md', '.csv', '.json'] %}
-              <button class="btn btn-sm btn-view" onclick="previewFile('{{ f.path }}')">미리보기</button>
-              {% endif %}
-              <a href="/archive/download/{{ f.path }}" class="btn btn-sm btn-dl">다운로드</a>
-              <button class="btn btn-sm btn-del" onclick="deleteItem('{{ f.path }}')">삭제</button>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <h4>파일 ({{ files|length }})</h4>
+      <div class="file-grid-2col">
+        {% for f in files %}
+        <div class="file-row">
+          <span class="file-ext-icon
+            {% if f.ext == '.png' %}ext-img
+            {% elif f.ext == '.md' %}ext-md
+            {% elif f.ext == '.csv' %}ext-csv
+            {% elif f.ext == '.json' %}ext-csv
+            {% else %}ext-other{% endif %}">
+            {{ f.ext or '?' }}
+          </span>
+          <div class="file-info">
+            <span class="file-name-text">{{ f.name }}</span>
+            <span class="dim" style="font-size:.75rem">{{ "%.1f"|format(f.size/1024) }} KB</span>
+          </div>
+          <div class="file-actions">
+            {% if f.ext == '.png' %}
+            <button class="btn btn-sm btn-view" onclick="previewImage('/archive/preview/{{ f.path }}', '{{ f.name }}')">보기</button>
+            {% elif f.ext in ['.md', '.csv', '.json'] %}
+            <button class="btn btn-sm btn-view" onclick="previewFile('{{ f.path }}')">보기</button>
+            {% endif %}
+            <a href="/archive/download/{{ f.path }}" class="btn btn-sm btn-dl">↓</a>
+            <button class="btn btn-sm btn-del" onclick="deleteItem('{{ f.path }}')">×</button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
     </div>
     {% endif %}
 

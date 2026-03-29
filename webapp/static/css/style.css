@@ -587,6 +587,18 @@ thead .sticky-col { z-index: 3; }
 .ext-csv { background: rgba(251,191,36,.12); color: var(--yellow); }
 .ext-other { background: var(--bg); color: var(--dim); }
 .file-name-text { font-family: var(--mono); font-size: .8rem; }
+.file-grid-2col {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+}
+.file-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: 6px;
+  background: rgba(255,255,255,.02); border: 1px solid var(--border);
+}
+.file-row:hover { background: rgba(255,255,255,.04); }
+.file-info { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.file-info .file-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-actions { display: flex; gap: 4px; flex-shrink: 0; }
 
 /* Save & Preview Dialogs */
 .save-dialog-inner {

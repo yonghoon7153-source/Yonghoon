@@ -311,12 +311,17 @@ async function reanalyzeAll(btn) {
   const ids = [{% for case in cases %}{% if case.has_results %}'{{ case.id }}',{% endif %}{% endfor %}];
   if (!ids.length) return;
   btn.disabled = true;
+  localStorage.setItem('dem_reanalyze_ids', JSON.stringify(ids));
+  localStorage.setItem('dem_reanalyze_idx', '0');
+  localStorage.setItem('dem_reanalyze_active', 'true');
+  _runSeq(btn, ids, 0);
+}
 
-  // Sequential: one at a time to avoid RAM explosion
-  for (let i = 0; i < ids.length; i++) {
+async function _runSeq(btn, ids, startIdx) {
+  for (let i = startIdx; i < ids.length; i++) {
     btn.textContent = `${i+1}/${ids.length}...`;
+    localStorage.setItem('dem_reanalyze_idx', String(i));
     await fetch(`/analyze/${ids[i]}`, { method: 'POST' });
-    // Wait until this one finishes
     while (true) {
       await new Promise(r => setTimeout(r, 3000));
       const res = await fetch(`/analyze-status/${ids[i]}`);
@@ -326,8 +331,23 @@ async function reanalyzeAll(btn) {
   }
   btn.textContent = '✓ done';
   showToast('All reanalysis complete!');
+  localStorage.removeItem('dem_reanalyze_active');
+  localStorage.removeItem('dem_reanalyze_ids');
+  localStorage.removeItem('dem_reanalyze_idx');
   setTimeout(() => { btn.textContent = '전체 재분석'; btn.disabled = false; }, 3000);
 }
+
+// Resume on page load
+document.addEventListener('DOMContentLoaded', () => {
+  if (localStorage.getItem('dem_reanalyze_active') === 'true') {
+    const ids = JSON.parse(localStorage.getItem('dem_reanalyze_ids') || '[]');
+    const idx = parseInt(localStorage.getItem('dem_reanalyze_idx') || '0');
+    if (ids.length > 0 && idx < ids.length) {
+      const btn = document.querySelector('[onclick*="reanalyzeAll"]');
+      if (btn) { btn.disabled = true; _runSeq(btn, ids, idx); }
+    }
+  }
+});
 
 // Quick save to archive
 async function quickSave(caseId) {

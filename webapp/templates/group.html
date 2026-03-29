@@ -732,9 +732,45 @@ function openPlotModal(src, title) {
     </div>`;
     document.body.appendChild(modal);
   }
-  document.getElementById('plot-modal-img').src = src;
+  const img = document.getElementById('plot-modal-img');
+  img.src = src;
   document.getElementById('plot-modal-title').textContent = title;
   modal.classList.add('open');
+
+  // Ctrl+C to copy image to clipboard
+  modal._copyHandler = async (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+      e.preventDefault();
+      try {
+        const res = await fetch(img.src);
+        const blob = await res.blob();
+        await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+        document.getElementById('plot-modal-title').textContent = '✓ Copied!';
+        setTimeout(() => document.getElementById('plot-modal-title').textContent = title, 1500);
+      } catch(err) {
+        // Fallback: canvas approach
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          canvas.getContext('2d').drawImage(img, 0, 0);
+          canvas.toBlob(async (blob) => {
+            await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+            document.getElementById('plot-modal-title').textContent = '✓ Copied!';
+            setTimeout(() => document.getElementById('plot-modal-title').textContent = title, 1500);
+          });
+        } catch(e2) {}
+      }
+    }
+  };
+  document.addEventListener('keydown', modal._copyHandler);
+
+  // Clean up handler when modal closes
+  const origClose = modal.onclick;
+  modal.onclick = () => {
+    document.removeEventListener('keydown', modal._copyHandler);
+    modal.classList.remove('open');
+  };
 }
 
 function copyGroupReport() {

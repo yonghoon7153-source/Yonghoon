@@ -83,7 +83,7 @@ def _apply_style(ax, ylabel, names):
             mid = pos + sz / 2 - 0.5
             # Staggered group labels: odd groups lower
             if n > 8:
-                label_y = -0.32 if gi % 2 == 0 else -0.42
+                label_y = -0.26 if gi % 2 == 0 else -0.36
             else:
                 label_y = -0.18
             label_fs = 7 if n > 15 else 8 if n > 8 else 9

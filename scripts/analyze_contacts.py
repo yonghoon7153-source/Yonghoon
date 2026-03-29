@@ -248,6 +248,19 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     else:
         ps_ratio = ""
 
+    # Auto-detect AM:SE mass ratio
+    se_density = 2000  # kg/m³ (Li₆PS₅Cl)
+    se_atoms = [a for a in atoms_raw.values() if type_map.get(a['type']) == 'SE']
+    total_am_mass_all = am_p_mass + am_s_mass
+    se_mass = sum(se_density * 4/3 * np.pi * a['radius']**3 for a in se_atoms)
+    if total_am_mass_all > 0 and se_mass > 0:
+        total_mass = total_am_mass_all + se_mass
+        am_pct = round(total_am_mass_all / total_mass * 100 / 5) * 5  # nearest 5%
+        se_pct = 100 - am_pct
+        am_se_ratio = f"{am_pct}:{se_pct}"
+    else:
+        am_se_ratio = ""
+
     # Particle counts and radii per type
     particle_info = {}
     for t, name in type_map.items():
@@ -262,6 +275,7 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         'thickness_um': results['thickness_um'],
         'plate_z_source': results['plate_z_source'],
         'ps_ratio': ps_ratio,
+        'am_se_ratio': am_se_ratio,
         'se_se_cn': cn['mean'],
         'percolation_pct': perc['percolation_pct'],
         'top_reachable_pct': perc['top_reachable_pct'],

@@ -1527,29 +1527,50 @@ def archive_reanalyze(folder):
     if not atom_files or not contact_files:
         return jsonify({'error': 'No atom/contact files in raw_files/'}), 400
 
-    scripts = app.config['SCRIPTS_FOLDER']
-    mode = meta.get('mode', 'standard')
-    type_map = meta.get('type_map', '1:AM,2:SE')
-    scale = meta.get('scale', 1000)
+    # Write a status file for polling
+    status_file = os.path.join(target, '.reanalyze_status')
+    with open(status_file, 'w') as f:
+        f.write('running')
 
-    for pyc in globmod.glob(os.path.join(scripts, '__pycache__', '*.pyc')):
-        os.remove(pyc)
+    def _run():
+        scripts = app.config['SCRIPTS_FOLDER']
+        mode = meta.get('mode', 'standard')
+        type_map = meta.get('type_map', '1:AM,2:SE')
+        scale = meta.get('scale', 1000)
 
-    # Parse
-    cmd = ['python3', os.path.join(scripts, 'parse_liggghts.py')]
-    cmd += atom_files + contact_files + mesh_files + input_files + ['-o', target]
-    subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        for pyc in globmod.glob(os.path.join(scripts, '__pycache__', '*.pyc')):
+            os.remove(pyc)
 
-    # Analyze
-    atoms_csv = os.path.join(target, 'atoms.csv')
-    contacts_csv = os.path.join(target, 'contacts.csv')
-    script = 'analyze_contacts_bimodal.py' if mode == 'bimodal' else 'analyze_contacts.py'
-    cmd = ['python3', os.path.join(scripts, script),
-           atoms_csv, contacts_csv, '-o', target,
-           '-t', type_map, '-s', str(scale)]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        cmd = ['python3', os.path.join(scripts, 'parse_liggghts.py')]
+        cmd += atom_files + contact_files + mesh_files + input_files + ['-o', target]
+        subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
-    return jsonify({'success': result.returncode == 0})
+        atoms_csv = os.path.join(target, 'atoms.csv')
+        contacts_csv = os.path.join(target, 'contacts.csv')
+        script = 'analyze_contacts_bimodal.py' if mode == 'bimodal' else 'analyze_contacts.py'
+        cmd = ['python3', os.path.join(scripts, script),
+               atoms_csv, contacts_csv, '-o', target,
+               '-t', type_map, '-s', str(scale)]
+        subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+
+        with open(status_file, 'w') as f:
+            f.write('done')
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    return jsonify({'success': True, 'status': 'running'})
+
+
+@app.route('/archive/reanalyze-status/<path:folder>')
+def archive_reanalyze_status(folder):
+    target = _safe_path(folder)
+    if not target:
+        return jsonify({'status': 'unknown'})
+    status_file = os.path.join(target, '.reanalyze_status')
+    if os.path.exists(status_file):
+        with open(status_file) as f:
+            return jsonify({'status': f.read().strip()})
+    return jsonify({'status': 'done'})
 
 
 @app.route('/archive/view/<path:folder>')

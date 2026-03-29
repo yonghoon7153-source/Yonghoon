@@ -268,28 +268,48 @@ async function reanalyzeAll() {
   if (!paths.length) return;
   const btn = event.target;
   btn.disabled = true;
+  // Fire all
   for (let i = 0; i < paths.length; i++) {
-    btn.textContent = `재분석 ${i+1}/${paths.length}...`;
+    btn.textContent = `starting ${i+1}/${paths.length}...`;
     await fetch(`/archive/reanalyze/${paths[i]}`, { method: 'POST' });
   }
-  btn.textContent = '✓ 완료';
-  showToast('All reanalysis complete!');
-  setTimeout(() => { btn.textContent = '모두 재분석'; btn.disabled = false; }, 3000);
+  // Poll
+  btn.textContent = 'analyzing...';
+  const poll = () => {
+    setTimeout(async () => {
+      let doneCount = 0;
+      for (const p of paths) {
+        const res = await fetch(`/archive/reanalyze-status/${p}`);
+        const data = await res.json();
+        if (data.status === 'done') doneCount++;
+      }
+      btn.textContent = `${doneCount}/${paths.length} done...`;
+      if (doneCount >= paths.length) {
+        btn.textContent = '✓ done';
+        showToast('All reanalysis complete!');
+        setTimeout(() => { btn.textContent = '모두 재분석'; btn.disabled = false; }, 3000);
+      } else { poll(); }
+    }, 3000);
+  };
+  poll();
 }
 
 async function reanalyzeArchive(btn, path) {
   btn.disabled = true; btn.textContent = '분석중...';
-  const form = new FormData();
-  const res = await fetch(`/archive/reanalyze/${path}`, { method: 'POST' });
-  const data = await res.json();
-  if (data.success) {
-    btn.textContent = '✓ 완료';
-    showToast(`Reanalysis started: ${path.split('/').pop()}`);
-    setTimeout(() => { btn.textContent = '재분석'; btn.disabled = false; }, 3000);
-  } else {
-    btn.textContent = '실패';
-    setTimeout(() => { btn.textContent = '재분석'; btn.disabled = false; }, 2000);
-  }
+  await fetch(`/archive/reanalyze/${path}`, { method: 'POST' });
+  // Poll single
+  const poll = () => {
+    setTimeout(async () => {
+      const res = await fetch(`/archive/reanalyze-status/${path}`);
+      const data = await res.json();
+      if (data.status === 'done') {
+        btn.textContent = '✓ 완료';
+        showToast(`Reanalysis complete: ${path.split('/').pop()}`);
+        setTimeout(() => { btn.textContent = '재분석'; btn.disabled = false; }, 3000);
+      } else { poll(); }
+    }, 3000);
+  };
+  poll();
 }
 
 async function deleteAllFolders() {

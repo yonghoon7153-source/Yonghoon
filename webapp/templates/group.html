@@ -654,7 +654,7 @@ async function generatePlots() {
       }
       // Save global rgb/gb_corrected plots for later
       if (gdata.plots) {
-        globalRgbPlots = {session: gdata.session, plots: gdata.plots};
+        globalRgbPlots = {session: gdata.session, plots: gdata.plots.filter(p => p.file !== 'particle_info.png')};
       }
     }
 

@@ -66,8 +66,10 @@
     <div class="card">
       <div class="card-header-row">
         <h4>폴더</h4>
-        <button class="btn btn-sm btn-run" onclick="reanalyzeAll()">모두 재분석</button>
-        <button class="btn btn-sm btn-del" onclick="deleteAllFolders()">모두 삭제</button>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm btn-run" onclick="reanalyzeAll()">모두 재분석</button>
+          <button class="btn btn-sm btn-del" onclick="deleteAllFolders()">모두 삭제</button>
+        </div>
       </div>
       <div class="folder-grid">
         {% for f in folders %}

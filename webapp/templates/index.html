@@ -64,6 +64,7 @@
     <div style="display:flex;gap:6px">
       <button class="btn btn-sm btn-secondary sort-btn" onclick="sortCases('name')" id="sort-name">이름순</button>
       <button class="btn btn-sm btn-secondary sort-btn active" onclick="sortCases('date')" id="sort-date">최신순</button>
+      <button class="btn btn-sm btn-run" onclick="reanalyzeAll(this)">전체 재분석</button>
     </div>
   </div>
   {% if cases %}
@@ -303,6 +304,19 @@ function showFiles(caseId) {
     });
   };
   document.getElementById('files-modal').classList.add('open');
+}
+
+// Reanalyze all cases
+async function reanalyzeAll(btn) {
+  const ids = [{% for case in cases %}{% if case.has_results %}'{{ case.id }}',{% endif %}{% endfor %}];
+  if (!ids.length) return;
+  btn.disabled = true;
+  for (let i = 0; i < ids.length; i++) {
+    btn.textContent = `${i+1}/${ids.length}...`;
+    await fetch(`/analyze/${ids[i]}`, { method: 'POST' });
+  }
+  btn.textContent = '✓';
+  setTimeout(() => location.reload(), 1000);
 }
 
 // Quick save to archive

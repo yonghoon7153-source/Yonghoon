@@ -65,6 +65,7 @@
       <button class="btn btn-sm btn-secondary sort-btn" onclick="sortCases('name')" id="sort-name">이름순</button>
       <button class="btn btn-sm btn-secondary sort-btn active" onclick="sortCases('date')" id="sort-date">최신순</button>
       <button class="btn btn-sm btn-run" onclick="reanalyzeAll(this)">전체 재분석</button>
+      <button class="btn btn-sm btn-archive" onclick="saveAllToArchive(this)">전체 보관함 저장</button>
     </div>
   </div>
   {% if cases %}
@@ -348,6 +349,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 });
+
+// Save all to archive
+async function saveAllToArchive(btn) {
+  const ids = [{% for case in cases %}{% if case.has_results %}'{{ case.id }}',{% endif %}{% endfor %}];
+  if (!ids.length) return;
+  btn.disabled = true;
+  for (let i = 0; i < ids.length; i++) {
+    btn.textContent = `${i+1}/${ids.length}...`;
+    const form = new FormData();
+    form.append('case_id', ids[i]);
+    form.append('folder', '');
+    await fetch('/archive/save-case', { method: 'POST', body: form });
+  }
+  btn.textContent = '✓ done';
+  showToast('All cases saved to archive!');
+  setTimeout(() => { btn.textContent = '전체 보관함 저장'; btn.disabled = false; }, 3000);
+}
 
 // Quick save to archive
 async function quickSave(caseId) {

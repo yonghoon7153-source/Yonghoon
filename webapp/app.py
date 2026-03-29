@@ -1487,6 +1487,67 @@ def archive_save_case():
             shutil.copy2(fpath, os.path.join(raw_dir, fname))
     return jsonify({'success': True, 'saved_to': save_dir})
 
+@app.route('/archive/reanalyze/<path:folder>', methods=['POST'])
+def archive_reanalyze(folder):
+    """Re-run analysis on an archive case using raw_files."""
+    target = _safe_path(folder)
+    if not target or not os.path.isdir(target):
+        return jsonify({'error': 'Not found'}), 404
+
+    meta_file = os.path.join(target, 'meta.json')
+    if not os.path.exists(meta_file):
+        return jsonify({'error': 'No meta.json'}), 404
+
+    with open(meta_file) as f:
+        meta = json.load(f)
+
+    # Find source files: raw_files/ or directly in folder
+    raw_dir = os.path.join(target, 'raw_files')
+    source_dir = raw_dir if os.path.isdir(raw_dir) else target
+
+    atom_files = sorted(globmod.glob(os.path.join(source_dir, 'atom*.liggghts')))
+    contact_files = sorted(globmod.glob(os.path.join(source_dir, 'contact*.liggghts')))
+    mesh_files = sorted(globmod.glob(os.path.join(source_dir, '*.stl')))
+    input_files = sorted(globmod.glob(os.path.join(source_dir, 'input*.liggghts')))
+
+    if not atom_files or not contact_files:
+        return jsonify({'error': 'No atom/contact files in raw_files/'}), 400
+
+    scripts = app.config['SCRIPTS_FOLDER']
+    mode = meta.get('mode', 'standard')
+    type_map = meta.get('type_map', '1:AM,2:SE')
+    scale = meta.get('scale', 1000)
+
+    # Clear pyc cache
+    for pyc in globmod.glob(os.path.join(scripts, '__pycache__', '*.pyc')):
+        os.remove(pyc)
+
+    log = []
+
+    # Step 1: Parse
+    cmd = ['python3', os.path.join(scripts, 'parse_liggghts.py')]
+    cmd += atom_files + contact_files + mesh_files + input_files + ['-o', target]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    log.append({'step': 'Parse', 'rc': result.returncode})
+
+    # Step 2: Analyze
+    atoms_csv = os.path.join(target, 'atoms.csv')
+    contacts_csv = os.path.join(target, 'contacts.csv')
+
+    if mode == 'bimodal':
+        script = 'analyze_contacts_bimodal.py'
+    else:
+        script = 'analyze_contacts.py'
+
+    cmd = ['python3', os.path.join(scripts, script),
+           atoms_csv, contacts_csv, '-o', target,
+           '-t', type_map, '-s', str(scale)]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    log.append({'step': 'Analyze', 'rc': result.returncode, 'stderr': result.stderr})
+
+    return jsonify({'success': result.returncode == 0, 'log': log})
+
+
 @app.route('/archive/view/<path:folder>')
 def archive_view(folder):
     """View archive case results like single page."""

@@ -66,6 +66,7 @@
     <div class="card">
       <div class="card-header-row">
         <h4>폴더</h4>
+        <button class="btn btn-sm btn-run" onclick="reanalyzeAll()">모두 재분석</button>
         <button class="btn btn-sm btn-del" onclick="deleteAllFolders()">모두 삭제</button>
       </div>
       <div class="folder-grid">
@@ -87,6 +88,7 @@
           <div class="folder-btns">
             {% if f.has_metrics %}
             <a href="/archive/view/{{ f.path }}" class="btn btn-sm btn-primary">결과보기</a>
+            <button class="btn btn-sm btn-run" onclick="reanalyzeArchive(this, '{{ f.path }}')">재분석</button>
             {% endif %}
             <button class="btn btn-sm btn-del" onclick="deleteItem('{{ f.path }}')">삭제</button>
           </div>
@@ -258,6 +260,33 @@ async function dropOnFolder(e, targetPath) {
 document.addEventListener('dragend', () => {
   document.querySelectorAll('.folder-card').forEach(c => c.style.opacity = '1');
 });
+
+async function reanalyzeAll() {
+  const paths = [{% for f in folders %}{% if f.has_metrics %}'{{ f.path }}',{% endif %}{% endfor %}];
+  if (!paths.length) return;
+  const btn = event.target;
+  btn.disabled = true;
+  for (let i = 0; i < paths.length; i++) {
+    btn.textContent = `재분석 ${i+1}/${paths.length}...`;
+    await fetch(`/archive/reanalyze/${paths[i]}`, { method: 'POST' });
+  }
+  btn.textContent = '✓ 완료';
+  setTimeout(() => location.reload(), 1000);
+}
+
+async function reanalyzeArchive(btn, path) {
+  btn.disabled = true; btn.textContent = '분석중...';
+  const form = new FormData();
+  const res = await fetch(`/archive/reanalyze/${path}`, { method: 'POST' });
+  const data = await res.json();
+  if (data.success) {
+    btn.textContent = '✓ 완료';
+    setTimeout(() => location.reload(), 1000);
+  } else {
+    btn.textContent = '실패';
+    setTimeout(() => { btn.textContent = '재분석'; btn.disabled = false; }, 2000);
+  }
+}
 
 async function deleteAllFolders() {
   const folders = [{% for f in folders %}'{{ f.path }}',{% endfor %}];

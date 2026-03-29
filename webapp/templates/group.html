@@ -616,6 +616,40 @@ async function generatePlots() {
   if (!validPGs.length) { alert('플롯 그룹에 Case를 선택하세요.'); btn.disabled = false; btn.textContent = '선택 플롯 생성'; loading.style.display = 'none'; return; }
 
   try {
+    // If rgb_fitting or gb_corrected selected + multiple groups → compute global b first
+    const needsGlobalRgb = validPGs.length > 1 &&
+      (plotTypes.includes('rgb_fitting') || plotTypes.includes('gb_corrected'));
+    let globalRgb = '';
+
+    if (needsGlobalRgb) {
+      btn.textContent = 'Computing global R_gb...';
+      // Send ALL cases from ALL plot groups to get global b
+      const allCaseGroups = [];
+      const seen = new Set();
+      validPGs.forEach(pg => {
+        pg.caseGroupIdxs.forEach(i => {
+          if (!seen.has(i)) { allCaseGroups.push(caseGroups[i]); seen.add(i); }
+        });
+      });
+      const gform = new FormData();
+      allCaseGroups.forEach(g => g.cases.forEach(cid => gform.append('cases', cid)));
+      gform.append('case_groups', JSON.stringify(allCaseGroups));
+      gform.append('plots', 'rgb_fitting');  // only need this to get b
+      const gres = await fetch('/group/plots', { method: 'POST', body: gform });
+      const gdata = await gres.json();
+      // Extract b and ln_k from the CSV
+      if (gdata.session) {
+        try {
+          const infoRes = await fetch(`/group/plot-image/${gdata.session}/plot_info.json`);
+          const info = await infoRes.json();
+          if (info.rgb_fitting && info.rgb_fitting.b !== undefined) {
+            globalRgb = `${info.rgb_fitting.b},${info.rgb_fitting.ln_k || 0}`;
+            console.log('Global R_gb:', globalRgb);
+          }
+        } catch(e) {}
+      }
+    }
+
     // Collect results from all plot groups
     const allResults = []; // [{pgIdx, pgName, session, plots}]
     for (let pgIdx = 0; pgIdx < validPGs.length; pgIdx++) {
@@ -627,6 +661,7 @@ async function generatePlots() {
       pgCaseGroups.forEach(g => g.cases.forEach(cid => form.append('cases', cid)));
       form.append('case_groups', JSON.stringify(pgCaseGroups));
       plotTypes.forEach(p => form.append('plots', p));
+      if (globalRgb) form.append('global_rgb', globalRgb);
 
       const res = await fetch('/group/plots', { method: 'POST', body: form });
       const data = await res.json();

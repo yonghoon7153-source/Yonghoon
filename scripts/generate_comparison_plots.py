@@ -39,6 +39,7 @@ GROUP_COLORS = ['#6c8cff', '#ff6b6b', '#51cf66', '#ffd43b', '#cc5de8', '#ff922b'
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 _GROUP_INFO = None  # Set by main()
+_GLOBAL_RGB = None  # (b, ln_k) from global fit across all plot groups
 
 def _apply_style(ax, ylabel, names):
     """Apply common academic style with group separators."""
@@ -763,8 +764,9 @@ def plot_effective_conductivity(data_list, names, outdir):
     return _save(fig, outdir, "effective_conductivity.png")
 
 
-def _fit_r_gb(data_list, names):
-    """Fit R_gb from Bruggeman vs Path Conductance data. Returns r_gb, log_k, valid data."""
+def _fit_r_gb(data_list, names, use_global=True):
+    """Fit R_gb from Bruggeman vs Path Conductance data. Returns r_gb, log_k, valid data.
+    If _GLOBAL_RGB is set and use_global=True, use global values instead of local fit."""
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     perc = [_get(d, "percolation_pct") / 100 for d in data_list]
     tau = [_get(d, "tortuosity_mean", 1) for d in data_list]
@@ -777,11 +779,13 @@ def _fit_r_gb(data_list, names):
     valid_idx = [i for i in range(len(data_list))
                  if sigma_proxy[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0]
 
+    # Use global fit if available (from all plot groups combined)
+    if use_global and _GLOBAL_RGB is not None:
+        return _GLOBAL_RGB[0], _GLOBAL_RGB[1], valid_idx
+
     r_gb = 0.5
     ln_k = 0
     if len(valid_idx) >= 2:
-        # Linear regression with intercept: log(σ_brug/σ_proxy) = b × GB_d + ln(k)
-        # slope = b (grain boundary resistance), intercept = ln(k) (unit conversion)
         y_vals = np.array([sigma_brug[i] / sigma_proxy[i] for i in valid_idx])
         x_vals = np.array([gb_dens[i] for i in valid_idx])
         log_y = np.log(y_vals)
@@ -875,7 +879,8 @@ def plot_rgb_fitting(data_list, names, outdir):
 
     ax.set_xlabel("GB Density (hops/μm)", fontsize=12)
     ax.set_ylabel("log(σ_brug / σ_proxy)", fontsize=12)
-    ax.set_title("R_gb Fitting", fontsize=13, fontweight='bold')
+    title_suffix = " (global)" if _GLOBAL_RGB is not None else ""
+    ax.set_title(f"R_gb Fitting{title_suffix}", fontsize=13, fontweight='bold')
     ax.legend(fontsize=10, loc='upper left')
     ax.text(0.95, 0.05, f"b = {r_gb:.2f}\nln(k) = {log_k:.2f}\nR² = {r_squared:.4f}\nn = {len(x_pts)}",
             transform=ax.transAxes, fontsize=11, ha='right', va='bottom',
@@ -929,7 +934,8 @@ def plot_gb_corrected(data_list, names, outdir):
     lines1, labels1 = ax.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
     ax.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='best')
-    ax.set_title(f"GB-Corrected σ_eff  (b={r_gb:.2f}, σ_bulk={SIGMA_BULK} mS/cm)",
+    gb_src = "global" if _GLOBAL_RGB is not None else "local"
+    ax.set_title(f"GB-Corrected σ_eff  (b={r_gb:.2f} [{gb_src}], σ_bulk={SIGMA_BULK} mS/cm)",
                  fontsize=11, fontweight='bold')
 
     _write_csv(outdir, 'gb_corrected.csv',
@@ -1132,6 +1138,7 @@ def main():
                         default=list(PLOT_REGISTRY.keys()) + ["four_panel"])
     parser.add_argument("--group-sizes", default="")  # e.g. "3,5"
     parser.add_argument("--group-names", default="")  # e.g. "Case A,Case B"
+    parser.add_argument("--global-rgb", default="")   # e.g. "5.21,0.20" (b,ln_k from global fit)
     args = parser.parse_args()
 
     # Parse group info
@@ -1164,11 +1171,20 @@ def main():
     plot_info = {}
 
     # Set global group info for _apply_style
-    global _GROUP_INFO
+    global _GROUP_INFO, _GLOBAL_RGB
     if args.group_sizes_list and len(args.group_sizes_list) > 1:
         _GROUP_INFO = (args.group_sizes_list, args.group_names_list)
     else:
         _GROUP_INFO = None
+
+    # Set global R_gb if provided (from combined fit across all plot groups)
+    if args.global_rgb:
+        parts = args.global_rgb.split(',')
+        if len(parts) >= 2:
+            _GLOBAL_RGB = (float(parts[0]), float(parts[1]))
+            print(f"  Using global R_gb: b={_GLOBAL_RGB[0]:.2f}, ln(k)={_GLOBAL_RGB[1]:.2f}")
+    else:
+        _GLOBAL_RGB = None
 
     # Generate particle info table as first plot
     if 'particle_info' in args.plots or True:  # always generate
@@ -1272,13 +1288,19 @@ def main():
             standalone_csv = os.path.join(args.output, f"{plot_name}.csv")
             if os.path.exists(standalone_csv):
                 csv_file = f"{plot_name}.csv"
-        plot_info[plot_name] = {
+        info_entry = {
             "file": entry["file"],
             "csv": csv_file,
             "title": entry["title"],
             "description": entry["description"],
             "origin_tip": entry["origin_tip"],
         }
+        # Add R_gb values to plot_info for downstream use
+        if plot_name == 'rgb_fitting':
+            r_gb, ln_k, _ = _fit_r_gb(all_data, plot_names, use_global=False)
+            info_entry['b'] = round(r_gb, 4)
+            info_entry['ln_k'] = round(ln_k, 4)
+        plot_info[plot_name] = info_entry
         print(f"  [OK] {plot_name} -> {outpath}")
 
     info_path = os.path.join(args.output, "plot_info.json")

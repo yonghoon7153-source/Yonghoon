@@ -868,12 +868,16 @@ def group_plots():
         group_sizes.append(str(len(g.get('cases', []))))
         group_names_list.append(g.get('name', '') or f"Case {chr(65 + len(group_names_list))}")
 
+    global_rgb = request.form.get('global_rgb', '')
+
     scripts = app.config['SCRIPTS_FOLDER']
     cmd = ['python3', os.path.join(scripts, 'generate_comparison_plots.py'),
            '-i'] + input_files + ['-n'] + names + ['-o', plot_dir, '-p'] + plots
     if group_sizes and len(group_sizes) > 1:
         cmd += ['--group-sizes', ','.join(group_sizes),
                 '--group-names', ','.join(group_names_list)]
+    if global_rgb:
+        cmd += ['--global-rgb', global_rgb]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
     if result.returncode != 0:

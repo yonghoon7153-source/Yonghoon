@@ -701,11 +701,27 @@ async function generatePlots() {
         });
       });
 
-      // Render each plot type as a row
+      // Build global plot lookup
+      const globalPlotMap = {};
+      if (globalRgbPlots && globalRgbPlots.plots) {
+        globalRgbPlots.plots.forEach(p => { if (p.file) globalPlotMap[p.file] = p; });
+      }
+
+      // Render in plotTypes order (preserves category ordering)
       const cols = validPGs.length;
-      for (const [file, entries] of plotMap) {
-        // Derivation box before rgb_fitting
-        if (file === 'rgb_fitting.png') { grid.appendChild(createDerivationBox()); }
+      // Iterate by plotTypes to maintain order, inserting global plots in-place
+      for (const pt of plotTypes) {
+        const file = pt + '.png';
+
+        // Global-only plots (rgb_fitting, gb_corrected): render as single full-width
+        if ((pt === 'rgb_fitting' || pt === 'gb_corrected') && globalPlotMap[file]) {
+          if (pt === 'rgb_fitting') grid.appendChild(createDerivationBox());
+          grid.appendChild(createPlotItem(globalRgbPlots.session, globalPlotMap[file]));
+          continue;
+        }
+
+        const entries = plotMap.get(file);
+        if (!entries) continue;
 
         // Description from first entry
         const firstPlot = entries[0].plot;
@@ -745,16 +761,6 @@ async function generatePlots() {
 
         grid.appendChild(row);
       }
-    }
-
-    // Append global R_gb/GB-corrected plots (single, full-width)
-    if (globalRgbPlots && globalRgbPlots.plots) {
-      globalRgbPlots.plots.forEach(p => {
-        if (p.file === 'rgb_fitting.png') { grid.appendChild(createDerivationBox()); }
-        if (p.file) {
-          grid.appendChild(createPlotItem(globalRgbPlots.session, p));
-        }
-      });
     }
 
     document.getElementById('plots-output').style.display = 'block';

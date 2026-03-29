@@ -9,6 +9,7 @@ import uuid
 import shutil
 import subprocess
 import glob as globmod
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -440,7 +441,7 @@ def upload():
 
 @app.route('/analyze/<case_id>', methods=['POST'])
 def analyze(case_id):
-    """Run analysis pipeline for a case."""
+    """Run analysis pipeline for a case (background thread)."""
     case_dir = get_case_dir(case_id)
     meta_file = os.path.join(case_dir, 'meta.json')
     if not os.path.exists(meta_file):
@@ -453,24 +454,36 @@ def analyze(case_id):
     with open(meta_file, 'w') as f:
         json.dump(meta, f, indent=2)
 
-    # Clear previous results for clean re-analysis
-    results_dir = get_results_dir(case_id)
-    if os.path.exists(results_dir):
-        shutil.rmtree(results_dir)
-    os.makedirs(results_dir, exist_ok=True)
+    def _run():
+        # Clear previous results for clean re-analysis
+        results_dir = get_results_dir(case_id)
+        if os.path.exists(results_dir):
+            shutil.rmtree(results_dir)
+        os.makedirs(results_dir, exist_ok=True)
 
-    result = run_pipeline(case_id, meta['mode'], meta['type_map'], meta.get('scale', 1000))
+        result = run_pipeline(case_id, meta['mode'], meta['type_map'], meta.get('scale', 1000))
 
-    meta['status'] = 'done' if result.get('success') else 'error'
-    meta['analysis_log'] = result.get('log', [])
-    with open(meta_file, 'w') as f:
-        json.dump(meta, f, indent=2)
+        meta['status'] = 'done' if result.get('success') else 'error'
+        meta['analysis_log'] = result.get('log', [])
+        with open(meta_file, 'w') as f:
+            json.dump(meta, f, indent=2)
 
-    # Generate report
-    if result.get('success'):
-        generate_report(case_id, meta.get('name', ''))
+        if result.get('success'):
+            generate_report(case_id, meta.get('name', ''))
 
-    return jsonify(result)
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    return jsonify({'success': True, 'status': 'running'})
+
+@app.route('/analyze-status/<case_id>')
+def analyze_status(case_id):
+    """Check if analysis is still running."""
+    meta_file = os.path.join(get_case_dir(case_id), 'meta.json')
+    if os.path.exists(meta_file):
+        with open(meta_file) as f:
+            meta = json.load(f)
+        return jsonify({'status': meta.get('status', 'unknown')})
+    return jsonify({'status': 'unknown'})
 
 @app.route('/single/<case_id>')
 def single(case_id):
@@ -1513,39 +1526,32 @@ def archive_reanalyze(folder):
     if not atom_files or not contact_files:
         return jsonify({'error': 'No atom/contact files in raw_files/'}), 400
 
-    scripts = app.config['SCRIPTS_FOLDER']
-    mode = meta.get('mode', 'standard')
-    type_map = meta.get('type_map', '1:AM,2:SE')
-    scale = meta.get('scale', 1000)
+    def _run():
+        scripts = app.config['SCRIPTS_FOLDER']
+        mode = meta.get('mode', 'standard')
+        type_map = meta.get('type_map', '1:AM,2:SE')
+        scale = meta.get('scale', 1000)
 
-    # Clear pyc cache
-    for pyc in globmod.glob(os.path.join(scripts, '__pycache__', '*.pyc')):
-        os.remove(pyc)
+        for pyc in globmod.glob(os.path.join(scripts, '__pycache__', '*.pyc')):
+            os.remove(pyc)
 
-    log = []
+        # Parse
+        cmd = ['python3', os.path.join(scripts, 'parse_liggghts.py')]
+        cmd += atom_files + contact_files + mesh_files + input_files + ['-o', target]
+        subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
-    # Step 1: Parse
-    cmd = ['python3', os.path.join(scripts, 'parse_liggghts.py')]
-    cmd += atom_files + contact_files + mesh_files + input_files + ['-o', target]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-    log.append({'step': 'Parse', 'rc': result.returncode})
+        # Analyze
+        atoms_csv = os.path.join(target, 'atoms.csv')
+        contacts_csv = os.path.join(target, 'contacts.csv')
+        script = 'analyze_contacts_bimodal.py' if mode == 'bimodal' else 'analyze_contacts.py'
+        cmd = ['python3', os.path.join(scripts, script),
+               atoms_csv, contacts_csv, '-o', target,
+               '-t', type_map, '-s', str(scale)]
+        subprocess.run(cmd, capture_output=True, text=True, timeout=600)
 
-    # Step 2: Analyze
-    atoms_csv = os.path.join(target, 'atoms.csv')
-    contacts_csv = os.path.join(target, 'contacts.csv')
-
-    if mode == 'bimodal':
-        script = 'analyze_contacts_bimodal.py'
-    else:
-        script = 'analyze_contacts.py'
-
-    cmd = ['python3', os.path.join(scripts, script),
-           atoms_csv, contacts_csv, '-o', target,
-           '-t', type_map, '-s', str(scale)]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-    log.append({'step': 'Analyze', 'rc': result.returncode, 'stderr': result.stderr})
-
-    return jsonify({'success': result.returncode == 0, 'log': log})
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    return jsonify({'success': True, 'status': 'running'})
 
 
 @app.route('/archive/view/<path:folder>')

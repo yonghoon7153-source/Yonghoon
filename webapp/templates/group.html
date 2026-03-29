@@ -323,7 +323,11 @@ function renderGroupTabs() {
 let plotGroups = []; // [{name: 'Plot 1', caseGroupIdxs: [0,1,2]}, ...]
 
 function initPlotGroups() {
-  // Default: all case groups in one plot group
+  // Restore from localStorage
+  const stored = localStorage.getItem('dem_plot_groups');
+  if (stored) {
+    try { plotGroups = JSON.parse(stored); } catch(e) {}
+  }
   if (plotGroups.length === 0) {
     const allIdxs = caseGroups.map((_, i) => i).filter(i => caseGroups[i].cases.length > 0);
     plotGroups = [{name: '', caseGroupIdxs: allIdxs}];
@@ -331,9 +335,14 @@ function initPlotGroups() {
   renderPlotGroups();
 }
 
+function savePlotGroupsToStorage() {
+  localStorage.setItem('dem_plot_groups', JSON.stringify(plotGroups));
+}
+
 function addPlotGroup() {
   plotGroups.push({name: '', caseGroupIdxs: []});
   renderPlotGroups();
+  savePlotGroupsToStorage();
 }
 
 function removePlotGroup(pgIdx) {
@@ -343,6 +352,7 @@ function removePlotGroup(pgIdx) {
     plotGroups = [{name: '', caseGroupIdxs: allIdxs}];
   }
   renderPlotGroups();
+  savePlotGroupsToStorage();
 }
 
 function togglePlotGroupCase(pgIdx, caseIdx) {
@@ -355,6 +365,7 @@ function togglePlotGroupCase(pgIdx, caseIdx) {
     pg.caseGroupIdxs.sort((a, b) => a - b);
   }
   renderPlotGroups();
+  savePlotGroupsToStorage();
 }
 
 function renderPlotGroups() {
@@ -370,7 +381,7 @@ function renderPlotGroups() {
     label.className = 'plot-group-name-input';
     label.placeholder = `Group ${pgIdx + 1}`;
     label.value = pg.name || '';
-    label.oninput = () => { pg.name = label.value; };
+    label.oninput = () => { pg.name = label.value; savePlotGroupsToStorage(); };
     row.appendChild(label);
 
     const casesDiv = document.createElement('div');

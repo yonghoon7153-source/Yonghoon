@@ -539,16 +539,21 @@ thead .sticky-col { z-index: 3; }
 .tree-folder.collapsed .tree-children { display: none; }
 .tree-folder.collapsed .tree-toggle { transform: rotate(-90deg); }
 
-.folder-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.folder-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .folder-card {
-  display: flex; align-items: center; gap: 12px;
+  display: flex; flex-direction: column; gap: 8px;
   background: var(--bg); border: 1px solid var(--border);
-  border-radius: 8px; padding: 14px 16px;
-  transition: .15s; text-decoration: none; color: var(--text);
+  border-radius: 8px; padding: 12px 14px;
+  transition: .15s; color: var(--text);
 }
 .folder-card:hover { border-color: var(--accent); }
 .folder-card[draggable] { cursor: grab; }
 .folder-card[draggable]:active { cursor: grabbing; }
+.folder-link {
+  display: flex; align-items: center; gap: 10px;
+  text-decoration: none; color: var(--text);
+}
+.folder-btns { display: flex; gap: 6px; justify-content: flex-end; }
 .folder-drop-target {
   border-color: var(--green) !important;
   background: rgba(52,211,153,.08) !important;
@@ -563,9 +568,6 @@ thead .sticky-col { z-index: 3; }
 .folder-info { flex: 1; }
 .folder-info strong { display: block; font-size: .9rem; }
 .folder-info small { color: var(--dim); font-size: .75rem; }
-.folder-actions { display: flex; gap: 4px; align-items: center; }
-.folder-actions .btn-icon { opacity: 0; transition: .15s; }
-.folder-card:hover .folder-actions .btn-icon { opacity: 1; }
 
 .btn-icon {
   background: none; border: none; cursor: pointer;

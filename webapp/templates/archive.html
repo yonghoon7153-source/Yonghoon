@@ -70,26 +70,27 @@
       </div>
       <div class="folder-grid">
         {% for f in folders %}
-        <a href="/archive?folder={{ f.path }}" class="folder-card"
+        <div class="folder-card"
            draggable="true"
-           onclick="if(event.ctrlKey||event.metaKey){toggleFolderSelect(event,'{{ f.path }}');return false;}"
            ondragstart="dragStart(event, '{{ f.path }}')"
            ondragover="dragOver(event)"
            ondragleave="dragLeave(event)"
            ondrop="dropOnFolder(event, '{{ f.path }}')">
-          <span class="folder-icon">&#x1F4C1;</span>
-          <div class="folder-info">
-            <strong>{{ f.name }}</strong>
-            <small>{{ f.file_count }} 파일{% if f.subfolder_count %} · {{ f.subfolder_count }} 하위폴더{% endif %}{% if f.has_metrics %} · ✓{% endif %}</small>
-          </div>
-          <div class="folder-actions" onclick="event.preventDefault();event.stopPropagation()">
+          <a href="/archive?folder={{ f.path }}" class="folder-link"
+             onclick="if(event.ctrlKey||event.metaKey){toggleFolderSelect(event,'{{ f.path }}');return false;}">
+            <span class="folder-icon">&#x1F4C1;</span>
+            <div class="folder-info">
+              <strong>{{ f.name }}</strong>
+              <small>{{ f.file_count }} 파일{% if f.subfolder_count %} · {{ f.subfolder_count }} 하위폴더{% endif %}</small>
+            </div>
+          </a>
+          <div class="folder-btns">
             {% if f.has_metrics %}
-            <a href="/archive/view/{{ f.path }}" class="btn btn-sm btn-primary" style="font-size:.7rem;padding:3px 8px">결과보기</a>
+            <a href="/archive/view/{{ f.path }}" class="btn btn-sm btn-primary">결과보기</a>
             {% endif %}
-            <button class="btn-icon" onclick="renameItem('{{ f.path }}', '{{ f.name }}')" title="이름 변경">&#x270F;</button>
-            <button class="btn-icon btn-icon-del" onclick="deleteItem('{{ f.path }}')" title="삭제">&#x1F5D1;</button>
+            <button class="btn btn-sm btn-del" onclick="deleteItem('{{ f.path }}')">삭제</button>
           </div>
-        </a>
+        </div>
         {% endfor %}
       </div>
     </div>

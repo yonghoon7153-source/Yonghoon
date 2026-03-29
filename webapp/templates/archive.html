@@ -268,11 +268,17 @@ async function reanalyzeAll() {
   if (!paths.length) return;
   const btn = event.target;
   btn.disabled = true;
-  // Sequential: one at a time
-  for (let i = 0; i < paths.length; i++) {
+  localStorage.setItem('dem_arc_reanalyze_paths', JSON.stringify(paths));
+  localStorage.setItem('dem_arc_reanalyze_idx', '0');
+  localStorage.setItem('dem_arc_reanalyze_active', 'true');
+  _runArcSeq(btn, paths, 0);
+}
+
+async function _runArcSeq(btn, paths, startIdx) {
+  for (let i = startIdx; i < paths.length; i++) {
     btn.textContent = `${i+1}/${paths.length}...`;
+    localStorage.setItem('dem_arc_reanalyze_idx', String(i));
     await fetch(`/archive/reanalyze/${paths[i]}`, { method: 'POST' });
-    // Wait until done
     while (true) {
       await new Promise(r => setTimeout(r, 3000));
       const res = await fetch(`/archive/reanalyze-status/${paths[i]}`);
@@ -282,8 +288,23 @@ async function reanalyzeAll() {
   }
   btn.textContent = '✓ done';
   showToast('All reanalysis complete!');
+  localStorage.removeItem('dem_arc_reanalyze_active');
+  localStorage.removeItem('dem_arc_reanalyze_paths');
+  localStorage.removeItem('dem_arc_reanalyze_idx');
   setTimeout(() => { btn.textContent = '모두 재분석'; btn.disabled = false; }, 3000);
 }
+
+// Resume on page load
+document.addEventListener('DOMContentLoaded', () => {
+  if (localStorage.getItem('dem_arc_reanalyze_active') === 'true') {
+    const paths = JSON.parse(localStorage.getItem('dem_arc_reanalyze_paths') || '[]');
+    const idx = parseInt(localStorage.getItem('dem_arc_reanalyze_idx') || '0');
+    if (paths.length > 0 && idx < paths.length) {
+      const btn = document.querySelector('[onclick*="reanalyzeAll"]');
+      if (btn) { btn.disabled = true; _runArcSeq(btn, paths, idx); }
+    }
+  }
+});
 
 async function reanalyzeArchive(btn, path) {
   btn.disabled = true; btn.textContent = '분석중...';

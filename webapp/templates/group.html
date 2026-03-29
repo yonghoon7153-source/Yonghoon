@@ -365,9 +365,12 @@ function renderPlotGroups() {
     const row = document.createElement('div');
     row.className = 'plot-group-row';
 
-    const label = document.createElement('span');
-    label.className = 'plot-group-label';
-    label.textContent = `그룹 ${pgIdx + 1}`;
+    const label = document.createElement('input');
+    label.type = 'text';
+    label.className = 'plot-group-name-input';
+    label.placeholder = `Group ${pgIdx + 1}`;
+    label.value = pg.name || '';
+    label.oninput = () => { pg.name = label.value; };
     row.appendChild(label);
 
     const casesDiv = document.createElement('div');
@@ -570,7 +573,7 @@ async function generatePlots() {
       const data = await res.json();
       if (data.error) continue;
 
-      const pgName = pg.caseGroupIdxs.map(i => caseGroups[i].name || `Case ${GROUP_LETTERS[i]}`).join(' + ');
+      const pgName = pg.name || pg.caseGroupIdxs.map(i => caseGroups[i].name || `Case ${GROUP_LETTERS[i]}`).join(' + ');
       allResults.push({pgIdx, pgName, session: data.session, plots: data.plots});
     }
 

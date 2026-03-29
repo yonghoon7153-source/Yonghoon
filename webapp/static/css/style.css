@@ -379,6 +379,11 @@ thead .sticky-col { z-index: 3; }
 .plot-group-label {
   font-size: .82rem; font-weight: 700; min-width: 60px; flex-shrink: 0;
 }
+.plot-group-name-input {
+  font-size: .82rem; font-weight: 700; min-width: 80px; max-width: 120px;
+  padding: 3px 8px; border-radius: 4px;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text);
+}
 .plot-group-cases { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; }
 .pg-case-btn {
   padding: 3px 8px; border-radius: 4px; cursor: pointer;

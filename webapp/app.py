@@ -1527,32 +1527,29 @@ def archive_reanalyze(folder):
     if not atom_files or not contact_files:
         return jsonify({'error': 'No atom/contact files in raw_files/'}), 400
 
-    def _run():
-        scripts = app.config['SCRIPTS_FOLDER']
-        mode = meta.get('mode', 'standard')
-        type_map = meta.get('type_map', '1:AM,2:SE')
-        scale = meta.get('scale', 1000)
+    scripts = app.config['SCRIPTS_FOLDER']
+    mode = meta.get('mode', 'standard')
+    type_map = meta.get('type_map', '1:AM,2:SE')
+    scale = meta.get('scale', 1000)
 
-        for pyc in globmod.glob(os.path.join(scripts, '__pycache__', '*.pyc')):
-            os.remove(pyc)
+    for pyc in globmod.glob(os.path.join(scripts, '__pycache__', '*.pyc')):
+        os.remove(pyc)
 
-        # Parse
-        cmd = ['python3', os.path.join(scripts, 'parse_liggghts.py')]
-        cmd += atom_files + contact_files + mesh_files + input_files + ['-o', target]
-        subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    # Parse
+    cmd = ['python3', os.path.join(scripts, 'parse_liggghts.py')]
+    cmd += atom_files + contact_files + mesh_files + input_files + ['-o', target]
+    subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
-        # Analyze
-        atoms_csv = os.path.join(target, 'atoms.csv')
-        contacts_csv = os.path.join(target, 'contacts.csv')
-        script = 'analyze_contacts_bimodal.py' if mode == 'bimodal' else 'analyze_contacts.py'
-        cmd = ['python3', os.path.join(scripts, script),
-               atoms_csv, contacts_csv, '-o', target,
-               '-t', type_map, '-s', str(scale)]
-        subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    # Analyze
+    atoms_csv = os.path.join(target, 'atoms.csv')
+    contacts_csv = os.path.join(target, 'contacts.csv')
+    script = 'analyze_contacts_bimodal.py' if mode == 'bimodal' else 'analyze_contacts.py'
+    cmd = ['python3', os.path.join(scripts, script),
+           atoms_csv, contacts_csv, '-o', target,
+           '-t', type_map, '-s', str(scale)]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
 
-    thread = threading.Thread(target=_run, daemon=True)
-    thread.start()
-    return jsonify({'success': True, 'status': 'running'})
+    return jsonify({'success': result.returncode == 0})
 
 
 @app.route('/archive/view/<path:folder>')

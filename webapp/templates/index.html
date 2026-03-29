@@ -312,30 +312,34 @@ async function reanalyzeAll(btn) {
   if (!ids.length) return;
   btn.disabled = true;
 
-  // Fire all analyses
+  // Fire all analyses (background threads)
   for (let i = 0; i < ids.length; i++) {
     btn.textContent = `starting ${i+1}/${ids.length}...`;
     await fetch(`/analyze/${ids[i]}`, { method: 'POST' });
   }
 
-  // Poll until all done
-  btn.textContent = `waiting...`;
-  const poll = async () => {
-    let allDone = true;
-    for (const id of ids) {
-      const res = await fetch(`/analyze-status/${id}`);
-      const data = await res.json();
-      if (data.status === 'running') { allDone = false; break; }
-    }
-    if (allDone) {
-      btn.textContent = '✓ done';
-      showToast('All reanalysis complete!');
-      setTimeout(() => { btn.textContent = '전체 재분석'; btn.disabled = false; }, 3000);
-    } else {
-      setTimeout(poll, 3000);
-    }
+  // Poll until all done (check every 3s)
+  btn.textContent = 'analyzing...';
+  const poll = () => {
+    setTimeout(async () => {
+      let allDone = true;
+      let doneCount = 0;
+      for (const id of ids) {
+        const res = await fetch(`/analyze-status/${id}`);
+        const data = await res.json();
+        if (data.status === 'running') { allDone = false; } else { doneCount++; }
+      }
+      btn.textContent = `${doneCount}/${ids.length} done...`;
+      if (allDone) {
+        btn.textContent = '✓ done';
+        showToast('All reanalysis complete!');
+        setTimeout(() => { btn.textContent = '전체 재분석'; btn.disabled = false; }, 3000);
+      } else {
+        poll();
+      }
+    }, 3000);
   };
-  setTimeout(poll, 5000);
+  poll();
 }
 
 // Quick save to archive

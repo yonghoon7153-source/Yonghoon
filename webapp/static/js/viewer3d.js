@@ -566,10 +566,32 @@ function wireControls(ctrlDiv, renderer, camera, controls, scene, state) {
         controls.update();
       } else if (action === 'screenshot') {
         renderer.render(scene, camera);
-        const link = document.createElement('a');
-        link.download = 'electrode_3d.png';
-        link.href = renderer.domElement.toDataURL('image/png');
-        link.click();
+        const dataUrl = renderer.domElement.toDataURL('image/png');
+        // Save to server figures folder
+        const apiBase = state.dataUrl.replace('/3d-data', '').replace('/force-chains', '');
+        const saveUrl = apiBase + '/save-screenshot';
+        fetch(saveUrl, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({image: dataUrl, filename: 'electrode_3d.png'})
+        }).then(r => r.json()).then(data => {
+          if (data.success) {
+            btn.textContent = '✓ Saved';
+            setTimeout(() => btn.textContent = 'Screenshot', 1500);
+          } else {
+            // Fallback: download
+            const link = document.createElement('a');
+            link.download = 'electrode_3d.png';
+            link.href = dataUrl;
+            link.click();
+          }
+        }).catch(() => {
+          // Fallback: download
+          const link = document.createElement('a');
+          link.download = 'electrode_3d.png';
+          link.href = dataUrl;
+          link.click();
+        });
       } else if (action === 'pathOnly') {
         showPathOnlyView(renderer, scene, camera, state);
       }
@@ -754,10 +776,27 @@ function showPathOnlyView(renderer, scene, camera, state) {
   // Screenshot
   document.getElementById('path-screenshot-btn').addEventListener('click', () => {
     r2.render(s2, c2);
-    const a = document.createElement('a');
-    a.download = `li_ion_path_${catLabel.toLowerCase()}_tau${pathData.tortuosity}.png`;
-    a.href = r2.domElement.toDataURL('image/png');
-    a.click();
+    const dataUrl = r2.domElement.toDataURL('image/png');
+    const fname = `li_ion_path_${catLabel.toLowerCase()}_tau${pathData.tortuosity}.png`;
+    const apiBase = state.dataUrl.replace('/3d-data', '').replace('/force-chains', '');
+    const saveUrl = apiBase + '/save-screenshot';
+    fetch(saveUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({image: dataUrl, filename: fname})
+    }).then(r => r.json()).then(data => {
+      const btn = document.getElementById('path-screenshot-btn');
+      if (data.success) {
+        btn.textContent = '✓ Saved';
+        setTimeout(() => btn.textContent = 'PNG 다운로드', 1500);
+      } else {
+        const a = document.createElement('a');
+        a.download = fname; a.href = dataUrl; a.click();
+      }
+    }).catch(() => {
+      const a = document.createElement('a');
+      a.download = fname; a.href = dataUrl; a.click();
+    });
   });
 
   // Animate

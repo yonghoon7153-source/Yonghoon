@@ -1133,6 +1133,23 @@ def serve_3d_data(case_id):
         'clusters': clusters,
     })
 
+@app.route('/results/<case_id>/save-screenshot', methods=['POST'])
+def save_screenshot(case_id):
+    """Save 3D viewer screenshot to figures folder."""
+    import base64
+    data = request.get_json()
+    if not data or 'image' not in data:
+        return jsonify({'error': 'No image data'}), 400
+    figures_dir = os.path.join(get_results_dir(case_id), 'figures')
+    os.makedirs(figures_dir, exist_ok=True)
+    filename = data.get('filename', 'screenshot.png')
+    filename = filename.replace('/', '_').replace('\\', '_')
+    img_data = data['image'].split(',')[1]  # strip data:image/png;base64,
+    with open(os.path.join(figures_dir, filename), 'wb') as f:
+        f.write(base64.b64decode(img_data))
+    return jsonify({'success': True, 'filename': filename})
+
+
 @app.route('/results/<case_id>/force-chains')
 def serve_force_chains(case_id):
     """Serve force chain data for 3D viewer."""
@@ -1611,6 +1628,26 @@ def serve_archive_3d_data(folder):
         'particles': particles, 'box': box,
         'percolation': percolation, 'paths': paths, 'clusters': clusters,
     })
+
+
+@app.route('/archive/results/<path:folder>/save-screenshot', methods=['POST'])
+def archive_save_screenshot(folder):
+    """Save 3D screenshot to archive figures folder."""
+    import base64
+    target = _safe_path(folder)
+    if not target:
+        return jsonify({'error': 'Not found'}), 404
+    data = request.get_json()
+    if not data or 'image' not in data:
+        return jsonify({'error': 'No image data'}), 400
+    figures_dir = os.path.join(target, 'figures')
+    os.makedirs(figures_dir, exist_ok=True)
+    filename = data.get('filename', 'screenshot.png')
+    filename = filename.replace('/', '_').replace('\\', '_')
+    img_data = data['image'].split(',')[1]
+    with open(os.path.join(figures_dir, filename), 'wb') as f:
+        f.write(base64.b64decode(img_data))
+    return jsonify({'success': True, 'filename': filename})
 
 
 @app.route('/archive/results/<path:folder>/force-chains')

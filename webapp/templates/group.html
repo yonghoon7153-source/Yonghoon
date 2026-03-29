@@ -244,6 +244,12 @@ async function loadArchiveCases(folder) {
   });
 }
 
+// Persist case groups to localStorage
+function saveCaseGroupsToStorage() {
+  caseGroups[activeGroupIdx].name = document.getElementById('group-name-input').value;
+  localStorage.setItem('dem_case_groups', JSON.stringify(caseGroups));
+}
+
 // Case Group management
 const GROUP_COLORS = ['#6c8cff', '#ff6b6b', '#51cf66', '#ffd43b', '#cc5de8', '#ff922b'];
 const GROUP_LETTERS = 'ABCDEFGHIJ';
@@ -255,6 +261,7 @@ function addCaseGroup() {
   caseGroups.push({name: '', cases: []});
   renderGroupTabs();
   switchCaseGroup(caseGroups.length - 1);
+  saveCaseGroupsToStorage();
 }
 
 function removeCaseGroup() {
@@ -274,6 +281,7 @@ function removeCaseGroup() {
   activeGroupIdx = Math.min(activeGroupIdx, caseGroups.length - 1);
   renderGroupTabs();
   switchCaseGroup(activeGroupIdx);
+  saveCaseGroupsToStorage();
 }
 
 function switchCaseGroup(idx) {
@@ -312,6 +320,7 @@ function toggleCase(el, caseId) {
         el.querySelector('.group-badge').textContent = '';
         el.querySelector('.group-badge').style.display = 'none';
         updateCaseDisplay();
+        saveCaseGroupsToStorage();
         return;
       }
     }
@@ -320,6 +329,7 @@ function toggleCase(el, caseId) {
   caseGroups[activeGroupIdx].cases.push(caseId);
   el.classList.add('case-selected');
   updateCaseDisplay();
+  saveCaseGroupsToStorage();
 }
 
 function updateCaseDisplay() {
@@ -374,22 +384,39 @@ document.getElementById('group-form').addEventListener('submit', (e) => {
   });
 });
 
-// Restore from URL on page load
+// Restore from URL or localStorage on page load
 document.addEventListener('DOMContentLoaded', () => {
   try {
+    // 1. URL 파라미터 우선 (비교하기 클릭 후)
     const saved = {{ case_groups_json | tojson }};
     const parsed = JSON.parse(saved);
     if (parsed && parsed.length > 0 && parsed[0].cases && parsed[0].cases.length > 0) {
       caseGroups = parsed;
     } else {
-      // Fallback: put all selected in Case A
+      // 2. localStorage에서 복원 (페이지 재방문)
+      const stored = localStorage.getItem('dem_case_groups');
+      if (stored) {
+        const storedParsed = JSON.parse(stored);
+        if (storedParsed && storedParsed.length > 0 && storedParsed[0].cases) {
+          caseGroups = storedParsed;
+        }
+      }
       {% if selected %}
-      caseGroups = [{name: '', cases: {{ selected | tojson }}}];
+      // 3. Fallback: URL selected
+      if (!caseGroups[0].cases.length) {
+        caseGroups = [{name: '', cases: {{ selected | tojson }}}];
+      }
       {% endif %}
     }
   } catch(e) {
+    const stored = localStorage.getItem('dem_case_groups');
+    if (stored) {
+      try { caseGroups = JSON.parse(stored); } catch(e2) {}
+    }
     {% if selected %}
-    caseGroups = [{name: '', cases: {{ selected | tojson }}}];
+    if (!caseGroups[0].cases || !caseGroups[0].cases.length) {
+      caseGroups = [{name: '', cases: {{ selected | tojson }}}];
+    }
     {% endif %}
   }
   activeGroupIdx = 0;

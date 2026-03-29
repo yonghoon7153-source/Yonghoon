@@ -620,6 +620,7 @@ async function generatePlots() {
     const needsGlobalRgb = validPGs.length > 1 &&
       (plotTypes.includes('rgb_fitting') || plotTypes.includes('gb_corrected'));
     let globalRgb = '';
+    let globalRgbPlots = null;
 
     if (needsGlobalRgb) {
       btn.textContent = 'Computing global R_gb...';
@@ -635,7 +636,8 @@ async function generatePlots() {
       let totalCases = 0;
       allCaseGroups.forEach(g => g.cases.forEach(cid => { gform.append('cases', cid); totalCases++; }));
       gform.append('case_groups', JSON.stringify(allCaseGroups));
-      gform.append('plots', 'rgb_fitting');
+      if (plotTypes.includes('rgb_fitting')) gform.append('plots', 'rgb_fitting');
+      if (plotTypes.includes('gb_corrected')) gform.append('plots', 'gb_corrected');
       console.log(`Global R_gb: ${allCaseGroups.length} groups, ${totalCases} total cases`);
       const gres = await fetch('/group/plots', { method: 'POST', body: gform });
       const gdata = await gres.json();
@@ -650,6 +652,10 @@ async function generatePlots() {
           }
         } catch(e) {}
       }
+      // Save global rgb/gb_corrected plots for later
+      if (gdata.plots) {
+        globalRgbPlots = {session: gdata.session, plots: gdata.plots};
+      }
     }
 
     // Collect results from all plot groups
@@ -662,7 +668,11 @@ async function generatePlots() {
       const form = new FormData();
       pgCaseGroups.forEach(g => g.cases.forEach(cid => form.append('cases', cid)));
       form.append('case_groups', JSON.stringify(pgCaseGroups));
-      plotTypes.forEach(p => form.append('plots', p));
+      // Exclude rgb_fitting/gb_corrected from per-group (handled globally)
+      const groupPlots = needsGlobalRgb
+        ? plotTypes.filter(p => p !== 'rgb_fitting' && p !== 'gb_corrected')
+        : plotTypes;
+      groupPlots.forEach(p => form.append('plots', p));
       if (globalRgb) form.append('global_rgb', globalRgb);
 
       const res = await fetch('/group/plots', { method: 'POST', body: form });
@@ -735,6 +745,16 @@ async function generatePlots() {
 
         grid.appendChild(row);
       }
+    }
+
+    // Append global R_gb/GB-corrected plots (single, full-width)
+    if (globalRgbPlots && globalRgbPlots.plots) {
+      globalRgbPlots.plots.forEach(p => {
+        if (p.file === 'rgb_fitting.png') { grid.appendChild(createDerivationBox()); }
+        if (p.file) {
+          grid.appendChild(createPlotItem(globalRgbPlots.session, p));
+        }
+      });
     }
 
     document.getElementById('plots-output').style.display = 'block';

@@ -121,10 +121,16 @@
       <button class="btn btn-primary" onclick="generatePlots()" id="plot-btn">선택 플롯 생성</button>
     </div>
   </div>
-  <!-- Plot Group Selector: which case groups to include -->
-  <div class="plot-group-selector" id="plot-group-selector">
-    <span style="font-size:.8rem;font-weight:700;color:var(--dim);margin-right:8px">플롯 대상:</span>
-    <div id="plot-group-checks" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+  <!-- Plot Groups: group Case Groups into separate plot sets -->
+  <div class="plot-group-section">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:.85rem;font-weight:700;color:var(--text)">플롯 그룹</span>
+        <span style="font-size:.75rem;color:var(--dim)">(각 그룹이 별도 플롯 세트로 생성)</span>
+      </div>
+      <button class="btn btn-sm btn-secondary" onclick="addPlotGroup()">+ 그룹 추가</button>
+    </div>
+    <div id="plot-groups-container"></div>
   </div>
   <div class="plot-select-grid">
     <div class="plot-category">
@@ -313,27 +319,89 @@ function renderGroupTabs() {
   renderPlotGroupSelector();
 }
 
-function renderPlotGroupSelector() {
-  const container = document.getElementById('plot-group-checks');
+// Plot Groups: each plot group = subset of case groups → separate plot set
+let plotGroups = []; // [{name: 'Plot 1', caseGroupIdxs: [0,1,2]}, ...]
+
+function initPlotGroups() {
+  // Default: all case groups in one plot group
+  if (plotGroups.length === 0) {
+    const allIdxs = caseGroups.map((_, i) => i).filter(i => caseGroups[i].cases.length > 0);
+    plotGroups = [{name: '', caseGroupIdxs: allIdxs}];
+  }
+  renderPlotGroups();
+}
+
+function addPlotGroup() {
+  plotGroups.push({name: '', caseGroupIdxs: []});
+  renderPlotGroups();
+}
+
+function removePlotGroup(pgIdx) {
+  plotGroups.splice(pgIdx, 1);
+  if (plotGroups.length === 0) {
+    const allIdxs = caseGroups.map((_, i) => i).filter(i => caseGroups[i].cases.length > 0);
+    plotGroups = [{name: '', caseGroupIdxs: allIdxs}];
+  }
+  renderPlotGroups();
+}
+
+function togglePlotGroupCase(pgIdx, caseIdx) {
+  const pg = plotGroups[pgIdx];
+  const pos = pg.caseGroupIdxs.indexOf(caseIdx);
+  if (pos >= 0) {
+    pg.caseGroupIdxs.splice(pos, 1);
+  } else {
+    pg.caseGroupIdxs.push(caseIdx);
+    pg.caseGroupIdxs.sort((a, b) => a - b);
+  }
+  renderPlotGroups();
+}
+
+function renderPlotGroups() {
+  const container = document.getElementById('plot-groups-container');
   if (!container) return;
   container.innerHTML = '';
-  caseGroups.forEach((g, i) => {
-    if (!g.cases.length) return;
-    const label = document.createElement('label');
-    label.className = 'plot-group-check checked';
-    label.style.color = GROUP_COLORS[i % GROUP_COLORS.length];
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.value = i;
-    cb.checked = true;
-    cb.addEventListener('change', () => {
-      label.classList.toggle('checked', cb.checked);
+  plotGroups.forEach((pg, pgIdx) => {
+    const row = document.createElement('div');
+    row.className = 'plot-group-row';
+
+    const label = document.createElement('span');
+    label.className = 'plot-group-label';
+    label.textContent = `그룹 ${pgIdx + 1}`;
+    row.appendChild(label);
+
+    const casesDiv = document.createElement('div');
+    casesDiv.className = 'plot-group-cases';
+    caseGroups.forEach((g, ci) => {
+      if (!g.cases.length) return;
+      const btn = document.createElement('span');
+      btn.className = 'pg-case-btn' + (pg.caseGroupIdxs.includes(ci) ? ' selected' : '');
+      btn.style.color = GROUP_COLORS[ci % GROUP_COLORS.length];
+      btn.textContent = g.name || `Case ${GROUP_LETTERS[ci]}`;
+      btn.onclick = () => togglePlotGroupCase(pgIdx, ci);
+      casesDiv.appendChild(btn);
     });
-    const name = g.name || `Case ${GROUP_LETTERS[i]}`;
-    label.appendChild(cb);
-    label.appendChild(document.createTextNode(name));
-    container.appendChild(label);
+    row.appendChild(casesDiv);
+
+    if (plotGroups.length > 1) {
+      const del = document.createElement('button');
+      del.className = 'plot-group-del';
+      del.textContent = '삭제';
+      del.onclick = () => removePlotGroup(pgIdx);
+      row.appendChild(del);
+    }
+
+    container.appendChild(row);
   });
+}
+
+function renderPlotGroupSelector() {
+  // Called from renderGroupTabs — update plot groups when case groups change
+  // Re-validate: remove invalid indices
+  plotGroups.forEach(pg => {
+    pg.caseGroupIdxs = pg.caseGroupIdxs.filter(i => i < caseGroups.length && caseGroups[i].cases.length > 0);
+  });
+  renderPlotGroups();
 }
 
 function toggleCase(el, caseId) {
@@ -452,6 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('remove-group-btn').style.display = caseGroups.length > 1 ? '' : 'none';
   renderGroupTabs();
   updateCaseDisplay();
+  initPlotGroups();
 });
 
 async function generateReport() {
@@ -468,37 +537,49 @@ async function generateReport() {
 
 async function generatePlots() {
   const checks = document.querySelectorAll('.plot-checkbox input:checked');
-  const plots = Array.from(checks).map(c => c.value);
-  if (!plots.length) return alert('플롯을 선택하세요.');
+  const plotTypes = Array.from(checks).map(c => c.value);
+  if (!plotTypes.length) return alert('플롯을 선택하세요.');
 
   const btn = document.getElementById('plot-btn');
   const loading = document.getElementById('plots-loading');
   btn.disabled = true; btn.textContent = '생성 중...';
   loading.style.display = 'block';
 
-  // Save current group name
   caseGroups[activeGroupIdx].name = document.getElementById('group-name-input').value;
 
-  // Filter by selected plot groups
-  const plotGroupChecks = document.querySelectorAll('#plot-group-checks input:checked');
-  const selectedGroupIdxs = Array.from(plotGroupChecks).map(c => parseInt(c.value));
-  const plotGroups = selectedGroupIdxs.length > 0
-    ? selectedGroupIdxs.map(i => caseGroups[i])
-    : caseGroups;  // fallback: all
+  const grid = document.getElementById('plots-grid');
+  grid.innerHTML = '';
 
-  const form = new FormData();
-  plotGroups.forEach(g => g.cases.forEach(cid => form.append('cases', cid)));
-  form.append('case_groups', JSON.stringify(plotGroups));
-  plots.forEach(p => form.append('plots', p));
+  // Generate plots for each plot group separately
+  const validPGs = plotGroups.filter(pg => pg.caseGroupIdxs.length > 0);
+  if (!validPGs.length) { alert('플롯 그룹에 Case를 선택하세요.'); btn.disabled = false; btn.textContent = '선택 플롯 생성'; loading.style.display = 'none'; return; }
 
   try {
-    const res = await fetch('/group/plots', { method: 'POST', body: form });
-    const data = await res.json();
-    if (data.error) { alert(data.error); return; }
+    for (let pgIdx = 0; pgIdx < validPGs.length; pgIdx++) {
+      const pg = validPGs[pgIdx];
+      const pgCaseGroups = pg.caseGroupIdxs.map(i => caseGroups[i]);
 
-    const grid = document.getElementById('plots-grid');
-    grid.innerHTML = '';
-    data.plots.forEach(p => {
+      btn.textContent = `생성 중... (${pgIdx+1}/${validPGs.length})`;
+
+      const form = new FormData();
+      pgCaseGroups.forEach(g => g.cases.forEach(cid => form.append('cases', cid)));
+      form.append('case_groups', JSON.stringify(pgCaseGroups));
+      plotTypes.forEach(p => form.append('plots', p));
+
+      const res = await fetch('/group/plots', { method: 'POST', body: form });
+      const data = await res.json();
+      if (data.error) { continue; }
+
+      // Plot group header
+      if (validPGs.length > 1) {
+        const header = document.createElement('div');
+        header.className = 'plot-group-header-bar';
+        const pgName = pg.caseGroupIdxs.map(i => caseGroups[i].name || `Case ${GROUP_LETTERS[i]}`).join(' + ');
+        header.innerHTML = `<h3 style="margin:0">플롯 그룹 ${pgIdx+1}: ${pgName}</h3>`;
+        grid.appendChild(header);
+      }
+
+      data.plots.forEach(p => {
       // Insert derivation box before R_gb fitting plot
       if (p.file === 'rgb_fitting.png') {
         const box = document.createElement('div');
@@ -557,6 +638,7 @@ async function generatePlots() {
         </div>`;
       grid.appendChild(item);
     });
+    } // end for each plot group
     document.getElementById('plots-output').style.display = 'block';
   } catch(e) { alert('오류: ' + e.message); }
   finally {

@@ -1692,5 +1692,12 @@ def archive_preview(filepath):
         return jsonify({'type': 'json', 'content': content})
     return jsonify({'type': 'unknown', 'message': '미리보기를 지원하지 않는 파일 형식입니다.'})
 
+@app.route('/download-doc/<path:filename>')
+def download_doc(filename):
+    """Download documentation files from project root."""
+    doc_dir = os.path.dirname(os.path.dirname(__file__))
+    return send_from_directory(doc_dir, filename, as_attachment=True)
+
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

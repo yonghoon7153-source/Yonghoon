@@ -121,6 +121,11 @@
       <button class="btn btn-primary" onclick="generatePlots()" id="plot-btn">선택 플롯 생성</button>
     </div>
   </div>
+  <!-- Plot Group Selector: which case groups to include -->
+  <div class="plot-group-selector" id="plot-group-selector">
+    <span style="font-size:.8rem;font-weight:700;color:var(--dim);margin-right:8px">플롯 대상:</span>
+    <div id="plot-group-checks" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+  </div>
   <div class="plot-select-grid">
     <div class="plot-category">
       <span class="plot-cat-label">구조/계면</span>
@@ -300,10 +305,34 @@ function renderGroupTabs() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'case-group-tab' + (i === activeGroupIdx ? ' active' : '');
-    btn.style.borderBottomColor = GROUP_COLORS[i];
+    btn.style.borderBottomColor = GROUP_COLORS[i % GROUP_COLORS.length];
     btn.textContent = `Case ${GROUP_LETTERS[i]}${g.name ? ` (${g.name})` : ''}`;
     btn.onclick = () => switchCaseGroup(i);
     tabs.appendChild(btn);
+  });
+  renderPlotGroupSelector();
+}
+
+function renderPlotGroupSelector() {
+  const container = document.getElementById('plot-group-checks');
+  if (!container) return;
+  container.innerHTML = '';
+  caseGroups.forEach((g, i) => {
+    if (!g.cases.length) return;
+    const label = document.createElement('label');
+    label.className = 'plot-group-check checked';
+    label.style.color = GROUP_COLORS[i % GROUP_COLORS.length];
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = i;
+    cb.checked = true;
+    cb.addEventListener('change', () => {
+      label.classList.toggle('checked', cb.checked);
+    });
+    const name = g.name || `Case ${GROUP_LETTERS[i]}`;
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(name));
+    container.appendChild(label);
   });
 }
 
@@ -449,9 +478,17 @@ async function generatePlots() {
 
   // Save current group name
   caseGroups[activeGroupIdx].name = document.getElementById('group-name-input').value;
+
+  // Filter by selected plot groups
+  const plotGroupChecks = document.querySelectorAll('#plot-group-checks input:checked');
+  const selectedGroupIdxs = Array.from(plotGroupChecks).map(c => parseInt(c.value));
+  const plotGroups = selectedGroupIdxs.length > 0
+    ? selectedGroupIdxs.map(i => caseGroups[i])
+    : caseGroups;  // fallback: all
+
   const form = new FormData();
-  caseGroups.forEach(g => g.cases.forEach(cid => form.append('cases', cid)));
-  form.append('case_groups', JSON.stringify(caseGroups));
+  plotGroups.forEach(g => g.cases.forEach(cid => form.append('cases', cid)));
+  form.append('case_groups', JSON.stringify(plotGroups));
   plots.forEach(p => form.append('plots', p));
 
   try {

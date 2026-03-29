@@ -180,6 +180,12 @@
     </div>
   </div>
 
+  <!-- Data Quality Warnings for selected cases -->
+  <div id="case-warnings-box" class="case-warnings-box" style="display:none">
+    <h4>⚠ Data Quality Warnings</h4>
+    <div id="case-warnings-list"></div>
+  </div>
+
   <div id="plots-output" style="display:none">
     <div id="plots-grid" class="plots-grid"></div>
   </div>
@@ -254,6 +260,41 @@ async function loadArchiveCases(folder) {
       </div>`;
     grid.appendChild(div);
   });
+}
+
+// Case warning data from server
+const CASE_WARNINGS = {
+  {% for case in cases %}
+  {% if case.warning_msgs %}'{{ case.id }}': {name: '{{ case.name }}', msgs: {{ case.warning_msgs | tojson }}},{% endif %}
+  {% endfor %}
+};
+
+function updateWarningsBox() {
+  const box = document.getElementById('case-warnings-box');
+  const list = document.getElementById('case-warnings-list');
+  if (!box || !list) return;
+  const allCaseIds = new Set();
+  caseGroups.forEach(g => g.cases.forEach(cid => allCaseIds.add(cid)));
+  const warnings = [];
+  allCaseIds.forEach(cid => {
+    if (CASE_WARNINGS[cid]) {
+      CASE_WARNINGS[cid].msgs.forEach(msg => {
+        const sev = msg.includes('>5') || msg.includes('<85') || msg.includes('<3.5') ? 'critical' : 'warning';
+        warnings.push({name: CASE_WARNINGS[cid].name, msg, severity: sev});
+      });
+    }
+  });
+  if (warnings.length === 0) {
+    box.style.display = 'none';
+    return;
+  }
+  box.style.display = '';
+  list.innerHTML = warnings.map(w =>
+    `<div class="case-warn-item case-warn-${w.severity}">
+      <span class="case-warn-name">${w.name}</span>
+      <span class="case-warn-msg">${w.msg}</span>
+    </div>`
+  ).join('');
 }
 
 // Persist case groups to localStorage
@@ -473,6 +514,7 @@ function updateCaseDisplay() {
       input.disabled = true;
     }
   });
+  updateWarningsBox();
 }
 
 // Form submit: inject case_groups JSON

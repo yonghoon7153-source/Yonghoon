@@ -117,7 +117,7 @@ def run_pipeline(case_id, mode, type_map, scale=1000):
     atom_files = sorted(globmod.glob(os.path.join(case_dir, 'atom_*.liggghts')))
     contact_files = sorted(globmod.glob(os.path.join(case_dir, 'contact_*.liggghts')))
     mesh_files = sorted(globmod.glob(os.path.join(case_dir, '*.stl')))
-    input_files = sorted(globmod.glob(os.path.join(case_dir, 'input_*.liggghts')))
+    input_files = sorted(globmod.glob(os.path.join(case_dir, 'input*.liggghts')))
 
     if not atom_files or not contact_files:
         return {'error': 'atom_*.liggghts 또는 contact_*.liggghts 파일을 찾을 수 없습니다.'}

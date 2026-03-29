@@ -162,7 +162,7 @@ def main():
     atom_files = [f for f in args.files if 'atom' in os.path.basename(f).lower() and f.endswith('.liggghts')]
     contact_files = [f for f in args.files if 'contact' in os.path.basename(f).lower() and f.endswith('.liggghts')]
     mesh_files = [f for f in args.files if f.lower().endswith('.stl')]
-    input_files = [f for f in args.files if 'input' in os.path.basename(f).lower() and f.endswith('.liggghts')]
+    input_files = [f for f in args.files if os.path.basename(f).lower().startswith('input') and f.endswith('.liggghts')]
 
     if not atom_files:
         print("ERROR: No atom files found", file=sys.stderr); sys.exit(1)

@@ -812,6 +812,8 @@ def group_archive_cases():
                 'id': case_id,
                 'name': name,
                 'ps_ratio': m.get('ps_ratio', ''),
+                'warning_count': m.get('warning_count', 0),
+                'warning_msgs': [w['msg'] for w in m.get('warnings', [])],
             })
     return jsonify({'cases': cases})
 

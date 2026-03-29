@@ -257,7 +257,12 @@ async function loadArchiveCases(folder) {
       <div class="case-label">
         <strong>${c.name}</strong>
         <span class="badge">${c.ps_ratio || ''}</span>
+        ${c.warning_count ? `<span class="badge badge-warning" title="${(c.warning_msgs||[]).join('\n')}">⚠ ${c.warning_count}</span>` : ''}
       </div>`;
+    // Add to CASE_WARNINGS for warnings box
+    if (c.warning_count && c.warning_msgs) {
+      CASE_WARNINGS[c.id] = {name: c.name, msgs: c.warning_msgs};
+    }
     grid.appendChild(div);
   });
 }

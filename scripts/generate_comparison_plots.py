@@ -42,15 +42,29 @@ _GROUP_INFO = None  # Set by main()
 
 def _apply_style(ax, ylabel, names):
     """Apply common academic style with group separators."""
-    ax.set_xticks(range(len(names)))
-    ax.set_xticklabels(names, fontsize=10)
+    n = len(names)
+    ax.set_xticks(range(n))
+
+    # Adaptive label sizing and rotation based on case count
+    if n <= 8:
+        ax.set_xticklabels(names, fontsize=10)
+    elif n <= 15:
+        ax.set_xticklabels(names, fontsize=8, rotation=45, ha='right')
+    else:
+        ax.set_xticklabels(names, fontsize=7, rotation=60, ha='right')
+
     ax.set_xlabel("P:S Configuration", fontsize=10)
     ax.set_ylabel(ylabel, fontsize=11)
     ax.yaxis.grid(True, linestyle="--", linewidth=0.4, color="#CCCCCC", alpha=0.7)
     ax.set_axisbelow(True)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.tick_params(axis='both', labelsize=9)
+    ax.tick_params(axis='both', labelsize=9 if n <= 8 else 7)
+
+    # Adjust bottom margin for rotated labels
+    if n > 8:
+        ax.figure.subplots_adjust(bottom=0.2)
+
     # Add group separators and break lines at boundaries
     if _GROUP_INFO:
         sizes, gnames = _GROUP_INFO
@@ -67,12 +81,26 @@ def _apply_style(ax, ylabel, names):
             if gi > 0:
                 ax.axvline(pos - 0.5, color='#888888', linestyle='--', linewidth=1, alpha=0.6)
             mid = pos + sz / 2 - 0.5
-            ax.text(mid, -0.18, gnames[gi], ha='center', va='top',
+            label_y = -0.28 if n > 8 else -0.18
+            label_fs = 7 if n > 15 else 8 if n > 8 else 9
+            ax.text(mid, label_y, gnames[gi], ha='center', va='top',
                     transform=ax.get_xaxis_transform(),
-                    fontsize=9, fontweight='bold', color=GROUP_COLORS[gi % len(GROUP_COLORS)],
+                    fontsize=label_fs, fontweight='bold', color=GROUP_COLORS[gi % len(GROUP_COLORS)],
                     bbox=dict(boxstyle='round,pad=0.2', facecolor='white', edgecolor=GROUP_COLORS[gi % len(GROUP_COLORS)], alpha=0.8))
             pos += sz
 
+
+def _marker_size(n):
+    """Adaptive marker size based on case count."""
+    if n <= 8: return 10
+    if n <= 15: return 7
+    return 5
+
+def _line_width(n):
+    """Adaptive line width based on case count."""
+    if n <= 8: return 2.5
+    if n <= 15: return 2.0
+    return 1.5
 
 def _group_break_data(xs, ys):
     """Insert NaN at group boundaries so matplotlib breaks the line."""

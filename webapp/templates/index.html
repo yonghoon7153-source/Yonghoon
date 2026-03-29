@@ -67,6 +67,7 @@
     </div>
   </div>
   {% if cases %}
+  <div class="table-scroll">
   <table class="data-table">
     <thead>
       <tr>
@@ -111,6 +112,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
   <p class="empty-state">아직 업로드된 케이스가 없습니다.</p>
   {% endif %}
@@ -305,13 +307,20 @@ function showFiles(caseId) {
 
 // Quick save to archive
 async function quickSave(caseId) {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '저장 중...';
   const form = new FormData();
   form.append('case_id', caseId);
   form.append('folder', '');
   const res = await fetch('/archive/save-case', { method: 'POST', body: form });
   const data = await res.json();
-  if (data.success) alert('보관함에 저장 완료!');
-  else alert('오류: ' + (data.error || '저장 실패'));
+  if (data.success) {
+    btn.textContent = '✓ 완료';
+    setTimeout(() => { btn.textContent = '보관함 저장'; btn.disabled = false; }, 1500);
+  } else {
+    btn.textContent = '실패';
+    setTimeout(() => { btn.textContent = '보관함 저장'; btn.disabled = false; }, 1500);
+  }
 }
 
 // Rename (double-click)

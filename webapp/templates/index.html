@@ -82,7 +82,7 @@
     <tbody>
       {% for case in cases %}
       <tr>
-        <td><strong class="case-name" ondblclick="editName(this, '{{ case.id }}')" title="더블클릭으로 이름 변경">{{ case.name }}</strong>{% if case.warning_count %} <span class="badge badge-warning">⚠ {{ case.warning_count }}</span>{% endif %}</td>
+        <td><strong class="case-name" ondblclick="editName(this, '{{ case.id }}')" title="더블클릭으로 이름 변경">{{ case.name }}</strong>{% if case.warning_count %} <span class="badge badge-warning" title="{{ case.warning_msgs | join('&#10;') }}">⚠ {{ case.warning_count }}</span>{% endif %}</td>
         <td><span class="badge badge-{{ case.mode }}">{{ case.mode }}</span></td>
         <td>
           <span class="status status-{{ case.status }}">

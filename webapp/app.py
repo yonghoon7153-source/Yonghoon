@@ -103,6 +103,7 @@ def list_cases():
             with open(metrics_file) as f:
                 m = json.load(f)
             meta['warning_count'] = m.get('warning_count', 0)
+            meta['warning_msgs'] = [w['msg'] for w in m.get('warnings', [])]
         cases.append(meta)
     return cases
 

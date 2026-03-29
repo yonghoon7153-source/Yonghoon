@@ -183,6 +183,7 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         # ── 이온경로: 경로 효율 ──
         {'지표': '── 이온경로: 경로 효율 ──', '값': ''},
         {'지표': 'Tortuosity mean', '값': round(tau['mean'], 2) if tau['mean'] else 'N/A'},
+        {'지표': 'Tortuosity median', '값': round(tau.get('median', 0), 2) if tau.get('median') else 'N/A'},
         {'지표': 'Tortuosity std', '값': round(tau['std'], 2) if tau['std'] else 'N/A'},
         {'지표': 'GB Density(hops/μm)', '값': '-'},  # placeholder, updated after cluster calc
         # ── 이온경로: 경로 품질 ──
@@ -282,7 +283,10 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         'n_components': perc['n_components'],
         'n_large_components': perc.get('n_large_components', 0),
         'tortuosity_mean': tau['mean'],
+        'tortuosity_median': tau.get('median'),
         'tortuosity_std': tau['std'],
+        'tortuosity_use_median': tau.get('use_median', False),
+        'tortuosity_recommended': tau.get('recommended', tau['mean']),
         'ionic_active_pct': ionic['active_pct'],
     }
 
@@ -339,13 +343,14 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     perc_data = results['percolation']
     overlap = results.get('overlap_ratio')
 
-    # 1. Tortuosity anomaly: mean > 5 or std/mean > 1
+    # 1. Tortuosity anomaly: mean > 5 or std/mean > 0.5
     if tau.get('mean') and tau['mean'] > 5:
+        med_info = f" (median={tau.get('median', 0):.2f}, using median)" if tau.get('use_median') else ""
         warnings.append({'type': 'tortuosity_extreme', 'severity': 'critical',
-                        'msg': f"Tortuosity mean={tau['mean']:.1f} (>5): RVE size artifact or broken path"})
-    elif tau.get('mean') and tau.get('std') and tau['std'] / tau['mean'] > 1:
+                        'msg': f"Tortuosity mean={tau['mean']:.1f} (>5): RVE artifact{med_info}"})
+    elif tau.get('use_median'):
         warnings.append({'type': 'tortuosity_unstable', 'severity': 'warning',
-                        'msg': f"Tortuosity std/mean={tau['std']/tau['mean']:.2f} (>1): path quality highly non-uniform"})
+                        'msg': f"Tortuosity mean={tau['mean']:.2f} vs median={tau['median']:.2f}: high dispersion, using median"})
     elif tau.get('mean') and tau['mean'] > 3:
         warnings.append({'type': 'tortuosity_high', 'severity': 'warning',
                         'msg': f"Tortuosity mean={tau['mean']:.1f} (>3): unusually tortuous paths"})

@@ -280,10 +280,23 @@ def calc_tortuosity(atoms, perc_result, n_samples=200, box_xy=0.05):
         except nx.NetworkXNoPath:
             pass
 
+    if not taus:
+        return {'mean': None, 'median': None, 'std': None, 'n_samples': 0, 'use_median': False}
+
+    t_mean = float(np.mean(taus))
+    t_median = float(np.median(taus))
+    t_std = float(np.std(taus))
+
+    # Auto-select: use median if std/mean > 0.5 (high dispersion, outlier-dominated)
+    use_median = t_std / t_mean > 0.5 if t_mean > 0 else False
+
     return {
-        'mean': float(np.mean(taus)) if taus else None,
-        'std': float(np.std(taus)) if taus else None,
+        'mean': t_mean,
+        'median': t_median,
+        'std': t_std,
         'n_samples': len(taus),
+        'use_median': use_median,
+        'recommended': t_median if use_median else t_mean,
     }
 
 
@@ -488,7 +501,8 @@ def calc_effective_conductivity(atoms, perc_result, porosity, tortuosity_result,
     v_se = sum(4/3 * np.pi * atoms[aid]['radius']**3 for aid in se_ids)
     phi_se = v_se / v_electrode if v_electrode > 0 else 0
 
-    tau = tortuosity_result.get('mean')
+    # Use recommended τ (median if high dispersion, else mean)
+    tau = tortuosity_result.get('recommended', tortuosity_result.get('mean'))
     if not tau or tau <= 0:
         return None
 

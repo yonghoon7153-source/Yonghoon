@@ -764,9 +764,12 @@ def plot_effective_conductivity(data_list, names, outdir):
     return _save(fig, outdir, "effective_conductivity.png")
 
 
+R_GB_MIN_R2 = 0.75  # minimum R² for R_gb fitting to be valid
+
 def _fit_r_gb(data_list, names, use_global=True):
-    """Fit R_gb from Bruggeman vs Path Conductance data. Returns r_gb, log_k, valid data.
-    If _GLOBAL_RGB is set and use_global=True, use global values instead of local fit."""
+    """Fit R_gb from Bruggeman vs Path Conductance data.
+    Returns r_gb, log_k, valid_idx, r_squared.
+    If _GLOBAL_RGB is set and use_global=True, use global values."""
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     perc = [_get(d, "percolation_pct") / 100 for d in data_list]
     tau = [_get(d, "tortuosity_mean", 1) for d in data_list]
@@ -779,26 +782,32 @@ def _fit_r_gb(data_list, names, use_global=True):
     valid_idx = [i for i in range(len(data_list))
                  if sigma_proxy[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0]
 
-    # Use global fit if available (from all plot groups combined)
     if use_global and _GLOBAL_RGB is not None:
-        return _GLOBAL_RGB[0], _GLOBAL_RGB[1], valid_idx
+        return _GLOBAL_RGB[0], _GLOBAL_RGB[1], valid_idx, 1.0
 
     r_gb = 0.5
     ln_k = 0
+    r_squared = 0
     if len(valid_idx) >= 2:
         y_vals = np.array([sigma_brug[i] / sigma_proxy[i] for i in valid_idx])
         x_vals = np.array([gb_dens[i] for i in valid_idx])
         log_y = np.log(y_vals)
         from scipy import stats as sp_stats
-        slope, intercept, _, _, _ = sp_stats.linregress(x_vals, log_y)
+        slope, intercept, r_val, _, _ = sp_stats.linregress(x_vals, log_y)
         r_gb = slope
         ln_k = intercept
-    return r_gb, ln_k, valid_idx
+        r_squared = r_val ** 2
+    return r_gb, ln_k, valid_idx, r_squared
 
 
 def plot_rgb_fitting(data_list, names, outdir):
     """R_gb fitting scatter: log(σ_brug/σ_proxy) vs GB_density."""
-    r_gb, log_k, valid_idx = _fit_r_gb(data_list, names)
+    r_gb, log_k, valid_idx, r_squared_fit = _fit_r_gb(data_list, names)
+
+    # If R² too low, skip fitting plot and return None
+    if r_squared_fit < R_GB_MIN_R2:
+        print(f"  [SKIP] R_gb fitting: R²={r_squared_fit:.4f} < {R_GB_MIN_R2} — data not suitable")
+        return None
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     perc = [_get(d, "percolation_pct") / 100 for d in data_list]
@@ -903,7 +912,12 @@ def plot_rgb_fitting(data_list, names, outdir):
 
 def plot_gb_corrected(data_list, names, outdir):
     """GB-corrected effective conductivity using fitted R_gb."""
-    r_gb, _, _ = _fit_r_gb(data_list, names)
+    r_gb, _, _, r2_check = _fit_r_gb(data_list, names)
+
+    # If R² too low, skip — show Bruggeman only
+    if r2_check < R_GB_MIN_R2:
+        print(f"  [SKIP] GB-corrected: R²={r2_check:.4f} < {R_GB_MIN_R2} — using Bruggeman only")
+        return None
     SIGMA_BULK = 1.3  # mS/cm, Li₆PS₅Cl cold-pressed
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
@@ -1277,6 +1291,18 @@ def main():
         if 'outdir' in params:
             # Standalone plot (creates own fig, saves itself)
             outpath = func(all_data, plot_names, args.output)
+            if outpath is None:
+                # R² too low — generate "Bruggeman reference" note
+                if plot_name in ('rgb_fitting', 'gb_corrected'):
+                    _, _, _, r2_val = _fit_r_gb(all_data, plot_names, use_global=False)
+                    plot_info[plot_name] = {
+                        "file": "",
+                        "csv": None,
+                        "title": entry["title"] + " (skipped)",
+                        "description": f"R²={r2_val:.4f} < {R_GB_MIN_R2}: fitting not reliable.\nBruggeman reference only.\nRVE size or data range insufficient.",
+                        "origin_tip": "",
+                    }
+                continue
         else:
             fig, ax = plt.subplots(figsize=FIG_SINGLE)
             func(all_data, plot_names, ax=ax)
@@ -1297,7 +1323,7 @@ def main():
         }
         # Add R_gb values to plot_info for downstream use
         if plot_name == 'rgb_fitting':
-            r_gb, ln_k, _ = _fit_r_gb(all_data, plot_names, use_global=False)
+            r_gb, ln_k, _, _ = _fit_r_gb(all_data, plot_names, use_global=False)
             info_entry['b'] = round(r_gb, 4)
             info_entry['ln_k'] = round(ln_k, 4)
         plot_info[plot_name] = info_entry

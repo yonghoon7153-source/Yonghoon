@@ -47,6 +47,7 @@
           <div class="case-label">
             <strong>{{ case.name }}</strong>
             <span class="badge badge-{{ case.mode }}">{{ case.mode }}</span>
+            {% if case.warning_count %}<span class="badge badge-warning" title="{{ case.warning_msgs | join('&#10;') }}">⚠ {{ case.warning_count }}</span>{% endif %}
           </div>
         </div>
         {% endif %}

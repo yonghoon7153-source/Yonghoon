@@ -39,8 +39,15 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       {% if case.ps_ratio %}<span class="badge">P:S = {{ case.ps_ratio }}</span>
       {% elif metrics and metrics.ps_ratio %}<span class="badge">P:S = {{ metrics.ps_ratio }}</span>{% endif %}
-      {% if metrics and metrics.am_se_ratio %}<span class="badge">AM:SE = {{ metrics.am_se_ratio }}</span>{% endif %}
-      {% if input_params and input_params.am_se_ratio %}<span class="badge">AM:SE = {{ input_params.am_se_ratio }}</span>{% endif %}
+      {% if metrics and metrics.am_se_ratio %}
+        {% if input_params and input_params.am_se_ratio and input_params.am_se_ratio != metrics.am_se_ratio %}
+        <span class="badge">AM:SE = {{ metrics.am_se_ratio }} ({{ input_params.am_se_ratio }})</span>
+        {% else %}
+        <span class="badge">AM:SE = {{ metrics.am_se_ratio }}</span>
+        {% endif %}
+      {% elif input_params and input_params.am_se_ratio %}
+      <span class="badge">AM:SE = {{ input_params.am_se_ratio }}</span>
+      {% endif %}
       {% if input_params and input_params.target_press_sim is defined %}<span class="badge">Target: {{ "%.1f"|format(input_params.target_press_sim * 1000) }} MPa</span>{% endif %}
     </div>
   </div>

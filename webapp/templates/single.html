@@ -17,7 +17,20 @@
           {% if metrics.percolation_pct is defined %}<span class="badge">Percolation: {{ "%.1f"|format(metrics.percolation_pct) }}%</span>{% endif %}
           {% if metrics.ionic_active_pct is defined %}<span class="badge badge-{{ 'standard' if metrics.ionic_active_pct >= 95 else 'bimodal' }}">Ionic Active: {{ "%.1f"|format(metrics.ionic_active_pct) }}%</span>{% endif %}
         {% endif %}
+        {% if metrics.warnings is defined and metrics.warnings %}
+        <span class="badge badge-warning" title="{% for w in metrics.warnings %}{{ w.msg }}&#10;{% endfor %}">⚠ {{ metrics.warning_count }}</span>
+        {% endif %}
       </p>
+      {% if metrics.warnings is defined and metrics.warnings %}
+      <div class="warning-banner">
+        {% for w in metrics.warnings %}
+        <div class="warning-item warning-{{ w.severity }}">
+          <span class="warning-icon">{{ '🔴' if w.severity == 'critical' else '🟡' }}</span>
+          {{ w.msg }}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
     <div class="header-actions">
       <button class="btn btn-archive" onclick="saveToArchive()">보관함에 저장</button>

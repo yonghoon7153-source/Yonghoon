@@ -96,6 +96,12 @@ def list_cases():
         meta['has_figures'] = os.path.isdir(figures_dir) and len(globmod.glob(os.path.join(figures_dir, '*.png'))) > 0
         report_file = os.path.join(results_dir, 'report.md')
         meta['has_report'] = os.path.exists(report_file)
+        # Check for warnings
+        metrics_file = os.path.join(results_dir, 'full_metrics.json')
+        if os.path.exists(metrics_file):
+            with open(metrics_file) as f:
+                m = json.load(f)
+            meta['warning_count'] = m.get('warning_count', 0)
         cases.append(meta)
     return cases
 

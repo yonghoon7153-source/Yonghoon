@@ -332,6 +332,62 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     # Target pressure from input_params (sim → real MPa)
     if input_params.get('target_press_sim'):
         metrics['target_pressure_mpa'] = round(input_params['target_press_sim'] * scale, 1)
+
+    # ── Data quality warnings ──
+    warnings = []
+    tau = results['tortuosity']
+    perc_data = results['percolation']
+    overlap = results.get('overlap_ratio')
+
+    # 1. Tortuosity anomaly: mean > 5 or std/mean > 1
+    if tau.get('mean') and tau['mean'] > 5:
+        warnings.append({'type': 'tortuosity_extreme', 'severity': 'critical',
+                        'msg': f"Tortuosity mean={tau['mean']:.1f} (>5): RVE size artifact or broken path"})
+    elif tau.get('mean') and tau.get('std') and tau['std'] / tau['mean'] > 1:
+        warnings.append({'type': 'tortuosity_unstable', 'severity': 'warning',
+                        'msg': f"Tortuosity std/mean={tau['std']/tau['mean']:.2f} (>1): path quality highly non-uniform"})
+    elif tau.get('mean') and tau['mean'] > 3:
+        warnings.append({'type': 'tortuosity_high', 'severity': 'warning',
+                        'msg': f"Tortuosity mean={tau['mean']:.1f} (>3): unusually tortuous paths"})
+
+    # 2. Low percolation
+    if perc_data.get('percolation_pct', 100) < 90:
+        warnings.append({'type': 'percolation_low', 'severity': 'critical',
+                        'msg': f"Percolation={perc_data['percolation_pct']:.1f}% (<90%): SE network severely fragmented"})
+    elif perc_data.get('percolation_pct', 100) < 95:
+        warnings.append({'type': 'percolation_marginal', 'severity': 'warning',
+                        'msg': f"Percolation={perc_data['percolation_pct']:.1f}% (<95%): SE network connectivity marginal"})
+
+    # 3. High porosity (poor compaction)
+    if results.get('porosity', 0) > 25:
+        warnings.append({'type': 'porosity_high', 'severity': 'warning',
+                        'msg': f"Porosity={results['porosity']:.1f}% (>25%): insufficient compaction"})
+
+    # 4. Overlap ratio (DEM validity)
+    if overlap and overlap.get('pct_above_5', 0) > 10:
+        warnings.append({'type': 'overlap_excessive', 'severity': 'critical',
+                        'msg': f"Overlap >5%: {overlap['pct_above_5']:.1f}% of contacts — DEM accuracy questionable"})
+    elif overlap and overlap.get('max', 0) > 15:
+        warnings.append({'type': 'overlap_max_high', 'severity': 'warning',
+                        'msg': f"Overlap max={overlap['max']:.1f}% (>15%): extreme deformation at some contacts"})
+
+    # 5. Too few particles (RVE representativeness)
+    total_particles = sum(particle_info.get(f'n_{name}', 0) for name in type_map.values())
+    if total_particles < 500:
+        warnings.append({'type': 'rve_small', 'severity': 'warning',
+                        'msg': f"Total particles={total_particles} (<500): RVE may not be representative"})
+
+    # 6. SE-SE CN near percolation threshold
+    if cn.get('mean', 10) < 3.5:
+        warnings.append({'type': 'cn_critical', 'severity': 'critical',
+                        'msg': f"SE-SE CN={cn['mean']:.1f} (<3.5): near percolation threshold, network may collapse"})
+
+    if warnings:
+        metrics['warnings'] = warnings
+        metrics['warning_count'] = len(warnings)
+        for w in warnings:
+            print(f"  ⚠ [{w['severity']}] {w['msg']}")
+
     with open(os.path.join(output_dir, 'full_metrics.json'), 'w') as f:
         json.dump(metrics, f, indent=2, default=str)
 

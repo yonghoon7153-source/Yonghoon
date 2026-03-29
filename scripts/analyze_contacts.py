@@ -329,6 +329,9 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     if eff_cond:
         metrics['sigma_ratio'] = eff_cond['sigma_ratio']
         metrics['phi_se'] = eff_cond['phi_se']
+    # Target pressure from input_params (sim → real MPa)
+    if input_params.get('target_press_sim'):
+        metrics['target_pressure_mpa'] = round(input_params['target_press_sim'] * scale, 1)
     with open(os.path.join(output_dir, 'full_metrics.json'), 'w') as f:
         json.dump(metrics, f, indent=2, default=str)
 

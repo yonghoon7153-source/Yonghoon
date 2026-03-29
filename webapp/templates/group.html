@@ -616,9 +616,8 @@ async function generatePlots() {
   if (!validPGs.length) { alert('플롯 그룹에 Case를 선택하세요.'); btn.disabled = false; btn.textContent = '선택 플롯 생성'; loading.style.display = 'none'; return; }
 
   try {
-    // If rgb_fitting or gb_corrected selected + multiple groups → compute global b first
-    const needsGlobalRgb = validPGs.length > 1 &&
-      (plotTypes.includes('rgb_fitting') || plotTypes.includes('gb_corrected'));
+    // Global R_gb disabled — b depends on electrode thickness, each group fits locally
+    const needsGlobalRgb = false;
     let globalRgb = '';
 
     if (needsGlobalRgb) {

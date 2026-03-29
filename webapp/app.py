@@ -1320,7 +1320,9 @@ def archive():
         if os.path.isdir(full):
             cnt = len([f for f in os.listdir(full) if os.path.isfile(os.path.join(full, f))])
             sub = len([f for f in os.listdir(full) if os.path.isdir(os.path.join(full, f))])
-            folders.append({'name': name, 'path': rel, 'file_count': cnt, 'subfolder_count': sub})
+            has_metrics = os.path.exists(os.path.join(full, 'full_metrics.json'))
+            folders.append({'name': name, 'path': rel, 'file_count': cnt, 'subfolder_count': sub,
+                           'has_metrics': has_metrics})
         else:
             size = os.path.getsize(full)
             files.append({'name': name, 'path': rel, 'size': size,
@@ -1424,6 +1426,204 @@ def archive_save_case():
         if os.path.isfile(fpath) and fname != 'meta.json':
             shutil.copy2(fpath, os.path.join(raw_dir, fname))
     return jsonify({'success': True, 'saved_to': save_dir})
+
+@app.route('/archive/view/<path:folder>')
+def archive_view(folder):
+    """View archive case results like single page."""
+    import pandas as pd
+    target = _safe_path(folder)
+    if not target or not os.path.isdir(target):
+        return redirect(url_for('archive'))
+
+    results_dir = target
+    case_name = os.path.basename(folder)
+
+    # Load meta
+    meta = {'name': case_name, 'mode': 'unknown', 'status': 'done'}
+    meta_file = os.path.join(results_dir, 'meta.json')
+    if os.path.exists(meta_file):
+        with open(meta_file) as f:
+            meta = json.load(f)
+    meta['id'] = f'archive:{folder}'
+    meta['name'] = meta.get('name', case_name)
+
+    # Figures
+    figures = []
+    figures_dir = os.path.join(results_dir, 'figures')
+    if os.path.isdir(figures_dir):
+        for png in sorted(globmod.glob(os.path.join(figures_dir, '*.png'))):
+            figures.append(os.path.basename(png))
+
+    # Report
+    report = ''
+    report_path = os.path.join(results_dir, 'report.md')
+    if os.path.exists(report_path):
+        with open(report_path) as f:
+            report = f.read()
+
+    # CSVs
+    tables = {}
+    for csv_name in ['atom_statistics', 'contact_summary', 'coordination_summary', 'network_summary']:
+        csv_path = os.path.join(results_dir, f'{csv_name}.csv')
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            tables[csv_name] = {'columns': df.columns.tolist(), 'data': df.values.tolist()}
+
+    # Metrics
+    metrics = {}
+    metrics_path = os.path.join(results_dir, 'full_metrics.json')
+    if os.path.exists(metrics_path):
+        with open(metrics_path) as f:
+            metrics = json.load(f)
+
+    # Section headers
+    if 'network_summary' in tables:
+        data = tables['network_summary']['data']
+        has_headers = any(str(row[0]).startswith('──') for row in data)
+        if not has_headers:
+            section_map = {
+                'Porosity(%)': '── 구조 ──',
+                'AM-SE Total(μm²)': '── 계면 ──',
+                'SE-SE CN mean': '── 이온경로: 연결성 ──',
+                'Tortuosity mean': '── 이온경로: 경로 효율 ──',
+                'Path Hop Area mean(μm²)': '── 이온경로: 경로 품질 ──',
+                'Ionic Active AM(%)': '── 활성도 ──',
+                'Stress CV(%)': '── 응력 ──',
+            }
+            new_data = []
+            for row in data:
+                label = str(row[0])
+                if label in section_map:
+                    new_data.append([section_map[label], ''])
+                new_data.append(row)
+            tables['network_summary']['data'] = new_data
+
+    # Patch placeholder values
+    if 'network_summary' in tables and metrics:
+        n_large = metrics.get('n_large_components')
+        if n_large is not None:
+            for row in tables['network_summary']['data']:
+                if str(row[0]) == 'SE Cluster 수' and '≥10' not in str(row[1]):
+                    row[1] = f"{n_large}(≥10) / {row[1]}"
+        placeholder_map = {
+            'GB Density(hops/μm)': 'gb_density_mean',
+            'Path Hop Area mean(μm²)': 'path_hop_area_mean',
+            'Path Bottleneck(μm²)': 'path_hop_area_min_mean',
+            'Path Conductance(μm²)': 'path_conductance_mean',
+        }
+        for row in tables['network_summary']['data']:
+            label = str(row[0])
+            if label in placeholder_map and str(row[1]).strip() in ('-', ''):
+                val = metrics.get(placeholder_map[label])
+                if val is not None:
+                    row[1] = val
+
+    input_params = {}
+    params_path = os.path.join(results_dir, 'input_params.json')
+    if os.path.exists(params_path):
+        with open(params_path) as f:
+            input_params = json.load(f)
+
+    return render_template('single.html', case=meta, figures=figures,
+                         report=report, tables=tables, metrics=metrics,
+                         input_params=input_params, archive_path=folder)
+
+
+@app.route('/archive/results/<path:folder>/figures/<filename>')
+def serve_archive_figure(folder, filename):
+    target = _safe_path(os.path.join(folder, 'figures'))
+    if not target:
+        return 'Not found', 404
+    return send_from_directory(target, filename)
+
+
+@app.route('/archive/results/<path:folder>/3d-data')
+def serve_archive_3d_data(folder):
+    """Serve 3D data for archive case."""
+    import pandas as pd
+    target = _safe_path(folder)
+    if not target:
+        return jsonify({'error': 'Not found'}), 404
+
+    meta = {}
+    meta_file = os.path.join(target, 'meta.json')
+    if os.path.exists(meta_file):
+        with open(meta_file) as f:
+            meta = json.load(f)
+    scale = meta.get('scale', 1000)
+    type_map_str = meta.get('type_map', '1:AM,2:SE')
+    type_map = {}
+    for item in type_map_str.split(','):
+        k, v = item.split(':')
+        type_map[int(k)] = v.strip()
+
+    atoms_csv = os.path.join(target, 'atoms.csv')
+    if not os.path.exists(atoms_csv):
+        return jsonify({'error': 'No atom data'}), 404
+
+    df = pd.read_csv(atoms_csv)
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    particles = []
+    for _, row in df.iterrows():
+        t = int(row['type'])
+        particles.append({
+            'id': int(row['id']),
+            'type': type_map.get(t, f'T{t}'),
+            'x': round(float(row['x']) * scale, 2),
+            'y': round(float(row['y']) * scale, 2),
+            'z': round(float(row['z']) * scale, 2),
+            'r': round(float(row['radius']) * scale, 2),
+        })
+
+    box = {
+        'x_min': 0, 'x_max': round(0.05 * scale, 1),
+        'y_min': 0, 'y_max': round(0.05 * scale, 1),
+        'z_min': 0,
+    }
+    mesh_file = os.path.join(target, 'mesh_info.json')
+    if os.path.exists(mesh_file):
+        with open(mesh_file) as f:
+            box['z_max'] = round(json.load(f)['plate_z'] * scale, 1)
+    else:
+        box['z_max'] = round(max(p['z'] + p['r'] for p in particles), 1)
+
+    percolation = {'top_reachable': [], 'bottom_se': [], 'top_se': []}
+    perc_path = os.path.join(target, 'percolation_sets.json')
+    if os.path.exists(perc_path):
+        with open(perc_path) as f:
+            percolation = json.load(f)
+
+    paths = []
+    paths_path = os.path.join(target, 'tortuosity_paths.json')
+    if os.path.exists(paths_path):
+        with open(paths_path) as f:
+            paths = json.load(f)
+
+    clusters = {}
+    clusters_path = os.path.join(target, 'se_clusters.json')
+    if os.path.exists(clusters_path):
+        with open(clusters_path) as f:
+            clusters = json.load(f)
+
+    return jsonify({
+        'particles': particles, 'box': box,
+        'percolation': percolation, 'paths': paths, 'clusters': clusters,
+    })
+
+
+@app.route('/archive/results/<path:folder>/force-chains')
+def serve_archive_force_chains(folder):
+    target = _safe_path(folder)
+    if not target:
+        return jsonify([])
+    fc_path = os.path.join(target, 'force_chains.json')
+    if os.path.exists(fc_path):
+        with open(fc_path) as f:
+            return jsonify(json.load(f))
+    return jsonify([])
+
 
 @app.route('/archive/download/<path:filepath>')
 def archive_download(filepath):

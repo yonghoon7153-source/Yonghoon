@@ -22,7 +22,11 @@
     <div class="header-actions">
       <button class="btn btn-archive" onclick="saveToArchive()">보관함에 저장</button>
       <a href="/results/{{ case.id }}/report" class="btn btn-primary">MD Report 다운로드</a>
+      {% if archive_path %}
+      <a href="/archive?folder={{ archive_path|replace('/' ~ archive_path.split('/')[-1], '') }}" class="btn btn-secondary">보관함으로</a>
+      {% else %}
       <a href="/" class="btn btn-secondary">목록으로</a>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -81,8 +85,9 @@
   <h3>Figures ({{ figures|length }})</h3>
   <div class="figures-grid">
     {% for fig in figures %}
-    <div class="figure-item" onclick="openModal('/results/{{ case.id }}/figures/{{ fig }}', '{{ fig }}')">
-      <img src="/results/{{ case.id }}/figures/{{ fig }}" alt="{{ fig }}" loading="lazy">
+    {% set fig_base = '/archive/results/' ~ archive_path if archive_path else '/results/' ~ case.id %}
+    <div class="figure-item" onclick="openModal('{{ fig_base }}/figures/{{ fig }}', '{{ fig }}')">
+      <img src="{{ fig_base }}/figures/{{ fig }}" alt="{{ fig }}" loading="lazy">
       <span class="figure-label">{{ fig }}</span>
     </div>
     {% endfor %}
@@ -129,7 +134,11 @@ async function load3DViewer() {
   if (viewer3dLoaded) return;
   viewer3dLoaded = true;
   const mod = await import('/static/js/viewer3d.js');
+  {% if archive_path %}
+  mod.initElectrodeViewer('viewer-container', '/archive/results/{{ archive_path }}/3d-data');
+  {% else %}
   mod.initElectrodeViewer('viewer-container', '/results/{{ case.id }}/3d-data');
+  {% endif %}
 }
 
 function switchTab(btn, id) {

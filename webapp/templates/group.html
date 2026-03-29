@@ -550,15 +550,15 @@ async function generatePlots() {
   const grid = document.getElementById('plots-grid');
   grid.innerHTML = '';
 
-  // Generate plots for each plot group separately
   const validPGs = plotGroups.filter(pg => pg.caseGroupIdxs.length > 0);
   if (!validPGs.length) { alert('플롯 그룹에 Case를 선택하세요.'); btn.disabled = false; btn.textContent = '선택 플롯 생성'; loading.style.display = 'none'; return; }
 
   try {
+    // Collect results from all plot groups
+    const allResults = []; // [{pgIdx, pgName, session, plots}]
     for (let pgIdx = 0; pgIdx < validPGs.length; pgIdx++) {
       const pg = validPGs[pgIdx];
       const pgCaseGroups = pg.caseGroupIdxs.map(i => caseGroups[i]);
-
       btn.textContent = `생성 중... (${pgIdx+1}/${validPGs.length})`;
 
       const form = new FormData();
@@ -568,22 +568,102 @@ async function generatePlots() {
 
       const res = await fetch('/group/plots', { method: 'POST', body: form });
       const data = await res.json();
-      if (data.error) { continue; }
+      if (data.error) continue;
 
-      // Plot group header
-      if (validPGs.length > 1) {
-        const header = document.createElement('div');
-        header.className = 'plot-group-header-bar';
-        const pgName = pg.caseGroupIdxs.map(i => caseGroups[i].name || `Case ${GROUP_LETTERS[i]}`).join(' + ');
-        header.innerHTML = `<h3 style="margin:0">플롯 그룹 ${pgIdx+1}: ${pgName}</h3>`;
-        grid.appendChild(header);
+      const pgName = pg.caseGroupIdxs.map(i => caseGroups[i].name || `Case ${GROUP_LETTERS[i]}`).join(' + ');
+      allResults.push({pgIdx, pgName, session: data.session, plots: data.plots});
+    }
+
+    if (validPGs.length === 1) {
+      // Single plot group: original layout
+      const r = allResults[0];
+      r.plots.forEach(p => {
+        if (p.file === 'rgb_fitting.png') { grid.appendChild(createDerivationBox()); }
+        grid.appendChild(createPlotItem(r.session, p));
+      });
+    } else {
+      // Multiple plot groups: group same plot types side by side
+      // Build a map: plotFile -> [{session, plot, pgName}]
+      const plotMap = new Map();
+      allResults.forEach(r => {
+        r.plots.forEach(p => {
+          if (!plotMap.has(p.file)) plotMap.set(p.file, []);
+          plotMap.get(p.file).push({session: r.session, plot: p, pgName: r.pgName, pgIdx: r.pgIdx});
+        });
+      });
+
+      // Render each plot type as a row
+      const cols = validPGs.length;
+      for (const [file, entries] of plotMap) {
+        // Derivation box before rgb_fitting
+        if (file === 'rgb_fitting.png') { grid.appendChild(createDerivationBox()); }
+
+        // Description from first entry
+        const firstPlot = entries[0].plot;
+
+        // Row container
+        const row = document.createElement('div');
+        row.className = 'plot-row-multi';
+        row.style.gridTemplateColumns = `repeat(${cols}, 1fr) 280px`;
+
+        // Plot images for each group
+        entries.forEach(e => {
+          const cell = document.createElement('div');
+          cell.className = 'plot-cell';
+          cell.innerHTML = `
+            <div class="plot-cell-label" style="color:${GROUP_COLORS[e.pgIdx % GROUP_COLORS.length]}">${e.pgName}</div>
+            <img src="/group/plot-image/${e.session}/${e.plot.file}" alt="${e.plot.title}"
+                 onclick="openPlotModal(this.src, '${e.plot.title}')" style="width:100%;cursor:pointer">`;
+          row.appendChild(cell);
+        });
+        // Fill empty cells if some groups don't have this plot
+        for (let i = entries.length; i < cols; i++) {
+          const empty = document.createElement('div');
+          empty.className = 'plot-cell';
+          empty.innerHTML = '<div style="color:var(--dim);padding:40px;text-align:center">N/A</div>';
+          row.appendChild(empty);
+        }
+
+        // Description sidebar
+        const desc = document.createElement('div');
+        desc.className = 'plot-info';
+        desc.innerHTML = `
+          <h4>${firstPlot.title}</h4>
+          <p class="plot-desc">${firstPlot.description}</p>
+          <details class="plot-origin"><summary>Origin 설정</summary><pre>${firstPlot.origin_tip}</pre></details>
+          ${firstPlot.csv ? `<a href="/group/plot-image/${entries[0].session}/${firstPlot.csv}" class="btn btn-sm btn-dl" style="margin-top:10px" download>CSV 다운로드</a>` : ''}`;
+        row.appendChild(desc);
+
+        grid.appendChild(row);
       }
+    }
 
-      data.plots.forEach(p => {
-      // Insert derivation box before R_gb fitting plot
-      if (p.file === 'rgb_fitting.png') {
-        const box = document.createElement('div');
-        box.className = 'derivation-box';
+    document.getElementById('plots-output').style.display = 'block';
+  } catch(e) { alert('오류: ' + e.message); }
+  finally {
+    btn.disabled = false; btn.textContent = '선택 플롯 생성';
+    loading.style.display = 'none';
+  }
+}
+
+function createPlotItem(session, p) {
+  const item = document.createElement('div');
+  item.className = 'plot-item';
+  item.innerHTML = `
+    <img src="/group/plot-image/${session}/${p.file}" alt="${p.title}"
+         onclick="openPlotModal(this.src, '${p.title}')">
+    <div class="plot-info">
+      <h4>${p.title}</h4>
+      <p class="plot-desc">${p.description}</p>
+      <details class="plot-origin"><summary>Origin 설정</summary><pre>${p.origin_tip}</pre></details>
+      ${p.csv ? `<a href="/group/plot-image/${session}/${p.csv}" class="btn btn-sm btn-dl" style="margin-top:10px" download>CSV 다운로드</a>` : ''}
+    </div>`;
+  return item;
+}
+
+function createDerivationBox() {
+  const box = document.createElement('div');
+  box.className = 'derivation-box';
         box.innerHTML = `
           <h4>📐 유효 이온전도도 유도</h4>
           <div class="deriv-section">
@@ -620,31 +700,7 @@ async function generatePlots() {
             <div class="deriv-desc">σ_bulk = 1.3 mS/cm (Li₆PS₅Cl, cold-pressed) → 결과가 바로 mS/cm 단위</div>
             <div class="deriv-desc" style="margin-top:8px">⚠ DEM 특성상 절대값은 실측과 차이가 있을 수 있음 → 실험 EIS 비교 필요</div>
           </div>`;
-        grid.appendChild(box);
-      }
-      const item = document.createElement('div');
-      item.className = 'plot-item';
-      item.innerHTML = `
-        <img src="/group/plot-image/${data.session}/${p.file}" alt="${p.title}"
-             onclick="openPlotModal(this.src, '${p.title}')">
-        <div class="plot-info">
-          <h4>${p.title}</h4>
-          <p class="plot-desc">${p.description}</p>
-          <details class="plot-origin">
-            <summary>Origin 설정</summary>
-            <pre>${p.origin_tip}</pre>
-          </details>
-          ${p.csv ? `<a href="/group/plot-image/${data.session}/${p.csv}" class="btn btn-sm btn-dl" style="margin-top:10px;display:inline-block" download>CSV 다운로드</a>` : ''}
-        </div>`;
-      grid.appendChild(item);
-    });
-    } // end for each plot group
-    document.getElementById('plots-output').style.display = 'block';
-  } catch(e) { alert('오류: ' + e.message); }
-  finally {
-    btn.disabled = false; btn.textContent = '선택 플롯 생성';
-    loading.style.display = 'none';
-  }
+  return box;
 }
 
 function openPlotModal(src, title) {

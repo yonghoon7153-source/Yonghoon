@@ -399,6 +399,17 @@ thead .sticky-col { z-index: 3; }
   border: 1px solid var(--accent); border-radius: 8px;
   color: var(--accent);
 }
+.plot-row-multi {
+  display: grid; gap: 8px; margin-bottom: 16px;
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px; background: rgba(255,255,255,.01);
+}
+.plot-cell { display: flex; flex-direction: column; }
+.plot-cell img { border-radius: 6px; }
+.plot-cell-label {
+  font-size: .75rem; font-weight: 700; text-align: center;
+  padding: 4px 0; margin-bottom: 4px;
+}
 .plot-select-grid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;
 }

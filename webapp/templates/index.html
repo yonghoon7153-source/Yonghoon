@@ -312,34 +312,21 @@ async function reanalyzeAll(btn) {
   if (!ids.length) return;
   btn.disabled = true;
 
-  // Fire all analyses (background threads)
+  // Sequential: one at a time to avoid RAM explosion
   for (let i = 0; i < ids.length; i++) {
-    btn.textContent = `starting ${i+1}/${ids.length}...`;
+    btn.textContent = `${i+1}/${ids.length}...`;
     await fetch(`/analyze/${ids[i]}`, { method: 'POST' });
+    // Wait until this one finishes
+    while (true) {
+      await new Promise(r => setTimeout(r, 3000));
+      const res = await fetch(`/analyze-status/${ids[i]}`);
+      const data = await res.json();
+      if (data.status !== 'running') break;
+    }
   }
-
-  // Poll until all done (check every 3s)
-  btn.textContent = 'analyzing...';
-  const poll = () => {
-    setTimeout(async () => {
-      let allDone = true;
-      let doneCount = 0;
-      for (const id of ids) {
-        const res = await fetch(`/analyze-status/${id}`);
-        const data = await res.json();
-        if (data.status === 'running') { allDone = false; } else { doneCount++; }
-      }
-      btn.textContent = `${doneCount}/${ids.length} done...`;
-      if (allDone) {
-        btn.textContent = '✓ done';
-        showToast('All reanalysis complete!');
-        setTimeout(() => { btn.textContent = '전체 재분석'; btn.disabled = false; }, 3000);
-      } else {
-        poll();
-      }
-    }, 3000);
-  };
-  poll();
+  btn.textContent = '✓ done';
+  showToast('All reanalysis complete!');
+  setTimeout(() => { btn.textContent = '전체 재분석'; btn.disabled = false; }, 3000);
 }
 
 // Quick save to archive

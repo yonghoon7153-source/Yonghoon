@@ -268,30 +268,21 @@ async function reanalyzeAll() {
   if (!paths.length) return;
   const btn = event.target;
   btn.disabled = true;
-  // Fire all
+  // Sequential: one at a time
   for (let i = 0; i < paths.length; i++) {
-    btn.textContent = `starting ${i+1}/${paths.length}...`;
+    btn.textContent = `${i+1}/${paths.length}...`;
     await fetch(`/archive/reanalyze/${paths[i]}`, { method: 'POST' });
+    // Wait until done
+    while (true) {
+      await new Promise(r => setTimeout(r, 3000));
+      const res = await fetch(`/archive/reanalyze-status/${paths[i]}`);
+      const data = await res.json();
+      if (data.status === 'done') break;
+    }
   }
-  // Poll
-  btn.textContent = 'analyzing...';
-  const poll = () => {
-    setTimeout(async () => {
-      let doneCount = 0;
-      for (const p of paths) {
-        const res = await fetch(`/archive/reanalyze-status/${p}`);
-        const data = await res.json();
-        if (data.status === 'done') doneCount++;
-      }
-      btn.textContent = `${doneCount}/${paths.length} done...`;
-      if (doneCount >= paths.length) {
-        btn.textContent = '✓ done';
-        showToast('All reanalysis complete!');
-        setTimeout(() => { btn.textContent = '모두 재분석'; btn.disabled = false; }, 3000);
-      } else { poll(); }
-    }, 3000);
-  };
-  poll();
+  btn.textContent = '✓ done';
+  showToast('All reanalysis complete!');
+  setTimeout(() => { btn.textContent = '모두 재분석'; btn.disabled = false; }, 3000);
 }
 
 async function reanalyzeArchive(btn, path) {

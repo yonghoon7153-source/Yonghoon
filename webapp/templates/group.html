@@ -632,9 +632,11 @@ async function generatePlots() {
         });
       });
       const gform = new FormData();
-      allCaseGroups.forEach(g => g.cases.forEach(cid => gform.append('cases', cid)));
+      let totalCases = 0;
+      allCaseGroups.forEach(g => g.cases.forEach(cid => { gform.append('cases', cid); totalCases++; }));
       gform.append('case_groups', JSON.stringify(allCaseGroups));
-      gform.append('plots', 'rgb_fitting');  // only need this to get b
+      gform.append('plots', 'rgb_fitting');
+      console.log(`Global R_gb: ${allCaseGroups.length} groups, ${totalCases} total cases`);
       const gres = await fetch('/group/plots', { method: 'POST', body: gform });
       const gdata = await gres.json();
       // Extract b and ln_k from the CSV

@@ -72,6 +72,7 @@
         {% for f in folders %}
         <a href="/archive?folder={{ f.path }}" class="folder-card"
            draggable="true"
+           onclick="if(event.ctrlKey||event.metaKey){toggleFolderSelect(event,'{{ f.path }}');return false;}"
            ondragstart="dragStart(event, '{{ f.path }}')"
            ondragover="dragOver(event)"
            ondragleave="dragLeave(event)"
@@ -205,13 +206,35 @@ async function createFolder() {
   else alert(data.error);
 }
 
-// Drag & Drop between folders
-let dragSrc = null;
+// Multi-select Drag & Drop
+let selectedPaths = new Set();
+
+function toggleFolderSelect(e, path) {
+  const card = e.currentTarget;
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault();
+    if (selectedPaths.has(path)) {
+      selectedPaths.delete(path);
+      card.classList.remove('folder-selected');
+    } else {
+      selectedPaths.add(path);
+      card.classList.add('folder-selected');
+    }
+    return false;  // prevent navigation
+  }
+}
 
 function dragStart(e, path) {
-  dragSrc = path;
+  // If dragging a non-selected item, select only it
+  if (!selectedPaths.has(path)) {
+    document.querySelectorAll('.folder-card').forEach(c => c.classList.remove('folder-selected'));
+    selectedPaths.clear();
+    selectedPaths.add(path);
+    e.currentTarget.classList.add('folder-selected');
+  }
   e.dataTransfer.effectAllowed = 'move';
-  e.target.style.opacity = '0.5';
+  e.dataTransfer.setData('text/plain', JSON.stringify([...selectedPaths]));
+  document.querySelectorAll('.folder-selected').forEach(c => c.style.opacity = '0.5');
 }
 
 function dragOver(e) {
@@ -227,21 +250,19 @@ function dragLeave(e) {
 async function dropOnFolder(e, targetPath) {
   e.preventDefault();
   e.currentTarget.classList.remove('folder-drop-target');
-  if (!dragSrc || dragSrc === targetPath) return;
-  // Don't drop into itself
-  if (targetPath.startsWith(dragSrc + '/')) return alert('자기 자신 안으로 이동할 수 없습니다.');
-
-  const form = new FormData();
-  form.append('src', dragSrc);
-  form.append('dst', targetPath);
-  const res = await fetch('/archive/move', { method: 'POST', body: form });
-  const data = await res.json();
-  if (data.success) location.reload();
-  else alert(data.error || '이동 실패');
+  const paths = selectedPaths.size > 0 ? [...selectedPaths] : [];
+  if (!paths.length || paths.includes(targetPath)) return;
+  for (const srcPath of paths) {
+    if (targetPath.startsWith(srcPath + '/')) continue;
+    const form = new FormData();
+    form.append('src', srcPath);
+    form.append('dst', targetPath);
+    await fetch('/archive/move', { method: 'POST', body: form });
+  }
+  location.reload();
 }
 
 document.addEventListener('dragend', () => {
-  dragSrc = null;
   document.querySelectorAll('.folder-card').forEach(c => c.style.opacity = '1');
 });
 

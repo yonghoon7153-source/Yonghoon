@@ -191,16 +191,19 @@ function editName(el) {
 }
 
 async function saveToArchive() {
+  const btn = document.querySelector('.btn-archive');
+  btn.disabled = true; btn.textContent = '저장 중...';
   const form = new FormData();
   form.append('case_id', '{{ case.id }}');
   form.append('folder', '');
   const res = await fetch('/archive/save-case', { method: 'POST', body: form });
   const data = await res.json();
   if (data.success) {
-    alert('보관함에 저장 완료!');
-    document.getElementById('save-dialog').classList.remove('open');
+    btn.textContent = '✓ 저장 완료';
+    setTimeout(() => { btn.textContent = '보관함에 저장'; btn.disabled = false; }, 1500);
   } else {
-    alert('오류: ' + (data.error || '저장 실패'));
+    btn.textContent = '저장 실패';
+    setTimeout(() => { btn.textContent = '보관함에 저장'; btn.disabled = false; }, 1500);
   }
 }
 

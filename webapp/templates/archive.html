@@ -80,7 +80,7 @@
           <span class="folder-icon">&#x1F4C1;</span>
           <div class="folder-info">
             <strong>{{ f.name }}</strong>
-            <small>{{ f.file_count }} 파일{% if f.subfolder_count %}, {{ f.subfolder_count }} 하위폴더{% endif %}</small>
+            <small>{{ f.file_count }} 파일{% if f.subfolder_count %}, {{ f.subfolder_count }} 하위폴더{% endif %}{% if f.has_metrics %} ✓{% endif %}</small>
           </div>
           <div class="folder-actions" onclick="event.preventDefault();event.stopPropagation()">
             {% if f.has_metrics %}

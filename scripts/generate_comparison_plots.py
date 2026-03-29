@@ -45,13 +45,16 @@ def _apply_style(ax, ylabel, names):
     n = len(names)
     ax.set_xticks(range(n))
 
-    # Adaptive label sizing and rotation based on case count
+    # Adaptive label sizing based on case count
     if n <= 8:
         ax.set_xticklabels(names, fontsize=10)
-    elif n <= 15:
-        ax.set_xticklabels(names, fontsize=8, rotation=45, ha='right')
     else:
-        ax.set_xticklabels(names, fontsize=7, rotation=60, ha='right')
+        # Staggered labels: alternate y-offset to avoid overlap
+        fs = 8 if n <= 15 else 7
+        ax.set_xticklabels(names, fontsize=fs)
+        for i, label in enumerate(ax.get_xticklabels()):
+            if i % 2 == 1:
+                label.set_y(-0.04)  # push odd labels down
 
     ax.set_xlabel("P:S Configuration", fontsize=10)
     ax.set_ylabel(ylabel, fontsize=11)
@@ -60,10 +63,6 @@ def _apply_style(ax, ylabel, names):
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.tick_params(axis='both', labelsize=9 if n <= 8 else 7)
-
-    # Adjust bottom margin for rotated labels
-    if n > 8:
-        ax.figure.subplots_adjust(bottom=0.2)
 
     # Add group separators and break lines at boundaries
     if _GROUP_INFO:

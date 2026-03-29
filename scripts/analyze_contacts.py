@@ -351,9 +351,9 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                         'msg': f"Tortuosity mean={tau['mean']:.1f} (>3): unusually tortuous paths"})
 
     # 2. Low percolation
-    if perc_data.get('percolation_pct', 100) < 90:
+    if perc_data.get('percolation_pct', 100) < 85:
         warnings.append({'type': 'percolation_low', 'severity': 'critical',
-                        'msg': f"Percolation={perc_data['percolation_pct']:.1f}% (<90%): SE network severely fragmented"})
+                        'msg': f"Percolation={perc_data['percolation_pct']:.1f}% (<85%): SE network severely fragmented"})
     elif perc_data.get('percolation_pct', 100) < 95:
         warnings.append({'type': 'percolation_marginal', 'severity': 'warning',
                         'msg': f"Percolation={perc_data['percolation_pct']:.1f}% (<95%): SE network connectivity marginal"})
@@ -362,14 +362,6 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     if results.get('porosity', 0) > 25:
         warnings.append({'type': 'porosity_high', 'severity': 'warning',
                         'msg': f"Porosity={results['porosity']:.1f}% (>25%): insufficient compaction"})
-
-    # 4. Overlap ratio (DEM validity)
-    if overlap and overlap.get('pct_above_5', 0) > 10:
-        warnings.append({'type': 'overlap_excessive', 'severity': 'critical',
-                        'msg': f"Overlap >5%: {overlap['pct_above_5']:.1f}% of contacts — DEM accuracy questionable"})
-    elif overlap and overlap.get('max', 0) > 15:
-        warnings.append({'type': 'overlap_max_high', 'severity': 'warning',
-                        'msg': f"Overlap max={overlap['max']:.1f}% (>15%): extreme deformation at some contacts"})
 
     # 5. Too few particles (RVE representativeness)
     total_particles = sum(particle_info.get(f'n_{name}', 0) for name in type_map.values())

@@ -282,6 +282,12 @@ thead .sticky-col { z-index: 3; }
 .warning-critical { background: rgba(248,113,113,.1); color: #f87171; border-left: 3px solid #f87171; }
 .warning-warning { background: rgba(251,191,36,.1); color: #fbbf24; border-left: 3px solid #fbbf24; }
 .warning-icon { font-size: 1rem; flex-shrink: 0; }
+.warning-disabled { opacity: 0.35; text-decoration: line-through; }
+.warning-toggle {
+  font-size: .7rem; padding: 2px 8px; flex-shrink: 0;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: transparent; color: var(--text); cursor: pointer;
+}
 .badge-scale { background: rgba(52,211,153,.12); color: var(--green); }
 .badge-unknown { background: var(--bg); color: var(--dim); }
 .status { font-size: .8rem; font-weight: 500; }

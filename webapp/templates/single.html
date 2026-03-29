@@ -24,9 +24,12 @@
       {% if metrics.warnings is defined and metrics.warnings %}
       <div class="warning-banner">
         {% for w in metrics.warnings %}
-        <div class="warning-item warning-{{ w.severity }}">
+        <div class="warning-item warning-{{ w.severity }}{% if w.type in (metrics.disabled_warnings or []) %} warning-disabled{% endif %}" id="warn-{{ w.type }}">
           <span class="warning-icon">{{ '🔴' if w.severity == 'critical' else '🟡' }}</span>
-          {{ w.msg }}
+          <span class="warning-msg" style="flex:1">{{ w.msg }}</span>
+          <button class="btn btn-sm warning-toggle" onclick="toggleWarning('{{ w.type }}')">
+            {{ 'ON' if w.type not in (metrics.disabled_warnings or []) else 'OFF' }}
+          </button>
         </div>
         {% endfor %}
       </div>
@@ -209,6 +212,27 @@ function editName(el) {
     if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
     if (e.key === 'Escape') location.reload();
   });
+}
+
+async function toggleWarning(warnType) {
+  const caseId = '{{ case.id }}';
+  const res = await fetch(`/toggle-warning/${caseId}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({warning_type: warnType})
+  });
+  const data = await res.json();
+  if (data.success) {
+    const el = document.getElementById('warn-' + warnType);
+    const btn = el.querySelector('.warning-toggle');
+    if (data.disabled) {
+      el.classList.add('warning-disabled');
+      btn.textContent = 'OFF';
+    } else {
+      el.classList.remove('warning-disabled');
+      btn.textContent = 'ON';
+    }
+  }
 }
 
 async function saveToArchive() {

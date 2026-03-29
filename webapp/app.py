@@ -1139,6 +1139,43 @@ def serve_3d_data(case_id):
         'clusters': clusters,
     })
 
+@app.route('/toggle-warning/<case_id>', methods=['POST'])
+def toggle_warning(case_id):
+    """Toggle a warning on/off in full_metrics.json."""
+    data = request.get_json()
+    warn_type = data.get('warning_type', '')
+    if not warn_type:
+        return jsonify({'error': 'No warning type'}), 400
+
+    # Try dashboard results first, then archive
+    metrics_path = os.path.join(get_results_dir(case_id), 'full_metrics.json')
+    if case_id.startswith('archive:'):
+        archive_rel = case_id[len('archive:'):]
+        target = _safe_path(archive_rel)
+        if target:
+            metrics_path = os.path.join(target, 'full_metrics.json')
+
+    if not os.path.exists(metrics_path):
+        return jsonify({'error': 'Metrics not found'}), 404
+
+    with open(metrics_path) as f:
+        metrics = json.load(f)
+
+    disabled = metrics.get('disabled_warnings', [])
+    if warn_type in disabled:
+        disabled.remove(warn_type)
+        is_disabled = False
+    else:
+        disabled.append(warn_type)
+        is_disabled = True
+    metrics['disabled_warnings'] = disabled
+
+    with open(metrics_path, 'w') as f:
+        json.dump(metrics, f, indent=2, default=str)
+
+    return jsonify({'success': True, 'disabled': is_disabled})
+
+
 @app.route('/results/<case_id>/save-screenshot', methods=['POST'])
 def save_screenshot(case_id):
     """Save 3D viewer screenshot to figures folder."""

@@ -273,7 +273,8 @@ async function reanalyzeAll() {
     await fetch(`/archive/reanalyze/${paths[i]}`, { method: 'POST' });
   }
   btn.textContent = '✓ 완료';
-  setTimeout(() => location.reload(), 1000);
+  showToast('All reanalysis complete!');
+  setTimeout(() => { btn.textContent = '모두 재분석'; btn.disabled = false; }, 3000);
 }
 
 async function reanalyzeArchive(btn, path) {
@@ -283,7 +284,8 @@ async function reanalyzeArchive(btn, path) {
   const data = await res.json();
   if (data.success) {
     btn.textContent = '✓ 완료';
-    setTimeout(() => location.reload(), 1000);
+    showToast(`Reanalysis started: ${path.split('/').pop()}`);
+    setTimeout(() => { btn.textContent = '재분석'; btn.disabled = false; }, 3000);
   } else {
     btn.textContent = '실패';
     setTimeout(() => { btn.textContent = '재분석'; btn.disabled = false; }, 2000);

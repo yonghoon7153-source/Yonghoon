@@ -329,7 +329,8 @@ async function reanalyzeAll(btn) {
     }
     if (allDone) {
       btn.textContent = '✓ done';
-      setTimeout(() => location.reload(), 1000);
+      showToast('All reanalysis complete!');
+      setTimeout(() => { btn.textContent = '전체 재분석'; btn.disabled = false; }, 3000);
     } else {
       setTimeout(poll, 3000);
     }

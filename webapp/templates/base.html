@@ -34,7 +34,19 @@
     {% block content %}{% endblock %}
   </main>
 
+  <div id="toast-container"></div>
   <script src="/static/js/main.js"></script>
+  <script>
+  function showToast(msg, duration=4000) {
+    const c = document.getElementById('toast-container');
+    const t = document.createElement('div');
+    t.className = 'toast-msg';
+    t.textContent = msg;
+    c.appendChild(t);
+    requestAnimationFrame(() => t.classList.add('show'));
+    setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, duration);
+  }
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

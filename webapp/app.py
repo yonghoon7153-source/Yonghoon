@@ -13,10 +13,21 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+# Load .env file if exists (for local development)
+_env_path = os.path.join(os.path.dirname(__file__), '.env')
+if os.path.exists(_env_path):
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith('#') and '=' in _line:
+                _k, _v = _line.split('=', 1)
+                os.environ.setdefault(_k.strip(), _v.strip())
+
 from flask import (
     Flask, render_template, request, jsonify, send_from_directory,
     redirect, url_for, send_file
 )
+import storage_sync
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max
@@ -28,6 +39,14 @@ app.config['ARCHIVE_FOLDER'] = os.path.join(os.path.dirname(__file__), 'archive'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['RESULTS_FOLDER'], exist_ok=True)
 os.makedirs(app.config['ARCHIVE_FOLDER'], exist_ok=True)
+
+# ─── Supabase Storage: restore on startup ─────────────────────────────────
+storage_sync.init()
+storage_sync.restore_all(
+    app.config['UPLOAD_FOLDER'],
+    app.config['RESULTS_FOLDER'],
+    app.config['ARCHIVE_FOLDER'],
+)
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -438,6 +457,9 @@ def upload():
     with open(os.path.join(case_dir, 'meta.json'), 'w') as f:
         json.dump(meta, f, indent=2)
 
+    # Sync to Supabase
+    storage_sync.sync_dir_to_remote(case_dir, f'uploads/{case_id}')
+
     return jsonify({'case_id': case_id, 'mode': mode, 'files': filenames})
 
 @app.route('/analyze/<case_id>', methods=['POST'])
@@ -471,6 +493,10 @@ def analyze(case_id):
 
         if result.get('success'):
             generate_report(case_id, meta.get('name', ''))
+
+        # Sync results + updated meta to Supabase
+        storage_sync.sync_dir_to_remote(case_dir, f'uploads/{case_id}')
+        storage_sync.sync_dir_to_remote(results_dir, f'results/{case_id}')
 
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
@@ -1333,6 +1359,7 @@ def rename_case(case_id):
     meta['name'] = new_name
     with open(meta_file, 'w') as f:
         json.dump(meta, f, indent=2)
+    storage_sync.upload_file(f'uploads/{case_id}/meta.json', meta_file)
     return jsonify({'success': True})
 
 @app.route('/delete/<case_id>', methods=['POST'])
@@ -1343,6 +1370,8 @@ def delete_case(case_id):
         shutil.rmtree(case_dir)
     if os.path.exists(results_dir):
         shutil.rmtree(results_dir)
+    storage_sync.delete_prefix(f'uploads/{case_id}')
+    storage_sync.delete_prefix(f'results/{case_id}')
     return jsonify({'success': True})
 
 # ─── Archive (보관함) ───────────────────────────────────────────────────────
@@ -1439,9 +1468,12 @@ def archive_delete():
     target = _safe_path(path)
     if not target or target == os.path.realpath(_archive_root()):
         return jsonify({'error': '삭제할 수 없습니다.'}), 400
+    rel = os.path.relpath(target, app.config['ARCHIVE_FOLDER'])
     if os.path.isdir(target):
+        storage_sync.delete_prefix(f'archive/{rel}')
         shutil.rmtree(target)
     elif os.path.isfile(target):
+        storage_sync.delete_path(f'archive/{rel}')
         os.remove(target)
     return jsonify({'success': True})
 
@@ -1505,6 +1537,9 @@ def archive_save_case():
         fpath = os.path.join(case_dir, fname)
         if os.path.isfile(fpath) and fname != 'meta.json':
             shutil.copy2(fpath, os.path.join(raw_dir, fname))
+    # Sync archive to Supabase
+    rel = os.path.relpath(save_dir, app.config['ARCHIVE_FOLDER'])
+    storage_sync.sync_dir_to_remote(save_dir, f'archive/{rel}')
     return jsonify({'success': True, 'saved_to': save_dir})
 
 @app.route('/archive/reanalyze/<path:folder>', methods=['POST'])

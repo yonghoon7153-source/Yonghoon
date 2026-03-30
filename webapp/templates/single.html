@@ -12,6 +12,7 @@
         <span class="badge badge-scale">Scale: {{ case.scale }}x</span>
         {% if case.type_map %}<span class="badge">{{ case.type_map }}</span>{% endif %}
         {% if metrics %}
+          {% if input_params and input_params.box_x is defined %}<span class="badge">RVE: {{ "%.0f"|format(input_params.box_x * case.scale) }}×{{ "%.0f"|format(input_params.box_y * case.scale) }}μm</span>{% endif %}
           {% if metrics.porosity is defined %}<span class="badge">Porosity: {{ "%.1f"|format(metrics.porosity) }}%</span>{% endif %}
           {% if metrics.thickness_um is defined %}<span class="badge">두께: {{ "%.1f"|format(metrics.thickness_um) }}μm</span>{% endif %}
           {% if metrics.percolation_pct is defined %}<span class="badge">Percolation: {{ "%.1f"|format(metrics.percolation_pct) }}%</span>{% endif %}

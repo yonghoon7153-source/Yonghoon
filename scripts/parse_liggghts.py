@@ -131,6 +131,21 @@ def parse_input_script(filepath):
                 except ValueError:
                     pass
 
+        # Box dimensions from region command: region REG block xlo xhi ylo yhi zlo zhi
+        if line.startswith('region') and 'block' in line:
+            parts = line.split()
+            block_idx = parts.index('block') if 'block' in parts else -1
+            if block_idx >= 0 and len(parts) >= block_idx + 7:
+                try:
+                    xlo, xhi = float(parts[block_idx+1]), float(parts[block_idx+2])
+                    ylo, yhi = float(parts[block_idx+3]), float(parts[block_idx+4])
+                    zlo, zhi = float(parts[block_idx+5]), float(parts[block_idx+6])
+                    params['box_x'] = round(xhi - xlo, 6)
+                    params['box_y'] = round(yhi - ylo, 6)
+                    params['box_z'] = round(zhi - zlo, 6)
+                except (ValueError, IndexError):
+                    pass
+
         # Target pressure
         if 'target_press' in line and 'equal' in line:
             parts = line.split()

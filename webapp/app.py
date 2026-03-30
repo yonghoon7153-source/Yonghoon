@@ -1139,10 +1139,17 @@ def serve_3d_data(case_id):
             'r': round(float(row['radius']) * scale, 2),
         })
 
-    # Box bounds
+    # Box bounds — read from input_params.json if available
+    _box_x, _box_y = 0.05, 0.05
+    _ip_path = os.path.join(results_dir, 'input_params.json')
+    if os.path.exists(_ip_path):
+        with open(_ip_path) as f:
+            _ip = json.load(f)
+        _box_x = _ip.get('box_x', 0.05)
+        _box_y = _ip.get('box_y', 0.05)
     box = {
-        'x_min': 0, 'x_max': round(0.05 * scale, 1),
-        'y_min': 0, 'y_max': round(0.05 * scale, 1),
+        'x_min': 0, 'x_max': round(_box_x * scale, 1),
+        'y_min': 0, 'y_max': round(_box_y * scale, 1),
         'z_min': 0,
     }
     # plate_z from mesh_info
@@ -1764,9 +1771,17 @@ def serve_archive_3d_data(folder):
             'r': round(float(row['radius']) * scale, 2),
         })
 
+    # Box bounds from input_params.json
+    _box_x, _box_y = 0.05, 0.05
+    _ip_path = os.path.join(target, 'input_params.json')
+    if os.path.exists(_ip_path):
+        with open(_ip_path) as f:
+            _ip = json.load(f)
+        _box_x = _ip.get('box_x', 0.05)
+        _box_y = _ip.get('box_y', 0.05)
     box = {
-        'x_min': 0, 'x_max': round(0.05 * scale, 1),
-        'y_min': 0, 'y_max': round(0.05 * scale, 1),
+        'x_min': 0, 'x_max': round(_box_x * scale, 1),
+        'y_min': 0, 'y_max': round(_box_y * scale, 1),
         'z_min': 0,
     }
     mesh_file = os.path.join(target, 'mesh_info.json')

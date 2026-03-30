@@ -65,6 +65,15 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                  type_map, scale, output_dir):
     area_conv = 1.0 / (scale ** 2) * 1e12
 
+    # Read box dimensions from input_params.json (default 0.05)
+    _box_x, _box_y = 0.05, 0.05
+    _ip_path = os.path.join(output_dir, 'input_params.json')
+    if os.path.exists(_ip_path):
+        with open(_ip_path) as _f:
+            _ip = json.load(_f)
+        _box_x = _ip.get('box_x', 0.05)
+        _box_y = _ip.get('box_y', 0.05)
+
     # Contact Summary
     rows = []
     total_n = 0
@@ -453,7 +462,6 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                         seen_pairs.add(pair)
                         try:
                             path = nx.shortest_path(G, src, tgt, weight='distance')
-                            box_xy = 0.05
                             path_len = 0
                             # Exact per-hop contact area and resistance
                             hop_areas = []  # real μm²
@@ -463,8 +471,8 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
                                 dx = abs(a1['x'] - a2['x'])
                                 dy = abs(a1['y'] - a2['y'])
                                 dz = a1['z'] - a2['z']
-                                dx = min(dx, box_xy - dx)
-                                dy = min(dy, box_xy - dy)
+                                dx = min(dx, _box_x - dx)
+                                dy = min(dy, _box_y - dy)
                                 path_len += np.sqrt(dx**2 + dy**2 + dz**2)
                                 # Lookup actual contact area
                                 pair_key = (min(path[ki], path[ki+1]), max(path[ki], path[ki+1]))
@@ -616,15 +624,14 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
             tgt = reach_top[i % len(reach_top)]
             try:
                 path = nx.shortest_path(G, src, tgt, weight='distance')
-                box_xy = 0.05
                 path_len = 0
                 for ki in range(len(path)-1):
                     a1, a2 = atoms_raw[path[ki]], atoms_raw[path[ki+1]]
                     dx = abs(a1['x'] - a2['x'])
                     dy = abs(a1['y'] - a2['y'])
                     dz = a1['z'] - a2['z']
-                    dx = min(dx, box_xy - dx)
-                    dy = min(dy, box_xy - dy)
+                    dx = min(dx, _box_x - dx)
+                    dy = min(dy, _box_y - dy)
                     path_len += np.sqrt(dx**2 + dy**2 + dz**2)
                 z_dist = abs(atoms_raw[tgt]['z'] - atoms_raw[src]['z'])
                 if z_dist > 0:

@@ -162,7 +162,7 @@ def calc_se_se_cn(atoms, contacts, se_types):
 
 # ─── SE Percolation ────────────────────────────────────────────────────────
 
-def calc_percolation(atoms, contacts, se_types, plate_z, boundary_factor=2.0):
+def calc_percolation(atoms, contacts, se_types, plate_z, boundary_factor=2.0, box_x=0.05, box_y=0.05):
     """
     SE-SE contact graph → percolation analysis.
     Boundary: bottom = z <= r_SE × boundary_factor, top = z >= plate_z - r_SE × boundary_factor
@@ -179,8 +179,7 @@ def calc_percolation(atoms, contacts, se_types, plate_z, boundary_factor=2.0):
 
     G = nx.Graph()
     G.add_nodes_from(se_ids)
-    box_x = 0.05  # periodic boundary box size
-    box_y = 0.05
+    # box_x, box_y passed as parameters (no longer hardcoded)
     for c in contacts:
         if c['id1'] in atoms and c['id2'] in atoms:
             if atoms[c['id1']]['type'] in se_types and atoms[c['id2']]['type'] in se_types:
@@ -234,11 +233,15 @@ def _periodic_dist(a1, a2, box_x=0.05, box_y=0.05):
     return np.sqrt(dx**2 + dy**2 + dz**2)
 
 
-def calc_tortuosity(atoms, perc_result, n_samples=200, box_xy=0.05):
+def calc_tortuosity(atoms, perc_result, n_samples=200, box_xy=0.05, box_x=None, box_y=None):
     """tortuosity = path length / z distance.
     Uses distance-weighted shortest path (physical shortest distance)
     with periodic boundary correction.
     Includes all top-reachable SE (not just percolating) as sources."""
+    if box_x is None:
+        box_x = box_xy
+    if box_y is None:
+        box_y = box_xy
     G = perc_result['graph']
     top_reachable_se = perc_result['top_reachable_se']
     bottom_se = perc_result['bottom_se']
@@ -272,7 +275,7 @@ def calc_tortuosity(atoms, perc_result, n_samples=200, box_xy=0.05):
         try:
             path = nx.shortest_path(G, src, tgt, weight='distance')
             path_len = sum(
-                _periodic_dist(atoms[path[k]], atoms[path[k+1]], box_xy, box_xy)
+                _periodic_dist(atoms[path[k]], atoms[path[k+1]], box_x, box_y)
                 for k in range(len(path) - 1))
             z_dist = abs(atoms[tgt]['z'] - atoms[src]['z'])
             if z_dist > 0:
@@ -487,7 +490,7 @@ def calc_am_isolation_risk(atoms, contacts, type_map):
 
 # ─── Effective Ionic Conductivity ─────────────────────────────────────────
 
-def calc_effective_conductivity(atoms, perc_result, porosity, tortuosity_result, type_map, plate_z, box_xy=0.05):
+def calc_effective_conductivity(atoms, perc_result, porosity, tortuosity_result, type_map, plate_z, box_xy=0.05, box_x=None, box_y=None):
     """Estimate σ_eff / σ_bulk using Bruggeman-like relation.
     σ_eff/σ_bulk = ε_SE^α / τ²  where α ≈ 1 (connected fraction)."""
     se_types = [k for k, v in type_map.items() if v == 'SE']
@@ -497,7 +500,9 @@ def calc_effective_conductivity(atoms, perc_result, porosity, tortuosity_result,
         return None
 
     # SE volume fraction
-    v_electrode = box_xy * box_xy * plate_z
+    bx = box_x if box_x else box_xy
+    by = box_y if box_y else box_xy
+    v_electrode = bx * by * plate_z
     v_se = sum(4/3 * np.pi * atoms[aid]['radius']**3 for aid in se_ids)
     phi_se = v_se / v_electrode if v_electrode > 0 else 0
 
@@ -594,22 +599,42 @@ def calc_von_mises_stress(atoms_raw, type_map, scale, plate_z, n_layers=10):
 
 # ─── Full Analysis ─────────────────────────────────────────────────────────
 
-def run_full_analysis(atoms_raw, contacts_raw, type_map, scale, results_dir, box_xy=0.05):
+def _get_box_xy(results_dir):
+    """Read box_x, box_y from input_params.json. Falls back to 0.05."""
+    params_path = os.path.join(results_dir, 'input_params.json')
+    if os.path.exists(params_path):
+        with open(params_path) as f:
+            params = json.load(f)
+        bx = params.get('box_x', 0.05)
+        by = params.get('box_y', 0.05)
+        if bx > 0 and by > 0:
+            return bx, by
+    return 0.05, 0.05
+
+
+def run_full_analysis(atoms_raw, contacts_raw, type_map, scale, results_dir, box_xy=None):
     """
     Run all analyses. atoms_raw/contacts_raw are dicts in SIM units.
+    box_xy is auto-detected from input_params.json if not specified.
     Returns comprehensive results dict.
     """
     se_types = [k for k, v in type_map.items() if v == 'SE']
     am_types = [k for k, v in type_map.items() if 'AM' in v]
 
+    # Auto-detect box dimensions
+    box_x, box_y = _get_box_xy(results_dir)
+    if box_xy is not None:
+        box_x = box_y = box_xy
+    box_xy_val = box_x  # for functions that take single box_xy
+
     # Get plate_z
     plate_z, pz_source = get_plate_z(results_dir, atoms_raw, scale)
     thickness_um = plate_z * scale  # sim → μm
 
-    print(f"  plate_z = {plate_z:.6f} ({pz_source}), thickness = {thickness_um:.1f} μm")
+    print(f"  box_xy = {box_x:.4f} x {box_y:.4f}, plate_z = {plate_z:.6f} ({pz_source}), thickness = {thickness_um:.1f} μm")
 
     # 1. Porosity
-    porosity = calc_porosity(atoms_raw, plate_z, box_xy)
+    porosity = calc_porosity(atoms_raw, plate_z, box_xy_val)
     print(f"  Porosity: {porosity:.2f}%")
 
     # 2. Interface Area
@@ -627,12 +652,12 @@ def run_full_analysis(atoms_raw, contacts_raw, type_map, scale, results_dir, box
     print(f"  SE-SE CN: {cn['mean']:.2f} ± {cn['std']:.2f}")
 
     # 5. Percolation
-    perc = calc_percolation(atoms_raw, contacts_raw, se_types, plate_z)
+    perc = calc_percolation(atoms_raw, contacts_raw, se_types, plate_z, box_x=box_x, box_y=box_y)
     print(f"  Percolation: {perc['percolation_pct']:.1f}%, Top Reachable: {perc['top_reachable_pct']:.1f}%")
     print(f"  Components: {perc['n_components']}, Largest: {perc['largest_pct']:.1f}%")
 
     # 6. Tortuosity
-    tau = calc_tortuosity(atoms_raw, perc)
+    tau = calc_tortuosity(atoms_raw, perc, box_x=box_x, box_y=box_y)
     tau_str = f"{tau['mean']:.2f} ± {tau['std']:.2f}" if tau['mean'] else "N/A"
     print(f"  Tortuosity: {tau_str} ({tau['n_samples']} samples)")
 
@@ -671,7 +696,7 @@ def run_full_analysis(atoms_raw, contacts_raw, type_map, scale, results_dir, box
         print(f"  AM Risk: vulnerable {am_risk['vulnerable_pct']:.1f}% (no SE: {am_risk['no_se_pct']:.1f}%, single SE: {am_risk['single_se_pct']:.1f}%)")
 
     # 13. Effective Ionic Conductivity
-    eff_cond = calc_effective_conductivity(atoms_raw, perc, porosity, tau, type_map, plate_z, box_xy)
+    eff_cond = calc_effective_conductivity(atoms_raw, perc, porosity, tau, type_map, plate_z, box_x=box_x, box_y=box_y)
     if eff_cond:
         print(f"  σ_eff/σ_bulk: {eff_cond['sigma_ratio']:.4f} (φ_SE={eff_cond['phi_se']:.3f}, τ={eff_cond['tau']:.2f})")
 

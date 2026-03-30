@@ -40,13 +40,18 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['RESULTS_FOLDER'], exist_ok=True)
 os.makedirs(app.config['ARCHIVE_FOLDER'], exist_ok=True)
 
-# ─── Supabase Storage: restore on startup ─────────────────────────────────
+# ─── Supabase Storage: restore in background (don't block server start) ───
 storage_sync.init()
-storage_sync.restore_all(
-    app.config['UPLOAD_FOLDER'],
-    app.config['RESULTS_FOLDER'],
-    app.config['ARCHIVE_FOLDER'],
-)
+
+def _bg_restore():
+    storage_sync.restore_all(
+        app.config['UPLOAD_FOLDER'],
+        app.config['RESULTS_FOLDER'],
+        app.config['ARCHIVE_FOLDER'],
+    )
+
+_restore_thread = threading.Thread(target=_bg_restore, daemon=True)
+_restore_thread.start()
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
 

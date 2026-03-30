@@ -142,8 +142,33 @@ def solve_network(network_data, mode='full'):
     if not bottom or not top or not edges:
         return None, None
 
-    # Node index mapping
-    all_ids = list(set(nodes))
+    # Build networkx graph to find percolating component
+    import networkx as nx
+    G_nx = nx.Graph()
+    for e in edges:
+        G_nx.add_edge(e['id1'], e['id2'])
+
+    # Find components that connect bottom to top
+    perc_nodes = set()
+    for comp in nx.connected_components(G_nx):
+        has_bot = len(comp & bottom) > 0
+        has_top = len(comp & top) > 0
+        if has_bot and has_top:
+            perc_nodes |= comp
+
+    if not perc_nodes:
+        print("  No percolating component found")
+        return None, None
+
+    # Filter to percolating nodes only
+    perc_bottom = bottom & perc_nodes
+    perc_top = top & perc_nodes
+    perc_edges = [e for e in edges if e['id1'] in perc_nodes and e['id2'] in perc_nodes]
+
+    print(f"  Percolating component: {len(perc_nodes)} nodes, {len(perc_edges)} edges")
+
+    # Node index mapping (percolating only)
+    all_ids = list(perc_nodes)
     id_to_idx = {nid: i for i, nid in enumerate(all_ids)}
     N = len(all_ids)
 
@@ -163,7 +188,7 @@ def solve_network(network_data, mode='full'):
         col.extend([i, j, j, i])
         val.extend([g, g, -g, -g])
 
-    for e in edges:
+    for e in perc_edges:
         i = id_to_idx[e['id1']]
         j = id_to_idx[e['id2']]
 
@@ -182,14 +207,12 @@ def solve_network(network_data, mode='full'):
 
     # Connect bottom SE to source with large conductance (low resistance)
     g_boundary = 1e6  # effectively zero resistance
-    for bid in bottom:
-        if bid in id_to_idx:
-            add_conductance(id_to_idx[bid], source_idx, g_boundary)
+    for bid in perc_bottom:
+        add_conductance(id_to_idx[bid], source_idx, g_boundary)
 
     # Connect top SE to sink
-    for tid in top:
-        if tid in id_to_idx:
-            add_conductance(id_to_idx[tid], sink_idx, g_boundary)
+    for tid in perc_top:
+        add_conductance(id_to_idx[tid], sink_idx, g_boundary)
 
     # Build sparse Laplacian
     L = sparse.csr_matrix((val, (row, col)), shape=(total_nodes, total_nodes))

@@ -273,6 +273,8 @@ $$\sigma_{eff} = \frac{\sigma_{bulk} \times \phi_{SE} \times f_{perc}}{\tau^2 \t
 
 τ와 GB_d 사이에 약한 부분적 상관이 존재한다 (둘 다 SE 크기에 의존). 그러나 τ²는 경로의 기하학적 꼬임(packing 구조)을, (GB_d²×T)^α는 접촉 저항(입자 크기 + 전극 두께)을 각각 설명하며, 물리적으로 분리 가능한 두 손실 메커니즘이다. 같은 GB_d에서도 packing 구조에 따라 τ가 다를 수 있고(예: 후막 vs particulate에서 GB_d≈1.3이지만 τ≈1.2~1.3으로 차이), 이는 두 변수가 완전히 종속적이지 않음을 보여준다.
 
+*τ 값은 각 케이스의 DEM percolation path에서 distance-weighted shortest path 기반으로 별도 산출된다 (dem_analysis_core.calc_tortuosity). 상세 케이스별 데이터는 full_metrics.json 및 network_summary.csv에 수록.*
+
 ---
 
 ## 8. M6 vs M15: 독립적 검증
@@ -320,7 +322,7 @@ M6의 비정상적으로 높은 GB_d 지수(4.02)는 GB_d와 T 사이의 약한 
 
 5. **α=1.82의 기여 분리 불가:** α > 1의 원인(bottleneck, 소성변형, 네트워크 구조)을 개별적으로 정량 분리하기 위해서는 rigid sphere DEM 비교 등 추가 연구가 필요.
 
-6. **GB_d와 T의 상관관계:** SE 0.5μm subset(n=30)에서 GB_d와 T 사이에 강한 음의 상관(r ≈ −0.93, GB_d ∝ T^−0.23)이 존재한다. 이는 얇은 전극에서 percolation path가 더 tortuous해지면서 hop density가 증가하기 때문으로 해석된다. 이 coupling은 GB_d²×T 결합 변수 내에 자연스럽게 흡수되나, 두 변수의 완전한 독립성을 가정할 수 없음을 의미한다.
+6. **GB_d와 T의 상관관계:** SE 0.5μm subset(n=30)에서 GB_d와 T 사이에 강한 음의 상관(r ≈ −0.93, GB_d ∝ T^−0.23)이 존재한다. 이는 얇은 전극에서 percolation path가 더 tortuous해지면서 hop density가 증가하기 때문으로 해석된다. 이 coupling은 GB_d²×T 결합 변수 내에 자연스럽게 흡수되나, 두 변수의 완전한 독립성을 가정할 수 없음을 의미한다. 단, 이 상관관계는 SE 0.5μm subset 내부에 한정되며, SE 크기가 다른 그룹을 포함하면 동일 두께 범위(T≈110~135μm)에서 GB_d가 0.5~1.35로 분리되어, 전체 데이터셋에서 두 변수는 독립적 축을 형성한다.
 
 7. **GB_d ≠ 1/d_SE:** GB_d를 1/d_SE로 단순 치환하여 R ∝ (T/d_SE²)^α 형태로 변환할 경우, R²가 0.94에서 0.78로 16%p 하락한다. 이는 GB_d가 SE 입자 크기 외에도 AM:SE 조성, packing 구조, 두께 의존 percolation geometry 등 추가적인 미세구조 정보를 포함하기 때문이다. 따라서 GB_d는 단순한 입자 크기의 역수가 아닌, 복합적인 미세구조 지표(microstructural descriptor)로 이해해야 한다.
 

@@ -223,8 +223,8 @@ tr.tooltip-row .tt-meaning { color: #a5f3c4; margin-top: 8px; }
 .sticky-col {
   position: sticky; background: var(--card); z-index: 2;
 }
-.sticky-col-1 { left: 0; white-space: nowrap; padding-right: 0 !important; border-right: none !important; min-width: 95px; }
-.sticky-col-2 { left: 95px; padding-left: 0 !important; border-right: 2px solid var(--accent) !important; border-left: none !important; }
+.sticky-col-1 { left: 0; white-space: nowrap; padding-right: 0 !important; border-right: none !important; min-width: 160px; }
+.sticky-col-2 { left: 160px; padding-left: 0 !important; border-right: 2px solid var(--accent) !important; border-left: none !important; }
 thead .sticky-col { z-index: 3; }
 .group-separator-row .group-separator-cell {
   background: var(--bg2); color: var(--group-color, var(--accent));

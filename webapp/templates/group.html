@@ -573,13 +573,17 @@ document.addEventListener('DOMContentLoaded', () => {
       try { caseGroups = JSON.parse(stored); } catch(e2) {}
     }
     {% if selected %}
-    if (!caseGroups[0].cases || !caseGroups[0].cases.length) {
+    if (!caseGroups || !caseGroups.length || !caseGroups[0] || !caseGroups[0].cases || !caseGroups[0].cases.length) {
       caseGroups = [{name: '', cases: {{ selected | tojson }}}];
     }
     {% endif %}
   }
+  // Ensure caseGroups is valid
+  if (!caseGroups || !caseGroups.length || !caseGroups[0]) {
+    caseGroups = [{name: '', cases: []}];
+  }
   activeGroupIdx = 0;
-  document.getElementById('group-name-input').value = caseGroups[0].name || '';
+  document.getElementById('group-name-input').value = (caseGroups[0] && caseGroups[0].name) || '';
   document.getElementById('remove-group-btn').style.display = caseGroups.length > 1 ? '' : 'none';
   renderGroupTabs();
   updateCaseDisplay();

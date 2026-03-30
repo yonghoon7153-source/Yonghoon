@@ -803,21 +803,22 @@ function createDerivationBox() {
   const box = document.createElement('div');
   box.className = 'derivation-box';
         box.innerHTML = `
-          <h4>📐 유효 이온전도도 유도 (BLM + Constriction)</h4>
+          <h4>📐 유효 이온전도도 유도 (BLM-inspired + Constriction)</h4>
           <div class="deriv-desc" style="opacity:.7;margin-bottom:8px">접촉 모델: hooke/hysteresis (Luding, 탄소성 이력) | n=41 (SE 0.5/1.0/1.5μm, T=18~184μm, RVE 30/50μm)</div>
           <div class="deriv-section">
-            <div class="deriv-label">1. Bruggeman 추정 (입계 무시)</div>
+            <div class="deriv-label">1. Bruggeman 추정 (inter-particle contact 무시)</div>
             <div class="deriv-formula">σ_brug = σ_bulk × φ_SE × f_perc / τ²</div>
             <div class="deriv-desc">τ²: ①경로 길이 ×τ ②유효 단면적 ÷τ → 합쳐서 ÷τ²</div>
-            <div class="deriv-desc">⚠ 입계(GB) 저항 무시 → <b>과대평가</b></div>
+            <div class="deriv-desc">⚠ inter-particle contact 저항 무시 → <b>과대평가</b></div>
           </div>
           <div class="deriv-section">
-            <div class="deriv-label">2. GB 보정: BLM + Constriction Resistance</div>
+            <div class="deriv-label">2. 접촉 저항 보정: BLM-inspired scaling + Constriction</div>
             <div class="deriv-formula">R_total ∝ GB_d² × T</div>
-            <div class="deriv-desc"><b>1st GB_d</b>: 입계 수 (BLM: R_gb = ρ·w·L / L_g·A → ∝ GB_d × T)</div>
-            <div class="deriv-desc"><b>2nd GB_d</b>: 입계당 저항 (Maxwell constriction: R_c = ρ/2a, a ∝ 1/GB_d)</div>
+            <div class="deriv-desc"><b>1st GB_d</b>: 접촉 수 (BLM-inspired: N_contact ∝ GB_d × T)</div>
+            <div class="deriv-desc"><b>2nd GB_d</b>: 접촉당 저항 (Maxwell constriction: R_c = ρ/2a, a ∝ 1/GB_d)</div>
             <div class="deriv-desc"><b>T</b>: 전극 두께 (총 경로 길이)</div>
-            <div class="deriv-desc">τ²와 같은 구조: τ² = (경로↑) × (단면적↓), GB_d² = (입계 수↑) × (입계 저항↑)</div>
+            <div class="deriv-desc">τ²와 같은 구조: τ² = (경로↑) × (단면적↓), GB_d² = (접촉 수↑) × (접촉 저항↑)</div>
+            <div class="deriv-desc" style="font-size:.75rem;opacity:.8">※ BLM의 N_GB 스케일링만 차용. 소결 세라믹의 ρ_gb × w_gb는 사용하지 않음.</div>
           </div>
           <div class="deriv-section">
             <div class="deriv-label">3. G_path (경로 전도도)</div>
@@ -830,16 +831,17 @@ function createDerivationBox() {
             <div class="deriv-formula">R = σ_brug / σ_proxy = C × (GB_d² × T)^α</div>
             <div class="deriv-formula">log(R) = α × log(GB_d² × T) + ln(C)</div>
             <div class="deriv-desc">σ_proxy = G_path × f_perc / τ (접촉면적 기반 실측)</div>
-            <div class="deriv-desc">선형회귀로 α(기울기)와 ln(C)(절편) 결정</div>
-            <div class="deriv-desc">α = 1.82 (>1): 접촉면적 불균일성(bottleneck) + 소성변형 이력</div>
+            <div class="deriv-desc">α = 1.82: 데이터가 결정하는 경험적 값 (접촉면적 불균일성 반영)</div>
             <div class="deriv-desc">α=2 고정 시 R²=0.933 (ΔR²=1.0%) → robust</div>
+            <div class="deriv-desc">M6(free 3-param): GB_d^4.02 × T^1.75 ≈ M15: (GB_d²×T)^1.82 → 독립 검증</div>
           </div>
           <div class="deriv-section">
             <div class="deriv-label">5. 최종 유효전도도</div>
             <div class="deriv-formula">σ_eff = σ_bulk × φ_SE × f_perc / [τ² × C × (GB_d² × T)^α]</div>
             <div class="deriv-desc">σ_bulk = 1.3 mS/cm (Li₆PS₅Cl) → mS/cm 단위</div>
-            <div class="deriv-desc">τ²: 경로 기하 손실 | C·(GB_d²·T)^α: 입계 접촉 손실</div>
-            <div class="deriv-desc">⚠ DEM 특성상 절대값은 실측과 차이 가능 → EIS 비교 필요</div>
+            <div class="deriv-desc">τ²: 경로 기하 손실 | C·(GB_d²·T)^α: inter-particle contact 손실</div>
+            <div class="deriv-desc">τ와 GB_d는 부분 상관 있으나, 각각 경로 기하학/접촉 저항을 독립적으로 설명</div>
+            <div class="deriv-desc">⚠ 상대적 스케일링 관계. 절대 전도도 예측에는 EIS calibration 필요</div>
           </div>`;
   return box;
 }

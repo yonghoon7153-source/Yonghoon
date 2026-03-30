@@ -790,40 +790,34 @@ function createDerivationBox() {
   const box = document.createElement('div');
   box.className = 'derivation-box';
         box.innerHTML = `
-          <h4>📐 유효 이온전도도 유도</h4>
+          <h4>📐 유효 이온전도도 유도 (BLM + Constriction)</h4>
           <div class="deriv-section">
             <div class="deriv-label">1. Bruggeman 추정 (입계 무시)</div>
             <div class="deriv-formula">σ_brug = σ_bulk × φ_SE × f_perc / τ²</div>
-            <div class="deriv-desc">σ_bulk: SE 벌크 전도도 (1.3 mS/cm) | φ_SE: SE 부피 분율 | f_perc: 관통 SE 비율 | τ: tortuosity</div>
-            <div class="deriv-desc">왜 τ²? → R = ρL/A에서 ①경로 길이 L이 τ배 증가 ②비스듬히 흐르므로 유효 단면적이 A/τ로 감소 → 합쳐서 ÷τ²</div>
-            <div class="deriv-desc">⚠ 입계(GB) 저항을 무시 → GB_d가 높아도 반영 못함 → <b>과대평가</b></div>
+            <div class="deriv-desc">τ²: ①경로 길이 ×τ ②유효 단면적 ÷τ → 합쳐서 ÷τ²</div>
+            <div class="deriv-desc">⚠ 입계(GB) 저항 무시 → <b>과대평가</b></div>
           </div>
           <div class="deriv-section">
-            <div class="deriv-label">2. 실제 유효전도도는 입계 보정이 필요</div>
-            <div class="deriv-formula">σ_eff_real = σ_brug × e^(-b × GB_d)</div>
-            <div class="deriv-desc">σ_brug에서 입계 저항만큼 깎아낸 값 = 실제 유효전도도</div>
-            <div class="deriv-desc">b = 입계 저항 계수 (R_gb) | GB_d = 입계 밀도 (hops/μm)</div>
-            <div class="deriv-desc">→ GB_d = 0 (입계 없음): σ_eff_real = σ_brug (Bruggeman 정확)</div>
-            <div class="deriv-desc">→ GB_d ↑: 입계 많을수록 지수적으로 깎임</div>
+            <div class="deriv-label">2. GB 보정: BLM + Constriction Resistance</div>
+            <div class="deriv-formula">R_total ∝ GB_d² × T</div>
+            <div class="deriv-desc"><b>1st GB_d</b>: 입계 수 (BLM: R_gb = ρ·w·L / L_g·A → ∝ GB_d × T)</div>
+            <div class="deriv-desc"><b>2nd GB_d</b>: 입계당 저항 (Maxwell constriction: R_c = ρ/2a, a ∝ 1/GB_d)</div>
+            <div class="deriv-desc"><b>T</b>: 전극 두께 (총 경로 길이)</div>
+            <div class="deriv-desc">τ²와 같은 구조: τ² = (경로↑) × (단면적↓), GB_d² = (입계 수↑) × (입계 저항↑)</div>
           </div>
           <div class="deriv-section">
-            <div class="deriv-label">3. b는 어떻게 구하나? → σ_proxy 활용</div>
-            <div class="deriv-formula">σ_proxy = G_path × f_perc / τ</div>
-            <div class="deriv-desc">G_path = mean(1/Σ(1/A_i)) : 경로별 직렬 저항 모델의 유효 면적 → 전체 경로 평균</div>
-            <div class="deriv-desc">GB_d, G_path, τ 모두 percolating 경로들의 <b>mean</b> 사용 (경로 안=직렬, 경로끼리=병렬 → mean=품질, f_perc=수량)</div>
-            <div class="deriv-desc">σ_proxy는 <b>입계 저항이 반영된 실측값</b>이지만, 단위가 μm²</div>
-            <div class="deriv-desc">σ_eff_real = σ_proxy × k 로 무차원 비율로 변환해야 하지만, <b>k(단위 변환 계수)를 모름</b></div>
-            <div class="deriv-desc" style="margin-top:8px">→ 대신 σ_brug(과대평가)와 σ_proxy(실측)의 <b>비율</b>을 이용:</div>
-            <div class="deriv-formula">log(σ_brug / σ_proxy) = b × GB_d + ln(k)</div>
-            <div class="deriv-desc">선형회귀로 <b>기울기 = b</b>(순수 입계 저항 계수)와 <b>절편 = ln(k)</b>(단위 변환)를 분리</div>
-            <div class="deriv-desc">→ b를 사용하여 σ_eff_real = σ_brug × e^(-b × GB_d) 계산 가능</div>
-            <div class="deriv-desc" style="margin-top:8px">⚠ b (R_gb)는 같은 SE 재료/가압 조건에서 유효. 조건이 달라지면(다른 SE, 다른 압력) 재결정 필요</div>
+            <div class="deriv-label">3. σ_proxy로 fitting</div>
+            <div class="deriv-formula">R = σ_brug / σ_proxy = C × (GB_d² × T)^α</div>
+            <div class="deriv-formula">log(R) = α × log(GB_d² × T) + ln(C)</div>
+            <div class="deriv-desc">σ_proxy = G_path × f_perc / τ (접촉면적 기반 실측)</div>
+            <div class="deriv-desc">선형회귀로 α(기울기)와 ln(C)(절편) 결정</div>
+            <div class="deriv-desc">α ≈ 1.87 ≈ 2: Hertz 접촉 비선형성 반영</div>
           </div>
           <div class="deriv-section">
-            <div class="deriv-label">4. 절대값 변환</div>
-            <div class="deriv-formula">σ_eff_real (mS/cm) = σ_bulk × φ_SE × f_perc / τ² × e^(-b × GB_d)</div>
-            <div class="deriv-desc">σ_bulk = 1.3 mS/cm (Li₆PS₅Cl, cold-pressed) → 결과가 바로 mS/cm 단위</div>
-            <div class="deriv-desc" style="margin-top:8px">⚠ DEM 특성상 절대값은 실측과 차이가 있을 수 있음 → 실험 EIS 비교 필요</div>
+            <div class="deriv-label">4. 최종 유효전도도</div>
+            <div class="deriv-formula">σ_eff = σ_bulk × φ_SE × f_perc / [τ² × C × (GB_d² × T)^α]</div>
+            <div class="deriv-desc">σ_bulk = 1.3 mS/cm (Li₆PS₅Cl) → mS/cm 단위</div>
+            <div class="deriv-desc">⚠ DEM 특성상 절대값은 실측과 차이 가능 → EIS 비교 필요</div>
           </div>`;
   return box;
 }

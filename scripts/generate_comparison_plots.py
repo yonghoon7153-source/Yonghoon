@@ -767,62 +767,62 @@ def plot_effective_conductivity(data_list, names, outdir):
 R_GB_MIN_R2 = 0.75  # minimum R² for R_gb fitting to be valid
 
 def _fit_r_gb(data_list, names, use_global=True):
-    """Fit R_gb from Bruggeman vs Path Conductance data.
-    Returns r_gb, log_k, valid_idx, r_squared.
-    If _GLOBAL_RGB is set and use_global=True, use global values."""
+    """Fit GB correction: BLM+Constriction model R = C × (GB_d² × T)^α.
+    log(R) = α × log(GB_d²×T) + ln(C)
+    Returns alpha, ln_C, valid_idx, r_squared."""
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     perc = [_get(d, "percolation_pct") / 100 for d in data_list]
-    tau = [_get(d, "tortuosity_mean", 1) for d in data_list]
+    tau = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)) for d in data_list]
     g_path = [_get(d, "path_conductance_mean") for d in data_list]
     gb_dens = [_get(d, "gb_density_mean") for d in data_list]
+    thickness = [_get(d, "thickness_um", 0) for d in data_list]
 
     sigma_proxy = [g_path[i] * perc[i] / tau[i] if g_path[i] > 0 and tau[i] > 0 else 0
                    for i in range(len(data_list))]
 
     valid_idx = [i for i in range(len(data_list))
-                 if sigma_proxy[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0]
+                 if sigma_proxy[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0 and thickness[i] > 0]
 
     if use_global and _GLOBAL_RGB is not None:
         return _GLOBAL_RGB[0], _GLOBAL_RGB[1], valid_idx, 1.0
 
-    r_gb = 0.5
-    ln_k = 0
+    alpha = 1.87
+    ln_C = -3.26
     r_squared = 0
     if len(valid_idx) >= 2:
-        y_vals = np.array([sigma_brug[i] / sigma_proxy[i] for i in valid_idx])
-        x_vals = np.array([gb_dens[i] for i in valid_idx])
-        log_y = np.log(y_vals)
+        ratio = np.array([sigma_brug[i] / sigma_proxy[i] for i in valid_idx])
+        # x = GB_d² × T (BLM + Constriction)
+        x_vals = np.array([gb_dens[i]**2 * thickness[i] for i in valid_idx])
+        log_y = np.log(ratio)
+        log_x = np.log(x_vals)
         from scipy import stats as sp_stats
-        slope, intercept, r_val, _, _ = sp_stats.linregress(x_vals, log_y)
-        r_gb = slope
-        ln_k = intercept
+        slope, intercept, r_val, _, _ = sp_stats.linregress(log_x, log_y)
+        alpha = slope
+        ln_C = intercept
         r_squared = r_val ** 2
-    return r_gb, ln_k, valid_idx, r_squared
+    return alpha, ln_C, valid_idx, r_squared
 
 
 def plot_rgb_fitting(data_list, names, outdir):
-    """R_gb fitting scatter: log(σ_brug/σ_proxy) vs GB_density."""
-    r_gb, log_k, valid_idx, r_squared_fit = _fit_r_gb(data_list, names)
-
-    # If R² too low, skip fitting plot and return None
-    if r_squared_fit < R_GB_MIN_R2:
-        print(f"  [SKIP] R_gb fitting: R²={r_squared_fit:.4f} < {R_GB_MIN_R2} — data not suitable")
-        return None
+    """BLM+Constriction fitting: log(R) vs log(GB_d²×T)."""
+    alpha, ln_C, valid_idx, r_squared = _fit_r_gb(data_list, names)
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     perc = [_get(d, "percolation_pct") / 100 for d in data_list]
-    tau = [_get(d, "tortuosity_mean", 1) for d in data_list]
+    tau = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)) for d in data_list]
     g_path = [_get(d, "path_conductance_mean") for d in data_list]
     gb_dens = [_get(d, "gb_density_mean") for d in data_list]
+    thickness = [_get(d, "thickness_um", 100) for d in data_list]
     sigma_proxy = [g_path[i] * perc[i] / tau[i] if g_path[i] > 0 and tau[i] > 0 else 0
                    for i in range(len(data_list))]
 
     fig, ax = plt.subplots(figsize=FIG_SINGLE)
 
-    x_pts = np.array([gb_dens[i] for i in valid_idx])
+    # x = log(GB_d² × T), y = log(R)
+    x_pts = np.array([np.log(gb_dens[i]**2 * thickness[i]) for i in valid_idx])
     y_pts = np.array([np.log(sigma_brug[i] / sigma_proxy[i]) for i in valid_idx])
 
-    # Determine group index for each valid point
+    # Group colors
     point_groups = [0] * len(valid_idx)
     group_boundaries = []
     if _GROUP_INFO:
@@ -837,7 +837,6 @@ def plot_rgb_fitting(data_list, names, outdir):
                     point_groups[j] = g_idx
                     break
 
-    # Scatter with group colors
     if _GROUP_INFO:
         for j in range(len(valid_idx)):
             gi = point_groups[j]
@@ -846,7 +845,7 @@ def plot_rgb_fitting(data_list, names, outdir):
     else:
         ax.scatter(x_pts, y_pts, s=100, c=BLUE, zorder=5, edgecolors='white', linewidth=1.5)
 
-    # Individual point labels (P:S ratio) - adjustText for non-overlapping
+    # Labels
     try:
         from adjustText import adjust_text
         texts = []
@@ -861,7 +860,7 @@ def plot_rgb_fitting(data_list, names, outdir):
                        fontsize=8, ha='left', va='bottom', xytext=(5, 5),
                        textcoords='offset points', color=BLACK, zorder=6)
 
-    # Group labels at bottom center of each cluster
+    # Group labels
     if _GROUP_INFO:
         for gi, (start, end) in enumerate(group_boundaries):
             group_js = [j for j, i in enumerate(valid_idx) if start <= i < end]
@@ -874,27 +873,20 @@ def plot_rgb_fitting(data_list, names, outdir):
                        bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
                                 edgecolor=GROUP_COLORS[gi % len(GROUP_COLORS)], alpha=0.8))
 
-    # Linear fit with intercept: log(y) = b × GB_d + ln(k)
-    x_line = np.linspace(min(x_pts) * 0.9, max(x_pts) * 1.15, 100)
-    y_line = r_gb * x_line + log_k
+    # Fit line
+    x_line = np.linspace(min(x_pts) * 0.9, max(x_pts) * 1.1, 100)
+    y_line = alpha * x_line + ln_C
     ax.plot(x_line, y_line, '-', color=RED, linewidth=2.5,
-            label=f"y = {r_gb:.2f}·x + {log_k:.2f}")
+            label=f"y = {alpha:.2f}·x + {ln_C:.2f}")
 
-    # R² for linear regression with intercept
-    y_pred = r_gb * x_pts + log_k
-    ss_res = np.sum((y_pts - y_pred) ** 2)
-    ss_tot = np.sum((y_pts - np.mean(y_pts)) ** 2)
-    r_squared = 1 - ss_res / ss_tot if ss_tot > 0 else 0
-
-    ax.set_xlabel("GB Density (hops/μm)", fontsize=12)
+    ax.set_xlabel("log(GB_d² × T)", fontsize=12)
     ax.set_ylabel("log(σ_brug / σ_proxy)", fontsize=12)
     title_suffix = " (global)" if _GLOBAL_RGB is not None else ""
-    ax.set_title(f"R_gb Fitting{title_suffix}", fontsize=13, fontweight='bold')
+    ax.set_title(f"BLM+Constriction Fitting{title_suffix}", fontsize=13, fontweight='bold')
     ax.legend(fontsize=10, loc='upper left')
-    ax.text(0.95, 0.05, f"b = {r_gb:.2f}\nln(k) = {log_k:.2f}\nR² = {r_squared:.4f}\nn = {len(x_pts)}",
+    ax.text(0.95, 0.05, f"α = {alpha:.2f}\nln(C) = {ln_C:.2f}\nR² = {r_squared:.4f}\nn = {len(x_pts)}",
             transform=ax.transAxes, fontsize=11, ha='right', va='bottom',
             bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.8))
-    # Y축 하단 여백 확보 (그룹 라벨 공간)
     y_margin = (max(y_pts) - min(y_pts)) * 0.15
     ax.set_ylim(min(y_pts) - y_margin, max(y_pts) + y_margin)
     ax.yaxis.grid(True, linestyle="--", linewidth=0.4, alpha=0.7)
@@ -902,46 +894,52 @@ def plot_rgb_fitting(data_list, names, outdir):
     ax.spines["right"].set_visible(False)
 
     _write_csv(outdir, 'rgb_fitting.csv',
-               ['GB_density', 'log(σ_brug/σ_proxy)', 'σ_brug', 'σ_proxy'],
+               ['GB_d²×T', 'log(GB_d²×T)', 'log(σ_brug/σ_proxy)', 'σ_brug', 'σ_proxy', 'thickness_um'],
                [names[i] for i in valid_idx],
+               [gb_dens[i]**2 * thickness[i] for i in valid_idx],
                list(x_pts), list(y_pts),
                [sigma_brug[i] for i in valid_idx],
-               [sigma_proxy[i] for i in valid_idx])
+               [sigma_proxy[i] for i in valid_idx],
+               [thickness[i] for i in valid_idx])
     return _save(fig, outdir, "rgb_fitting.png")
 
 
 def plot_gb_corrected(data_list, names, outdir):
-    """GB-corrected effective conductivity using fitted R_gb."""
-    r_gb, _, _, r2_check = _fit_r_gb(data_list, names)
-
-    # If R² too low, skip — show Bruggeman only
-    if r2_check < R_GB_MIN_R2:
-        print(f"  [SKIP] GB-corrected: R²={r2_check:.4f} < {R_GB_MIN_R2} — using Bruggeman only")
-        return None
+    """GB-corrected effective conductivity using BLM+Constriction model."""
+    alpha, ln_C, _, r2_check = _fit_r_gb(data_list, names)
     SIGMA_BULK = 1.3  # mS/cm, Li₆PS₅Cl cold-pressed
+    C = np.exp(ln_C)
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     gb_dens = [_get(d, "gb_density_mean") for d in data_list]
+    thickness = [_get(d, "thickness_um", 100) for d in data_list]
     phi = [_get(d, "phi_se") for d in data_list]
     perc = [_get(d, "percolation_pct") / 100 for d in data_list]
-    tau = [_get(d, "tortuosity_mean", 1) for d in data_list]
+    tau = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)) for d in data_list]
 
-    # σ_eff_real = σ_brug × e^(-b × GB_d)
-    # GB_d = 0: no GB → σ_eff_real = σ_brug (Bruggeman exact)
-    sigma_corr = [sigma_brug[i] * np.exp(-r_gb * gb_dens[i]) if gb_dens[i] > 0 else sigma_brug[i]
-                  for i in range(len(data_list))]
+    # σ_eff = σ_brug / (C × (GB_d² × T)^α)
+    sigma_corr = []
+    for i in range(len(data_list)):
+        gb2t = gb_dens[i]**2 * thickness[i]
+        if gb2t > 0:
+            correction = C * gb2t**alpha
+            sigma_corr.append(sigma_brug[i] / correction if correction > 0 else sigma_brug[i])
+        else:
+            sigma_corr.append(sigma_brug[i])
     sigma_abs = [s * SIGMA_BULK for s in sigma_corr]
 
     fig, ax = plt.subplots(figsize=FIG_SINGLE)
     x = np.arange(len(names))
 
-    ax.plot(x, sigma_corr, 's-', color=RED, markersize=10, linewidth=2.5, label="σ_eff_real/σ_bulk")
-    _apply_style(ax, "σ_eff_real / σ_bulk", names)
+    ax.plot(x, sigma_corr, 's-', color=RED, markersize=_marker_size(len(names)),
+            linewidth=_line_width(len(names)), label="σ_eff/σ_bulk")
+    _apply_style(ax, "σ_eff / σ_bulk", names)
     ax.tick_params(axis='y', labelcolor=RED)
 
     ax2 = ax.twinx()
-    ax2.plot(x, sigma_abs, 'D--', color=ORANGE, markersize=8, linewidth=2, label=f"σ_eff_real (mS/cm)")
-    ax2.set_ylabel("σ_eff_real (mS/cm)", fontsize=11, color=ORANGE)
+    ax2.plot(x, sigma_abs, 'D--', color=ORANGE, markersize=_marker_size(len(names))-2,
+            linewidth=_line_width(len(names))-0.5, label=f"σ_eff (mS/cm)")
+    ax2.set_ylabel("σ_eff (mS/cm)", fontsize=11, color=ORANGE)
     ax2.tick_params(axis='y', labelcolor=ORANGE)
     ax2.spines["top"].set_visible(False)
 
@@ -949,14 +947,15 @@ def plot_gb_corrected(data_list, names, outdir):
     lines2, labels2 = ax2.get_legend_handles_labels()
     ax.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='best')
     gb_src = "global" if _GLOBAL_RGB is not None else "local"
-    ax.set_title(f"GB-Corrected σ_eff  (b={r_gb:.2f} [{gb_src}], σ_bulk={SIGMA_BULK} mS/cm)",
-                 fontsize=11, fontweight='bold')
+    ax.set_title(f"σ_eff = σ_brug / C·(GB_d²·T)^α\nα={alpha:.2f}, R²={r2_check:.3f} [{gb_src}]",
+                 fontsize=10, fontweight='bold')
 
     _write_csv(outdir, 'gb_corrected.csv',
-               ['φ_SE', 'f_perc', 'τ', 'GB_density', 'R_gb',
-                'σ_brug/σ_bulk', 'σ_corr/σ_bulk', 'σ_eff_real(mS/cm)'],
-               names, phi, perc, tau, gb_dens,
-               [r_gb]*len(names), sigma_brug, sigma_corr, sigma_abs)
+               ['φ_SE', 'f_perc', 'τ', 'GB_d', 'T(μm)', 'GB_d²×T',
+                'α', 'σ_brug/σ_bulk', 'σ_eff/σ_bulk', 'σ_eff(mS/cm)'],
+               names, phi, perc, tau, gb_dens, thickness,
+               [gb_dens[i]**2*thickness[i] for i in range(len(names))],
+               [alpha]*len(names), sigma_brug, sigma_corr, sigma_abs)
     return _save(fig, outdir, "gb_corrected.png")
 
 
@@ -1110,16 +1109,16 @@ PLOT_REGISTRY = {
     "rgb_fitting": {
         "func": plot_rgb_fitting,
         "file": "rgb_fitting.png",
-        "title": "R_gb Fitting",
-        "description": "log(σ_brug/σ_proxy) = b × GB_d + ln(k)\n\n선형 회귀로 b(기울기=입계 저항 계수)와 ln(k)(절편=단위 변환)를 분리.\nX축: GB Density, Y축: log(σ_brug/σ_proxy)\nR²가 높으면 입계 저항이 GB_density에 비례함을 확인.\n\nb는 한 번 구하면 같은 재료/조건에서 재사용 가능.",
-        "origin_tip": "Scatter + Fit line (log Y scale).\nBlue dots: data, Red line: fitted.",
+        "title": "BLM+Constriction Fitting",
+        "description": "log(R) = α × log(GB_d²×T) + ln(C)\nR = C × (GB_d²×T)^α\n\nBLM: 입계 수 = GB_d × T\nConstriction: 입계당 저항 ∝ GB_d (점 접촉)\n→ 총 저항 ∝ GB_d² × T\n\nX축: log(GB_d²×T), Y축: log(σ_brug/σ_proxy)\nα ≈ 1.87, 두께가 다른 데이터도 통합 가능.",
+        "origin_tip": "Scatter + Fit line (log-log).\nBlue dots: data, Red line: fitted.",
         "min_groups": 2,
     },
     "gb_corrected": {
         "func": plot_gb_corrected,
         "file": "gb_corrected.png",
         "title": "GB-Corrected σ_eff",
-        "description": "σ_eff_real = σ_bulk × φ_SE × f_perc / τ² × e^(-b × GB_d)\n\nb: R_gb fitting에서 결정된 입계 저항 계수\nGB_d=0 → Bruggeman 정확 | GB_d↑ → 지수적 감소\nσ_bulk = 1.3 mS/cm (Li₆PS₅Cl)\n빨간 실선: σ_eff_real/σ_bulk (비율)\n오렌지 점선: σ_eff_real 절대값 (mS/cm)\n\n⚠ DEM 특성상 절대값은 실측과 차이가 있을 수 있음.\n케이스 간 상대 비교(트렌드)는 신뢰 가능.",
+        "description": "σ_eff = σ_brug / [C × (GB_d²×T)^α]\n= σ_bulk × φ_SE × f_perc / [τ² × C × (GB_d²×T)^α]\n\nBLM+Constriction 모델 기반 입계 보정.\nσ_bulk = 1.3 mS/cm (Li₆PS₅Cl)\n빨간 실선: σ_eff/σ_bulk (비율)\n오렌지 점선: σ_eff 절대값 (mS/cm)\n\n⚠ DEM 특성상 절대값은 실측과 차이가 있을 수 있음.",
         "origin_tip": "Line (Red, σ_corr/σ_bulk) + Dashed (Orange, mS/cm).",
         "min_groups": 2,
     },

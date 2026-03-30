@@ -948,11 +948,11 @@ document.querySelectorAll('th[data-col-metric]').forEach(th => {
 // ─── Fitting Report ───
 async function generateFittingReport() {
   const btn = document.getElementById('fitting-btn');
-  // Collect all cases from plot groups
+  // Collect all cases from caseGroups (not plot groups)
   const allCases = [];
-  document.querySelectorAll('.plot-group').forEach(pg => {
-    pg.querySelectorAll('.pg-case-checkbox:checked').forEach(cb => {
-      if (!allCases.includes(cb.value)) allCases.push(cb.value);
+  caseGroups.forEach(g => {
+    if (g.cases) g.cases.forEach(cid => {
+      if (!allCases.includes(cid)) allCases.push(cid);
     });
   });
   if (allCases.length < 3) {

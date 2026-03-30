@@ -1869,6 +1869,71 @@ def download_doc(filename):
     return send_from_directory(doc_dir, filename, as_attachment=True)
 
 
+@app.route('/group/fitting-report', methods=['POST'])
+def group_fitting_report():
+    """Generate GB correction fitting analysis report (downloadable MD)."""
+    selected = request.form.getlist('cases')
+    if not selected:
+        return jsonify({'error': '케이스를 선택하세요.'}), 400
+
+    # Collect metrics
+    input_files = []
+    names = []
+    for cid in selected:
+        if cid.startswith('archive:'):
+            archive_rel = cid[len('archive:'):]
+            case_path = os.path.join(app.config['ARCHIVE_FOLDER'], archive_rel)
+            metrics_path = os.path.join(case_path, 'full_metrics.json')
+            case_name = os.path.basename(archive_rel)
+        else:
+            case_path = get_results_dir(cid)
+            metrics_path = os.path.join(case_path, 'full_metrics.json')
+            meta_file = os.path.join(get_case_dir(cid), 'meta.json')
+            case_name = cid
+            if os.path.exists(meta_file):
+                with open(meta_file) as f:
+                    case_name = json.load(f).get('name', cid)
+        if os.path.exists(metrics_path):
+            input_files.append(metrics_path)
+            names.append(case_name)
+
+    if len(input_files) < 3:
+        return jsonify({'error': '최소 3개 케이스가 필요합니다.'}), 400
+
+    session_id = datetime.now().strftime('%y%m%d_%H%M%S') + '_fit'
+    report_dir = os.path.join(app.config['RESULTS_FOLDER'], 'fitting_reports', session_id)
+    os.makedirs(report_dir, exist_ok=True)
+
+    scripts = app.config['SCRIPTS_FOLDER']
+    cmd = ['python3', os.path.join(scripts, 'generate_fitting_report.py'),
+           '-i'] + input_files + ['-n'] + names + ['-o', report_dir]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+
+    if result.returncode != 0:
+        return jsonify({'error': f'리포트 생성 실패: {result.stderr}'}), 500
+
+    report_path = os.path.join(report_dir, 'fitting_report.md')
+    if not os.path.exists(report_path):
+        return jsonify({'error': '리포트 파일이 생성되지 않았습니다.'}), 500
+
+    with open(report_path, encoding='utf-8') as f:
+        content = f.read()
+
+    return jsonify({
+        'success': True,
+        'content': content,
+        'download_url': f'/group/fitting-report-download/{session_id}'
+    })
+
+
+@app.route('/group/fitting-report-download/<session_id>')
+def download_fitting_report(session_id):
+    """Download fitting report as markdown file."""
+    report_dir = os.path.join(app.config['RESULTS_FOLDER'], 'fitting_reports', session_id)
+    return send_from_directory(report_dir, 'fitting_report.md', as_attachment=True,
+                              download_name='GB_correction_fitting_report.md')
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=True, host='0.0.0.0', port=port)

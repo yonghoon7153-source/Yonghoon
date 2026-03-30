@@ -120,6 +120,7 @@
     <div style="display:flex;gap:8px">
       <button class="btn btn-secondary" onclick="document.querySelectorAll('.plot-checkbox input').forEach(c=>c.checked=true)">모두 선택</button>
       <button class="btn btn-primary" onclick="generatePlots()" id="plot-btn">선택 플롯 생성</button>
+      <button class="btn btn-secondary" onclick="generateFittingReport()" id="fitting-btn" title="GB Correction Fitting 분석 리포트">📊 Fitting Report</button>
     </div>
   </div>
   <!-- Plot Groups: group Case Groups into separate plot sets -->
@@ -943,5 +944,57 @@ document.querySelectorAll('th[data-col-metric]').forEach(th => {
   });
   th.addEventListener('mouseleave', () => { colTip.style.opacity = '0'; });
 });
+
+// ─── Fitting Report ───
+async function generateFittingReport() {
+  const btn = document.getElementById('fitting-btn');
+  // Collect all cases from plot groups
+  const allCases = [];
+  document.querySelectorAll('.plot-group').forEach(pg => {
+    pg.querySelectorAll('.pg-case-checkbox:checked').forEach(cb => {
+      if (!allCases.includes(cb.value)) allCases.push(cb.value);
+    });
+  });
+  if (allCases.length < 3) {
+    alert('Fitting report에는 최소 3개 케이스가 필요합니다.');
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = '생성 중...';
+  try {
+    const form = new FormData();
+    allCases.forEach(c => form.append('cases', c));
+    const res = await fetch('/group/fitting-report', {method: 'POST', body: form});
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    // Show report in modal
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:var(--card);border-radius:12px;padding:24px;width:85%;max-height:85vh;overflow-y:auto;position:relative;color:var(--text)';
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'position:absolute;top:12px;right:16px;background:none;border:none;color:var(--text);font-size:20px;cursor:pointer';
+    closeBtn.onclick = () => modal.remove();
+    const dlBtn = document.createElement('a');
+    dlBtn.href = data.download_url;
+    dlBtn.textContent = '📥 Download MD';
+    dlBtn.style.cssText = 'position:absolute;top:12px;right:60px;background:var(--accent);color:white;padding:4px 12px;border-radius:6px;text-decoration:none;font-size:14px';
+    const content = document.createElement('div');
+    content.style.cssText = 'white-space:pre-wrap;font-family:monospace;font-size:13px;line-height:1.6';
+    content.textContent = data.content;
+    box.appendChild(closeBtn);
+    box.appendChild(dlBtn);
+    box.appendChild(content);
+    modal.appendChild(box);
+    modal.onclick = e => { if (e.target === modal) modal.remove(); };
+    document.body.appendChild(modal);
+  } catch(e) {
+    alert('리포트 생성 실패: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📊 Fitting Report';
+  }
+}
 </script>
 {% endblock %}

@@ -148,20 +148,22 @@ $$\sigma_{eff}/\sigma_{bulk} = \phi_{SE} \times f_{perc} / \tau^2$$
 
 문헌에서 확립된 effective medium theory. 입계(GB) 저항을 무시 → 과대평가.
 
-### Step 2: Brick Layer Model (BLM)
+### Step 2: Brick Layer Model (BLM-inspired scaling)
 
-소결 세라믹 이온전도체에서 확립된 모델 (Haile et al., 2003):
+소결 세라믹 이온전도체에서 확립된 입계 수 스케일링 (Haile et al., 2003):
 
 $$R_{gb} = \rho_{gb} \times w_{gb} \times L / (L_g \times A)$$
 
 - L = 전극 두께 (= T)
 - L_g = grain size ∝ 1/GB_d
 
-정리: **R_gb ∝ GB_d × T** (입계 수 = 밀도 × 거리)
+정리: **N_GB ∝ GB_d × T** (입계 수 = 밀도 × 거리)
+
+**주의:** 본 모델은 BLM의 입계 수 스케일링(N_GB ∝ GB_d × T)만을 차용한다. 소결 세라믹의 면접촉 가정과 입계 고유 저항(ρ_gb × w_gb)은 사용하지 않으며, 대신 DEM 복합양극의 점접촉 특성을 반영한 constriction resistance로 대체한다.
 
 ### Step 3: Maxwell Constriction Resistance
 
-DEM 복합양극은 소결 세라믹과 달리 **점 접촉** → spreading resistance:
+DEM 복합양극은 소결 세라믹과 달리 **입자 간 점 접촉(inter-particle contact)** → spreading resistance:
 
 $$R_{constriction} = \rho / (2a)$$
 
@@ -214,20 +216,14 @@ $$R = C \times (GB_d^2 \times T)^\alpha$$
 
 BLM(입계 수) × Constriction(개별 저항) = GB_d² × T 의 결합은 α=1을 예측한다.
 
-### 실측 α=1.82 > 1의 원인
+### 실측 α=1.82 > 1의 해석
 
-1. **접촉면적 분포의 불균일성 (Bottleneck 효과)**
-   - 모든 접촉이 동일한 면적이 아님
-   - 직렬 저항에서 가장 작은 접촉(bottleneck)이 경로 저항을 지배
-   - 조화평균(harmonic mean) ≪ 산술평균 → 실제 저항이 평균 기반 예측보다 큼
+α=1.82는 데이터가 결정하는 **경험적 값**이며, 접촉면적 불균일성을 포함한 복합 효과를 반영한다.
 
-2. **소성변형 후 비균일 접촉 이력**
-   - hooke/hysteresis 모델에서 소성변형(h_eq)이 접촉마다 다르게 축적
-   - 압축-이완 후 접촉면적 분포가 넓어짐 → bottleneck 효과 강화
+- **접촉면적 분포의 불균일성 (Bottleneck 효과):** 직렬 저항에서 가장 좁은 접촉이 경로 전도도를 지배. G_path = 1/Σ(1/A_i)는 조화평균으로 산술평균보다 항상 작으며, 이 차이가 GB_d 증가에 따라 확대됨.
+- **소성변형에 의한 접촉면적 확대:** hooke/hysteresis 모델에서 소성변형이 접촉면적을 확대시키며, 이 효과는 fitting parameter C에 반영됨.
 
-3. **네트워크 구조 효과**
-   - 실제 percolation 경로는 최적 경로가 아닌 가용 경로
-   - GB_d 높을수록 가용 경로의 "품질"도 동시에 저하
+**주의:** α=1.82의 개별 기여 요인을 정량적으로 분리하는 것은 본 데이터만으로는 불가능하며, 이를 위해서는 rigid sphere DEM 비교 등 추가 연구가 필요하다.
 
 ### α=2 고정 테스트 (Robustness 검증)
 
@@ -266,41 +262,74 @@ $$\sigma_{eff} = \frac{\sigma_{bulk} \times \phi_{SE} \times f_{perc}}{\tau^2 \t
 
 ---
 
-## 8. 핵심 예측
+## 8. M6 vs M15: 독립적 검증
 
-### SE 크기별 σ_eff 비교 (동일 조건)
+M6 (자유 3-parameter fit)의 결과가 M15의 제약된 형태와 거의 일치하며, 이는 GB_d²×T가 natural scaling variable임을 독립적으로 확인한다.
 
-| SE 크기 | GB_d (대표) | σ_eff 범위 (mS/cm) | σ_eff/σ_bulk |
-|---------|------------|---------------------|--------------|
-| 0.5 μm | ~1.3 (후막), ~2.0 (박막) | 0.0001 ~ 0.0005 | 0.01~0.04% |
-| 1.0 μm | ~0.7 | 0.003 ~ 0.007 | 0.2~0.5% |
-| 1.5 μm | ~0.5 | 0.005 ~ 0.020 | 0.4~1.5% |
+| | GB_d 지수 | T 지수 | 파라미터 수 | R² |
+|---|----------|--------|----------|-----|
+| M6 (free) | 4.02 | 1.75 | 3 | 0.949 |
+| M15 (constrained) | 3.64 (=1.82×2) | 1.82 | 2 | 0.943 |
 
-**SE 0.5→1.5μm 변경 시 σ_eff ~30배 향상.** 원인: GB_d² 감소에 의한 입계 저항 저감.
+M6이 자유도 3개로 찾은 최적값(GB_d^4.02 × T^1.75)이 M15의 결합 변수(GB_d²×T)^1.82 = GB_d^3.64 × T^1.82와 거의 동일하다. **데이터가 자발적으로 GB_d²×T 결합을 선택한다는 증거.**
 
 ---
 
-## 9. 결론
+## 9. 상대적 스케일링 예측
+
+> **⚠ 주의:** 이 모델은 DEM 프레임워크 내에서 self-consistent한 **상대적 스케일링 관계**를 제시하며, 절대 전도도 예측이 아니다. 절대값 보정을 위해서는 EIS 측정과의 calibration이 필요하다.
+
+### SE 크기별 상대 비교
+
+| SE 크기 | GB_d (대표) | R 범위 (σ_brug/σ_proxy) | 상대 σ_eff |
+|---------|------------|------------------------|-----------|
+| 0.5 μm | ~1.3 (후막), ~2.0 (박막) | 100 ~ 1600 | 1× (기준) |
+| 1.0 μm | ~0.7 | 60 ~ 110 | ~10× |
+| 1.5 μm | ~0.5 | 16 ~ 33 | ~30× |
+
+**SE 0.5→1.5μm 변경 시 inter-particle contact resistance가 ~30배 감소.** 원인: GB_d² 감소에 의한 입계 저항 저감.
+
+---
+
+## 10. Limitations
+
+1. **절대 전도도 예측 불가:** σ_proxy는 DEM 접촉면적 기반 proxy이며 실험 EIS 측정값이 아님. R = σ_brug/σ_proxy는 두 DEM 계산값의 비율로, 스케일링 관계를 제시하지만 절대 전도도 예측에는 EIS calibration이 필요함.
+
+2. **Inter-particle contact vs Crystallographic GB:** 본 모델의 "GB"는 복합양극 내 SE 입자 간 접촉(inter-particle contact)이며, 소결 pellet 내 결정립계(crystallographic grain boundary)와는 다른 물리적 실체임. BLM의 입계 수 스케일링(N_GB ∝ GB_d × T)만을 차용한 BLM-inspired scaling이며, 소결 세라믹의 입계 고유 저항(ρ_gb × w_gb)은 사용하지 않음.
+
+3. **Argyrodite의 inter-particle resistance:** Cold-pressed 황화물은 전통적으로 negligible GB resistance로 간주되었으나, 최근 AIMD (Sadowski, 2024)와 NMR (de Klerk, 2019)에서 argyrodite pellet 내에서도 유의미한 GB 효과가 보고됨. Even within sintered pellets에서 GB effects가 non-negligible하다면, 복합양극의 less intimate한 inter-particle contact에서는 더 유의미할 것으로 예상됨.
+
+4. **데이터 분포:** 41개 중 SE 0.5μm이 30개로 다수. SE 1.0μm(3개), 1.5μm(8개)으로 GB_d 0.7~1.2 중간 영역의 데이터가 부족. R²=0.94가 SE 0.5μm 데이터에 의해 driven될 가능성을 배제할 수 없음.
+
+5. **α=1.82의 기여 분리 불가:** α > 1의 원인(bottleneck, 소성변형, 네트워크 구조)을 개별적으로 정량 분리하기 위해서는 rigid sphere DEM 비교 등 추가 연구가 필요.
+
+---
+
+## 11. 결론
 
 1. **41개 DEM 시뮬레이션** (SE 0.5/1.0/1.5μm, T=18~184μm, RVE 30/50μm)에 대해 9개 후보 모델 비교
-2. **BLM+Constriction 모델 (M15)** R²=0.9427 — 파라미터 2개, 물리적 유도 가능, **추천**
-3. 최고 R² 모델: Power Law M6 (R²=0.949, 파라미터 3개) — 물리적 유도 불가로 탈락
+2. **BLM-inspired scaling 모델 (M15)** R²=0.9427 — 파라미터 2개, 물리적 유도 가능, **추천**
+3. M6 (free 3-parameter fit)이 M15와 거의 동일한 지수 도출 → **GB_d²×T가 natural scaling variable이라는 독립적 증거**
 4. **기존 exponential decay 모델은 동일 두께에서만 유효** (R²=0.96) — 두께가 다르면 R²=0.06으로 붕괴. **T가 숨겨진 변수였다는 것이 핵심 발견.**
-5. τ²와 GB_d²가 동일한 물리 구조 — 경로 기하 손실 vs 입계 접촉 손실
-6. α=1.82: 접촉면적 불균일성(bottleneck)과 소성변형 이력에 의한 superlinear 스케일링
+5. τ²와 GB_d²가 동일한 물리 구조 — 경로 기하 손실 vs inter-particle contact 손실
+6. α=1.82: 데이터가 결정하는 경험적 값. 접촉면적 불균일성(bottleneck)을 포함한 복합 효과 반영
 7. α=2 고정 시에도 R²=0.933 (ΔR²=1.0%) — 모델 robust
+8. **본 모델은 상대적 스케일링 관계로서 유효하며, 절대 전도도 예측에는 EIS calibration이 필요**
 
-> **논문 표현:** "Brick Layer Model과 Maxwell constriction resistance를 결합한 GB_d²×T가 DEM 복합양극의 입계 저항을 universal scaling variable로 설명한다. SE 크기 3단계(0.5~1.5μm), 전극 두께 10배 범위(18~184μm), 다양한 AM:SE 비율의 41개 시뮬레이션에서 R²=0.94로 검증되었으며, 이는 입계 보정이 GB 밀도와 전극 두께의 단일 결합 변수로 통합됨을 보여준다."
+> **논문 표현:** "BLM-inspired scaling과 Maxwell constriction resistance를 결합한 GB_d²×T가 DEM 복합양극의 inter-particle contact resistance를 universal scaling variable로 설명한다. SE 크기 3단계(0.5~1.5μm), 전극 두께 10배 범위(18~184μm), 다양한 AM:SE 비율의 41개 시뮬레이션에서 R²=0.94로 검증되었다. 본 모델은 DEM 프레임워크 내에서 self-consistent하며, 전극 설계 파라미터가 접촉 저항에 미치는 영향의 상대적 스케일링을 제시한다."
 
 ---
 
 ## References
 
-1. Brick Layer Model: Haile, S. M., West, D. L., & Campbell, J. (2003). *J. Mater. Res.*
+1. BLM-inspired scaling: Haile, S. M., West, D. L., & Campbell, J. (2003). *J. Mater. Res.*
 2. Maxwell Constriction Resistance: Holm, R. (1967). *Electric Contacts*
 3. Hooke/Hysteresis Contact Model: Luding, S. (2008). *Granular Matter*
-4. GB Resistance in ASSB: Minnmann, P. et al. (2022). *arXiv:2109.01607*
+4. Effective conductivity in ASSB: Minnmann, P. et al. (2021). *Energy Environ. Sci.*
+5. Argyrodite GB (AIMD): Sadowski, M. et al. (2024). *Adv. Energy Mater.*
+6. Li exchange NMR: de Klerk, N. J. J. & Wagemaker, M. (2019). *ACS Appl. Energy Mater.*
+7. GB impedance (EIS): Tao, B. et al. (2023). *J. Electrochem. Soc.*
 
 ---
 
-*Report generated by DEM Analyzer | BLM+Constriction GB Correction Model*
+*Report generated by DEM Analyzer | BLM-inspired Inter-particle Contact Resistance Scaling Model*

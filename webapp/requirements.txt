@@ -8,3 +8,4 @@ networkx
 markdown
 anthropic
 tabulate
+gunicorn

@@ -377,9 +377,15 @@ function initPlotGroups() {
     try { plotGroups = JSON.parse(stored); } catch(e) {}
   }
   if (plotGroups.length === 0) {
-    const allIdxs = caseGroups.map((_, i) => i).filter(i => caseGroups[i].cases.length > 0);
+    const allIdxs = caseGroups.map((_, i) => i).filter(i => caseGroups[i] && caseGroups[i].cases && caseGroups[i].cases.length > 0);
     plotGroups = [{name: '', caseGroupIdxs: allIdxs}];
   }
+  // Clean up stale indices
+  plotGroups.forEach(pg => {
+    if (pg.caseGroupIdxs) {
+      pg.caseGroupIdxs = pg.caseGroupIdxs.filter(i => i < caseGroups.length && caseGroups[i] && caseGroups[i].cases);
+    }
+  });
   renderPlotGroups();
 }
 
@@ -396,7 +402,7 @@ function addPlotGroup() {
 function removePlotGroup(pgIdx) {
   plotGroups.splice(pgIdx, 1);
   if (plotGroups.length === 0) {
-    const allIdxs = caseGroups.map((_, i) => i).filter(i => caseGroups[i].cases.length > 0);
+    const allIdxs = caseGroups.map((_, i) => i).filter(i => caseGroups[i] && caseGroups[i].cases && caseGroups[i].cases.length > 0);
     plotGroups = [{name: '', caseGroupIdxs: allIdxs}];
   }
   renderPlotGroups();

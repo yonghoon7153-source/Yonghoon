@@ -548,10 +548,10 @@ thead .sticky-col { z-index: 3; }
 
 /* Case Group */
 .case-group-header {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 8px;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 8px; gap: 8px;
 }
-.case-group-tabs { display: flex; gap: 4px; }
+.case-group-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
 .case-group-tab {
   padding: 6px 14px; border: 1px solid var(--border); border-bottom: 3px solid transparent;
   border-radius: 6px 6px 0 0; background: var(--bg); color: var(--text);

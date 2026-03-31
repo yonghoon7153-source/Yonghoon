@@ -306,7 +306,7 @@ M6의 비정상적으로 높은 GB_d 지수(4.02)는 GB_d와 T 사이의 약한 
 
 *상대 σ_eff는 대표 조건(후막, 80:20 비율)에서 R의 역수 비율로 산출. SE 크기 외 조건(두께, 조성)에 따라 변동 가능.*
 
-**SE 0.5→1.5μm 변경 시 inter-particle contact resistance가 ~30배 감소.** 원인: GB_d² 감소에 의한 접촉 저항 저감.
+**SE 0.5→1.5μm 변경 시 inter-particle contact resistance가 ~30배 감소 (proxy 기준).** Network solver 기준으로는 R_brug 차이가 ~2~3× (Section 14 참조). Proxy의 30배는 single-path 근사에 의한 과장을 포함.
 
 ---
 

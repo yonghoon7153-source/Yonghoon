@@ -463,25 +463,33 @@ if __name__ == '__main__':
                                 results_dir=args.output, type_map=type_map)
 
     # === ELECTRONIC (AM-AM network) ===
-    print("\n" + "="*50)
-    print("ELECTRONIC CONDUCTIVITY (AM-AM network)")
-    print("="*50)
-    results_el = run_decomposition(atoms_raw, contacts_raw, am_types, args.scale,
-                                   plate_z, box_x, box_y, sigma_bulk=SIGMA_AM_ELECTRONIC,
-                                   type_map=type_map)
+    results_el = None
+    if am_types:
+        print("\n" + "="*50)
+        print("ELECTRONIC CONDUCTIVITY (AM-AM network)")
+        print("="*50)
+        try:
+            results_el = run_decomposition(atoms_raw, contacts_raw, am_types, args.scale,
+                                           plate_z, box_x, box_y, sigma_bulk=SIGMA_AM_ELECTRONIC,
+                                           type_map=type_map)
+        except Exception as e:
+            print(f"  Electronic solver failed: {e}")
 
     # === THERMAL (ALL contacts) ===
-    print("\n" + "="*50)
-    print("THERMAL CONDUCTIVITY (ALL contacts)")
-    print("="*50)
-    all_types = list(type_map.keys())
-    results_th = run_decomposition(atoms_raw, contacts_raw, all_types, args.scale,
-                                   plate_z, box_x, box_y, sigma_bulk=K_SE_THERMAL,
-                                   type_map=type_map)
+    results_th = None
+    try:
+        print("\n" + "="*50)
+        print("THERMAL CONDUCTIVITY (ALL contacts)")
+        print("="*50)
+        all_types = list(type_map.keys())
+        results_th = run_decomposition(atoms_raw, contacts_raw, all_types, args.scale,
+                                       plate_z, box_x, box_y, sigma_bulk=K_SE_THERMAL,
+                                       type_map=type_map)
+    except Exception as e:
+        print(f"  Thermal solver failed: {e}")
 
-    # Save results
+    # Save results (ionic is primary)
     if results:
-        # Add electronic results
         if results_el:
             results['electronic_sigma_full'] = results_el.get('sigma_full')
             results['electronic_sigma_full_mScm'] = results_el.get('sigma_full_mScm')

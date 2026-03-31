@@ -451,18 +451,20 @@ L은 sparse matrix로 구성 — 노드가 수만 개이지만 각 노드가 이
 
 ### 13.5 Step 4: 경계조건 및 Kirchhoff 풀이
 
-**Virtual source/sink:** 실제 전극에서는 아래쪽 면 전체에서 이온이 들어오고, 위쪽 면 전체에서 나간다. 아래쪽에 닿는 SE 입자가 수백~수천 개이므로, "가상 노드 1개"를 만들어 한 점에 연결한다.
+**이온 흐름 방향:** 복합양극에서 Li⁺는 separator(top) → current collector(bottom) 방향으로 이동. 단, Li⁺는 반드시 bottom까지 관통할 필요 없이, SE 네트워크를 타고 **AM 표면에 도달**하면 충전/방전 반응이 일어난다. 따라서 top boundary는 **top_reachable SE** (top에서 연결된 모든 SE)를, bottom boundary는 **bottom SE**를 사용한다 (percolation_sets.json에서 로드).
+
+**Virtual source/sink:** top/bottom에 닿는 SE 입자가 수백~수천 개이므로, "가상 노드 1개"를 만들어 한 점에 연결한다.
 
 ```
-       [sink] ← 가상 노드 1개
+   [source] ← separator 쪽 (Li⁺ 공급)
       / | | \
-    SE  SE SE SE   ← top SE들
+    SE  SE SE SE   ← top_reachable SE들
      |  |  |  |
-    SE  SE SE SE   ← 내부 SE network
+    SE  SE SE SE   ← 내부 SE network (AM 표면에서 반응)
      |  |  |  |
     SE  SE SE SE   ← bottom SE들
       \ | | /
-      [source] ← 가상 노드 1개
+    [sink] ← current collector 쪽
 ```
 
 **g=10⁶ 연결의 의미:** "저항 없는 완벽한 도선". 실제 SE-SE conductance가 ~10⁰~10²인데, 10⁶이면 1만~100만 배 크므로 이 연결에서 전압 강하가 사실상 0. 전체 전압 강하가 R_edge들(bulk + constriction)에서만 발생하도록 보장한다. EIS에서 Au 스퍼터링으로 집전체 접촉저항을 최소화하는 것과 같은 원리.

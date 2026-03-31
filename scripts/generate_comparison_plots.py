@@ -905,10 +905,11 @@ def plot_rgb_fitting(data_list, names, outdir):
 
 
 def plot_gb_corrected(data_list, names, outdir):
-    """GB-corrected effective conductivity using BLM+Constriction model."""
+    """GB-corrected effective conductivity: proxy, multi-scale, and network solver."""
     alpha, ln_C, _, r2_check = _fit_r_gb(data_list, names)
     SIGMA_BULK = 1.3  # mS/cm, Li₆PS₅Cl cold-pressed
-    C = np.exp(ln_C)
+    C_proxy = np.exp(ln_C)
+    C_ms = 0.026  # multi-scale constant
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     gb_dens = [_get(d, "gb_density_mean") for d in data_list]
@@ -916,46 +917,72 @@ def plot_gb_corrected(data_list, names, outdir):
     phi = [_get(d, "phi_se") for d in data_list]
     perc = [_get(d, "percolation_pct") / 100 for d in data_list]
     tau = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)) for d in data_list]
+    hop = [_get(d, "path_hop_area_mean", 0) for d in data_list]
+    cn = [_get(d, "se_se_cn", 0) for d in data_list]
 
-    # σ_eff = σ_brug / (C × (GB_d² × T)^α)
-    sigma_corr = []
+    # 1. Proxy: σ_eff = σ_brug / (C × (GB_d²×T)^α)
+    sigma_proxy = []
     for i in range(len(data_list)):
         gb2t = gb_dens[i]**2 * thickness[i]
         if gb2t > 0:
-            correction = C * gb2t**alpha
-            sigma_corr.append(sigma_brug[i] / correction if correction > 0 else sigma_brug[i])
+            corr = C_proxy * gb2t**alpha
+            sigma_proxy.append(sigma_brug[i] / corr * SIGMA_BULK if corr > 0 else 0)
         else:
-            sigma_corr.append(sigma_brug[i])
-    sigma_abs = [s * SIGMA_BULK for s in sigma_corr]
+            sigma_proxy.append(0)
+
+    # 2. Multi-scale: σ_eff = σ_brug × C × √hop × CN² × GB_d^(4/3)
+    sigma_ms = []
+    for i in range(len(data_list)):
+        if hop[i] > 0 and cn[i] > 0 and gb_dens[i] > 0:
+            s = sigma_brug[i] * C_ms * np.sqrt(hop[i]) * cn[i]**2 * gb_dens[i]**(4/3)
+            sigma_ms.append(s * SIGMA_BULK)
+        else:
+            sigma_ms.append(0)
+
+    # 3. Network solver: from network_conductivity.json (if available)
+    sigma_net = [0] * len(data_list)
+    # Try loading from results dirs
+    import glob as _glob
+    for i, d in enumerate(data_list):
+        # Check if network result exists in metrics
+        net_val = _get(d, "sigma_full_mScm", 0)
+        if net_val > 0:
+            sigma_net[i] = net_val
+
+    has_net = any(s > 0 for s in sigma_net)
+    has_ms = any(s > 0 for s in sigma_ms)
 
     fig, ax = plt.subplots(figsize=FIG_SINGLE)
     x = np.arange(len(names))
+    ms = _marker_size(len(names))
+    lw = _line_width(len(names))
 
-    ax.plot(x, sigma_corr, 's-', color=RED, markersize=_marker_size(len(names)),
-            linewidth=_line_width(len(names)), label="σ_eff/σ_bulk")
-    _apply_style(ax, "σ_eff / σ_bulk", names)
-    ax.tick_params(axis='y', labelcolor=RED)
+    # Plot multi-scale (main)
+    if has_ms:
+        ax.plot(x, sigma_ms, 's-', color=RED, markersize=ms, linewidth=lw,
+                label="Multi-scale (mS/cm)")
 
-    ax2 = ax.twinx()
-    ax2.plot(x, sigma_abs, 'D--', color=ORANGE, markersize=_marker_size(len(names))-2,
-            linewidth=_line_width(len(names))-0.5, label=f"σ_eff (mS/cm)")
-    ax2.set_ylabel("σ_eff (mS/cm)", fontsize=11, color=ORANGE)
-    ax2.tick_params(axis='y', labelcolor=ORANGE)
-    ax2.spines["top"].set_visible(False)
+    # Plot network solver if available
+    if has_net:
+        ax.plot(x, sigma_net, 'D-', color='#2ecc71', markersize=ms, linewidth=lw,
+                label="Network solver (mS/cm)")
 
-    lines1, labels1 = ax.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    ax.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='best')
+    # Plot proxy (faded)
+    ax.plot(x, sigma_proxy, 'o--', color=ORANGE, markersize=ms-2, linewidth=lw-0.5,
+            alpha=0.5, label="Proxy (mS/cm)")
+
+    _apply_style(ax, "σ_eff (mS/cm)", names)
+    ax.legend(fontsize=8, loc='best')
     gb_src = "global" if _GLOBAL_RGB is not None else "local"
-    ax.set_title(f"σ_eff = σ_brug / C·(GB_d²·T)^α\nα={alpha:.2f}, R²={r2_check:.3f} [{gb_src}]",
-                 fontsize=10, fontweight='bold')
+    ax.set_title(f"σ_eff Comparison: Multi-scale vs Network vs Proxy\n"
+                 f"Multi-scale: σ_brug × 0.026 × √hop × CN² × GB_d^(4/3)",
+                 fontsize=9, fontweight='bold')
 
     _write_csv(outdir, 'gb_corrected.csv',
-               ['φ_SE', 'f_perc', 'τ', 'GB_d', 'T(μm)', 'GB_d²×T',
-                'α', 'σ_brug/σ_bulk', 'σ_eff/σ_bulk', 'σ_eff(mS/cm)'],
-               names, phi, perc, tau, gb_dens, thickness,
-               [gb_dens[i]**2*thickness[i] for i in range(len(names))],
-               [alpha]*len(names), sigma_brug, sigma_corr, sigma_abs)
+               ['φ_SE', 'f_perc', 'τ', 'GB_d', 'T(μm)', 'CN', 'hop_area',
+                'σ_proxy(mS/cm)', 'σ_multiscale(mS/cm)', 'σ_network(mS/cm)'],
+               names, phi, perc, tau, gb_dens, thickness, cn, hop,
+               sigma_proxy, sigma_ms, sigma_net)
     return _save(fig, outdir, "gb_corrected.png")
 
 

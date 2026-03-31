@@ -57,11 +57,15 @@ def build_network(atoms_raw, contacts_raw, target_types, scale,
     bottom_ids = None
     top_ids = None
 
-    # z-coordinate based boundaries
+    # z-coordinate based boundaries (use smallest particle radius to avoid overlap)
     if not bottom_ids or not top_ids:
-        r_ref = atoms_raw[target_ids[0]]['radius']
+        r_ref = min(atoms_raw[aid]['radius'] for aid in target_ids)
         z_bottom = 0.0 + r_ref * boundary_factor
         z_top = plate_z - r_ref * boundary_factor
+        # Safety: ensure z_bottom < z_top
+        if z_bottom >= z_top:
+            z_bottom = 0.0 + plate_z * 0.05
+            z_top = plate_z * 0.95
         bottom_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] <= z_bottom}
         top_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] >= z_top}
 

@@ -804,44 +804,46 @@ function createDerivationBox() {
   box.className = 'derivation-box';
         box.innerHTML = `
           <h4>📐 유효 이온전도도 유도 (BLM-inspired + Constriction)</h4>
-          <div class="deriv-desc" style="opacity:.7;margin-bottom:8px">접촉 모델: hooke/hysteresis (Luding, 탄소성 이력) | n=41 (SE 0.5/1.0/1.5μm, T=18~184μm, RVE 30/50μm)</div>
+          <div class="deriv-desc" style="opacity:.7;margin-bottom:8px">접촉 모델: hooke/hysteresis (Luding) | n=41 | SE 0.5/1.0/1.5μm | T=18~184μm | RVE 30/50μm</div>
           <div class="deriv-section">
-            <div class="deriv-label">1. Bruggeman 추정 (inter-particle contact 무시)</div>
+            <div class="deriv-label">1. Bruggeman 추정 (접촉 저항 무시)</div>
             <div class="deriv-formula">σ_brug = σ_bulk × φ_SE × f_perc / τ²</div>
-            <div class="deriv-desc">τ²: ①경로 길이 ×τ ②유효 단면적 ÷τ → 합쳐서 ÷τ²</div>
-            <div class="deriv-desc">⚠ inter-particle contact 저항 무시 → <b>과대평가</b></div>
+            <div class="deriv-desc">τ²: 경로 길이(×τ) × 유효 단면적(÷τ) = ÷τ²</div>
+            <div class="deriv-desc">⚠ inter-particle contact 저항 무시 → <b>과대평가 (R_brug = 3~10×)</b></div>
           </div>
           <div class="deriv-section">
-            <div class="deriv-label">2. 접촉 저항 보정: BLM-inspired scaling + Constriction</div>
-            <div class="deriv-formula">R_total ∝ GB_d² × T</div>
-            <div class="deriv-desc"><b>1st GB_d</b>: 접촉 수 (BLM-inspired: N_contact ∝ GB_d × T)</div>
-            <div class="deriv-desc"><b>2nd GB_d</b>: 접촉당 저항 (Maxwell constriction: R_c = ρ/2a, a ∝ 1/GB_d)</div>
-            <div class="deriv-desc"><b>T</b>: 전극 두께 (총 경로 길이)</div>
-            <div class="deriv-desc">τ²와 같은 구조: τ² = (경로↑) × (단면적↓), GB_d² = (접촉 수↑) × (접촉 저항↑)</div>
-            <div class="deriv-desc" style="font-size:.75rem;opacity:.8">※ BLM의 N_GB 스케일링만 차용. 소결 세라믹의 ρ_gb × w_gb는 사용하지 않음.</div>
+            <div class="deriv-label">2. Inter-particle Contact Resistance 유도</div>
+            <div class="deriv-desc"><b>N_contact ∝ GB_d × T</b> (BLM-inspired: 경로당 접촉 수 = hop density × 두께)</div>
+            <div class="deriv-desc"><b>R_per_contact ∝ GB_d</b> (Maxwell constriction: R_c = ρ/2a, a ∝ 1/GB_d)</div>
+            <div class="deriv-formula">R_total = N_contact × R_per_contact ∝ <b>GB_d² × T</b></div>
+            <div class="deriv-desc">τ² ↔ GB_d²: 같은 물리 구조. τ²=(경로↑×단면↓), GB_d²=(접촉수↑×접촉저항↑)</div>
+            <div class="deriv-desc" style="font-size:.75rem;opacity:.7">BLM의 N_GB 스케일링만 차용. 소결 세라믹의 ρ_gb×w_gb는 사용하지 않음.</div>
           </div>
           <div class="deriv-section">
-            <div class="deriv-label">3. G_path (경로 전도도)</div>
-            <div class="deriv-formula">G_path = 1 / Σ(1/A_i)  [직렬 접촉의 조화평균]</div>
-            <div class="deriv-desc">A_i: i번째 hop의 실제 접촉면적 (DEM에서 직접 추출, μm²)</div>
-            <div class="deriv-desc">Bottleneck(가장 좁은 접촉)이 전체 전도도를 지배</div>
-          </div>
-          <div class="deriv-section">
-            <div class="deriv-label">4. σ_proxy로 fitting</div>
+            <div class="deriv-label">3. Proxy Fitting (Part I)</div>
             <div class="deriv-formula">R = σ_brug / σ_proxy = C × (GB_d² × T)^α</div>
-            <div class="deriv-formula">log(R) = α × log(GB_d² × T) + ln(C)</div>
-            <div class="deriv-desc">σ_proxy = G_path × f_perc / τ (접촉면적 기반 실측)</div>
-            <div class="deriv-desc">α = 1.82: 데이터가 결정하는 경험적 값 (접촉면적 불균일성 반영)</div>
-            <div class="deriv-desc">α=2 고정 시 R²=0.933 (ΔR²=1.0%) → robust</div>
-            <div class="deriv-desc">M6(free 3-param): GB_d^4.02 × T^1.75 ≈ M15: (GB_d²×T)^1.82 → 독립 검증</div>
+            <div class="deriv-desc">σ_proxy = G_path × f_perc / τ | G_path = 1/Σ(1/A_i) [조화평균, bottleneck 지배]</div>
+            <div class="deriv-desc">α=1.82, R²=0.94 (n=41) | M6(free): GB_d^4.0×T^1.8 ≈ (GB_d²T)^1.82 → 독립 검증</div>
           </div>
           <div class="deriv-section">
-            <div class="deriv-label">5. 최종 유효전도도</div>
-            <div class="deriv-formula">σ_eff = σ_bulk × φ_SE × f_perc / [τ² × C × (GB_d² × T)^α]</div>
-            <div class="deriv-desc">σ_bulk = 1.3 mS/cm (Li₆PS₅Cl) → mS/cm 단위</div>
-            <div class="deriv-desc">τ²: 경로 기하 손실 | C·(GB_d²·T)^α: inter-particle contact 손실</div>
-            <div class="deriv-desc">τ와 GB_d는 부분 상관 있으나, 각각 경로 기하학/접촉 저항을 독립적으로 설명</div>
-            <div class="deriv-desc">⚠ 상대적 스케일링 관계. 절대 전도도 예측에는 EIS calibration 필요</div>
+            <div class="deriv-label">4. Network Solver 검증 (Part II)</div>
+            <div class="deriv-formula">σ_full = Kirchhoff solver (R_bulk + R_constriction per edge, 전체 병렬 경로)</div>
+            <div class="deriv-desc">σ_full = 0.01~0.28 mS/cm (Minnmann 실험 0.17과 same order)</div>
+            <div class="deriv-desc">R_brug = 3~10× (proxy의 15~1600이 아님) | Constriction 69~81% 지배</div>
+            <div class="deriv-desc">n_eff = n_geo(2.54) + n_contact(0.83) = 3.37 (문헌 n≈3 설명)</div>
+          </div>
+          <div class="deriv-section">
+            <div class="deriv-label">5. Multi-Scale Model (Part III)</div>
+            <div class="deriv-formula">σ_eff = σ_brug × C × √A_hop × CN² × GB_d^(4/3)</div>
+            <div class="deriv-desc">√A_hop: Maxwell constriction (fit 0.525≈0.5) | CN²: redundant path factor (fit 1.98≈2)</div>
+            <div class="deriv-desc">GB_d^(4/3): mesh density(1) + Hertz residual(1/3) | R²=0.93 (1 free param), LOOCV R²=0.93</div>
+            <div class="deriv-desc">Ablation: 모든 항 필수 (GB_d 없으면 R²→음수)</div>
+          </div>
+          <div class="deriv-section">
+            <div class="deriv-label">6. 최종 공식</div>
+            <div class="deriv-formula">σ_eff = σ_bulk × φ_SE × f_perc / τ² × 0.026 × √A_hop × CN² × GB_d^(4/3)</div>
+            <div class="deriv-desc">σ_bulk=1.3 mS/cm (Li₆PS₅Cl) | 설계: AM:SE→φ_SE, P:S→τ, SE크기→A_hop/CN/GB_d</div>
+            <div class="deriv-desc">⚠ σ_full 기준 절대값. EIS 대비 2~3×이내 (κ correction으로 보정 가능)</div>
           </div>`;
   return box;
 }
@@ -1001,12 +1003,24 @@ async function generateFittingReport() {
     closeBtn.onclick = () => modal.remove();
     const dlBtn = document.createElement('a');
     dlBtn.href = data.download_url;
-    dlBtn.textContent = '📥 Download MD';
+    dlBtn.textContent = '📥 MD';
     dlBtn.style.cssText = 'position:absolute;top:12px;right:60px;background:var(--accent);color:white;padding:4px 12px;border-radius:6px;text-decoration:none;font-size:14px';
+    const pdfBtn = document.createElement('button');
+    pdfBtn.textContent = '📄 PDF 저장';
+    pdfBtn.style.cssText = 'position:absolute;top:12px;right:130px;background:#e74c3c;color:white;padding:4px 12px;border-radius:6px;border:none;font-size:14px;cursor:pointer';
+    pdfBtn.onclick = () => {
+      const w = window.open('','','width=900,height=700');
+      w.document.write('<html><head><title>Fitting Report</title><style>body{font-family:monospace;font-size:13px;line-height:1.6;padding:20px;white-space:pre-wrap;max-width:800px;margin:auto}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}h1,h2,h3{margin-top:1.5em}</style></head><body>');
+      w.document.write(data.content.replace(/\n/g,'<br>'));
+      w.document.write('</body></html>');
+      w.document.close();
+      setTimeout(()=>{w.print();},500);
+    };
     const content = document.createElement('div');
     content.style.cssText = 'white-space:pre-wrap;font-family:monospace;font-size:13px;line-height:1.6';
     content.textContent = data.content;
     box.appendChild(closeBtn);
+    box.appendChild(pdfBtn);
     box.appendChild(dlBtn);
     box.appendChild(content);
     modal.appendChild(box);

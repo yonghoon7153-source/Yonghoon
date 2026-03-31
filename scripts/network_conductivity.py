@@ -37,16 +37,15 @@ K_SE_THERMAL = 0.7e-2   # W/(cm·K) ≈ 0.7 W/(m·K), LPSCl (Ketter 2025)
 
 def build_network(atoms_raw, contacts_raw, target_types, scale,
                   plate_z, box_x=0.05, box_y=0.05, boundary_factor=2.0,
-                  mode='ionic', type_map=None):
+                  mode='ionic', type_map=None, results_dir=None):
     """
     Build resistor network from DEM data.
-    mode='ionic': SE-SE network only
+    mode='ionic': SE-SE network only (uses percolation_sets.json for boundaries)
     mode='electronic': AM-AM network only
-    mode='thermal': ALL contacts (AM-AM, AM-SE, SE-SE) with material-specific k
+    mode='thermal': ALL contacts (AM-AM, AM-SE, SE-SE)
     Returns nodes, edges, bottom/top boundary sets.
     """
     if mode == 'thermal':
-        # Thermal: use ALL particles and ALL contacts
         target_ids = list(atoms_raw.keys())
     else:
         target_ids = [aid for aid, a in atoms_raw.items() if a['type'] in target_types]
@@ -54,12 +53,25 @@ def build_network(atoms_raw, contacts_raw, target_types, scale,
     if not target_ids:
         return None
 
-    # Boundary detection
-    r_ref = atoms_raw[target_ids[0]]['radius']
-    z_bottom = 0.0 + r_ref * boundary_factor
-    z_top = plate_z - r_ref * boundary_factor
+    # Boundary detection: use percolation_sets.json if available (ionic)
+    bottom_ids = None
+    top_ids = None
+    if mode == 'ionic' and results_dir:
+        perc_path = os.path.join(results_dir, 'percolation_sets.json')
+        if os.path.exists(perc_path):
+            with open(perc_path) as f:
+                perc_sets = json.load(f)
+            bottom_ids = {int(x) for x in perc_sets.get('bottom_se', [])} & set(target_ids)
+            top_ids = {int(x) for x in perc_sets.get('top_reachable', [])} & set(target_ids)
+            if bottom_ids and top_ids:
+                print(f"  Boundaries from percolation_sets.json: {len(bottom_ids)} bottom, {len(top_ids)} top_reachable")
 
-    bottom_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] <= z_bottom}
+    # Fallback: z-coordinate based
+    if not bottom_ids or not top_ids:
+        r_ref = atoms_raw[target_ids[0]]['radius']
+        z_bottom = 0.0 + r_ref * boundary_factor
+        z_top = plate_z - r_ref * boundary_factor
+        bottom_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] <= z_bottom}
     top_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] >= z_top}
 
     # Determine SE types for thermal mode
@@ -283,7 +295,7 @@ def solve_network(network_data, mode='full'):
 
 def run_decomposition(atoms_raw, contacts_raw, target_types, scale,
                       plate_z, box_x=0.05, box_y=0.05,
-                      sigma_bulk=SIGMA_BULK_DEFAULT):
+                      sigma_bulk=SIGMA_BULK_DEFAULT, results_dir=None):
     """
     Run full decomposition analysis:
     1. FULL (bulk + constriction)
@@ -294,7 +306,7 @@ def run_decomposition(atoms_raw, contacts_raw, target_types, scale,
     """
     print(f"  Building resistor network ({len(target_types)} target types)...")
     net = build_network(atoms_raw, contacts_raw, target_types, scale,
-                        plate_z, box_x, box_y)
+                        plate_z, box_x, box_y, results_dir=results_dir)
 
     if net is None:
         print("  No network found")
@@ -426,7 +438,8 @@ if __name__ == '__main__':
     print("IONIC CONDUCTIVITY (SE-SE network)")
     print("="*50)
     results = run_decomposition(atoms_raw, contacts_raw, target_types, args.scale,
-                                plate_z, box_x, box_y, sigma_bulk=SIGMA_BULK_DEFAULT)
+                                plate_z, box_x, box_y, sigma_bulk=SIGMA_BULK_DEFAULT,
+                                results_dir=args.output)
 
     # === ELECTRONIC (AM-AM network) ===
     print("\n" + "="*50)

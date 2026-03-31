@@ -63,8 +63,38 @@ def build_network(atoms_raw, contacts_raw, target_types, scale,
                 perc_sets = json.load(f)
             bottom_ids = {int(x) for x in perc_sets.get('bottom_se', [])} & set(target_ids)
             top_ids = {int(x) for x in perc_sets.get('top_se', [])} & set(target_ids)
+
+            # Extended sink: add dead-end branch endpoints
+            # top_reachable but NOT percolating → dead-end branches
+            # Find lowest-z SE in each dead-end branch → additional sink
+            top_reachable = {int(x) for x in perc_sets.get('top_reachable', [])} & set(target_ids)
+            percolating = set()
+            # Build quick graph to find percolating component
+            import networkx as nx
+            G_quick = nx.Graph()
+            for c in contacts_raw:
+                id1, id2 = c['id1'], c['id2']
+                if id1 in atoms_raw and id2 in atoms_raw:
+                    if atoms_raw[id1]['type'] in target_types and atoms_raw[id2]['type'] in target_types:
+                        G_quick.add_edge(id1, id2)
+            for comp in nx.connected_components(G_quick):
+                if (comp & bottom_ids) and (comp & top_ids):
+                    percolating |= comp
+
+            dead_end_se = top_reachable - percolating
+            if dead_end_se:
+                # Find dead-end branches (connected components of dead_end SE)
+                dead_subgraph = G_quick.subgraph(dead_end_se)
+                dead_endpoints = set()
+                for comp in nx.connected_components(dead_subgraph):
+                    # Lowest z SE in each dead-end branch = endpoint (farthest from top)
+                    lowest = min(comp, key=lambda sid: atoms_raw[sid]['z'])
+                    dead_endpoints.add(lowest)
+                bottom_ids = bottom_ids | dead_endpoints
+                print(f"  Extended sink: +{len(dead_endpoints)} dead-end endpoints (from {len(dead_end_se)} dead-end SE)")
+
             if bottom_ids and top_ids:
-                print(f"  Boundaries from percolation_sets.json: {len(bottom_ids)} bottom, {len(top_ids)} top_reachable")
+                print(f"  Boundaries: {len(bottom_ids)} bottom(+dead-ends), {len(top_ids)} top_se")
 
     # Fallback: z-coordinate based
     if not bottom_ids or not top_ids:

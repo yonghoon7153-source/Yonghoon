@@ -439,6 +439,8 @@ L은 sparse matrix (scipy.sparse.csr_matrix)로 구성하여 메모리 효율적
 **경계조건 설정:**
 - Bottom SE (z ≤ z_bottom): virtual **source** 노드에 연결 (대전도도 g=10⁶)
 - Top SE (z ≥ z_top): virtual **sink** 노드에 연결 (대전도도 g=10⁶)
+
+*g=10⁶은 SE-SE 접촉 conductance(~10⁰~10²)보다 충분히 크며, g=10⁴~10⁸ 범위에서 σ_full 변화는 < 0.01%로 결과에 영향 없음.*
 - 전류 주입: I_source = +1, I_sink = -1
 - V_sink = 0으로 고정 (접지)
 

@@ -423,52 +423,92 @@ $$R_{edge} = R_{bulk} + R_{constriction}$$
 
 ### 13.4 Step 3: Conductance Matrix (Laplacian) 조립
 
-각 edge의 conductance g_ij = 1/R_edge를 사용하여 **graph Laplacian 행렬** L을 구성한다:
+각 edge의 conductance g_ij = 1/R_edge를 사용하여 **graph Laplacian 행렬** L을 구성한다.
 
+**Kirchhoff 전류 법칙(KCL)을 행렬로 표현한 것이다.** 각 노드에서 "들어오는 전류 = 나가는 전류"를 모든 노드에 대해 동시에 적으면 연립방정식이 되고, 그 계수 행렬이 L이다.
+
+예: SE 입자 3개(A, B, C)가 A-B, B-C로 연결된 경우, 노드 B의 KCL:
+```
+g_AB × (V_B - V_A) + g_BC × (V_B - V_C) = I_B
+
+정리: -g_AB × V_A + (g_AB + g_BC) × V_B - g_BC × V_C = I_B
+
+→ L 행렬의 B행: 대각(g_AB+g_BC), 비대각(-g_AB, -g_BC)
+```
+
+코드:
 ```python
 # 각 SE-SE 접촉에 대해:
 g = 1.0 / R_edge
 
-L[i][i] += g    # 대각: 노드 i에 연결된 전체 conductance
+L[i][i] += g    # 대각: 노드 i에 연결된 전체 conductance 합
 L[j][j] += g
 L[i][j] -= g    # 비대각: 노드 i-j 간 conductance (음수)
 L[j][i] -= g
 ```
 
-L은 sparse matrix (scipy.sparse.csr_matrix)로 구성하여 메모리 효율적으로 처리한다.
+L은 sparse matrix로 구성 — 노드가 수만 개이지만 각 노드가 이웃 몇 개(CN≈3~6)하고만 연결되어 L의 대부분이 0.
 
 ### 13.5 Step 4: 경계조건 및 Kirchhoff 풀이
 
-**경계조건 설정:**
-- Bottom SE (z ≤ z_bottom): virtual **source** 노드에 연결 (대전도도 g=10⁶)
-- Top SE (z ≥ z_top): virtual **sink** 노드에 연결 (대전도도 g=10⁶)
+**Virtual source/sink:** 실제 전극에서는 아래쪽 면 전체에서 이온이 들어오고, 위쪽 면 전체에서 나간다. 아래쪽에 닿는 SE 입자가 수백~수천 개이므로, "가상 노드 1개"를 만들어 한 점에 연결한다.
 
-*g=10⁶은 SE-SE 접촉 conductance(~10⁰~10²)보다 충분히 크며, g=10⁴~10⁸ 범위에서 σ_full 변화는 < 0.01%로 결과에 영향 없음.*
-- 전류 주입: I_source = +1, I_sink = -1
-- V_sink = 0으로 고정 (접지)
+```
+       [sink] ← 가상 노드 1개
+      / | | \
+    SE  SE SE SE   ← top SE들
+     |  |  |  |
+    SE  SE SE SE   ← 내부 SE network
+     |  |  |  |
+    SE  SE SE SE   ← bottom SE들
+      \ | | /
+      [source] ← 가상 노드 1개
+```
 
-**연립방정식:**
+**g=10⁶ 연결의 의미:** "저항 없는 완벽한 도선". 실제 SE-SE conductance가 ~10⁰~10²인데, 10⁶이면 1만~100만 배 크므로 이 연결에서 전압 강하가 사실상 0. 전체 전압 강하가 R_edge들(bulk + constriction)에서만 발생하도록 보장한다. EIS에서 Au 스퍼터링으로 집전체 접촉저항을 최소화하는 것과 같은 원리.
+
+*g=10⁴~10⁸ 범위에서 σ_full 변화 < 0.01%로 결과에 영향 없음.*
+
+**전류 주입:**
+- I_source = +1 (전류 1을 네트워크에 밀어넣음)
+- I_sink = -1 (전류 1을 빼냄)
+- V_sink = 0 (접지, 전위 기준점)
+
+비유: 건전지의 +극(source)에서 전류가 나와 SE 네트워크를 통과하고 -극(sink)으로 돌아감. V_source는 "전류 1을 흘리기 위해 얼마나 세게 밀어야 하는지"를 나타냄. 세게 밀어야 하면 전도도가 낮고, 살짝만 밀어도 되면 전도도가 높다.
+
+**연립방정식 풀이:**
 
 $$\mathbf{L} \cdot \mathbf{V} = \mathbf{I}$$
 
 ```python
-# scipy sparse solver
 V = scipy.sparse.linalg.spsolve(L, I)
-
-# 유효 conductance
-G_eff = 1.0 / V_source  # (I=1이므로 G=I/V=1/V_source)
+G_eff = 1.0 / V_source  # I=1, V_sink=0이므로 G=I/ΔV=1/V_source
 ```
 
-Percolating component만 사용 (bottom↔top 연결된 connected component). 고립된 SE 입자는 제외하여 singular matrix 방지.
+Percolating component만 사용 (bottom↔top 연결된 connected component). 고립된 SE 입자를 포함하면 L 행렬에 연결 없는 행/열이 생겨 singular matrix가 되므로 제외.
 
 ### 13.6 Step 5: σ_full 산출
 
-$$\sigma_{full} = G_{eff} \times \frac{T}{A_{electrode}}$$
+$$\sigma_{full} = G_{eff} \times \frac{T}{A_{electrode}} \times \sigma_{grain}$$
 
 - T: 전극 두께 (plate_z × scale, μm)
 - A_electrode: 전극 단면적 (box_x × box_y × scale², μm²)
+- σ_grain: SE grain interior conductivity (단결정 전도도)
 
-**정규화:** 계산은 ρ_SE = 1 (정규화)로 수행한 후, 최종값에 σ_bulk (1.3 mS/cm)를 곱하여 mS/cm 단위로 변환한다. 이 방식의 장점은 σ_bulk 값에 무관하게 스케일링 관계가 유지된다는 것이다.
+**σ_grain vs σ_pellet 구분 (중요!):**
+
+| 용어 | 값 | 의미 |
+|------|-----|------|
+| σ_grain (grain interior) | ~3.0 mS/cm | 단결정 고유 전도도. GB 효과 없음. |
+| σ_pellet ("σ_bulk") | ~1.3 mS/cm | pellet 측정값. 내부 SE-SE GB 포함. |
+
+문헌에서 "σ_bulk = 1.3 mS/cm"로 보고하는 값은 실제로 **σ_pellet**이며, pellet 내부의 SE-SE 접촉 저항이 이미 포함되어 있다. Network solver는 복합양극 내 모든 SE-SE 접촉을 명시적으로 계산하므로, σ_pellet을 사용하면 접촉 저항이 **이중으로 적용**된다.
+
+따라서 본 모델에서는 **σ_grain ≈ 3.0 mS/cm** (argyrodite 단결정/grain interior)를 사용한다. 이로써:
+- σ_full = 0.085 mS/cm (σ_pellet 사용) → **0.196 mS/cm** (σ_grain 사용)
+- Minnmann (2021) 실험값 0.17 mS/cm와 **거의 일치** (1.15×)
+
+*정규화:* 계산은 ρ=1 (정규화)로 수행한 후, 최종값에 σ_grain을 곱하여 mS/cm로 변환. σ_grain 값에 무관하게 스케일링 관계가 유지된다.
 
 ### 13.7 Three-Mode Decomposition
 

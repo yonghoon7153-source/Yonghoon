@@ -24,8 +24,10 @@ from scipy import sparse
 from scipy.sparse.linalg import spsolve
 
 
-# LPSCl argyrodite, cold-pressed at RT
-SIGMA_BULK_DEFAULT = 1.3e-3  # S/cm
+# LPSCl argyrodite grain interior conductivity (NOT pellet value)
+# σ_pellet ≈ 1.3 mS/cm includes pellet-level GB → double counting with network solver
+# σ_grain ≈ 3.0 mS/cm is the intrinsic single-crystal/grain interior value
+SIGMA_BULK_DEFAULT = 3.0e-3  # S/cm (grain interior)
 
 
 def build_network(atoms_raw, contacts_raw, se_types, scale,

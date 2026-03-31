@@ -941,13 +941,24 @@ def plot_gb_corrected(data_list, names, outdir):
 
     # 3. Network solver: from network_conductivity.json (if available)
     sigma_net = [0] * len(data_list)
-    # Try loading from results dirs
-    import glob as _glob
+    # Try loading from input file directories (network_conductivity.json is next to full_metrics.json)
     for i, d in enumerate(data_list):
-        # Check if network result exists in metrics
+        # First check if it's in the metrics directly
         net_val = _get(d, "sigma_full_mScm", 0)
         if net_val > 0:
             sigma_net[i] = net_val
+        else:
+            # Try loading network_conductivity.json from same directory as input
+            src = _get(d, "_source_path", "")
+            if src:
+                net_path = os.path.join(os.path.dirname(src), "network_conductivity.json")
+                if os.path.exists(net_path):
+                    try:
+                        with open(net_path) as _nf:
+                            nd = json.load(_nf)
+                        sigma_net[i] = nd.get("sigma_full_mScm", 0) or 0
+                    except:
+                        pass
 
     has_net = any(s > 0 for s in sigma_net)
     has_ms = any(s > 0 for s in sigma_ms)
@@ -967,9 +978,8 @@ def plot_gb_corrected(data_list, names, outdir):
         ax.plot(x, sigma_net, 'D-', color='#2ecc71', markersize=ms, linewidth=lw,
                 label="Network solver (mS/cm)")
 
-    # Plot proxy (faded)
-    ax.plot(x, sigma_proxy, 'o--', color=ORANGE, markersize=ms-2, linewidth=lw-0.5,
-            alpha=0.5, label="Proxy (mS/cm)")
+    # Proxy excluded from main plot (too small, different scale)
+    # Saved in CSV for reference
 
     _apply_style(ax, "σ_eff (mS/cm)", names)
     ax.legend(fontsize=8, loc='best')
@@ -1196,7 +1206,9 @@ def main():
     all_data = []
     for path in args.inputs:
         with open(path, "r") as f:
-            all_data.append(json.load(f))
+            d = json.load(f)
+        d["_source_path"] = path
+        all_data.append(d)
 
     # Use P:S ratio as x-axis labels (fallback to case names)
     plot_names = []

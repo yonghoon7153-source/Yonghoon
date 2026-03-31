@@ -30,37 +30,60 @@ SIGMA_BULK_DEFAULT = 3.0e-3  # S/cm (grain interior, ionic)
 # NCM electronic conductivity (typical, SOC-dependent)
 SIGMA_AM_ELECTRONIC = 0.05  # S/cm (50 mS/cm, discharged NCM)
 
+# Thermal conductivity (W/(m·K) = W/(m·K) × 10⁻⁴ = W/(cm·K))
+K_AM_THERMAL = 4.0e-2   # W/(cm·K) ≈ 4 W/(m·K), NCM
+K_SE_THERMAL = 0.7e-2   # W/(cm·K) ≈ 0.7 W/(m·K), LPSCl (Ketter 2025)
+
 
 def build_network(atoms_raw, contacts_raw, target_types, scale,
                   plate_z, box_x=0.05, box_y=0.05, boundary_factor=2.0,
-                  mode='ionic'):
+                  mode='ionic', type_map=None):
     """
     Build resistor network from DEM data.
-    mode='ionic': SE-SE network (target_types = SE types)
-    mode='electronic': AM-AM network (target_types = AM types)
+    mode='ionic': SE-SE network only
+    mode='electronic': AM-AM network only
+    mode='thermal': ALL contacts (AM-AM, AM-SE, SE-SE) with material-specific k
     Returns nodes, edges, bottom/top boundary sets.
     """
+    if mode == 'thermal':
+        # Thermal: use ALL particles and ALL contacts
+        target_ids = list(atoms_raw.keys())
+    else:
+        target_ids = [aid for aid, a in atoms_raw.items() if a['type'] in target_types]
+
     if not target_ids:
         return None
 
     # Boundary detection
-    r_se = atoms_raw[target_ids[0]]['radius']
-    z_bottom = 0.0 + r_se * boundary_factor
-    z_top = plate_z - r_se * boundary_factor
+    r_ref = atoms_raw[target_ids[0]]['radius']
+    z_bottom = 0.0 + r_ref * boundary_factor
+    z_top = plate_z - r_ref * boundary_factor
 
     bottom_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] <= z_bottom}
     top_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] >= z_top}
+
+    # Determine SE types for thermal mode
+    se_type_set = set()
+    if type_map:
+        se_type_set = {k for k, v in type_map.items() if v == 'SE'}
 
     # Build contact area map
     contact_area_map = {}
     for c in contacts_raw:
         id1, id2 = c['id1'], c['id2']
         if id1 in atoms_raw and id2 in atoms_raw:
-            if atoms_raw[id1]['type'] in target_types and atoms_raw[id2]['type'] in target_types:
+            if mode == 'thermal':
+                # All contacts for thermal
                 pair = (min(id1, id2), max(id1, id2))
                 ca = c.get('contact_area', 0)
                 if ca > 0:
                     contact_area_map[pair] = ca
+            else:
+                if atoms_raw[id1]['type'] in target_types and atoms_raw[id2]['type'] in target_types:
+                    pair = (min(id1, id2), max(id1, id2))
+                    ca = c.get('contact_area', 0)
+                    if ca > 0:
+                        contact_area_map[pair] = ca
 
     # Build edges with physical resistances
     # All distances in μm, areas in μm², resistivity in Ω·μm
@@ -412,6 +435,14 @@ if __name__ == '__main__':
     results_el = run_decomposition(atoms_raw, contacts_raw, am_types, args.scale,
                                    plate_z, box_x, box_y, sigma_bulk=SIGMA_AM_ELECTRONIC)
 
+    # === THERMAL (ALL contacts) ===
+    print("\n" + "="*50)
+    print("THERMAL CONDUCTIVITY (ALL contacts)")
+    print("="*50)
+    all_types = list(type_map.keys())
+    results_th = run_decomposition(atoms_raw, contacts_raw, all_types, args.scale,
+                                   plate_z, box_x, box_y, sigma_bulk=K_SE_THERMAL)
+
     # Save results
     if results:
         # Add electronic results
@@ -422,6 +453,11 @@ if __name__ == '__main__':
             results['electronic_bulk_frac'] = results_el.get('bulk_resistance_fraction')
             results['electronic_n_nodes'] = results_el.get('n_nodes')
             results['electronic_n_edges'] = results_el.get('n_edges')
+        if results_th:
+            results['thermal_sigma_full'] = results_th.get('sigma_full')
+            results['thermal_sigma_full_mScm'] = results_th.get('sigma_full_mScm')
+            results['thermal_R_brug'] = results_th.get('R_brug_over_full')
+            results['thermal_bulk_frac'] = results_th.get('bulk_resistance_fraction')
 
         out_path = os.path.join(args.output, 'network_conductivity.json')
         with open(out_path, 'w') as f:

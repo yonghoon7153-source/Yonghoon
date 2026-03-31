@@ -25,40 +25,38 @@ from scipy.sparse.linalg import spsolve
 
 
 # LPSCl argyrodite grain interior conductivity (NOT pellet value)
-# σ_pellet ≈ 1.3 mS/cm includes pellet-level GB → double counting with network solver
-# σ_grain ≈ 3.0 mS/cm is the intrinsic single-crystal/grain interior value
-SIGMA_BULK_DEFAULT = 3.0e-3  # S/cm (grain interior)
+SIGMA_BULK_DEFAULT = 3.0e-3  # S/cm (grain interior, ionic)
+
+# NCM electronic conductivity (typical, SOC-dependent)
+SIGMA_AM_ELECTRONIC = 0.05  # S/cm (50 mS/cm, discharged NCM)
 
 
-def build_network(atoms_raw, contacts_raw, se_types, scale,
-                  plate_z, box_x=0.05, box_y=0.05, boundary_factor=2.0):
+def build_network(atoms_raw, contacts_raw, target_types, scale,
+                  plate_z, box_x=0.05, box_y=0.05, boundary_factor=2.0,
+                  mode='ionic'):
     """
-    Build SE-SE resistor network from DEM data.
-
-    Returns:
-        nodes: list of SE atom IDs
-        edges: list of (i, j, R_bulk, R_constriction, d_ij, A_contact)
-        bottom_ids: set of bottom boundary SE
-        top_ids: set of top boundary SE
+    Build resistor network from DEM data.
+    mode='ionic': SE-SE network (target_types = SE types)
+    mode='electronic': AM-AM network (target_types = AM types)
+    Returns nodes, edges, bottom/top boundary sets.
     """
-    se_ids = [aid for aid, a in atoms_raw.items() if a['type'] in se_types]
-    if not se_ids:
+    if not target_ids:
         return None
 
     # Boundary detection
-    r_se = atoms_raw[se_ids[0]]['radius']
+    r_se = atoms_raw[target_ids[0]]['radius']
     z_bottom = 0.0 + r_se * boundary_factor
     z_top = plate_z - r_se * boundary_factor
 
-    bottom_ids = {aid for aid in se_ids if atoms_raw[aid]['z'] <= z_bottom}
-    top_ids = {aid for aid in se_ids if atoms_raw[aid]['z'] >= z_top}
+    bottom_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] <= z_bottom}
+    top_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] >= z_top}
 
     # Build contact area map
     contact_area_map = {}
     for c in contacts_raw:
         id1, id2 = c['id1'], c['id2']
         if id1 in atoms_raw and id2 in atoms_raw:
-            if atoms_raw[id1]['type'] in se_types and atoms_raw[id2]['type'] in se_types:
+            if atoms_raw[id1]['type'] in target_types and atoms_raw[id2]['type'] in target_types:
                 pair = (min(id1, id2), max(id1, id2))
                 ca = c.get('contact_area', 0)
                 if ca > 0:
@@ -109,7 +107,7 @@ def build_network(atoms_raw, contacts_raw, se_types, scale,
         })
 
     return {
-        'nodes': se_ids,
+        'nodes': target_ids,
         'edges': edges,
         'bottom': bottom_ids,
         'top': top_ids,
@@ -260,7 +258,7 @@ def solve_network(network_data, mode='full'):
     return G_eff, sigma_ratio
 
 
-def run_decomposition(atoms_raw, contacts_raw, se_types, scale,
+def run_decomposition(atoms_raw, contacts_raw, target_types, scale,
                       plate_z, box_x=0.05, box_y=0.05,
                       sigma_bulk=SIGMA_BULK_DEFAULT):
     """
@@ -271,12 +269,12 @@ def run_decomposition(atoms_raw, contacts_raw, se_types, scale,
 
     Also computes Bruggeman prediction for comparison.
     """
-    print("  Building SE resistor network...")
-    net = build_network(atoms_raw, contacts_raw, se_types, scale,
+    print(f"  Building resistor network ({len(target_types)} target types)...")
+    net = build_network(atoms_raw, contacts_raw, target_types, scale,
                         plate_z, box_x, box_y)
 
     if net is None:
-        print("  No SE network found")
+        print("  No network found")
         return None
 
     n_nodes = len(net['nodes'])
@@ -373,7 +371,8 @@ if __name__ == '__main__':
         k, v = pair.split(':')
         type_map[int(k)] = v.strip()
 
-    se_types = [k for k, v in type_map.items() if v == 'SE']
+    target_types = [k for k, v in type_map.items() if v == 'SE']
+    am_types = [k for k, v in type_map.items() if 'AM' in v]
 
     # Load data
     atoms_raw, _ = load_atoms_raw(args.atoms_csv)
@@ -399,11 +398,31 @@ if __name__ == '__main__':
 
     print(f"box={box_x}×{box_y}, plate_z={plate_z:.6f}, scale={args.scale}")
 
-    # Run decomposition
-    results = run_decomposition(atoms_raw, contacts_raw, se_types, args.scale,
-                                plate_z, box_x, box_y)
+    # === IONIC (SE-SE network) ===
+    print("\n" + "="*50)
+    print("IONIC CONDUCTIVITY (SE-SE network)")
+    print("="*50)
+    results = run_decomposition(atoms_raw, contacts_raw, target_types, args.scale,
+                                plate_z, box_x, box_y, sigma_bulk=SIGMA_BULK_DEFAULT)
 
+    # === ELECTRONIC (AM-AM network) ===
+    print("\n" + "="*50)
+    print("ELECTRONIC CONDUCTIVITY (AM-AM network)")
+    print("="*50)
+    results_el = run_decomposition(atoms_raw, contacts_raw, am_types, args.scale,
+                                   plate_z, box_x, box_y, sigma_bulk=SIGMA_AM_ELECTRONIC)
+
+    # Save results
     if results:
+        # Add electronic results
+        if results_el:
+            results['electronic_sigma_full'] = results_el.get('sigma_full')
+            results['electronic_sigma_full_mScm'] = results_el.get('sigma_full_mScm')
+            results['electronic_R_brug'] = results_el.get('R_brug_over_full')
+            results['electronic_bulk_frac'] = results_el.get('bulk_resistance_fraction')
+            results['electronic_n_nodes'] = results_el.get('n_nodes')
+            results['electronic_n_edges'] = results_el.get('n_edges')
+
         out_path = os.path.join(args.output, 'network_conductivity.json')
         with open(out_path, 'w') as f:
             json.dump(results, f, indent=2)

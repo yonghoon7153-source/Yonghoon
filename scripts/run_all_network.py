@@ -131,7 +131,9 @@ def main():
                 results.append(res)
                 sigma = res.get('sigma_full_mScm', 'N/A')
                 r_brug = res.get('R_brug_over_full', 'N/A')
-                print(f"  → σ_full={sigma} mS/cm, R_brug={r_brug}× ({elapsed:.1f}s)")
+                el = res.get('electronic_sigma_full_mScm', '-')
+                th = res.get('thermal_sigma_full_mScm', '-')
+                print(f"  → ionic={sigma}, electronic={el}, thermal={th} mS/cm | R_brug={r_brug}× ({elapsed:.1f}s)")
             else:
                 print(f"  → FAILED: {proc.stderr[-200:] if proc.stderr else 'unknown'}")
                 errors.append(case['name'])

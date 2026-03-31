@@ -904,51 +904,14 @@ def plot_rgb_fitting(data_list, names, outdir):
     return _save(fig, outdir, "rgb_fitting.png")
 
 
-def plot_gb_corrected(data_list, names, outdir):
-    """GB-corrected effective conductivity: proxy, multi-scale, and network solver."""
-    alpha, ln_C, _, r2_check = _fit_r_gb(data_list, names)
-    SIGMA_BULK = 1.3  # mS/cm, Li₆PS₅Cl cold-pressed
-    C_proxy = np.exp(ln_C)
-    C_ms = 0.026  # multi-scale constant
-
-    sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
-    gb_dens = [_get(d, "gb_density_mean") for d in data_list]
-    thickness = [_get(d, "thickness_um", 100) for d in data_list]
-    phi = [_get(d, "phi_se") for d in data_list]
-    perc = [_get(d, "percolation_pct") / 100 for d in data_list]
-    tau = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)) for d in data_list]
-    hop = [_get(d, "path_hop_area_mean", 0) for d in data_list]
-    cn = [_get(d, "se_se_cn", 0) for d in data_list]
-
-    # 1. Proxy: σ_eff = σ_brug / (C × (GB_d²×T)^α)
-    sigma_proxy = []
-    for i in range(len(data_list)):
-        gb2t = gb_dens[i]**2 * thickness[i]
-        if gb2t > 0:
-            corr = C_proxy * gb2t**alpha
-            sigma_proxy.append(sigma_brug[i] / corr * SIGMA_BULK if corr > 0 else 0)
-        else:
-            sigma_proxy.append(0)
-
-    # 2. Multi-scale: σ_eff = σ_brug × C × √hop × CN² × GB_d^(4/3)
-    sigma_ms = []
-    for i in range(len(data_list)):
-        if hop[i] > 0 and cn[i] > 0 and gb_dens[i] > 0:
-            s = sigma_brug[i] * C_ms * np.sqrt(hop[i]) * cn[i]**2 * gb_dens[i]**(4/3)
-            sigma_ms.append(s * SIGMA_BULK)
-        else:
-            sigma_ms.append(0)
-
-    # 3. Network solver: from network_conductivity.json (if available)
+def _load_network_sigma(data_list):
+    """Load σ_full from network_conductivity.json for each case."""
     sigma_net = [0] * len(data_list)
-    # Try loading from input file directories (network_conductivity.json is next to full_metrics.json)
     for i, d in enumerate(data_list):
-        # First check if it's in the metrics directly
         net_val = _get(d, "sigma_full_mScm", 0)
         if net_val > 0:
             sigma_net[i] = net_val
         else:
-            # Try loading network_conductivity.json from same directory as input
             src = _get(d, "_source_path", "")
             if src:
                 net_path = os.path.join(os.path.dirname(src), "network_conductivity.json")
@@ -959,41 +922,139 @@ def plot_gb_corrected(data_list, names, outdir):
                         sigma_net[i] = nd.get("sigma_full_mScm", 0) or 0
                     except:
                         pass
+    return sigma_net
 
-    has_net = any(s > 0 for s in sigma_net)
-    has_ms = any(s > 0 for s in sigma_ms)
+
+def plot_gb_corrected(data_list, names, outdir):
+    """Part I: Proxy-based GB-corrected σ_eff using BLM+Constriction."""
+    alpha, ln_C, _, r2_check = _fit_r_gb(data_list, names)
+    SIGMA_BULK = 1.3
+    C = np.exp(ln_C)
+
+    sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
+    gb_dens = [_get(d, "gb_density_mean") for d in data_list]
+    thickness = [_get(d, "thickness_um", 100) for d in data_list]
+
+    sigma_corr = []
+    for i in range(len(data_list)):
+        gb2t = gb_dens[i]**2 * thickness[i]
+        if gb2t > 0:
+            correction = C * gb2t**alpha
+            sigma_corr.append(sigma_brug[i] / correction if correction > 0 else sigma_brug[i])
+        else:
+            sigma_corr.append(sigma_brug[i])
+    sigma_abs = [s * SIGMA_BULK for s in sigma_corr]
 
     fig, ax = plt.subplots(figsize=FIG_SINGLE)
     x = np.arange(len(names))
     ms = _marker_size(len(names))
     lw = _line_width(len(names))
 
-    # Plot multi-scale (main)
-    if has_ms:
-        ax.plot(x, sigma_ms, 's-', color=RED, markersize=ms, linewidth=lw,
-                label="Multi-scale (mS/cm)")
+    ax.plot(x, sigma_corr, 's-', color=RED, markersize=ms, linewidth=lw, label="σ_eff/σ_bulk")
+    _apply_style(ax, "σ_eff / σ_bulk (proxy)", names)
+    ax.tick_params(axis='y', labelcolor=RED)
 
-    # Plot network solver if available
-    if has_net:
-        ax.plot(x, sigma_net, 'D-', color='#2ecc71', markersize=ms, linewidth=lw,
-                label="Network solver (mS/cm)")
+    ax2 = ax.twinx()
+    ax2.plot(x, sigma_abs, 'D--', color=ORANGE, markersize=ms-2, linewidth=lw-0.5, label="σ_eff (mS/cm)")
+    ax2.set_ylabel("σ_eff (mS/cm)", fontsize=11, color=ORANGE)
+    ax2.tick_params(axis='y', labelcolor=ORANGE)
+    ax2.spines["top"].set_visible(False)
 
-    # Proxy excluded from main plot (too small, different scale)
-    # Saved in CSV for reference
-
-    _apply_style(ax, "σ_eff (mS/cm)", names)
-    ax.legend(fontsize=8, loc='best')
+    lines1, labels1 = ax.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='best')
     gb_src = "global" if _GLOBAL_RGB is not None else "local"
-    ax.set_title(f"σ_eff Comparison: Multi-scale vs Network vs Proxy\n"
-                 f"Multi-scale: σ_brug × 0.026 × √hop × CN² × GB_d^(4/3)",
-                 fontsize=9, fontweight='bold')
+    ax.set_title(f"Part I: Proxy σ_eff = σ_brug / C·(GB_d²·T)^α\nα={alpha:.2f}, R²={r2_check:.3f} [{gb_src}]",
+                 fontsize=10, fontweight='bold')
 
     _write_csv(outdir, 'gb_corrected.csv',
-               ['φ_SE', 'f_perc', 'τ', 'GB_d', 'T(μm)', 'CN', 'hop_area',
-                'σ_proxy(mS/cm)', 'σ_multiscale(mS/cm)', 'σ_network(mS/cm)'],
-               names, phi, perc, tau, gb_dens, thickness, cn, hop,
-               sigma_proxy, sigma_ms, sigma_net)
+               ['GB_d', 'T(μm)', 'GB_d²×T', 'σ_brug/σ_bulk', 'σ_eff/σ_bulk', 'σ_eff(mS/cm)'],
+               names, gb_dens, thickness,
+               [gb_dens[i]**2*thickness[i] for i in range(len(names))],
+               sigma_brug, sigma_corr, sigma_abs)
     return _save(fig, outdir, "gb_corrected.png")
+
+
+def plot_network_sigma(data_list, names, outdir):
+    """Part II: Network solver σ_full (ground truth)."""
+    SIGMA_BULK = 1.3
+    sigma_net = _load_network_sigma(data_list)
+    sigma_brug_abs = [_get(d, "sigma_ratio") * SIGMA_BULK for d in data_list]
+
+    if not any(s > 0 for s in sigma_net):
+        return None
+
+    fig, ax = plt.subplots(figsize=FIG_SINGLE)
+    x = np.arange(len(names))
+    ms = _marker_size(len(names))
+    lw = _line_width(len(names))
+
+    ax.plot(x, sigma_net, 's-', color='#2ecc71', markersize=ms, linewidth=lw,
+            label="σ_full (network)")
+    ax.plot(x, sigma_brug_abs, 'o--', color=BLUE, markersize=ms-2, linewidth=lw-0.5,
+            alpha=0.5, label="σ_brug (Bruggeman)")
+    _apply_style(ax, "σ_eff (mS/cm)", names)
+    ax.legend(fontsize=9, loc='best')
+    ax.set_title("Part II: Network Solver σ_full vs Bruggeman σ_brug",
+                 fontsize=10, fontweight='bold')
+
+    # R_brug annotation
+    r_brugs = [sigma_brug_abs[i]/sigma_net[i] if sigma_net[i] > 0 else 0 for i in range(len(names))]
+    valid_r = [r for r in r_brugs if r > 0]
+    if valid_r:
+        ax.text(0.95, 0.95, f"R_brug = {min(valid_r):.1f}~{max(valid_r):.1f}×\n(Bruggeman overestimation)",
+                transform=ax.transAxes, fontsize=9, ha='right', va='top',
+                bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.8))
+
+    _write_csv(outdir, 'network_sigma.csv',
+               ['σ_brug(mS/cm)', 'σ_full(mS/cm)', 'R_brug'],
+               names, sigma_brug_abs, sigma_net, r_brugs)
+    return _save(fig, outdir, "network_sigma.png")
+
+
+def plot_multiscale_sigma(data_list, names, outdir):
+    """Part III: Multi-scale model σ_eff = σ_brug × C × √hop × CN² × GB_d^(4/3)."""
+    SIGMA_BULK = 1.3
+    C_ms = 0.026
+
+    sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
+    gb_dens = [_get(d, "gb_density_mean") for d in data_list]
+    hop = [_get(d, "path_hop_area_mean", 0) for d in data_list]
+    cn = [_get(d, "se_se_cn", 0) for d in data_list]
+
+    sigma_ms = []
+    for i in range(len(data_list)):
+        if hop[i] > 0 and cn[i] > 0 and gb_dens[i] > 0:
+            s = sigma_brug[i] * C_ms * np.sqrt(hop[i]) * cn[i]**2 * gb_dens[i]**(4/3) * SIGMA_BULK
+            sigma_ms.append(s)
+        else:
+            sigma_ms.append(0)
+
+    # Network for comparison
+    sigma_net = _load_network_sigma(data_list)
+    has_net = any(s > 0 for s in sigma_net)
+
+    fig, ax = plt.subplots(figsize=FIG_SINGLE)
+    x = np.arange(len(names))
+    ms = _marker_size(len(names))
+    lw = _line_width(len(names))
+
+    ax.plot(x, sigma_ms, 's-', color=RED, markersize=ms, linewidth=lw,
+            label="Multi-scale (mS/cm)")
+    if has_net:
+        ax.plot(x, sigma_net, 'D--', color='#2ecc71', markersize=ms-2, linewidth=lw-0.5,
+                alpha=0.7, label="Network solver (mS/cm)")
+
+    _apply_style(ax, "σ_eff (mS/cm)", names)
+    ax.legend(fontsize=9, loc='best')
+    ax.set_title("Part III: Multi-scale σ_eff = σ_brug × C × √A_hop × CN² × GB_d^(4/3)\n"
+                 "R²=0.93, LOOCV R²=0.93, 1 free param",
+                 fontsize=9, fontweight='bold')
+
+    _write_csv(outdir, 'multiscale_sigma.csv',
+               ['GB_d', 'hop_area', 'CN', 'σ_multiscale(mS/cm)', 'σ_network(mS/cm)'],
+               names, gb_dens, hop, cn, sigma_ms, sigma_net)
+    return _save(fig, outdir, "multiscale_sigma.png")
 
 
 def plot_ion_path_quality(data_list, names, outdir):
@@ -1154,10 +1215,24 @@ PLOT_REGISTRY = {
     "gb_corrected": {
         "func": plot_gb_corrected,
         "file": "gb_corrected.png",
-        "title": "GB-Corrected σ_eff",
-        "description": "σ_eff = σ_brug / [C × (GB_d²×T)^α] [Proxy-based]\n= σ_bulk × φ_SE × f_perc / [τ² × C × (GB_d²×T)^α]\n\nτ²: 경로 기하 손실 | GB_d²×T: inter-particle contact 손실\nσ_bulk = 1.3 mS/cm (Li₆PS₅Cl)\n빨간: σ_eff/σ_bulk | 오렌지: σ_eff (mS/cm)\n\nNetwork solver 검증: R_brug=3~10×, constriction 69~81%\nMulti-scale: σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\n\n⚠ Proxy 기반 절대값은 참고용. Network solver σ_full이 정확한 예측.",
-        "origin_tip": "Line (Red, σ_corr/σ_bulk) + Dashed (Orange, mS/cm).",
+        "title": "Part I: Proxy σ_eff",
+        "description": "σ_eff = σ_brug / [C × (GB_d²×T)^α]\nPart I의 proxy 기반 보정. GB_d²×T scaling 발견.\n빨간: σ_eff/σ_bulk | 오렌지: σ_eff (mS/cm)\n⚠ 절대값은 single-path 과장 포함 (R=15~1600).\nPart II(Network), III(Multi-scale) 참조.",
+        "origin_tip": "Line (Red, ratio) + Dashed (Orange, mS/cm).",
         "min_groups": 2,
+    },
+    "network_sigma": {
+        "func": plot_network_sigma,
+        "file": "network_sigma.png",
+        "title": "Part II: Network σ_full",
+        "description": "DEM-native resistor network solver.\nR_bulk + R_constriction per edge, Kirchhoff 풀이.\n초록: σ_full (ground truth) | 파란: σ_brug (Bruggeman)\nR_brug = 3~10× (실험 τ_eff²≈4~5와 일치)\nConstriction 69~81% 지배.\nMinnmann(2021) 0.17 mS/cm과 same order.",
+        "origin_tip": "Green: Network solver, Blue dashed: Bruggeman.",
+    },
+    "multiscale_sigma": {
+        "func": plot_multiscale_sigma,
+        "file": "multiscale_sigma.png",
+        "title": "Part III: Multi-scale σ_eff",
+        "description": "σ_eff = σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\n√A_hop: Maxwell constriction (fit 0.525≈0.5)\nCN²: redundant path factor (fit 1.98≈2)\nGB_d^(4/3): mesh density + contact residual\nR²=0.93 (1 free param), LOOCV R²=0.93\nAblation: 모든 항 필수 (GB_d 없으면 R²→음수)",
+        "origin_tip": "Red: Multi-scale, Green dashed: Network solver (reference).",
     },
     "ion_path_quality": {
         "func": plot_ion_path_quality,

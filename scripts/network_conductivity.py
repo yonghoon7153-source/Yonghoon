@@ -462,9 +462,10 @@ if __name__ == '__main__':
                                 plate_z, box_x, box_y, sigma_bulk=SIGMA_BULK_DEFAULT,
                                 results_dir=args.output, type_map=type_map)
 
-    # === ELECTRONIC (AM-AM network) ===
+    # === ELECTRONIC / THERMAL — disabled for now, ionic only ===
     results_el = None
-    if am_types:
+    results_th = None
+    if False and am_types:
         print("\n" + "="*50)
         print("ELECTRONIC CONDUCTIVITY (AM-AM network)")
         print("="*50)
@@ -475,18 +476,12 @@ if __name__ == '__main__':
         except Exception as e:
             print(f"  Electronic solver failed: {e}")
 
-    # === THERMAL (ALL contacts) ===
-    results_th = None
-    try:
-        print("\n" + "="*50)
-        print("THERMAL CONDUCTIVITY (ALL contacts)")
-        print("="*50)
-        all_types = list(type_map.keys())
-        results_th = run_decomposition(atoms_raw, contacts_raw, all_types, args.scale,
-                                       plate_z, box_x, box_y, sigma_bulk=K_SE_THERMAL,
-                                       type_map=type_map)
-    except Exception as e:
-        print(f"  Thermal solver failed: {e}")
+    # THERMAL disabled — will be re-enabled after ionic bug fix
+    # if True:
+    #     all_types = list(type_map.keys())
+    #     results_th = run_decomposition(atoms_raw, contacts_raw, all_types, args.scale,
+    #                                    plate_z, box_x, box_y, sigma_bulk=K_SE_THERMAL,
+    #                                    type_map=type_map)
 
     # Save results (ionic is primary)
     if results:

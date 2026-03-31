@@ -499,6 +499,32 @@ def analyze(case_id):
         if result.get('success'):
             generate_report(case_id, meta.get('name', ''))
 
+            # Network conductivity solver (자동 실행)
+            try:
+                atoms_csv = os.path.join(results_dir, 'atoms.csv')
+                contacts_csv = os.path.join(results_dir, 'contacts.csv')
+                if os.path.exists(atoms_csv) and os.path.exists(contacts_csv):
+                    net_cmd = ['python3', os.path.join(app.config['SCRIPTS_FOLDER'], 'network_conductivity.py'),
+                               atoms_csv, contacts_csv, '-o', results_dir,
+                               '-t', meta['type_map'], '-s', str(meta.get('scale', 1000))]
+                    net_result = subprocess.run(net_cmd, capture_output=True, text=True, timeout=600)
+                    # Merge into full_metrics.json
+                    net_json = os.path.join(results_dir, 'network_conductivity.json')
+                    met_json = os.path.join(results_dir, 'full_metrics.json')
+                    if os.path.exists(net_json) and os.path.exists(met_json):
+                        with open(net_json) as _nf:
+                            net_data = json.load(_nf)
+                        with open(met_json) as _mf:
+                            met_data = json.load(_mf)
+                        for k in ['sigma_full', 'sigma_full_mScm', 'sigma_bulk_net',
+                                  'sigma_bulk_net_mScm', 'R_brug_over_full', 'bulk_resistance_fraction']:
+                            if k in net_data and net_data[k] is not None:
+                                met_data[k] = net_data[k]
+                        with open(met_json, 'w') as _mf:
+                            json.dump(met_data, _mf, indent=2, default=str)
+            except Exception as e:
+                print(f"  Network solver failed: {e}")
+
         # Sync results + updated meta to Supabase
         storage_sync.sync_dir_to_remote(case_dir, f'uploads/{case_id}')
         storage_sync.sync_dir_to_remote(results_dir, f'results/{case_id}')

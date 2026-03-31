@@ -326,7 +326,7 @@ def plot_percolation_tortuosity(all_data, names, ax=None):
     xs = list(range(len(names)))
     perc = [_get(d, "percolation_pct") for d in all_data]
     top_reach = [_get(d, "top_reachable_pct") for d in all_data]
-    tort = [_get(d, "tortuosity_mean") for d in all_data]
+    tort = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean")) for d in all_data]
 
     ax.plot(xs, perc, marker="s", color=BLUE, linewidth=2, markersize=8,
             zorder=3, label="Percolation %")

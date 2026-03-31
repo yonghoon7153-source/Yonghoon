@@ -62,7 +62,7 @@ def build_network(atoms_raw, contacts_raw, target_types, scale,
             with open(perc_path) as f:
                 perc_sets = json.load(f)
             bottom_ids = {int(x) for x in perc_sets.get('bottom_se', [])} & set(target_ids)
-            top_ids = {int(x) for x in perc_sets.get('top_reachable', [])} & set(target_ids)
+            top_ids = {int(x) for x in perc_sets.get('top_se', [])} & set(target_ids)
             if bottom_ids and top_ids:
                 print(f"  Boundaries from percolation_sets.json: {len(bottom_ids)} bottom, {len(top_ids)} top_reachable")
 

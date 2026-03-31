@@ -504,9 +504,19 @@ $$\sigma_{full} = G_{eff} \times \frac{T}{A_{electrode}} \times \sigma_{grain}$$
 
 문헌에서 "σ_bulk = 1.3 mS/cm"로 보고하는 값은 실제로 **σ_pellet**이며, pellet 내부의 SE-SE 접촉 저항이 이미 포함되어 있다. Network solver는 복합양극 내 모든 SE-SE 접촉을 명시적으로 계산하므로, σ_pellet을 사용하면 접촉 저항이 **이중으로 적용**된다.
 
-따라서 본 모델에서는 **σ_grain ≈ 3.0 mS/cm** (argyrodite 단결정/grain interior)를 사용한다. 이로써:
-- σ_full = 0.085 mS/cm (σ_pellet 사용) → **0.196 mS/cm** (σ_grain 사용)
-- Minnmann (2021) 실험값 0.17 mS/cm와 **거의 일치** (1.15×)
+따라서 본 모델에서는 **σ_grain ≈ 3.0 mS/cm** (argyrodite grain interior)를 사용한다.
+
+**σ_grain = 3.0 mS/cm 근거:**
+- MLIP MD (UMA potential): σ₃₀₀K = 3.0 mS/cm, Ea = 0.286 eV (perfect crystal, no GB)
+- Second-sintered pellet: 최대 3.19 mS/cm (ScienceDirect)
+- Hot-pressed pellet (150°C, 300 MPa): >2.0 mS/cm (ACS Publications)
+- 일반 합성: ~2.6 mS/cm (RSC Publishing)
+- 실험 pellet(~2~3 mS/cm)은 잔여 GB를 포함하므로, 순수 grain interior는 3.0+ mS/cm이 physically consistent
+
+**실험적 역검증:**
+- σ_pellet(1.3) 사용 시: σ_full = 0.085 mS/cm → Minnmann 대비 **2× 과소** (이중 적용)
+- σ_grain(3.0) 사용 시: σ_full = 0.196 mS/cm → Minnmann 대비 **1.15×** (**거의 일치**)
+- σ_grain이 올바른 선택임을 Minnmann 실험이 독립적으로 뒷받침
 
 *정규화:* 계산은 ρ=1 (정규화)로 수행한 후, 최종값에 σ_grain을 곱하여 mS/cm로 변환. σ_grain 값에 무관하게 스케일링 관계가 유지된다.
 

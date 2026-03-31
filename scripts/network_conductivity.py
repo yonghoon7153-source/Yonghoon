@@ -53,50 +53,11 @@ def build_network(atoms_raw, contacts_raw, target_types, scale,
     if not target_ids:
         return None
 
-    # Boundary detection: use percolation_sets.json if available (ionic)
+    # Boundary detection: z-coordinate based (consistent with EIS measurement)
     bottom_ids = None
     top_ids = None
-    if mode == 'ionic' and results_dir:
-        perc_path = os.path.join(results_dir, 'percolation_sets.json')
-        if os.path.exists(perc_path):
-            with open(perc_path) as f:
-                perc_sets = json.load(f)
-            bottom_ids = {int(x) for x in perc_sets.get('bottom_se', [])} & set(target_ids)
-            top_ids = {int(x) for x in perc_sets.get('top_se', [])} & set(target_ids)
 
-            # Extended sink: add dead-end branch endpoints
-            # top_reachable but NOT percolating → dead-end branches
-            # Find lowest-z SE in each dead-end branch → additional sink
-            top_reachable = {int(x) for x in perc_sets.get('top_reachable', [])} & set(target_ids)
-            percolating = set()
-            # Build quick graph to find percolating component
-            import networkx as nx
-            G_quick = nx.Graph()
-            for c in contacts_raw:
-                id1, id2 = c['id1'], c['id2']
-                if id1 in atoms_raw and id2 in atoms_raw:
-                    if atoms_raw[id1]['type'] in target_types and atoms_raw[id2]['type'] in target_types:
-                        G_quick.add_edge(id1, id2)
-            for comp in nx.connected_components(G_quick):
-                if (comp & bottom_ids) and (comp & top_ids):
-                    percolating |= comp
-
-            dead_end_se = top_reachable - percolating
-            if dead_end_se:
-                # Find dead-end branches (connected components of dead_end SE)
-                dead_subgraph = G_quick.subgraph(dead_end_se)
-                dead_endpoints = set()
-                for comp in nx.connected_components(dead_subgraph):
-                    # Lowest z SE in each dead-end branch = endpoint (farthest from top)
-                    lowest = min(comp, key=lambda sid: atoms_raw[sid]['z'])
-                    dead_endpoints.add(lowest)
-                bottom_ids = bottom_ids | dead_endpoints
-                print(f"  Extended sink: +{len(dead_endpoints)} dead-end endpoints (from {len(dead_end_se)} dead-end SE)")
-
-            if bottom_ids and top_ids:
-                print(f"  Boundaries: {len(bottom_ids)} bottom(+dead-ends), {len(top_ids)} top_se")
-
-    # Fallback: z-coordinate based (electronic, thermal, or no percolation_sets)
+    # z-coordinate based boundaries
     if not bottom_ids or not top_ids:
         r_ref = atoms_raw[target_ids[0]]['radius']
         z_bottom = 0.0 + r_ref * boundary_factor
@@ -104,61 +65,9 @@ def build_network(atoms_raw, contacts_raw, target_types, scale,
         bottom_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] <= z_bottom}
         top_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] >= z_top}
 
-        # Electronic mode: AM percolation + dead-end extension
-        # e⁻ flows bottom(CC)→top, AM needs bottom_reachable
-        if mode == 'electronic' and bottom_ids and top_ids:
-            import networkx as nx
-            G_am = nx.Graph()
-            for c in contacts_raw:
-                id1, id2 = c['id1'], c['id2']
-                if id1 in atoms_raw and id2 in atoms_raw:
-                    if atoms_raw[id1]['type'] in target_types and atoms_raw[id2]['type'] in target_types:
-                        G_am.add_edge(id1, id2)
-
-            # AM percolation analysis (mirror of SE percolation)
-            bottom_reachable_am = set()
-            percolating_am = set()
-            top_am_set = top_ids.copy()
-            bottom_am_set = bottom_ids.copy()
-            n_components_am = 0
-            for comp in nx.connected_components(G_am):
-                n_components_am += 1
-                has_bot = len(comp & bottom_am_set) > 0
-                has_top = len(comp & top_am_set) > 0
-                if has_bot:
-                    bottom_reachable_am |= comp
-                if has_bot and has_top:
-                    percolating_am |= comp
-
-            am_perc_pct = len(percolating_am) / len(target_ids) * 100 if target_ids else 0
-            am_bottom_reach_pct = len(bottom_reachable_am) / len(target_ids) * 100 if target_ids else 0
-            print(f"  AM percolation: {am_perc_pct:.1f}%, bottom_reachable: {am_bottom_reach_pct:.1f}%, clusters: {n_components_am}")
-
-            # Save AM percolation sets (same format as SE)
-            if results_dir:
-                am_perc_path = os.path.join(results_dir, 'am_percolation_sets.json')
-                am_perc_data = {
-                    'bottom_am': sorted(list(bottom_am_set)),
-                    'top_am': sorted(list(top_am_set)),
-                    'bottom_reachable': sorted(list(bottom_reachable_am)),
-                    'percolating_am': sorted(list(percolating_am)),
-                    'percolation_pct': round(am_perc_pct, 2),
-                    'bottom_reachable_pct': round(am_bottom_reach_pct, 2),
-                    'n_components': n_components_am,
-                }
-                with open(am_perc_path, 'w') as f:
-                    json.dump(am_perc_data, f, indent=2)
-
-            # Dead-end extension: bottom-reachable but not top-reaching AM
-            dead_end_am = bottom_reachable_am - percolating_am
-            if dead_end_am:
-                dead_subgraph = G_am.subgraph(dead_end_am)
-                dead_endpoints = set()
-                for comp in nx.connected_components(dead_subgraph):
-                    highest = max(comp, key=lambda aid: atoms_raw[aid]['z'])
-                    dead_endpoints.add(highest)
-                top_ids = top_ids | dead_endpoints
-                print(f"  AM extended sink: +{len(dead_endpoints)} dead-end endpoints (from {len(dead_end_am)} dead-end AM)")
+        # Note: AM percolation analysis and dead-end extension removed
+        # z-coordinate boundaries are sufficient and avoid short-circuit issues
+        pass
 
     # Determine SE types for thermal mode
     se_type_set = set()

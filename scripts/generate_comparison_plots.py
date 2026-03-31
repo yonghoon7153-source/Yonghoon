@@ -1234,6 +1234,114 @@ PLOT_REGISTRY = {
         "description": "σ_eff = σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\n√A_hop: Maxwell constriction (fit 0.525≈0.5)\nCN²: redundant path factor (fit 1.98≈2)\nGB_d^(4/3): mesh density + contact residual\nR²=0.93 (1 free param), LOOCV R²=0.93\nAblation: 모든 항 필수 (GB_d 없으면 R²→음수)",
         "origin_tip": "Red: Multi-scale, Green dashed: Network solver (reference).",
     },
+def plot_sigma_decomposition(data_list, names, outdir):
+    """Decompose σ_eff into Bruggeman + contact terms. Show which factor dominates."""
+    SIGMA_BULK = 1.3
+    C_ms = 0.026
+
+    sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
+    gb_dens = [_get(d, "gb_density_mean") for d in data_list]
+    hop = [_get(d, "path_hop_area_mean", 0) for d in data_list]
+    cn = [_get(d, "se_se_cn", 0) for d in data_list]
+    phi = [_get(d, "phi_se") for d in data_list]
+    tau = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)) for d in data_list]
+    f_perc = [_get(d, "percolation_pct") / 100 for d in data_list]
+
+    n = len(data_list)
+    # Decompose log(σ_eff) = log(σ_bulk) + log(φ_SE) + log(f_perc) - 2log(τ) + log(C) + 0.5log(hop) + 2log(CN) + 4/3 log(GB_d)
+    log_phi = np.array([np.log(phi[i]) if phi[i] > 0 else 0 for i in range(n)])
+    log_fperc = np.array([np.log(f_perc[i]) if f_perc[i] > 0 else 0 for i in range(n)])
+    log_tau2 = np.array([-2 * np.log(tau[i]) if tau[i] > 0 else 0 for i in range(n)])
+    log_hop = np.array([0.5 * np.log(hop[i]) if hop[i] > 0 else 0 for i in range(n)])
+    log_cn2 = np.array([2 * np.log(cn[i]) if cn[i] > 0 else 0 for i in range(n)])
+    log_gbd = np.array([4/3 * np.log(gb_dens[i]) if gb_dens[i] > 0 else 0 for i in range(n)])
+
+    # Normalize: relative to first case (show changes)
+    ref = 0  # reference case index
+    d_phi = log_phi - log_phi[ref]
+    d_tau = log_tau2 - log_tau2[ref]
+    d_hop = log_hop - log_hop[ref]
+    d_cn = log_cn2 - log_cn2[ref]
+    d_gbd = log_gbd - log_gbd[ref]
+
+    fig, axes = plt.subplots(2, 1, figsize=(max(8, len(names)*0.7), 10), gridspec_kw={'height_ratios': [2, 1]})
+
+    # Top: σ_eff with each factor's contribution as stacked
+    ax = axes[0]
+    x = np.arange(n)
+    w = 0.6
+
+    # Stacked bar: each factor's log contribution (relative to reference)
+    colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6']
+    labels = ['φ_SE', 'τ²', '√A_hop', 'CN²', 'GB_d^(4/3)']
+    contributions = [d_phi, d_tau, d_hop, d_cn, d_gbd]
+
+    # Positive and negative stacking
+    pos_bottom = np.zeros(n)
+    neg_bottom = np.zeros(n)
+    for j, (contrib, color, label) in enumerate(zip(contributions, colors, labels)):
+        pos = np.maximum(contrib, 0)
+        neg = np.minimum(contrib, 0)
+        ax.bar(x, pos, w, bottom=pos_bottom, color=color, label=label, alpha=0.8, edgecolor='white', linewidth=0.5)
+        ax.bar(x, neg, w, bottom=neg_bottom, color=color, alpha=0.4, edgecolor='white', linewidth=0.5)
+        pos_bottom += pos
+        neg_bottom += neg
+
+    ax.axhline(0, color='gray', linewidth=0.5)
+    ax.set_ylabel('Δlog(σ_eff) from reference', fontsize=11)
+    ax.set_title(f'σ_eff Factor Decomposition (ref: {names[ref]})', fontsize=12, fontweight='bold')
+    ax.legend(fontsize=8, loc='best', ncol=3)
+    ax.set_xticks(x)
+    ax.set_xticklabels(names, rotation=45, ha='right', fontsize=8)
+    ax.yaxis.grid(True, linestyle='--', alpha=0.5)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    # Bottom: dominant factor for each case
+    ax2 = axes[1]
+    # Find which factor has largest |contribution| for each case
+    all_contribs = np.array(contributions)  # (5, n)
+    dominant_idx = np.argmax(np.abs(all_contribs), axis=0)
+
+    for i in range(n):
+        if i == ref:
+            ax2.barh(i, 0, color='gray')
+            continue
+        vals = all_contribs[:, i]
+        sorted_idx = np.argsort(np.abs(vals))[::-1]
+        # Show top 3 contributors
+        y_pos = i
+        for rank, j in enumerate(sorted_idx[:3]):
+            ax2.barh(y_pos, vals[j], height=0.25, left=0,
+                    color=colors[j], alpha=0.9 - rank*0.25,
+                    edgecolor='white', linewidth=0.5)
+
+    ax2.set_yticks(range(n))
+    ax2.set_yticklabels(names, fontsize=8)
+    ax2.set_xlabel('Factor contribution (Δlog)', fontsize=10)
+    ax2.set_title('Dominant factors per case', fontsize=11, fontweight='bold')
+    ax2.axvline(0, color='gray', linewidth=0.5)
+    ax2.spines['top'].set_visible(False)
+    ax2.spines['right'].set_visible(False)
+    # Legend
+    from matplotlib.patches import Patch
+    legend_elements = [Patch(facecolor=c, label=l) for c, l in zip(colors, labels)]
+    ax2.legend(handles=legend_elements, fontsize=7, loc='lower right', ncol=3)
+
+    plt.tight_layout()
+    _write_csv(outdir, 'sigma_decomposition.csv',
+               ['φ_SE(Δlog)', 'τ²(Δlog)', '√hop(Δlog)', 'CN²(Δlog)', 'GB_d(Δlog)'],
+               names, list(d_phi), list(d_tau), list(d_hop), list(d_cn), list(d_gbd))
+    return _save(fig, outdir, "sigma_decomposition.png")
+
+
+    "sigma_decomposition": {
+        "func": plot_sigma_decomposition,
+        "file": "sigma_decomposition.png",
+        "title": "σ_eff Factor Decomposition",
+        "description": "σ_eff = σ_brug × C × √A_hop × CN² × GB_d^(4/3) 각 항의 기여도 분해.\n\n위: stacked bar — 첫 케이스 대비 각 인자의 log 기여도 변화\n아래: 케이스별 dominant factor\n\n파란: φ_SE | 빨간: τ² | 초록: √A_hop | 주황: CN² | 보라: GB_d\n\n어떤 설계 변수가 σ_eff 변화를 지배하는지 직관적으로 확인.",
+        "origin_tip": "Stacked bar (top) + Horizontal bar (bottom).",
+    },
     "ion_path_quality": {
         "func": plot_ion_path_quality,
         "file": "ion_path_quality.png",

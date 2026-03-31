@@ -371,13 +371,125 @@ Part I의 proxy 모델은 상대적 스케일링(GB_d²×T)을 발견하는 "dis
 
 ## 13. 방법론: DEM-Native Resistor Network
 
-Ketter/Zeier (Nat Comm 2025)의 voxel 기반 방식과 달리, DEM 입자 네트워크를 직접 사용:
+### 13.1 개요
 
-- **Edge 저항**: R_edge = R_bulk + R_constriction (R_bulk = d/(σ×πr²), R_constr = 1/(σ×2a))
-- **Solver**: Kirchhoff 법칙 (sparse Laplacian, scipy)
-- **Three-mode decomposition**: FULL / BULK_ONLY / CONSTRICTION_ONLY
+Ketter/Zeier (Nat Comm 2025)의 voxel 기반 방식과 달리, DEM 입자 네트워크를 직접 사용한다. Voxel 방식은 입자를 격자(voxel)로 변환하는 과정에서 접촉 기하학 정보가 손실되고, 면접촉만 표현 가능하다. 본 방법은 DEM에서 직접 추출한 입자 좌표, 반지름, 접촉면적을 그대로 사용하여 **Maxwell constriction resistance를 명시적으로 포함**한다.
 
-핵심 차별점: **constriction을 명시적으로 포함** (voxel 방식은 면접촉이라 불가능).
+### 13.2 Step 1: SE 접촉 네트워크 구성
+
+DEM contact dump에서 SE-SE 접촉만 추출하여 그래프를 구성한다:
+- **노드(Node)**: 각 SE 입자 (ID, 위치 x/y/z, 반지름 r)
+- **엣지(Edge)**: SE-SE 접촉 (입자 쌍, 접촉면적 A_contact)
+
+```
+SE network graph:
+  Node = SE 입자 (수천~수만 개)
+  Edge = SE-SE 접촉 (수만~수십만 개)
+  
+  예: 후막 75:25 → 234,088 nodes, 686,756 edges
+```
+
+### 13.3 Step 2: 엣지별 물리적 저항 계산
+
+각 SE-SE 접촉(edge)에 두 가지 저항을 부여한다:
+
+**① Bulk resistance (입자 내부 이온 전도)**
+
+$$R_{bulk} = \frac{d_{ij}/2}{\sigma_{SE} \cdot \pi r_i^2} + \frac{d_{ij}/2}{\sigma_{SE} \cdot \pi r_j^2}$$
+
+- d_ij: 입자 i, j 중심 간 거리 (주기경계 보정)
+- r_i, r_j: 입자 반지름
+- 각 입자의 절반 거리를 통과하는 bulk 전도 경로
+
+**② Constriction resistance (접촉 목 병목)**
+
+$$R_{constriction} = \frac{1}{\sigma_{SE} \cdot 2a_{ij}}$$
+
+- a_ij = √(A_contact / π): 접촉 반경 (DEM에서 직접 추출)
+- Maxwell spreading resistance 공식 (Holm, 1967)
+
+**③ 합산**
+
+$$R_{edge} = R_{bulk} + R_{constriction}$$
+
+```
+실측 비율:
+  R_bulk : R_constriction ≈ 24% : 76% (SE 0.5μm 평균)
+  → Constriction이 저항의 대부분을 차지
+```
+
+### 13.4 Step 3: Conductance Matrix (Laplacian) 조립
+
+각 edge의 conductance g_ij = 1/R_edge를 사용하여 **graph Laplacian 행렬** L을 구성한다:
+
+```python
+# 각 SE-SE 접촉에 대해:
+g = 1.0 / R_edge
+
+L[i][i] += g    # 대각: 노드 i에 연결된 전체 conductance
+L[j][j] += g
+L[i][j] -= g    # 비대각: 노드 i-j 간 conductance (음수)
+L[j][i] -= g
+```
+
+L은 sparse matrix (scipy.sparse.csr_matrix)로 구성하여 메모리 효율적으로 처리한다.
+
+### 13.5 Step 4: 경계조건 및 Kirchhoff 풀이
+
+**경계조건 설정:**
+- Bottom SE (z ≤ z_bottom): virtual **source** 노드에 연결 (대전도도 g=10⁶)
+- Top SE (z ≥ z_top): virtual **sink** 노드에 연결 (대전도도 g=10⁶)
+- 전류 주입: I_source = +1, I_sink = -1
+- V_sink = 0으로 고정 (접지)
+
+**연립방정식:**
+
+$$\mathbf{L} \cdot \mathbf{V} = \mathbf{I}$$
+
+```python
+# scipy sparse solver
+V = scipy.sparse.linalg.spsolve(L, I)
+
+# 유효 conductance
+G_eff = 1.0 / V_source  # (I=1이므로 G=I/V=1/V_source)
+```
+
+Percolating component만 사용 (bottom↔top 연결된 connected component). 고립된 SE 입자는 제외하여 singular matrix 방지.
+
+### 13.6 Step 5: σ_full 산출
+
+$$\sigma_{full} = G_{eff} \times \frac{T}{A_{electrode}}$$
+
+- T: 전극 두께 (plate_z × scale, μm)
+- A_electrode: 전극 단면적 (box_x × box_y × scale², μm²)
+
+**정규화:** 계산은 ρ_SE = 1 (정규화)로 수행한 후, 최종값에 σ_bulk (1.3 mS/cm)를 곱하여 mS/cm 단위로 변환한다. 이 방식의 장점은 σ_bulk 값에 무관하게 스케일링 관계가 유지된다는 것이다.
+
+### 13.7 Three-Mode Decomposition
+
+동일한 네트워크에서 edge 저항 구성만 바꿔 3번 풀이:
+
+| Mode | R_edge | 물리적 의미 |
+|------|--------|-----------|
+| **FULL** | R_bulk + R_constriction | Ground truth (실제 σ_eff) |
+| **BULK_ONLY** | R_bulk only (R_constr=0) | 접촉이 완벽할 때 (≈Bruggeman) |
+| **CONSTRICTION_ONLY** | R_constriction only (R_bulk=0) | 접촉만의 기여 |
+
+이 분해를 통해:
+- **R_brug = σ_bulk_net / σ_full**: Bruggeman이 얼마나 과대평가하는지
+- **Constriction 기여**: R_bulk/(R_bulk+R_constr) = 19~31% → constriction이 69~81% 지배
+- **σ_bulk_net ≈ Bruggeman 검증**: bulk-only network가 Bruggeman 근사와 유사한지 확인
+
+### 13.8 Ketter (2025) 대비 차별점
+
+| | Ketter (Nat Comm 2025) | 본 연구 |
+|---|---|---|
+| 입력 | FIB-SEM/voxel | DEM 입자 좌표 + 접촉면적 |
+| 노드 | voxel 중심 | SE 입자 중심 |
+| 연결 | 인접 voxel (면접촉) | SE-SE 접촉 (점접촉) |
+| Constriction | ❌ 불가능 | ✅ Maxwell R=ρ/(2a) |
+| 분해 | ❌ | ✅ FULL/BULK/CONSTR 3-mode |
+| 코드 | Münster datastore | `scripts/network_conductivity.py` |
 
 ## 14. 결과 (n=41, 82 runs)
 

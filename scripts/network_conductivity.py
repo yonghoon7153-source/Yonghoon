@@ -72,7 +72,7 @@ def build_network(atoms_raw, contacts_raw, target_types, scale,
         z_bottom = 0.0 + r_ref * boundary_factor
         z_top = plate_z - r_ref * boundary_factor
         bottom_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] <= z_bottom}
-    top_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] >= z_top}
+        top_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] >= z_top}
 
     # Determine SE types for thermal mode
     se_type_set = set()
@@ -123,14 +123,33 @@ def build_network(atoms_raw, contacts_raw, target_types, scale,
         r1 = a1['radius'] * scale
         r2 = a2['radius'] * scale
 
-        # Normalized resistances (ρ=1):
-        # R_bulk = d / (π × r²)  for each half-hop through particle
-        R_bulk_1 = (d_ij / 2) / (np.pi * r1**2) if r1 > 0 else 0
-        R_bulk_2 = (d_ij / 2) / (np.pi * r2**2) if r2 > 0 else 0
+        # Thermal mode: material-specific conductivity weighting
+        # k_AM ≈ 4.0 W/m·K, k_SE ≈ 0.7 W/m·K
+        # AM-AM: weight=k_AM/k_SE, SE-SE: weight=1, AM-SE: harmonic mean
+        if mode == 'thermal' and se_type_set:
+            t1_is_se = a1['type'] in se_type_set
+            t2_is_se = a2['type'] in se_type_set
+            k_ratio = K_AM_THERMAL / K_SE_THERMAL  # ~5.7
+            if not t1_is_se and not t2_is_se:
+                # AM-AM: high thermal conductivity
+                k_weight = k_ratio
+            elif t1_is_se and t2_is_se:
+                # SE-SE: baseline
+                k_weight = 1.0
+            else:
+                # AM-SE: harmonic mean
+                k_weight = 2 * k_ratio / (1 + k_ratio)
+        else:
+            k_weight = 1.0
+
+        # Normalized resistances (ρ=1, scaled by k_weight for thermal):
+        # R_bulk = d / (k_weight × π × r²)
+        R_bulk_1 = (d_ij / 2) / (k_weight * np.pi * r1**2) if r1 > 0 else 0
+        R_bulk_2 = (d_ij / 2) / (k_weight * np.pi * r2**2) if r2 > 0 else 0
         R_bulk = R_bulk_1 + R_bulk_2
 
-        # R_constriction = 1 / (2a)  (Maxwell spreading)
-        R_constriction = 1.0 / (2 * a_contact) if a_contact > 0 else 1e12
+        # R_constriction = 1 / (k_weight × 2a)  (Maxwell spreading)
+        R_constriction = 1.0 / (k_weight * 2 * a_contact) if a_contact > 0 else 1e12
 
         edges.append({
             'id1': id1, 'id2': id2,
@@ -295,7 +314,8 @@ def solve_network(network_data, mode='full'):
 
 def run_decomposition(atoms_raw, contacts_raw, target_types, scale,
                       plate_z, box_x=0.05, box_y=0.05,
-                      sigma_bulk=SIGMA_BULK_DEFAULT, results_dir=None):
+                      sigma_bulk=SIGMA_BULK_DEFAULT, results_dir=None,
+                      type_map=None):
     """
     Run full decomposition analysis:
     1. FULL (bulk + constriction)
@@ -306,7 +326,8 @@ def run_decomposition(atoms_raw, contacts_raw, target_types, scale,
     """
     print(f"  Building resistor network ({len(target_types)} target types)...")
     net = build_network(atoms_raw, contacts_raw, target_types, scale,
-                        plate_z, box_x, box_y, results_dir=results_dir)
+                        plate_z, box_x, box_y, results_dir=results_dir,
+                        type_map=type_map)
 
     if net is None:
         print("  No network found")
@@ -439,14 +460,15 @@ if __name__ == '__main__':
     print("="*50)
     results = run_decomposition(atoms_raw, contacts_raw, target_types, args.scale,
                                 plate_z, box_x, box_y, sigma_bulk=SIGMA_BULK_DEFAULT,
-                                results_dir=args.output)
+                                results_dir=args.output, type_map=type_map)
 
     # === ELECTRONIC (AM-AM network) ===
     print("\n" + "="*50)
     print("ELECTRONIC CONDUCTIVITY (AM-AM network)")
     print("="*50)
     results_el = run_decomposition(atoms_raw, contacts_raw, am_types, args.scale,
-                                   plate_z, box_x, box_y, sigma_bulk=SIGMA_AM_ELECTRONIC)
+                                   plate_z, box_x, box_y, sigma_bulk=SIGMA_AM_ELECTRONIC,
+                                   type_map=type_map)
 
     # === THERMAL (ALL contacts) ===
     print("\n" + "="*50)
@@ -454,7 +476,8 @@ if __name__ == '__main__':
     print("="*50)
     all_types = list(type_map.keys())
     results_th = run_decomposition(atoms_raw, contacts_raw, all_types, args.scale,
-                                   plate_z, box_x, box_y, sigma_bulk=K_SE_THERMAL)
+                                   plate_z, box_x, box_y, sigma_bulk=K_SE_THERMAL,
+                                   type_map=type_map)
 
     # Save results
     if results:

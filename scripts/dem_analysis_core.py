@@ -383,10 +383,10 @@ def calc_ionic_active_am(atoms, contacts, perc_result, se_types, am_types, type_
 
 def calc_contact_force_distribution(atoms, contacts, type_map, scale):
     """Normal force distribution by contact type. Returns stats in real units (μN)."""
-    # Force conversion: sim N → real μN = sim / scale² × 1e6
-    # In DEM: F_sim = E_sim * L_sim² proportional quantities
-    # Real force = F_sim / scale² (length²) × 1e6 (N→μN)
-    force_conv = 1.0 / (scale ** 2) * 1e6
+    # DEM scaling: E_sim = E_real/scale, R_sim = R_real×scale → k preserved
+    # δ_sim = δ_real × scale → F_sim = k×δ_sim = F_real × scale
+    # F_real(N) = F_sim / scale,  F_real(μN) = F_sim × (1e6/scale) = F_sim × scale (for scale=1000)
+    force_conv = 1e6 / scale  # sim(N) → real(μN)
 
     forces_by_type = defaultdict(list)
     for c in contacts:
@@ -413,10 +413,10 @@ def calc_contact_force_distribution(atoms, contacts, type_map, scale):
 
 def calc_contact_pressure(atoms, contacts, type_map, scale):
     """Contact pressure = Fn / contact_area per contact. Returns stats in MPa."""
-    # Pressure = Force / Area. In sim units pressure is already Pa-like.
-    # Real pressure = F_real(N) / A_real(m²)
-    # F_real = F_sim / scale², A_real = A_sim / scale²  → P_real = F_sim / A_sim (same ratio!)
-    # Convert to MPa: / 1e6
+    # P_real = P_sim × scale (∵ E_sim = E_real/scale → σ_sim = σ_real/scale)
+    # P_sim(Pa) = F_sim / A_sim,  P_real(Pa) = P_sim × scale
+    # P_real(MPa) = F_sim / A_sim × scale / 1e6
+    pressure_conv = scale / 1e6  # sim(Pa) → real(MPa)
     pressures_by_type = defaultdict(list)
     for c in contacts:
         if c['id1'] in atoms and c['id2'] in atoms:
@@ -427,7 +427,7 @@ def calc_contact_pressure(atoms, contacts, type_map, scale):
             t2 = type_map.get(atoms[c['id2']]['type'], '?')
             ct = '-'.join(sorted([t1, t2]))
             fn = c.get('fn', 0) or np.sqrt(c.get('fn_x', 0)**2 + c.get('fn_y', 0)**2 + c.get('fn_z', 0)**2)
-            pressure = fn / ca / 1e6  # Pa → MPa
+            pressure = fn / ca * pressure_conv  # real MPa
             pressures_by_type[ct].append(pressure)
 
     result = {}

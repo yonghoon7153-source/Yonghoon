@@ -978,7 +978,6 @@ def plot_gb_corrected(data_list, names, outdir):
 def plot_ionic_scaling_fit(data_list, names, outdir):
     """Ionic scaling law fit: σ_predicted vs σ_actual scatter (log-log)."""
     SIGMA_BULK = 3.0
-    C_ms = 0.026
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     gb_dens = [_get(d, "gb_density_mean") for d in data_list]
@@ -986,20 +985,25 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     cn = [_get(d, "se_se_cn", 0) for d in data_list]
     sigma_net = _load_network_sigma(data_list)
 
-    # Compute predicted σ
-    sigma_pred = []
+    # Compute σ_brug × √A_hop × CN² × GB_d^(4/3) (without C)
+    sigma_raw = []  # σ_brug × √hop × CN² × GB_d^(4/3) × σ_grain
     valid_idx = []
     for i in range(len(data_list)):
-        if hop[i] > 0 and cn[i] > 0 and gb_dens[i] > 0 and sigma_net[i] > 0:
-            s = sigma_brug[i] * C_ms * np.sqrt(hop[i]) * cn[i]**2 * gb_dens[i]**(4/3) * SIGMA_BULK
-            sigma_pred.append(s)
+        if hop[i] > 0 and cn[i] > 0 and gb_dens[i] > 0 and sigma_net[i] > 0 and sigma_brug[i] > 0:
+            s = sigma_brug[i] * np.sqrt(hop[i]) * cn[i]**2 * gb_dens[i]**(4/3) * SIGMA_BULK
+            sigma_raw.append(s)
             valid_idx.append(i)
-        # Also include cases where prediction works but no network (still plot pred)
 
     if len(valid_idx) < 3:
         return None
 
-    s_pred = np.array(sigma_pred)
+    s_raw = np.array(sigma_raw)
+    s_actual = np.array([sigma_net[i] for i in valid_idx])
+
+    # Fit C in log space: log(σ_actual) = log(C) + log(σ_raw)
+    log_C = np.mean(np.log(s_actual) - np.log(s_raw))
+    C_fit = np.exp(log_C)
+    s_pred = s_raw * C_fit
     s_actual = np.array([sigma_net[i] for i in valid_idx])
 
     fig, ax = plt.subplots(figsize=FIG_SINGLE)
@@ -1070,11 +1074,11 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title("Ionic: σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\nPredicted vs Actual",
+    ax.set_title(f"Ionic: σ_brug × {C_fit:.4f} × √A_hop × CN² × GB_d^(4/3)\nPredicted vs Actual (C fitted from data)",
                  fontsize=10, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
 
-    txt = (f"R² = {r2:.3f}\n"
+    txt = (f"R² = {r2:.3f}  (C = {C_fit:.4f})\n"
            f"Mean |error| = {np.mean(errors):.1f}%\n"
            f"Within 20%: {within_20}/{len(errors)}\n"
            f"n = {len(valid_idx)}")

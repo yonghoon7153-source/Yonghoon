@@ -916,10 +916,47 @@ def electronic_unified_model():
     for tag, desc, C_val, param2, r2, np_ in sorted(results, key=lambda x: -x[4]):
         print(f"  {tag:6s} {r2:8.4f} {np_:7d}   {C_val:8.4f} {param2:8.3f}   {desc}")
 
-    # Show per-case: predicted vs actual for best model
-    if results:
-        best = max(results, key=lambda x: x[4])
-        print(f"\n  Best: {best[0]} (R²={best[4]:.4f})")
+    # ── β=π fixed: the "beautiful" unified formula ──
+    print(f"\n{'='*70}")
+    print("β=π FIXED TEST: σ = C × φ^1.5 × CN² × exp(π/(T/d))")
+    print(f"{'='*70}")
+
+    beta_pi = np.pi
+    log_rhs_pi = 1.5*np.log(phi_am) + 2*np.log(cn) + beta_pi/T_over_d
+    log_C_pi = np.mean(log_sigma - log_rhs_pi)
+    pred_pi = log_C_pi + log_rhs_pi
+    r2_pi = 1 - np.sum((log_sigma - pred_pi)**2) / ss_tot
+    C_pi = np.exp(log_C_pi)
+
+    print(f"  σ_el = {C_pi:.4f} × φ^(3/2) × CN² × exp(π/(T/d_AM))")
+    print(f"  R² = {r2_pi:.4f}  (1 free param: C only, β=π fixed)")
+    print(f"  C = {C_pi:.6f}")
+    print(f"  Correction: T/d=2 → ×{np.exp(beta_pi/2):.2f},  T/d=5 → ×{np.exp(beta_pi/5):.2f},  T/d=15 → ×{np.exp(beta_pi/15):.2f}")
+
+    # With σ_AM explicit
+    C_pi_sigma = C_pi / SIGMA_AM
+    print(f"\n  Or: σ_el = {C_pi_sigma:.6f} × σ_AM × φ^(3/2) × CN² × exp(π/(T/d_AM))")
+
+    # Compare β=3.06 (fitted) vs β=π (fixed)
+    print(f"\n  β comparison: fitted={results[0][3]:.3f} vs π={np.pi:.3f} (diff={abs(results[0][3]-np.pi):.3f})")
+    print(f"  R² comparison: fitted={results[0][4]:.4f} vs π-fixed={r2_pi:.4f} (diff={abs(results[0][4]-r2_pi):.4f})")
+
+    # Per-case prediction vs actual
+    pred_sigma_pi = C_pi * phi_am**1.5 * cn**2 * np.exp(beta_pi / T_over_d)
+    residuals = (sigma_el - pred_sigma_pi) / sigma_el * 100  # % error
+
+    print(f"\n  Per-case accuracy:")
+    print(f"  {'Name':25s} {'T/d':>5s} {'σ_actual':>8s} {'σ_pred':>8s} {'err%':>6s}")
+    print(f"  {'-'*58}")
+    for i, r in enumerate(rows):
+        print(f"  {r['name'][:23]:23s} {T_over_d[i]:5.1f} {sigma_el[i]:8.3f} {pred_sigma_pi[i]:8.3f} {residuals[i]:+6.1f}%")
+
+    # Summary stats
+    abs_err = np.abs(residuals)
+    print(f"\n  Mean |error|: {np.mean(abs_err):.1f}%")
+    print(f"  Max  |error|: {np.max(abs_err):.1f}%")
+    print(f"  <20% error: {np.sum(abs_err < 20)}/{n} ({np.sum(abs_err<20)/n*100:.0f}%)")
+    print(f"  <30% error: {np.sum(abs_err < 30)}/{n} ({np.sum(abs_err<30)/n*100:.0f}%)")
 
 
 if __name__ == '__main__':

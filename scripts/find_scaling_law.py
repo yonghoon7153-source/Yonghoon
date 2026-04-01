@@ -774,12 +774,77 @@ def fit_sigma_eff(rows):
         gap = r2_free - r2_fixed
         print(f"  {name:45s} Fixed R²={r2_fixed:.4f} (free {r2_free:.4f}, gap={gap:.4f}) C={C:.4f}")
 
+    # ══════════════════════════════════════════════════════════════════════
+    # FINAL CHAMPION: σ = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²
+    # ══════════════════════════════════════════════════════════════════════
+    print(f"\n{'='*70}")
+    print(f"FINAL CHAMPION: σ = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²")
+    print(f"{'='*70}")
+
+    valid_ch = valid & (g_path > 0)
+    combo_ch = g_path[valid_ch] * gb_d[valid_ch]**2
+
+    # Fixed (1/4, 2) + C only
+    log_rhs_ch = 0.25 * np.log(combo_ch) + 2 * np.log(cn[valid_ch])
+    ln_C_ch = np.mean((log_sf - log_sb)[valid_ch] - log_rhs_ch)
+    C_ch = np.exp(ln_C_ch)
+    pred_ch = log_sb[valid_ch] + ln_C_ch + log_rhs_ch
+    ss_res_ch = np.sum((log_sf[valid_ch] - pred_ch)**2)
+    ss_tot_ch = np.sum((log_sf[valid_ch] - np.mean(log_sf[valid_ch]))**2)
+    r2_ch = 1 - ss_res_ch / ss_tot_ch
+
+    print(f"\n  C = {C_ch:.4f}")
+    print(f"  R² = {r2_ch:.4f} (fixed 1/4, 2)")
+
+    # Per-case accuracy
+    s_pred_ch = np.exp(pred_ch)
+    s_actual_ch = np.exp(log_sf[valid_ch])
+    errors_ch = np.abs(s_pred_ch - s_actual_ch) / s_actual_ch * 100
+    print(f"  Mean |error|: {np.mean(errors_ch):.1f}%")
+    print(f"  Within 10%: {np.sum(errors_ch < 10)}/{len(errors_ch)}")
+    print(f"  Within 20%: {np.sum(errors_ch < 20)}/{len(errors_ch)}")
+    print(f"  Max |error|: {np.max(errors_ch):.1f}%")
+
+    # Per-SE-size
+    print(f"\n  Per-SE-size:")
+    for se_label, gb_lo, gb_hi in [("SE 0.5μm", 1.0, 3.0), ("SE 1.0μm", 0.6, 1.0), ("SE 1.5μm", 0.0, 0.6)]:
+        mask_se = valid_ch & (gb_d >= gb_lo) & (gb_d < gb_hi)
+        if mask_se.sum() < 3:
+            continue
+        combo_se = g_path[mask_se] * gb_d[mask_se]**2
+        log_rhs_se = 0.25 * np.log(combo_se) + 2 * np.log(cn[mask_se])
+        ln_C_se = np.mean((log_sf - log_sb)[mask_se] - log_rhs_se)
+        pred_se = log_sb[mask_se] + ln_C_se + log_rhs_se
+        ss_res_se = np.sum((log_sf[mask_se] - pred_se)**2)
+        ss_tot_se = np.sum((log_sf[mask_se] - np.mean(log_sf[mask_se]))**2)
+        r2_se = 1 - ss_res_se / ss_tot_se if ss_tot_se > 0 else 0
+        err_se = np.abs(np.exp(pred_se) - np.exp(log_sf[mask_se])) / np.exp(log_sf[mask_se]) * 100
+        print(f"    {se_label} (n={mask_se.sum()}): C={np.exp(ln_C_se):.4f}, R²={r2_se:.4f}, mean|err|={np.mean(err_se):.1f}%")
+
+    # Per-case table (worst first)
+    print(f"\n  {'Case':25s} {'σ_actual':>10s} {'σ_pred':>10s} {'error%':>8s} {'GB_d':>6s} {'G_path':>8s} {'CN':>5s}")
+    print(f"  {'-'*72}")
+    ch_idx = np.where(valid_ch)[0]
+    sorted_j = np.argsort(errors_ch)[::-1]
+    for j in sorted_j:
+        i = ch_idx[j]
+        sign = '+' if s_pred_ch[j] > s_actual_ch[j] else '-'
+        mark = ' ★' if errors_ch[j] > 30 else ''
+        print(f"  {rows[i]['name']:25s} {s_actual_ch[j]:10.4f} {s_pred_ch[j]:10.4f} {sign}{errors_ch[j]:7.1f}% {gb_d[i]:6.2f} {g_path[i]:8.4f} {cn[i]:5.2f}{mark}")
+
+    # Formula comparison
+    print(f"\n  {'═'*50}")
+    print(f"  v1: √A_hop × CN² × GB_d^(4/3)        R²=0.894")
+    print(f"  v2: (A_hop×GB_d²)^(3/5) × CN²         R²=0.923")
+    print(f"  v3: (G_path×GB_d²)^(1/4) × CN²        R²={r2_ch:.3f} ★ CHAMPION")
+
     # Summary
     print(f"\n{'--- FINAL σ_eff Ranking ---':^60}")
     results.append(('NEW: σ_brug×(A_hop×GB_d²)^(3/5)×CN²', r2_new, 2))
+    results.append(('CHAMPION: σ_brug×(G_path×GB_d²)^(1/4)×CN²', r2_ch, 2))
     for rank, (name, r2, p) in enumerate(sorted(results, key=lambda x: -x[1]), 1):
         star = " ★" if r2 > 0.9 else ""
-        print(f"  {rank:2d}. {name:40s} R²={r2:.4f} ({p}p){star}")
+        print(f"  {rank:2d}. {name:45s} R²={r2:.4f} ({p}p){star}")
 
 
 def print_final_recommendation(rows):

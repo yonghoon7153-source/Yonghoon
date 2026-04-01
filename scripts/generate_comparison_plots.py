@@ -1234,6 +1234,9 @@ PLOT_REGISTRY = {
         "description": "σ_eff = σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\n√A_hop: Maxwell constriction (fit 0.525≈0.5)\nCN²: redundant path factor (fit 1.98≈2)\nGB_d^(4/3): mesh density + contact residual\nR²=0.93 (1 free param), LOOCV R²=0.93\nAblation: 모든 항 필수 (GB_d 없으면 R²→음수)",
         "origin_tip": "Red: Multi-scale, Green dashed: Network solver (reference).",
     },
+}
+
+
 def plot_sigma_decomposition(data_list, names, outdir):
     """Decompose σ_eff into Bruggeman + contact terms. Show which factor dominates."""
     SIGMA_BULK = 1.3
@@ -1335,28 +1338,27 @@ def plot_sigma_decomposition(data_list, names, outdir):
     return _save(fig, outdir, "sigma_decomposition.png")
 
 
-    "sigma_decomposition": {
-        "func": plot_sigma_decomposition,
-        "file": "sigma_decomposition.png",
-        "title": "σ_eff Factor Decomposition",
-        "description": "σ_eff = σ_brug × C × √A_hop × CN² × GB_d^(4/3) 각 항의 기여도 분해.\n\n위: stacked bar — 첫 케이스 대비 각 인자의 log 기여도 변화\n아래: 케이스별 dominant factor\n\n파란: φ_SE | 빨간: τ² | 초록: √A_hop | 주황: CN² | 보라: GB_d\n\n어떤 설계 변수가 σ_eff 변화를 지배하는지 직관적으로 확인.",
-        "origin_tip": "Stacked bar (top) + Horizontal bar (bottom).",
-    },
-    "ion_path_quality": {
+PLOT_REGISTRY["sigma_decomposition"] = {
+    "func": plot_sigma_decomposition,
+    "file": "sigma_decomposition.png",
+    "title": "σ_eff Factor Decomposition",
+    "description": "σ_eff = σ_brug × C × √A_hop × CN² × GB_d^(4/3) 각 항의 기여도 분해.",
+    "origin_tip": "Stacked bar (top) + Horizontal bar (bottom).",
+}
+PLOT_REGISTRY["ion_path_quality"] = {
         "func": plot_ion_path_quality,
         "file": "ion_path_quality.png",
         "title": "Ion Path Quality (G_path, GB_d)",
 
         "description": "이온 경로 품질 4종 (모두 percolating 경로들의 mean):\n\n• GB Density = mean(N_hops / L_z) (hops/μm)\n  → ↓ 좋음 (입계 적을수록 저항↓)\n• Path Hop Area = mean(각 hop의 접촉면적)\n  → ↑ 좋음\n• Bottleneck = mean(각 경로의 최소 접촉면적)\n  → ↑ 좋음\n• Path Conductance = mean(1/Σ(1/A_i)) (μm²)\n  → ↑ 좋음 (직렬 저항 모델의 유효 면적)\n\n왜 mean? 경로 안은 직렬, 경로끼리는 병렬.\nmean = 경로 품질, f_perc = 경로 수량 (역할 분리).\n30개 shortest path 샘플 (best/mean/worst 10개씩).\nConductance가 가장 종합적 지표.",
         "origin_tip": "2×2 Subplots → GB Density (Blue), Hop Area (Orange), Bottleneck (Red), Conductance (Green).",
-    },
-    "stress_z_layer": {
-        "func": plot_stress_z_layer,
-        "file": "stress_z_layer.png",
-        "title": "Stress Z-layer CV",
-        "description": "전극 높이별 Von Mises CV 프로파일.\n\n균일 압축 → 전 층에서 CV 비슷.\n경계 효과 → 상/하단 CV 증가.\nAM_P↑ → force chain으로 Z 관통 → 균일.",
-        "origin_tip": "Multi-line → X: Z Position (μm), Y: VM CV (%).\n각 케이스별 다른 색.\n경계(상/하단) 영역 음영 표시 권장.",
-    },
+}
+PLOT_REGISTRY["stress_z_layer"] = {
+    "func": plot_stress_z_layer,
+    "file": "stress_z_layer.png",
+    "title": "Stress Z-layer CV",
+    "description": "전극 높이별 Von Mises CV 프로파일.",
+    "origin_tip": "Multi-line → X: Z Position (μm), Y: VM CV (%).",
 }
 
 

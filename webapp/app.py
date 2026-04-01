@@ -739,6 +739,12 @@ def group():
             ('Vulnerable', '(%)', 'am_vulnerable_pct', '활성도'),
             ('φ_SE', '', 'phi_se', '활성도'),
             ('σ_eff/σ_bulk', '', 'sigma_ratio', '활성도'),
+            # ── Network Solver ──
+            ('σ_ionic', '(mS/cm)', 'sigma_full_mScm', 'Network Solver'),
+            ('R_brug', '(×)', 'R_brug_over_full', 'Network Solver'),
+            ('Constriction', '(%)', '_constriction_pct', 'Network Solver'),
+            ('σ_electronic', '(mS/cm)', 'electronic_sigma_full_mScm', 'Network Solver'),
+            ('σ_thermal', '(mS/cm)', 'thermal_sigma_full_mScm', 'Network Solver'),
             # ── 접촉력/응력 ──
             ('Fn AM-AM', '(μN)', 'fn_AM_P_AM_P_mean', '접촉력/응력'),
             ('Fn AM-SE', '(μN)', 'fn_AM_P_SE_mean', '접촉력/응력'),
@@ -779,6 +785,11 @@ def group():
                     metrics = json.load(f)
             else:
                 continue
+
+            # Derived: constriction percentage
+            bf = metrics.get('bulk_resistance_fraction')
+            if bf is not None and bf > 0:
+                metrics['_constriction_pct'] = round((1 - bf) * 100, 1)
 
             # Standard 모드: coverage_AM_mean → P:S에 따라 P 또는 S에 매핑
             if 'coverage_AM_mean' in metrics:
@@ -833,7 +844,8 @@ def group():
                     # lower_better: Porosity, 두께, Tortuosity, τ std, Stress CV, GB Density, Vulnerable, CP mean, CP max
                     # higher_better: everything else (except P:S, 케이스 which are labels)
                     lower_better = {'Porosity', '두께', 'Tortuosity', 'τ std', 'Stress CV',
-                                    'GB Density', 'Vulnerable', 'CP mean', 'CP max', 'SE Cluster'}
+                                    'GB Density', 'Vulnerable', 'CP mean', 'CP max', 'SE Cluster',
+                                    'R_brug', 'Constriction'}
                     skip_cols = {'P:S', '케이스'}
                     best_marks = {}  # col -> best row index
                     for label, unit, key in display_keys:

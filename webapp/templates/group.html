@@ -650,7 +650,7 @@ async function generatePlots() {
   try {
     // Global R_gb: always use all data combined for rgb_fitting/gb_corrected
     // Plots that need ALL groups combined (not per-group)
-    const globalOnlyTypes = ['rgb_fitting', 'gb_corrected', 'ionic_scaling_fit'];
+    const globalOnlyTypes = ['rgb_fitting', 'gb_corrected'];
     const needsGlobalRgb = validPGs.length > 1 &&
       plotTypes.some(p => globalOnlyTypes.includes(p));
     let globalRgb = '';
@@ -703,7 +703,7 @@ async function generatePlots() {
       form.append('case_groups', JSON.stringify(pgCaseGroups));
       // Exclude global-only plots from per-group (handled globally)
       const groupPlots = needsGlobalRgb
-        ? plotTypes.filter(p => !globalOnlyTypes.includes(p))
+        ? plotTypes.filter(p => p !== 'rgb_fitting' && p !== 'gb_corrected')
         : plotTypes;
       groupPlots.forEach(p => form.append('plots', p));
       if (globalRgb) form.append('global_rgb', globalRgb);
@@ -747,7 +747,7 @@ async function generatePlots() {
         const file = pt + '.png';
 
         // Global-only plots: render as single full-width (all groups combined)
-        const globalOnlyPlots = ['rgb_fitting', 'gb_corrected', 'ionic_scaling_fit'];
+        const globalOnlyPlots = ['rgb_fitting', 'gb_corrected'];
         if (globalOnlyPlots.includes(pt)) {
           if (globalPlotMap[file]) {
             if (pt === 'rgb_fitting') grid.appendChild(createDerivationBox());

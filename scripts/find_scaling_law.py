@@ -592,7 +592,7 @@ def fit_sigma_eff(rows):
 
     # U6: (A_hop × GB_d²)^(3/5) × CN² with f_perc separated from σ_brug
     # σ = σ_grain × φ_SE / τ² × C × f_perc^d × (A_hop×GB_d²)^(3/5) × CN²
-    sigma_brug_no_fperc = np.array([SIGMA_BULK * phi[i] / tau[i]**2 if tau[i] > 0 else 0 for i in range(n)])
+    sigma_brug_no_fperc = np.array([3.0 * phi[i] / tau[i]**2 if tau[i] > 0 else 0 for i in range(n)])
     valid5 = valid & (fp > 0) & (sigma_brug_no_fperc > 0)
     if valid5.sum() > 5:
         combo5 = hop[valid5] * gb_d[valid5]**2

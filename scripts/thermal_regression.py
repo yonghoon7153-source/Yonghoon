@@ -650,6 +650,161 @@ def thermal_regression():
             print(f"  T31b: σ_th = {np.exp(log_C):.4f} × k_hop × φ/τ² [THICK],  R²={r2_31b:.4f}")
             results.append(('T31b', f'[THICK] C × k_hop × φ/τ²', np.exp(log_C), r2_31b, 1))
 
+    # ══════════════════════════════════════════════════════════════════════
+    # LITERATURE-BASED MODELS (Glover 2010, Lichtenecker, 3-phase Bruggeman)
+    # ══════════════════════════════════════════════════════════════════════
+    print(f"\n  {'='*60}")
+    print(f"  LITERATURE-BASED MODELS")
+    print(f"  {'='*60}")
+
+    # L1: Additive Bruggeman (Glover, m=1.5) — ZERO free params
+    k_pred_L1 = (K_AM * phi_am**1.5 + K_SE * phi_se**1.5) * 1e3  # mS/cm equiv
+    log_pred_L1 = np.log(k_pred_L1)
+    r2_L1 = 1 - np.sum((log_sigma - log_pred_L1)**2) / ss_tot
+    print(f"\n  L1: k_eff = k_AM×φ_AM^1.5 + k_SE×φ_SE^1.5  (0 free params)")
+    print(f"      R² = {r2_L1:.4f},  predicted range: {k_pred_L1.min():.2f}~{k_pred_L1.max():.2f}")
+    results.append(('L1', f'k_AM×φ_AM^1.5 + k_SE×φ_SE^1.5 (Glover)', 1.0, r2_L1, 0))
+
+    # L1b: + scaling constant C
+    log_C_L1b = np.mean(log_sigma - log_pred_L1)
+    pred_L1b = log_C_L1b + log_pred_L1
+    r2_L1b = 1 - np.sum((log_sigma - pred_L1b)**2) / ss_tot
+    print(f"  L1b: C × (k_AM×φ_AM^1.5 + k_SE×φ_SE^1.5),  C={np.exp(log_C_L1b):.4f}, R²={r2_L1b:.4f}")
+    results.append(('L1b', f'C×(k_AM×φ_AM^1.5+k_SE×φ_SE^1.5)', np.exp(log_C_L1b), r2_L1b, 1))
+
+    # L2: Generalized Archie — k_AM×φ_AM^m_AM + k_SE×φ_SE^m_SE (2 free params)
+    try:
+        def model_L2(X, m_am, m_se):
+            phi_a, phi_s = X
+            return np.log(K_AM * 1e3 * phi_a**m_am + K_SE * 1e3 * phi_s**m_se)
+
+        popt_L2, _ = curve_fit(model_L2, (phi_am, phi_se), log_sigma, p0=[1.5, 1.5], maxfev=10000)
+        pred_L2 = model_L2((phi_am, phi_se), *popt_L2)
+        r2_L2 = 1 - np.sum((log_sigma - pred_L2)**2) / ss_tot
+        print(f"\n  L2: k_eff = k_AM×φ_AM^{popt_L2[0]:.2f} + k_SE×φ_SE^{popt_L2[1]:.2f}  (Generalized Archie)")
+        print(f"      R² = {r2_L2:.4f}  (2 free params: m_AM, m_SE)")
+        results.append(('L2', f'k_AM×φ_AM^{popt_L2[0]:.1f}+k_SE×φ_SE^{popt_L2[1]:.1f} (Archie)', 1.0, r2_L2, 2))
+    except Exception as e:
+        print(f"  L2: FAILED ({e})")
+
+    # L3: Lichtenecker — k_AM^φ_AM × k_SE^φ_SE × (1-ε)^α
+    try:
+        k_licht_base = K_AM**phi_am * K_SE**phi_se * 1e3  # mS/cm
+        def model_L3(X, alpha):
+            k_base, solid = X
+            return np.log(k_base * solid**alpha)
+
+        popt_L3, _ = curve_fit(model_L3, (k_licht_base, solid_frac), log_sigma, p0=[2.0], maxfev=10000)
+        pred_L3 = model_L3((k_licht_base, solid_frac), *popt_L3)
+        r2_L3 = 1 - np.sum((log_sigma - pred_L3)**2) / ss_tot
+        print(f"\n  L3: k_eff = k_AM^φ_AM × k_SE^φ_SE × (1-ε)^{popt_L3[0]:.2f}  (Lichtenecker)")
+        print(f"      R² = {r2_L3:.4f}  (1 free param: α)")
+        results.append(('L3', f'k_AM^φ_AM × k_SE^φ_SE × (1-ε)^{popt_L3[0]:.1f}', 1.0, r2_L3, 1))
+    except Exception as e:
+        print(f"  L3: FAILED ({e})")
+
+    # L4: 3-phase Bruggeman (numerical, 0 free params)
+    try:
+        from scipy.optimize import brentq
+        k_brug_3phase = []
+        for i in range(n):
+            pa, ps, pp = phi_am[i], phi_se[i], 1 - phi_am[i] - phi_se[i]
+            if pp < 0: pp = 0
+            def brug_eq(k):
+                t1 = pa * (K_AM - k) / (K_AM + 2*k) if (K_AM + 2*k) > 0 else 0
+                t2 = ps * (K_SE - k) / (K_SE + 2*k) if (K_SE + 2*k) > 0 else 0
+                t3 = -pp / 2
+                return t1 + t2 + t3
+            try:
+                k_sol = brentq(brug_eq, 1e-10, K_AM)
+                k_brug_3phase.append(k_sol * 1e3)
+            except:
+                k_brug_3phase.append(0)
+        k_brug_3p = np.array(k_brug_3phase)
+        valid_b3 = k_brug_3p > 0
+        if np.sum(valid_b3) > 10:
+            r2_B3_raw = 1 - np.sum((log_sigma[valid_b3] - np.log(k_brug_3p[valid_b3]))**2) / np.sum((log_sigma[valid_b3] - np.mean(log_sigma[valid_b3]))**2)
+            print(f"\n  L4: 3-phase Bruggeman (numerical, 0 free params)")
+            print(f"      R² = {r2_B3_raw:.4f},  range: {k_brug_3p[valid_b3].min():.2f}~{k_brug_3p[valid_b3].max():.2f}")
+            results.append(('L4', f'3-phase Bruggeman (0 params)', 1.0, r2_B3_raw, 0))
+
+            # L4b: + scaling C
+            log_C_B3 = np.mean(log_sigma[valid_b3] - np.log(k_brug_3p[valid_b3]))
+            pred_B3 = log_C_B3 + np.log(k_brug_3p[valid_b3])
+            r2_B3 = 1 - np.sum((log_sigma[valid_b3] - pred_B3)**2) / np.sum((log_sigma[valid_b3] - np.mean(log_sigma[valid_b3]))**2)
+            print(f"  L4b: C × Bruggeman_3phase,  C={np.exp(log_C_B3):.4f}, R²={r2_B3:.4f}")
+            results.append(('L4b', f'C × Bruggeman_3phase', np.exp(log_C_B3), r2_B3, 1))
+    except Exception as e:
+        print(f"  L4: FAILED ({e})")
+
+    # L5: Maxwell porosity correction — k_mix × (1-ε)/(1+ε/2)
+    k_maxwell = k_mix * 1e3 * (1 - porosity_arr/100) / (1 + porosity_arr/200)
+    valid_mx = k_maxwell > 0
+    if np.sum(valid_mx) > 10:
+        log_C_mx = np.mean(log_sigma[valid_mx] - np.log(k_maxwell[valid_mx]))
+        pred_mx = log_C_mx + np.log(k_maxwell[valid_mx])
+        ss_mx = np.sum((log_sigma[valid_mx] - np.mean(log_sigma[valid_mx]))**2)
+        r2_mx = 1 - np.sum((log_sigma[valid_mx] - pred_mx)**2) / ss_mx
+        print(f"\n  L5: C × k_mix × (1-ε)/(1+ε/2)  (Maxwell porosity),  C={np.exp(log_C_mx):.4f}, R²={r2_mx:.4f}")
+        results.append(('L5', f'C × k_mix × (1-ε)/(1+ε/2)', np.exp(log_C_mx), r2_mx, 1))
+
+    # L6: Generalized Archie + porosity correction — best candidate
+    try:
+        def model_L6(X, m_am, m_se, alpha):
+            phi_a, phi_s, solid = X
+            k_archie = K_AM * 1e3 * phi_a**m_am + K_SE * 1e3 * phi_s**m_se
+            return np.log(k_archie * solid**alpha)
+
+        popt_L6, _ = curve_fit(model_L6, (phi_am, phi_se, solid_frac), log_sigma,
+                               p0=[1.5, 1.5, 1.0], maxfev=10000)
+        pred_L6 = model_L6((phi_am, phi_se, solid_frac), *popt_L6)
+        r2_L6 = 1 - np.sum((log_sigma - pred_L6)**2) / ss_tot
+        print(f"\n  L6: (k_AM×φ_AM^{popt_L6[0]:.2f} + k_SE×φ_SE^{popt_L6[1]:.2f}) × (1-ε)^{popt_L6[2]:.2f}")
+        print(f"      R² = {r2_L6:.4f}  (3 free params: m_AM, m_SE, α)")
+        results.append(('L6', f'Archie+porosity (3p)', 1.0, r2_L6, 3))
+    except Exception as e:
+        print(f"  L6: FAILED ({e})")
+
+    # L7: Additive Bruggeman + τ — k_AM×φ_AM^1.5 + k_SE×φ_SE^1.5, then /τ^b
+    if np.sum(valid_tau) > 10:
+        mask = valid_tau
+        try:
+            def model_L7(X, C, b):
+                phi_a, phi_s, tau_v = X
+                k_base = K_AM * 1e3 * phi_a**1.5 + K_SE * 1e3 * phi_s**1.5
+                return np.log(C * k_base / tau_v**b)
+
+            popt_L7, _ = curve_fit(model_L7, (phi_am[mask], phi_se[mask], tau[mask]),
+                                   log_sigma[mask], p0=[1.0, 1.0], maxfev=10000)
+            pred_L7 = model_L7((phi_am[mask], phi_se[mask], tau[mask]), *popt_L7)
+            ss_L7 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+            r2_L7 = 1 - np.sum((log_sigma[mask] - pred_L7)**2) / ss_L7
+            print(f"\n  L7: C × (k_AM×φ_AM^1.5 + k_SE×φ_SE^1.5) / τ^{popt_L7[1]:.2f}")
+            print(f"      C={popt_L7[0]:.4f}, R²={r2_L7:.4f}  (2 free params)")
+            results.append(('L7', f'C×Archie_1.5/τ^{popt_L7[1]:.1f}', popt_L7[0], r2_L7, 2))
+        except Exception as e:
+            print(f"  L7: FAILED ({e})")
+
+    # L8: ULTIMATE — Generalized Archie + τ + porosity
+    if np.sum(valid_tau) > 10:
+        mask = valid_tau
+        try:
+            def model_L8(X, m_am, m_se, b, alpha):
+                phi_a, phi_s, tau_v, solid = X
+                k_base = K_AM * 1e3 * phi_a**m_am + K_SE * 1e3 * phi_s**m_se
+                return np.log(k_base * solid**alpha / tau_v**b)
+
+            popt_L8, _ = curve_fit(model_L8, (phi_am[mask], phi_se[mask], tau[mask], solid_frac[mask]),
+                                   log_sigma[mask], p0=[1.5, 1.5, 1.0, 1.0], maxfev=10000)
+            pred_L8 = model_L8((phi_am[mask], phi_se[mask], tau[mask], solid_frac[mask]), *popt_L8)
+            ss_L8 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+            r2_L8 = 1 - np.sum((log_sigma[mask] - pred_L8)**2) / ss_L8
+            print(f"\n  L8: (k_AM×φ_AM^{popt_L8[0]:.2f} + k_SE×φ_SE^{popt_L8[1]:.2f}) × (1-ε)^{popt_L8[3]:.2f} / τ^{popt_L8[2]:.2f}")
+            print(f"      R² = {r2_L8:.4f}  (4 free params)")
+            results.append(('L8', f'Archie+ε+τ (4p)', 1.0, r2_L8, 4))
+        except Exception as e:
+            print(f"  L8: FAILED ({e})")
+
     # ── Ranking ──
     print(f"\n{'='*70}")
     print("RANKING — sorted by R²")

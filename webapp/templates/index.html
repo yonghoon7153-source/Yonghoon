@@ -89,6 +89,7 @@
           <span class="status status-{{ case.status }}">
             {% if case.status == 'uploaded' %}대기중
             {% elif case.status == 'running' %}실행중...
+            {% elif case.status == 'network_solving' %}Network Solver 실행중...
             {% elif case.status == 'done' %}완료
             {% elif case.status == 'error' %}오류
             {% else %}{{ case.status }}{% endif %}

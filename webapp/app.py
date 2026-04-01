@@ -500,6 +500,12 @@ def analyze(case_id):
             generate_report(case_id, meta.get('name', ''))
 
             # Network conductivity solver (자동 실행)
+            # Update status to show solver is running
+            meta['status'] = 'network_solving'
+            meta['network_solver_status'] = 'running'
+            with open(meta_file, 'w') as f:
+                json.dump(meta, f, indent=2)
+
             net_status = 'not_run'
             try:
                 atoms_csv = os.path.join(results_dir, 'atoms.csv')
@@ -536,8 +542,9 @@ def analyze(case_id):
             except Exception as e:
                 net_status = 'error'
                 print(f"  Network solver error: {e}")
-            # Save network status to meta
+            # Save network status to meta and restore 'done'
             meta['network_solver_status'] = net_status
+            meta['status'] = 'done'
             with open(meta_file, 'w') as f:
                 json.dump(meta, f, indent=2)
 

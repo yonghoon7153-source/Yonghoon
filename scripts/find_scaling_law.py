@@ -923,11 +923,102 @@ def fit_sigma_eff(rows):
         err_t = np.abs(np.exp(pred_t) - np.exp(log_sf[mask_t])) / np.exp(log_sf[mask_t]) * 100
         print(f"    {label} (n={mask_t.sum()}): C={np.exp(ln_C_t):.4f}, R²={r2_t:.4f}, mean|err|={np.mean(err_t):.1f}%, max={np.max(err_t):.1f}%")
 
+    # ══════════════════════════════════════════════════════════════════════
+    # f_perc^π DEEP DIVE
+    # ══════════════════════════════════════════════════════════════════════
+    print(f"\n  {'═'*50}")
+    print(f"  f_perc^π DEEP DIVE")
+    print(f"  {'═'*50}")
+
+    valid_pi = valid_ch & (fp > 0)
+    if valid_pi.sum() > 10:
+        # New σ_brug with f_perc^π instead of f_perc^1
+        sigma_brug_pi = np.array([3.0 * phi[i] * fp[i]**np.pi / tau[i]**2 if tau[i] > 0 and fp[i] > 0 else 0
+                                  for i in range(n)])
+        valid_pi2 = valid_pi & (sigma_brug_pi > 0)
+        log_sb_pi = np.log(sigma_brug_pi[valid_pi2])
+        combo_pi = g_path[valid_pi2] * gb_d[valid_pi2]**2
+
+        # Fixed (1/4, 2) + C
+        log_rhs_pi = 0.25 * np.log(combo_pi) + 2 * np.log(cn[valid_pi2])
+        ln_C_pi = np.mean(log_sf[valid_pi2] - log_sb_pi - log_rhs_pi)
+        pred_pi = log_sb_pi + ln_C_pi + log_rhs_pi
+        ss_res_pi = np.sum((log_sf[valid_pi2] - pred_pi)**2)
+        ss_tot_pi = np.sum((log_sf[valid_pi2] - np.mean(log_sf[valid_pi2]))**2)
+        r2_pi = 1 - ss_res_pi / ss_tot_pi
+
+        s_pred_pi = np.exp(pred_pi)
+        s_actual_pi = np.exp(log_sf[valid_pi2])
+        errors_pi = np.abs(s_pred_pi - s_actual_pi) / s_actual_pi * 100
+
+        print(f"\n  σ = σ_grain × φ_SE × f_perc^π / τ² × C × (G_path×GB_d²)^(1/4) × CN²")
+        print(f"  C = {np.exp(ln_C_pi):.4f}")
+        print(f"  R² = {r2_pi:.4f} (vs f_perc^1: {r2_ch:.4f})")
+        print(f"  Mean |error|: {np.mean(errors_pi):.1f}% (vs {np.mean(errors_ch):.1f}%)")
+        print(f"  Within 10%: {np.sum(errors_pi < 10)}/{len(errors_pi)}")
+        print(f"  Within 20%: {np.sum(errors_pi < 20)}/{len(errors_pi)}")
+        print(f"  Max |error|: {np.max(errors_pi):.1f}% (vs {np.max(errors_ch):.1f}%)")
+
+        # f_perc exponent sweep
+        print(f"\n  f_perc exponent sweep:")
+        for exp_test in [0.5, 1.0, 1.5, 2.0, 2.5, np.pi, 3.5, 4.0]:
+            sb_t = np.array([3.0 * phi[i] * fp[i]**exp_test / tau[i]**2
+                            if tau[i] > 0 and fp[i] > 0 else 0 for i in range(n)])
+            vt = valid_pi & (sb_t > 0)
+            if vt.sum() < 10:
+                continue
+            log_sb_t = np.log(sb_t[vt])
+            combo_t = g_path[vt] * gb_d[vt]**2
+            log_rhs_t = 0.25 * np.log(combo_t) + 2 * np.log(cn[vt])
+            ln_C_t = np.mean(log_sf[vt] - log_sb_t - log_rhs_t)
+            pred_t = log_sb_t + ln_C_t + log_rhs_t
+            r2_t = 1 - np.sum((log_sf[vt]-pred_t)**2) / np.sum((log_sf[vt]-np.mean(log_sf[vt]))**2)
+            err_t = np.abs(np.exp(pred_t) - np.exp(log_sf[vt])) / np.exp(log_sf[vt]) * 100
+            label = " ← π!" if abs(exp_test - np.pi) < 0.01 else (" ← current" if exp_test == 1.0 else "")
+            print(f"    f_perc^{exp_test:.3f}: C={np.exp(ln_C_t):.4f}, R²={r2_t:.4f}, mean|err|={np.mean(err_t):.1f}%, max={np.max(err_t):.1f}%{label}")
+
+        # Per-SE-size with f_perc^π
+        print(f"\n  Per-SE-size (f_perc^π):")
+        for se_label, gb_lo, gb_hi in [("SE 0.5μm", 1.0, 3.0), ("SE 1.0μm", 0.6, 1.0), ("SE 1.5μm", 0.0, 0.6)]:
+            mask_se = valid_pi2 & (gb_d >= gb_lo) & (gb_d < gb_hi)
+            if mask_se.sum() < 3:
+                continue
+            pred_se = log_sb_pi[mask_se[valid_pi2]] + ln_C_pi + 0.25*np.log(g_path[mask_se]*gb_d[mask_se]**2) + 2*np.log(cn[mask_se])
+            err_se = np.abs(np.exp(pred_se) - np.exp(log_sf[mask_se])) / np.exp(log_sf[mask_se]) * 100
+            ss_se = np.sum((log_sf[mask_se] - pred_se)**2)
+            ss_tot_se = np.sum((log_sf[mask_se] - np.mean(log_sf[mask_se]))**2)
+            r2_se = 1 - ss_se / ss_tot_se if ss_tot_se > 0 else 0
+            print(f"    {se_label} (n={mask_se.sum()}): R²={r2_se:.4f}, mean|err|={np.mean(err_se):.1f}%, max={np.max(err_se):.1f}%")
+
+        # Worst cases comparison: f_perc^1 vs f_perc^π
+        print(f"\n  Worst cases (f_perc^1 vs f_perc^π):")
+        print(f"  {'Case':25s} {'f_perc':>7s} {'err(f^1)':>9s} {'err(f^π)':>9s} {'improve':>9s}")
+        print(f"  {'-'*60}")
+        pi_idx = np.where(valid_pi2)[0]
+        # Match indices
+        for j in np.argsort(errors_ch)[::-1][:15]:
+            i_ch = np.where(valid_ch)[0][j]
+            # Find same case in pi results
+            pi_j = np.where(pi_idx == i_ch)[0]
+            if len(pi_j) > 0:
+                pi_j = pi_j[0]
+                improve = errors_ch[j] - errors_pi[pi_j]
+                sign = '+' if improve > 0 else '-'
+                print(f"  {rows[i_ch]['name']:25s} {fp[i_ch]:7.3f} {errors_ch[j]:8.1f}% {errors_pi[pi_j]:8.1f}% {sign}{abs(improve):8.1f}%")
+
+        # π connection: electronic formula also has π!
+        print(f"\n  π in DEM formulas:")
+        print(f"    Electronic: exp(π/(T/d_AM)) — sphere circumference/diameter")
+        print(f"    Ionic:      f_perc^π         — percolation geometry?")
+        print(f"    Both involve spherical particle geometry → π as universal geometric constant")
+
     # Formula comparison
     print(f"\n  {'═'*50}")
-    print(f"  v1: √A_hop × CN² × GB_d^(4/3)        R²=0.894")
-    print(f"  v2: (A_hop×GB_d²)^(3/5) × CN²         R²=0.923")
-    print(f"  v3: (G_path×GB_d²)^(1/4) × CN²        R²={r2_ch:.3f} ★ CHAMPION")
+    print(f"  v1: √A_hop × CN² × GB_d^(4/3)                   R²=0.894")
+    print(f"  v2: (A_hop×GB_d²)^(3/5) × CN²                   R²=0.923")
+    print(f"  v3: (G_path×GB_d²)^(1/4) × CN²                  R²={r2_ch:.3f} ★")
+    if valid_pi.sum() > 10:
+        print(f"  v4: f_perc^π × (G_path×GB_d²)^(1/4) × CN²      R²={r2_pi:.3f} ★★ π-MODEL")
 
     # Summary
     print(f"\n{'--- FINAL σ_eff Ranking ---':^60}")

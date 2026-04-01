@@ -412,6 +412,36 @@ const METRIC_TIPS = {
     desc: 'SE 벌크 전도도 대비 전극 내 유효 이온 전도도의 비율입니다. Bruggeman 관계식 기반 추정값입니다.',
     meaning: '이 값이 1에 가까울수록 SE가 벌크와 비슷한 전도 성능을 발휘합니다. 실제로는 0.01~0.3 범위이며, 값이 클수록 이온 전도 손실이 적은 전극 구조입니다.'
   },
+  'σ_ionic (mS/cm)': {
+    title: 'Ionic Conductivity (Network Solver)',
+    formula: 'σ_full = Kirchhoff solver (R_bulk + R_constriction per edge)\nσ_grain = 3.0 mS/cm (grain interior)',
+    desc: 'DEM-native resistor network solver로 계산한 유효 이온 전도도 (mS/cm).',
+    meaning: 'Bruggeman 추정(σ_eff/σ_bulk)보다 정확한 ground truth. Minnmann(2021) 0.17 mS/cm과 비교 가능.'
+  },
+  'R_brug (과대추정 배수)': {
+    title: 'Bruggeman Overestimation Ratio',
+    formula: 'R_brug = σ_bulk_net / σ_full\nσ_bulk_net: bulk resistance만 고려한 network\nσ_full: bulk + constriction',
+    desc: 'Bruggeman이 실제 전도도를 몇 배 과대추정하는지. R_brug=3~10이면 접촉 저항이 유의미.',
+    meaning: 'R_brug가 클수록 inter-particle contact resistance가 지배적. SE 0.5μm에서 ~4~10×, SE 1.5μm에서 ~2~3×.'
+  },
+  'Constriction 비율(%)': {
+    title: 'Constriction Resistance Fraction',
+    formula: 'Constriction % = (1 - bulk_fraction) × 100\nbulk_fraction = R_bulk / (R_bulk + R_constriction)',
+    desc: '전체 이온 전도 저항 중 접촉 목(constriction)이 차지하는 비율.',
+    meaning: '69~81%: SE 0.5μm에서 constriction이 지배. 큰 SE에서는 감소. 이 비율이 높을수록 접촉 품질이 중요.'
+  },
+  'σ_electronic (mS/cm)': {
+    title: 'Electronic Conductivity (AM-AM Network)',
+    formula: 'AM-AM 접촉 네트워크의 Kirchhoff solver\nσ_AM = 0.05 S/cm (NCM811)',
+    desc: 'AM-AM 접촉만을 통한 전자 전도도. AM percolation이 없으면 0.',
+    meaning: 'σ_electronic >> σ_ionic이면 이온 전도가 rate-limiting. 도전재 없이도 AM percolation이 형성되는지 확인.'
+  },
+  'σ_thermal (mS/cm equiv)': {
+    title: 'Thermal Conductivity (ALL Contact Network)',
+    formula: 'All contacts (AM-AM, AM-SE, SE-SE) network\nk_AM=4.0, k_SE=0.7 W/(m·K)',
+    desc: 'SE+AM 모든 접촉을 통한 열전도도. mS/cm equivalent 단위.',
+    meaning: '열 관리 설계에 활용. AM과 SE 모두 열을 전도하므로 ionic/electronic보다 높음.'
+  },
   'SE Volume Fraction': {
     title: 'SE Volume Fraction (SE 부피 분율)',
     formula: 'φ_SE = V_SE / V_electrode\nV_SE = Σ(4/3 π r³) for all SE',

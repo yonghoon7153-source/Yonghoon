@@ -214,6 +214,24 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         rows.append({'지표': '── 이온전도 ──', '값': ''})
         rows.append({'지표': 'SE Volume Fraction', '값': round(eff_cond['phi_se'], 3)})
         rows.append({'지표': 'σ_eff/σ_bulk', '값': round(eff_cond['sigma_ratio'], 4)})
+    # ── Network Solver (자동 추가) ──
+    # These values come from network_conductivity.py merge → full_metrics.json
+    # Read from full_metrics if already computed
+    met_path = os.path.join(output_dir, 'full_metrics.json')
+    if os.path.exists(met_path):
+        with open(met_path) as _mf:
+            _met = json.load(_mf)
+        if _met.get('sigma_full_mScm'):
+            rows.append({'지표': '── Network Solver ──', '값': ''})
+            rows.append({'지표': 'σ_ionic (mS/cm)', '값': round(_met['sigma_full_mScm'], 4)})
+            if _met.get('R_brug_over_full'):
+                rows.append({'지표': 'R_brug (과대추정 배수)', '값': f"{_met['R_brug_over_full']:.1f}×"})
+            if _met.get('bulk_resistance_fraction'):
+                rows.append({'지표': 'Constriction 비율(%)', '값': round((1-_met['bulk_resistance_fraction'])*100, 1)})
+            if _met.get('electronic_sigma_full_mScm'):
+                rows.append({'지표': 'σ_electronic (mS/cm)', '값': round(_met['electronic_sigma_full_mScm'], 2)})
+            if _met.get('thermal_sigma_full_mScm'):
+                rows.append({'지표': 'σ_thermal (mS/cm equiv)', '값': round(_met['thermal_sigma_full_mScm'], 3)})
     # ── 응력 ──
     stress = results.get('stress')
     if stress:

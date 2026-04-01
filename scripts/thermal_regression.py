@@ -889,6 +889,199 @@ def thermal_regression():
         results.append(('T41c', f'[THICK] CN^{b41c[0]:.1f}×φ_SE^{b41c[1]:.1f}×φ_AM^{b41c[2]:.1f}', np.exp(b41c[3]), r2_41c, 4))
 
     # ══════════════════════════════════════════════════════════════════════
+    # DEEPER PHYSICS: weighted contact area, re-parameterization, residuals
+    # ══════════════════════════════════════════════════════════════════════
+    print(f"\n  {'='*60}")
+    print(f"  DEEPER PHYSICS MODELS (T42~T50)")
+    print(f"  {'='*60}")
+
+    area_se_se = np.array([r['area_se_se'] for r in rows])
+    area_am_am = np.array([r['area_am_am'] for r in rows])
+
+    # T42: Weighted contact area model (physically correct!)
+    # σ_th ∝ (A_SE_SE × k_SE + A_AM_AM × k_AM + A_AM_SE × k_harm) / thickness
+    K_HARM_VAL = 2 * K_AM * K_SE / (K_AM + K_SE)
+    A_weighted = (area_se_se * K_SE + area_am_am * K_AM + area_am_se * K_HARM_VAL) * 1e3
+    valid_aw = (A_weighted > 0) & (thickness > 0)
+    if np.sum(valid_aw) > 10:
+        mask = valid_aw
+        # T42a: σ_th = C × A_weighted / T
+        log_rhs = np.log(A_weighted[mask]) - np.log(thickness[mask])
+        log_C = np.mean(log_sigma[mask] - log_rhs)
+        pred = log_C + log_rhs
+        ss42 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2_42 = 1 - np.sum((log_sigma[mask] - pred)**2) / ss42
+        print(f"\n  T42: σ_th = {np.exp(log_C):.6f} × A_weighted / T,  R²={r2_42:.4f}")
+        print(f"       A_weighted = A_SE×k_SE + A_AM×k_AM + A_AMSE×k_harm")
+        results.append(('T42', f'C × A_weighted / T', np.exp(log_C), r2_42, 1))
+
+        # T42b: free exponent
+        b42b, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(A_weighted[mask]), np.log(thickness[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred42b = np.column_stack([np.log(A_weighted[mask]), np.log(thickness[mask]), np.ones(np.sum(mask))]) @ b42b
+        r2_42b = 1 - np.sum((log_sigma[mask] - pred42b)**2) / ss42
+        print(f"  T42b: σ_th = C × A_weighted^{b42b[0]:.2f} × T^{b42b[1]:.2f},  R²={r2_42b:.4f}")
+        results.append(('T42b', f'A_weighted^{b42b[0]:.1f}×T^{b42b[1]:.1f}', np.exp(b42b[2]), r2_42b, 3))
+
+        # T42c: A_weighted only (no T dependence — testing thickness-independence)
+        log_rhs_c = np.log(A_weighted[mask])
+        log_C_c = np.mean(log_sigma[mask] - log_rhs_c)
+        pred_c = log_C_c + log_rhs_c
+        r2_42c = 1 - np.sum((log_sigma[mask] - pred_c)**2) / ss42
+        print(f"  T42c: σ_th = {np.exp(log_C_c):.6f} × A_weighted (no T!),  R²={r2_42c:.4f}")
+        results.append(('T42c', f'C × A_weighted (no T)', np.exp(log_C_c), r2_42c, 1))
+
+    # T43: Re-parameterize with solid fraction + AM ratio
+    # solid = φ_SE + φ_AM, x_AM = φ_AM / solid
+    x_AM = phi_am / phi_total  # AM fraction among solids
+    valid_43 = (x_AM > 0) & (x_AM < 1) & valid_tau
+    if np.sum(valid_43) > 10:
+        mask = valid_43
+        ss43 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+
+        # T43a: solid^a × x_AM^b / τ^c
+        b43, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(phi_total[mask]), np.log(x_AM[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred43 = np.column_stack([np.log(phi_total[mask]), np.log(x_AM[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]) @ b43
+        r2_43 = 1 - np.sum((log_sigma[mask] - pred43)**2) / ss43
+        print(f"\n  T43: σ_th = C × solid^{b43[0]:.2f} × x_AM^{b43[1]:.2f} / τ^{-b43[2]:.2f},  R²={r2_43:.4f}")
+        print(f"       (solid=φ_SE+φ_AM, x_AM=φ_AM/solid)")
+        results.append(('T43', f'solid^{b43[0]:.1f}×x_AM^{b43[1]:.1f}×τ^{b43[2]:.1f}', np.exp(b43[3]), r2_43, 4))
+
+        # T43b: solid^a × (1-x_AM)^b / τ^c  (= SE fraction effect)
+        b43b, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(phi_total[mask]), np.log(1-x_AM[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred43b = np.column_stack([np.log(phi_total[mask]), np.log(1-x_AM[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]) @ b43b
+        r2_43b = 1 - np.sum((log_sigma[mask] - pred43b)**2) / ss43
+        print(f"  T43b: σ_th = C × solid^{b43b[0]:.2f} × x_SE^{b43b[1]:.2f} / τ^{-b43b[2]:.2f},  R²={r2_43b:.4f}")
+        results.append(('T43b', f'solid^{b43b[0]:.1f}×x_SE^{b43b[1]:.1f}×τ^{b43b[2]:.1f}', np.exp(b43b[3]), r2_43b, 4))
+
+    # T44: σ_th = C × σ_ion^0.5 × φ_AM² (clean hybrid)
+    valid_44 = sigma_ion > 0
+    if np.sum(valid_44) > 10:
+        mask = valid_44
+        ss44 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        log_rhs = 0.5 * np.log(sigma_ion[mask]) + 2.0 * np.log(phi_am[mask])
+        log_C = np.mean(log_sigma[mask] - log_rhs)
+        pred = log_C + log_rhs
+        r2_44 = 1 - np.sum((log_sigma[mask] - pred)**2) / ss44
+        print(f"\n  T44: σ_th = {np.exp(log_C):.4f} × σ_ion^0.5 × φ_AM²  (fixed exponents),  R²={r2_44:.4f}")
+        results.append(('T44', f'C × σ_ion^0.5 × φ_AM² (fixed)', np.exp(log_C), r2_44, 1))
+
+        # T44b: σ_ion^0.5 × φ_AM^1.5
+        log_rhs_b = 0.5 * np.log(sigma_ion[mask]) + 1.5 * np.log(phi_am[mask])
+        log_C_b = np.mean(log_sigma[mask] - log_rhs_b)
+        pred_b = log_C_b + log_rhs_b
+        r2_44b = 1 - np.sum((log_sigma[mask] - pred_b)**2) / ss44
+        print(f"  T44b: σ_th = {np.exp(log_C_b):.4f} × σ_ion^0.5 × φ_AM^1.5,  R²={r2_44b:.4f}")
+        results.append(('T44b', f'C × σ_ion^0.5 × φ_AM^1.5', np.exp(log_C_b), r2_44b, 1))
+
+        # T44c: σ_ion^a × φ_AM^b × CN_SE^c (add connectivity)
+        valid_44c = mask & (se_cn > 0)
+        if np.sum(valid_44c) > 10:
+            m2 = valid_44c
+            b44c, _, _, _ = np.linalg.lstsq(
+                np.column_stack([np.log(sigma_ion[m2]), np.log(phi_am[m2]),
+                               np.log(se_cn[m2]), np.ones(np.sum(m2))]),
+                log_sigma[m2], rcond=None)
+            pred44c = np.column_stack([np.log(sigma_ion[m2]), np.log(phi_am[m2]),
+                                     np.log(se_cn[m2]), np.ones(np.sum(m2))]) @ b44c
+            ss44c = np.sum((log_sigma[m2] - np.mean(log_sigma[m2]))**2)
+            r2_44c = 1 - np.sum((log_sigma[m2] - pred44c)**2) / ss44c
+            print(f"  T44c: σ_th = C × σ_ion^{b44c[0]:.3f} × φ_AM^{b44c[1]:.3f} × CN_SE^{b44c[2]:.3f},  R²={r2_44c:.4f}")
+            results.append(('T44c', f'σ_ion^{b44c[0]:.2f}×φ_AM^{b44c[1]:.2f}×CN^{b44c[2]:.2f}', np.exp(b44c[3]), r2_44c, 4))
+
+    # T45: Additive model — C1 × φ_SE^a + C2 × φ_AM^b (can't log-linearize)
+    try:
+        def model_t45(X, C1, a, C2, b):
+            phi_s, phi_a = X
+            return np.log(C1 * phi_s**a + C2 * phi_a**b)
+
+        popt45, _ = curve_fit(model_t45, (phi_se, phi_am), log_sigma,
+                              p0=[10, 1.5, 5, 1.5], maxfev=20000)
+        pred45 = model_t45((phi_se, phi_am), *popt45)
+        r2_45 = 1 - np.sum((log_sigma - pred45)**2) / ss_tot
+        print(f"\n  T45: σ_th = {popt45[0]:.4f}×φ_SE^{popt45[1]:.2f} + {popt45[2]:.4f}×φ_AM^{popt45[3]:.2f}")
+        print(f"       R²={r2_45:.4f}  (additive, 4p)")
+        results.append(('T45', f'{popt45[0]:.1f}×φ_SE^{popt45[1]:.1f}+{popt45[2]:.1f}×φ_AM^{popt45[3]:.1f}', 1.0, r2_45, 4))
+    except Exception as e:
+        print(f"  T45: FAILED ({e})")
+
+    # T46: φ_SE × φ_AM (no τ, simplest interaction)
+    log_rhs_46 = np.log(phi_se * phi_am)
+    log_C_46 = np.mean(log_sigma - log_rhs_46)
+    pred_46 = log_C_46 + log_rhs_46
+    r2_46 = 1 - np.sum((log_sigma - pred_46)**2) / ss_tot
+    print(f"\n  T46: σ_th = {np.exp(log_C_46):.4f} × φ_SE × φ_AM,  R²={r2_46:.4f}")
+    results.append(('T46', f'C × φ_SE × φ_AM', np.exp(log_C_46), r2_46, 1))
+
+    # T47: porosity-based (simple!) — (1-ε)^a
+    if np.any(solid_frac > 0):
+        b47, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(solid_frac), np.ones(n)]),
+            log_sigma, rcond=None)
+        pred47 = np.column_stack([np.log(solid_frac), np.ones(n)]) @ b47
+        r2_47 = 1 - np.sum((log_sigma - pred47)**2) / ss_tot
+        print(f"  T47: σ_th = C × (1-ε)^{b47[0]:.2f},  R²={r2_47:.4f}")
+        results.append(('T47', f'C × (1-ε)^{b47[0]:.1f}', np.exp(b47[1]), r2_47, 2))
+
+    # T48: PER-CASE RESIDUAL from T15 (best full model)
+    # Identify what's left unexplained
+    if np.sum(valid_tau) > 10:
+        mask = valid_tau
+        b_t15 = np.linalg.lstsq(
+            np.column_stack([np.log(phi_se[mask]), np.log(phi_am[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)[0]
+        pred_t15 = np.column_stack([np.log(phi_se[mask]), np.log(phi_am[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]) @ b_t15
+        residuals = log_sigma[mask] - pred_t15
+
+        print(f"\n  T48: Per-case residuals from T15 (φ_SE^{b_t15[0]:.1f}×φ_AM^{b_t15[1]:.1f}×τ^{b_t15[2]:.1f})")
+        print(f"       Residual std = {np.std(residuals):.4f} ({np.exp(np.std(residuals))-1:.1%} relative)")
+        # Correlate residuals with remaining vars
+        resid_corrs = []
+        resid_features = {
+            'T': thickness[mask], 'CN_SE': se_cn[mask], 'CN_AM': am_cn[mask],
+            'A_AMSE': area_am_se[mask], 'A_total': area_total[mask],
+            'f_perc': f_perc[mask], 'σ_ion': sigma_ion[mask],
+        }
+        for name, vals in resid_features.items():
+            valid = (vals > 0) & np.isfinite(vals)
+            if np.sum(valid) > 5:
+                r_val = np.corrcoef(vals[valid], residuals[valid])[0, 1]
+                resid_corrs.append((name, r_val))
+        resid_corrs.sort(key=lambda x: -abs(x[1]))
+        for name, r_val in resid_corrs:
+            print(f"       Residual corr with {name:8s}: r={r_val:+.3f}")
+
+    # T49: SE × AM product with porosity
+    if np.sum(valid_tau) > 10:
+        mask = valid_tau
+        ss49 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        # (φ_SE × φ_AM)^a × (1-ε)^b / τ^c
+        b49, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(phi_se[mask]*phi_am[mask]), np.log(solid_frac[mask]),
+                           np.log(tau[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred49 = np.column_stack([np.log(phi_se[mask]*phi_am[mask]), np.log(solid_frac[mask]),
+                                np.log(tau[mask]), np.ones(np.sum(mask))]) @ b49
+        r2_49 = 1 - np.sum((log_sigma[mask] - pred49)**2) / ss49
+        print(f"\n  T49: σ_th = C × (φ_SE×φ_AM)^{b49[0]:.2f} × (1-ε)^{b49[1]:.2f} / τ^{-b49[2]:.2f},  R²={r2_49:.4f}")
+        results.append(('T49', f'(φ_SE×φ_AM)^{b49[0]:.1f}×(1-ε)^{b49[1]:.1f}×τ^{b49[2]:.1f}', np.exp(b49[3]), r2_49, 4))
+
+    # T50: SIMPLE BEAUTIFUL — φ_SE^1.5 × φ_AM^1.5 (product = geometric mean)
+    # No τ, no CN — just volume fractions
+    log_rhs_50 = 1.5 * np.log(phi_se) + 1.5 * np.log(phi_am)
+    log_C_50 = np.mean(log_sigma - log_rhs_50)
+    pred_50 = log_C_50 + log_rhs_50
+    r2_50 = 1 - np.sum((log_sigma - pred_50)**2) / ss_tot
+    print(f"\n  T50: σ_th = {np.exp(log_C_50):.4f} × φ_SE^1.5 × φ_AM^1.5  (0 free + C),  R²={r2_50:.4f}")
+    print(f"       = {np.exp(log_C_50):.4f} × (φ_SE × φ_AM)^1.5")
+    results.append(('T50', f'C × (φ_SE×φ_AM)^1.5 (Bruggeman product)', np.exp(log_C_50), r2_50, 1))
+
+    # ══════════════════════════════════════════════════════════════════════
     # LITERATURE-BASED MODELS (Glover 2010, Lichtenecker, 3-phase Bruggeman)
     # ══════════════════════════════════════════════════════════════════════
     print(f"\n  {'='*60}")

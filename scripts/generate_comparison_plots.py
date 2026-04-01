@@ -1030,9 +1030,9 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ss_res_fixed = np.sum((log_sf - pred_fixed)**2)
     r2_fixed = 1 - ss_res_fixed / ss_tot
 
-    # Use free-fit exponents for the plot (more accurate)
-    s_pred = np.exp(pred_free)
-    r2 = r2_free
+    # Use FIXED beautiful exponents (physically derived: Maxwell, Makse, Hertz)
+    s_pred = np.exp(pred_fixed)
+    r2 = r2_fixed
     s_actual = np.array([sigma_net[i] for i in valid_idx])
 
     fig, ax = plt.subplots(figsize=FIG_SINGLE)
@@ -1103,13 +1103,13 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title(f"Ionic: σ_brug × {C_fit:.4f} × A_hop^{a_hop:.2f} × CN^{b_cn:.2f} × GB_d^{c_gbd:.2f}\n"
-                 f"R²={r2_free:.3f} (free fit) | Fixed(0.5,2,4/3) R²={r2_fixed:.3f}",
+    ax.set_title(f"Ionic: σ_brug × {C_fixed:.4f} × √A_hop × CN² × GB_d^(4/3)\n"
+                 f"R²={r2_fixed:.3f} (1 free param) | Free fit R²={r2_free:.3f}",
                  fontsize=10, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
 
-    txt = (f"R² = {r2:.3f}  (C={C_fit:.4f})\n"
-           f"a={a_hop:.2f} b={b_cn:.2f} c={c_gbd:.2f}\n"
+    txt = (f"R² = {r2:.3f}  (C={C_fixed:.4f})\n"
+           f"√A_hop × CN² × GB_d^(4/3)\n"
            f"Mean |err| = {np.mean(errors):.1f}%\n"
            f"Within 20%: {within_20}/{len(errors)}\n"
            f"n = {len(valid_idx)}")

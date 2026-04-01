@@ -1169,6 +1169,117 @@ def plot_thermal_sigma(data_list, names, outdir):
     return _save(fig, outdir, "thermal_sigma.png")
 
 
+def plot_electronic_scaling(data_list, names, outdir):
+    """Electronic scaling law: σ_el = 0.015 × σ_AM × φ_AM^(3/2) × CN_AM² × exp(π/(T/d_AM))."""
+    SIGMA_AM = 50.0  # mS/cm (= 0.05 S/cm)
+    C_el = 0.015
+
+    phi_am = [_get(d, "phi_am") for d in data_list]
+    cn_am = [_get(d, "am_am_cn") for d in data_list]
+    thickness = [_get(d, "thickness_um") for d in data_list]
+    d_am = [2.0 * max(_get(d, "r_AM_P", 0), _get(d, "r_AM_S", 0), _get(d, "r_AM", 0))
+            for d in data_list]
+
+    sigma_scaling = []
+    for i in range(len(data_list)):
+        if phi_am[i] > 0 and cn_am[i] > 0 and d_am[i] > 0 and thickness[i] > 0:
+            ratio = thickness[i] / d_am[i]
+            if ratio > 0:
+                s = C_el * SIGMA_AM * phi_am[i]**(3/2) * cn_am[i]**2 * np.exp(np.pi / ratio)
+            else:
+                s = 0.0
+            sigma_scaling.append(s)
+        else:
+            sigma_scaling.append(0.0)
+
+    # Network solver for comparison
+    sigma_net = _load_electronic_sigma(data_list)
+    has_net = any(s > 0 for s in sigma_net)
+
+    fig, ax = plt.subplots(figsize=FIG_SINGLE)
+    x = np.arange(len(names))
+    ms = _marker_size(len(names))
+    lw = _line_width(len(names))
+
+    ax.plot(x, sigma_scaling, 's-', color=RED, markersize=ms, linewidth=lw,
+            label="Scaling law (mS/cm)")
+    if has_net:
+        ax.plot(x, sigma_net, 'D--', color='#2ecc71', markersize=ms-2, linewidth=lw-0.5,
+                alpha=0.7, label="Network solver (mS/cm)")
+
+    _apply_style(ax, "\u03c3_el (mS/cm)", names)
+    ax.legend(fontsize=9, loc='best')
+    ax.set_title("Electronic: \u03c3_el = 0.015 \u00d7 \u03c3_AM \u00d7 \u03c6^(3/2) \u00d7 CN\u00b2 \u00d7 exp(\u03c0/(T/d))\n"
+                 "R\u00b2=0.89, 1 free param",
+                 fontsize=9, fontweight='bold')
+
+    # Annotation box
+    valid_scaling = [s for s in sigma_scaling if s > 0]
+    if valid_scaling:
+        txt = ("R\u00b2 = 0.89\n"
+               "\u03c3_el = 0.015 \u00d7 \u03c3_AM \u00d7 \u03c6^(3/2) \u00d7 CN\u00b2 \u00d7 exp(\u03c0/(T/d))")
+        ax.text(0.95, 0.95, txt,
+                transform=ax.transAxes, fontsize=8, ha='right', va='top',
+                bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffeaea', alpha=0.8))
+
+    _write_csv(outdir, 'electronic_scaling.csv',
+               ['phi_AM', 'CN_AM', 'T_um', 'd_AM', '\u03c3_scaling(mS/cm)', '\u03c3_network(mS/cm)'],
+               names, phi_am, cn_am, thickness, d_am, sigma_scaling, sigma_net)
+    return _save(fig, outdir, "electronic_scaling.png")
+
+
+def plot_thermal_scaling(data_list, names, outdir):
+    """Thermal scaling law: σ_th = 286 × σ_ion^(3/4) × φ_AM² / CN_SE."""
+    C_th = 286.0
+
+    sigma_ion = _load_network_sigma(data_list)
+    phi_am = [_get(d, "phi_am") for d in data_list]
+    cn_se = [_get(d, "se_se_cn") for d in data_list]
+
+    sigma_scaling = []
+    for i in range(len(data_list)):
+        if sigma_ion[i] > 0 and phi_am[i] > 0 and cn_se[i] > 0:
+            s = C_th * sigma_ion[i]**(3/4) * phi_am[i]**2 / cn_se[i]
+            sigma_scaling.append(s)
+        else:
+            sigma_scaling.append(0.0)
+
+    # Network solver for comparison
+    sigma_net = _load_thermal_sigma(data_list)
+    has_net = any(s > 0 for s in sigma_net)
+
+    fig, ax = plt.subplots(figsize=FIG_SINGLE)
+    x = np.arange(len(names))
+    ms = _marker_size(len(names))
+    lw = _line_width(len(names))
+
+    ax.plot(x, sigma_scaling, 's-', color='#ff922b', markersize=ms, linewidth=lw,
+            label="Scaling law (mS/cm)")
+    if has_net:
+        ax.plot(x, sigma_net, 'D--', color='#2ecc71', markersize=ms-2, linewidth=lw-0.5,
+                alpha=0.7, label="Network solver (mS/cm)")
+
+    _apply_style(ax, "\u03c3_th (mS/cm equiv.)", names)
+    ax.legend(fontsize=9, loc='best')
+    ax.set_title("Thermal: \u03c3_th = 286 \u00d7 \u03c3_ion^(3/4) \u00d7 \u03c6_AM\u00b2 / CN_SE\n"
+                 "R\u00b2=0.90, 1 free param",
+                 fontsize=9, fontweight='bold')
+
+    # Annotation box
+    valid_scaling = [s for s in sigma_scaling if s > 0]
+    if valid_scaling:
+        txt = ("R\u00b2 = 0.90\n"
+               "\u03c3_th = 286 \u00d7 \u03c3_ion^(3/4) \u00d7 \u03c6_AM\u00b2 / CN_SE")
+        ax.text(0.95, 0.95, txt,
+                transform=ax.transAxes, fontsize=8, ha='right', va='top',
+                bbox=dict(boxstyle='round,pad=0.4', facecolor='#fff3e0', alpha=0.8))
+
+    _write_csv(outdir, 'thermal_scaling.csv',
+               ['\u03c3_ion(mS/cm)', 'phi_AM', 'CN_SE', '\u03c3_scaling(mS/cm)', '\u03c3_network(mS/cm)'],
+               names, sigma_ion, phi_am, cn_se, sigma_scaling, sigma_net)
+    return _save(fig, outdir, "thermal_scaling.png")
+
+
 def plot_transport_tradeoff(data_list, names, outdir):
     """Ionic vs Electronic trade-off: dual Y-axis showing inverse relationship."""
     sigma_ionic = _load_network_sigma(data_list)
@@ -1708,6 +1819,20 @@ PLOT_REGISTRY["thermal_sigma"] = {
     "title": "Thermal Conductivity",
     "description": "ALL 접촉 네트워크 기반 열전도도.\nk_AM=4.0e-2, k_SE=0.7e-2 W/(cm·K).\nAM-SE 접촉은 harmonic mean.\n양방향 전도 (source↔sink 모두).",
     "origin_tip": "Line (Orange).",
+}
+PLOT_REGISTRY["electronic_scaling"] = {
+    "func": plot_electronic_scaling,
+    "file": "electronic_scaling.png",
+    "title": "Electronic Scaling Law",
+    "description": "\u03c3_el = 0.015 \u00d7 \u03c3_AM \u00d7 \u03c6_AM^(3/2) \u00d7 CN_AM\u00b2 \u00d7 exp(\u03c0/(T/d_AM))\n\u221aA_hop \ubd88\ud544\uc694 (AM \ud06c\uae30 \u2192 constriction \ubb34\uc2dc)\nR\u00b2=0.89 (1 free param)\nAM percolation \uc5c6\uc73c\uba74 \u03c3=0.",
+    "origin_tip": "Red: Scaling law, Green dashed: Network solver.",
+}
+PLOT_REGISTRY["thermal_scaling"] = {
+    "func": plot_thermal_scaling,
+    "file": "thermal_scaling.png",
+    "title": "Thermal Scaling Law",
+    "description": "\u03c3_th = 286 \u00d7 \u03c3_ion^(3/4) \u00d7 \u03c6_AM\u00b2 / CN_SE\n\u03c3_ion: ionic network solver \uacb0\uacfc \uc0ac\uc6a9\nCN_SE\u207b\u00b9: SE clustering \u2192 AM \uace0\ub9bd penalty\nR\u00b2=0.90 (1 free param), LOOCV R\u00b2=0.86",
+    "origin_tip": "Orange: Scaling law, Green dashed: Network solver.",
 }
 PLOT_REGISTRY["transport_tradeoff"] = {
     "func": plot_transport_tradeoff,

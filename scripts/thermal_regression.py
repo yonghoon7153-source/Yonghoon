@@ -994,6 +994,136 @@ def thermal_regression():
             print(f"  T44c: σ_th = C × σ_ion^{b44c[0]:.3f} × φ_AM^{b44c[1]:.3f} × CN_SE^{b44c[2]:.3f},  R²={r2_44c:.4f}")
             results.append(('T44c', f'σ_ion^{b44c[0]:.2f}×φ_AM^{b44c[1]:.2f}×CN^{b44c[2]:.2f}', np.exp(b44c[3]), r2_44c, 4))
 
+    # ── T44c DEEP DIVE: fixed exponents + per-case accuracy ──
+    if np.sum(valid_44) > 10 and np.sum(valid_44 & (se_cn > 0)) > 10:
+        mask = valid_44 & (se_cn > 0)
+        ss_dd = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+
+        # T44d: σ_ion^(3/4) × φ_AM² / CN_SE (fixed beautiful exponents)
+        log_rhs_d = 0.75 * np.log(sigma_ion[mask]) + 2.0 * np.log(phi_am[mask]) - 1.0 * np.log(se_cn[mask])
+        log_C_d = np.mean(log_sigma[mask] - log_rhs_d)
+        pred_d = log_C_d + log_rhs_d
+        r2_d = 1 - np.sum((log_sigma[mask] - pred_d)**2) / ss_dd
+        print(f"\n  T44d: σ_th = {np.exp(log_C_d):.4f} × σ_ion^(3/4) × φ_AM² / CN_SE  (FIXED),  R²={r2_d:.4f}")
+        results.append(('T44d', f'C × σ_ion^3/4 × φ_AM² / CN_SE (fixed)', np.exp(log_C_d), r2_d, 1))
+
+        # T44e: σ_ion^(1/2) × φ_AM² / CN_SE
+        log_rhs_e = 0.5 * np.log(sigma_ion[mask]) + 2.0 * np.log(phi_am[mask]) - 1.0 * np.log(se_cn[mask])
+        log_C_e = np.mean(log_sigma[mask] - log_rhs_e)
+        pred_e = log_C_e + log_rhs_e
+        r2_e = 1 - np.sum((log_sigma[mask] - pred_e)**2) / ss_dd
+        print(f"  T44e: σ_th = {np.exp(log_C_e):.4f} × σ_ion^(1/2) × φ_AM² / CN_SE,  R²={r2_e:.4f}")
+        results.append(('T44e', f'C × σ_ion^1/2 × φ_AM² / CN_SE', np.exp(log_C_e), r2_e, 1))
+
+        # T44f: σ_ion × φ_AM² / CN_SE (σ_ion^1)
+        log_rhs_f = 1.0 * np.log(sigma_ion[mask]) + 2.0 * np.log(phi_am[mask]) - 1.0 * np.log(se_cn[mask])
+        log_C_f = np.mean(log_sigma[mask] - log_rhs_f)
+        pred_f = log_C_f + log_rhs_f
+        r2_f = 1 - np.sum((log_sigma[mask] - pred_f)**2) / ss_dd
+        print(f"  T44f: σ_th = {np.exp(log_C_f):.4f} × σ_ion × φ_AM² / CN_SE,  R²={r2_f:.4f}")
+        results.append(('T44f', f'C × σ_ion × φ_AM² / CN_SE', np.exp(log_C_f), r2_f, 1))
+
+        # T44g: σ_ion^(3/4) × φ_AM^(3/2) / CN_SE
+        log_rhs_g = 0.75 * np.log(sigma_ion[mask]) + 1.5 * np.log(phi_am[mask]) - 1.0 * np.log(se_cn[mask])
+        log_C_g = np.mean(log_sigma[mask] - log_rhs_g)
+        pred_g = log_C_g + log_rhs_g
+        r2_g = 1 - np.sum((log_sigma[mask] - pred_g)**2) / ss_dd
+        print(f"  T44g: σ_th = {np.exp(log_C_g):.4f} × σ_ion^(3/4) × φ_AM^(3/2) / CN_SE,  R²={r2_g:.4f}")
+        results.append(('T44g', f'C × σ_ion^3/4 × φ_AM^3/2 / CN_SE', np.exp(log_C_g), r2_g, 1))
+
+        # T44h: σ_ion^a × φ_AM^b / CN_SE^c + f_perc (residual showed f_perc r=-0.27)
+        valid_44h = mask & (f_perc > 0)
+        if np.sum(valid_44h) > 10:
+            m_h = valid_44h
+            b44h, _, _, _ = np.linalg.lstsq(
+                np.column_stack([np.log(sigma_ion[m_h]), np.log(phi_am[m_h]),
+                               np.log(se_cn[m_h]), np.log(f_perc[m_h]), np.ones(np.sum(m_h))]),
+                log_sigma[m_h], rcond=None)
+            pred44h = np.column_stack([np.log(sigma_ion[m_h]), np.log(phi_am[m_h]),
+                                     np.log(se_cn[m_h]), np.log(f_perc[m_h]), np.ones(np.sum(m_h))]) @ b44h
+            ss44h = np.sum((log_sigma[m_h] - np.mean(log_sigma[m_h]))**2)
+            r2_44h = 1 - np.sum((log_sigma[m_h] - pred44h)**2) / ss44h
+            print(f"  T44h: σ_ion^{b44h[0]:.3f} × φ_AM^{b44h[1]:.3f} × CN^{b44h[2]:.3f} × f_perc^{b44h[3]:.3f},  R²={r2_44h:.4f}")
+            results.append(('T44h', f'σ_ion^{b44h[0]:.2f}×φ_AM^{b44h[1]:.2f}×CN^{b44h[2]:.2f}×f_perc^{b44h[3]:.2f}', np.exp(b44h[4]), r2_44h, 5))
+
+        # T44i: Expand σ_ion = σ_SE × φ_SE × f_perc / τ² → use components directly
+        # σ_th = C × φ_SE^a × f_perc^b / τ^c × φ_AM^d / CN_SE^e
+        valid_44i = mask & (f_perc > 0) & valid_tau
+        if np.sum(valid_44i) > 10:
+            m_i = valid_44i
+            b44i, _, _, _ = np.linalg.lstsq(
+                np.column_stack([np.log(phi_se[m_i]), np.log(f_perc[m_i]), np.log(tau[m_i]),
+                               np.log(phi_am[m_i]), np.log(se_cn[m_i]), np.ones(np.sum(m_i))]),
+                log_sigma[m_i], rcond=None)
+            pred44i = np.column_stack([np.log(phi_se[m_i]), np.log(f_perc[m_i]), np.log(tau[m_i]),
+                                     np.log(phi_am[m_i]), np.log(se_cn[m_i]), np.ones(np.sum(m_i))]) @ b44i
+            ss44i = np.sum((log_sigma[m_i] - np.mean(log_sigma[m_i]))**2)
+            r2_44i = 1 - np.sum((log_sigma[m_i] - pred44i)**2) / ss44i
+            print(f"  T44i: φ_SE^{b44i[0]:.2f} × f_perc^{b44i[1]:.2f} / τ^{-b44i[2]:.2f} × φ_AM^{b44i[3]:.2f} / CN_SE^{-b44i[4]:.2f}")
+            print(f"        R²={r2_44i:.4f}  (σ_ion components expanded)")
+            results.append(('T44i', f'φ_SE^{b44i[0]:.1f}×f_perc^{b44i[1]:.1f}×τ^{b44i[2]:.1f}×φ_AM^{b44i[3]:.1f}×CN^{b44i[4]:.1f}', np.exp(b44i[5]), r2_44i, 6))
+
+        # ── PER-CASE ACCURACY TABLE for T44c (champion) ──
+        print(f"\n  {'='*70}")
+        print(f"  T44c PER-CASE ACCURACY (σ_ion^0.76 × φ_AM^2 / CN_SE^1.17)")
+        print(f"  {'='*70}")
+        # Recompute T44c prediction
+        b_champ = np.linalg.lstsq(
+            np.column_stack([np.log(sigma_ion[mask]), np.log(phi_am[mask]),
+                           np.log(se_cn[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)[0]
+        pred_champ = np.column_stack([np.log(sigma_ion[mask]), np.log(phi_am[mask]),
+                                    np.log(se_cn[mask]), np.ones(np.sum(mask))]) @ b_champ
+        sigma_pred = np.exp(pred_champ)
+        sigma_actual = sigma_th[mask]
+        errors = (sigma_pred - sigma_actual) / sigma_actual * 100
+
+        print(f"  {'Name':25s} {'σ_actual':>8s} {'σ_pred':>8s} {'error%':>8s} {'σ_ion':>7s} {'φ_AM':>6s} {'CN_SE':>6s}")
+        print(f"  {'-'*68}")
+        mask_idx = np.where(mask)[0]
+        for j, idx in enumerate(mask_idx):
+            print(f"  {rows[idx]['name'][:23]:23s} {sigma_actual[j]:8.3f} {sigma_pred[j]:8.3f} {errors[j]:+8.1f}% {sigma_ion[idx]:7.4f} {phi_am[idx]:6.3f} {se_cn[idx]:6.2f}")
+
+        print(f"\n  Mean |error|: {np.mean(np.abs(errors)):.1f}%")
+        print(f"  Max  |error|: {np.max(np.abs(errors)):.1f}%")
+        print(f"  Cases within 10%: {np.sum(np.abs(errors) < 10)}/{len(errors)}")
+        print(f"  Cases within 20%: {np.sum(np.abs(errors) < 20)}/{len(errors)}")
+
+        # ── LOOCV for T44c ──
+        print(f"\n  --- Leave-One-Out Cross-Validation for T44c ---")
+        loocv_errors = []
+        for j in range(np.sum(mask)):
+            # Remove point j
+            train_mask = np.ones(np.sum(mask), dtype=bool)
+            train_mask[j] = False
+            X_train = np.column_stack([np.log(sigma_ion[mask])[train_mask],
+                                      np.log(phi_am[mask])[train_mask],
+                                      np.log(se_cn[mask])[train_mask],
+                                      np.ones(np.sum(train_mask))])
+            y_train = log_sigma[mask][train_mask]
+            b_cv, _, _, _ = np.linalg.lstsq(X_train, y_train, rcond=None)
+            X_test = np.array([np.log(sigma_ion[mask])[j], np.log(phi_am[mask])[j],
+                              np.log(se_cn[mask])[j], 1.0])
+            pred_cv = X_test @ b_cv
+            err_cv = (np.exp(pred_cv) - sigma_th[mask][j]) / sigma_th[mask][j] * 100
+            loocv_errors.append(err_cv)
+        loocv_errors = np.array(loocv_errors)
+        ss_loocv = np.sum((sigma_th[mask] - np.exp(np.array([
+            np.array([np.log(sigma_ion[mask])[j], np.log(phi_am[mask])[j],
+                      np.log(se_cn[mask])[j], 1.0]) @
+            np.linalg.lstsq(
+                np.column_stack([np.log(sigma_ion[mask])[np.arange(np.sum(mask))!=j],
+                                np.log(phi_am[mask])[np.arange(np.sum(mask))!=j],
+                                np.log(se_cn[mask])[np.arange(np.sum(mask))!=j],
+                                np.ones(np.sum(mask)-1)]),
+                log_sigma[mask][np.arange(np.sum(mask))!=j], rcond=None)[0]
+            for j in range(np.sum(mask))
+        ])))**2)
+        r2_loocv = 1 - ss_loocv / np.sum((sigma_th[mask] - np.mean(sigma_th[mask]))**2)
+        print(f"  LOOCV R² = {r2_loocv:.4f} (train R² = {r2_44c:.4f})")
+        print(f"  LOOCV Mean |error|: {np.mean(np.abs(loocv_errors)):.1f}%")
+        print(f"  LOOCV Max  |error|: {np.max(np.abs(loocv_errors)):.1f}%")
+
     # T45: Additive model — C1 × φ_SE^a + C2 × φ_AM^b (can't log-linearize)
     try:
         def model_t45(X, C1, a, C2, b):

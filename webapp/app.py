@@ -500,6 +500,7 @@ def analyze(case_id):
             generate_report(case_id, meta.get('name', ''))
 
             # Network conductivity solver (자동 실행)
+            net_status = 'not_run'
             try:
                 atoms_csv = os.path.join(results_dir, 'atoms.csv')
                 contacts_csv = os.path.join(results_dir, 'contacts.csv')
@@ -508,6 +509,11 @@ def analyze(case_id):
                                atoms_csv, contacts_csv, '-o', results_dir,
                                '-t', meta['type_map'], '-s', str(meta.get('scale', 1000))]
                     net_result = subprocess.run(net_cmd, capture_output=True, text=True, timeout=3600)
+                    if net_result.returncode != 0:
+                        net_status = 'failed'
+                        print(f"  Network solver FAILED: {net_result.stderr[-300:]}")
+                    else:
+                        net_status = 'success'
                     # Merge into full_metrics.json
                     net_json = os.path.join(results_dir, 'network_conductivity.json')
                     met_json = os.path.join(results_dir, 'full_metrics.json')
@@ -522,10 +528,18 @@ def analyze(case_id):
                                   'thermal_sigma_full_mScm', 'thermal_R_brug']:
                             if k in net_data and net_data[k] is not None:
                                 met_data[k] = net_data[k]
+                        met_data['network_solver_status'] = net_status
                         with open(met_json, 'w') as _mf:
                             json.dump(met_data, _mf, indent=2, default=str)
+                    elif net_status == 'success':
+                        net_status = 'no_output'
             except Exception as e:
-                print(f"  Network solver failed: {e}")
+                net_status = 'error'
+                print(f"  Network solver error: {e}")
+            # Save network status to meta
+            meta['network_solver_status'] = net_status
+            with open(meta_file, 'w') as f:
+                json.dump(meta, f, indent=2)
 
         # Sync results + updated meta to Supabase
         storage_sync.sync_dir_to_remote(case_dir, f'uploads/{case_id}')

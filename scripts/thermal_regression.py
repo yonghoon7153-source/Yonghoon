@@ -651,6 +651,244 @@ def thermal_regression():
             results.append(('T31b', f'[THICK] C × k_hop × φ/τ²', np.exp(log_C), r2_31b, 1))
 
     # ══════════════════════════════════════════════════════════════════════
+    # NEW PHYSICS MODELS (T32~T40): Fixed exponents + thin electrode correction
+    # ══════════════════════════════════════════════════════════════════════
+    print(f"\n  {'='*60}")
+    print(f"  NEW PHYSICS MODELS (fixed exponents + thin correction)")
+    print(f"  {'='*60}")
+
+    # T32: Fixed exponents from T31 insight: φ_SE¹ × φ_AM² / √τ
+    # T31 gave φ_SE^1.10 × φ_AM^1.82 / τ^0.51 → round to 1, 2, 0.5
+    if np.sum(valid_tau) > 10:
+        mask = valid_tau
+        log_rhs = 1.0 * np.log(phi_se[mask]) + 2.0 * np.log(phi_am[mask]) - 0.5 * np.log(tau[mask])
+        log_C = np.mean(log_sigma[mask] - log_rhs)
+        pred = log_C + log_rhs
+        ss_m = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2_32 = 1 - np.sum((log_sigma[mask] - pred)**2) / ss_m
+        print(f"\n  T32: σ_th = {np.exp(log_C):.4f} × φ_SE × φ_AM² / √τ  (0 free + C)")
+        print(f"       R²={r2_32:.4f}")
+        results.append(('T32', f'C × φ_SE × φ_AM² / √τ (fixed exp)', np.exp(log_C), r2_32, 1))
+
+    # T32b: φ_SE^1.5 × φ_AM^1.5 / √τ (symmetric Bruggeman exponent)
+    if np.sum(valid_tau) > 10:
+        mask = valid_tau
+        log_rhs = 1.5 * np.log(phi_se[mask]) + 1.5 * np.log(phi_am[mask]) - 0.5 * np.log(tau[mask])
+        log_C = np.mean(log_sigma[mask] - log_rhs)
+        pred = log_C + log_rhs
+        ss_m = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2 = 1 - np.sum((log_sigma[mask] - pred)**2) / ss_m
+        print(f"  T32b: σ_th = {np.exp(log_C):.4f} × φ_SE^1.5 × φ_AM^1.5 / √τ,  R²={r2:.4f}")
+        results.append(('T32b', f'C × φ_SE^1.5 × φ_AM^1.5 / √τ', np.exp(log_C), r2, 1))
+
+    # T32c: φ_SE × φ_AM² / τ (τ^1 instead of τ^0.5)
+    if np.sum(valid_tau) > 10:
+        mask = valid_tau
+        log_rhs = 1.0 * np.log(phi_se[mask]) + 2.0 * np.log(phi_am[mask]) - 1.0 * np.log(tau[mask])
+        log_C = np.mean(log_sigma[mask] - log_rhs)
+        pred = log_C + log_rhs
+        ss_m = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2 = 1 - np.sum((log_sigma[mask] - pred)**2) / ss_m
+        print(f"  T32c: σ_th = {np.exp(log_C):.4f} × φ_SE × φ_AM² / τ,  R²={r2:.4f}")
+        results.append(('T32c', f'C × φ_SE × φ_AM² / τ', np.exp(log_C), r2, 1))
+
+    # T33: φ_SE × φ_AM² / √τ × exp(β/(T/d))  — thin electrode correction
+    valid_33 = valid_tau & (d_am > 0) & (thickness > 0)
+    if np.sum(valid_33) > 10:
+        mask = valid_33
+        T_over_d = thickness[mask] / d_am[mask]
+        try:
+            def model_t33(X, C, beta):
+                phi_s, phi_a, tau_v, xi = X
+                return np.log(C * phi_s * phi_a**2 / np.sqrt(tau_v)) + beta / xi
+
+            X33 = (phi_se[mask], phi_am[mask], tau[mask], T_over_d)
+            popt33, _ = curve_fit(model_t33, X33, log_sigma[mask], p0=[50.0, -1.0], maxfev=10000)
+            pred33 = model_t33(X33, *popt33)
+            ss33 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+            r2_33 = 1 - np.sum((log_sigma[mask] - pred33)**2) / ss33
+            print(f"\n  T33: σ_th = {popt33[0]:.4f} × φ_SE × φ_AM² / √τ × exp({popt33[1]:.3f}/(T/d))")
+            print(f"       R²={r2_33:.4f}  (T/d range: {T_over_d.min():.1f}~{T_over_d.max():.1f})")
+            results.append(('T33', f'φ_SE×φ_AM²/√τ×exp(β/(T/d))', popt33[0], r2_33, 2))
+        except Exception as e:
+            print(f"  T33: FAILED ({e})")
+
+    # T33b: with π fixed as β (like electronic formula)
+    if np.sum(valid_33) > 10:
+        mask = valid_33
+        T_over_d = thickness[mask] / d_am[mask]
+        log_rhs = np.log(phi_se[mask]) + 2*np.log(phi_am[mask]) - 0.5*np.log(tau[mask]) + np.pi / T_over_d
+        log_C = np.mean(log_sigma[mask] - log_rhs)
+        pred = log_C + log_rhs
+        ss33 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2 = 1 - np.sum((log_sigma[mask] - pred)**2) / ss33
+        print(f"  T33b: σ_th = {np.exp(log_C):.6f} × φ_SE × φ_AM² / √τ × exp(π/(T/d)),  R²={r2:.4f}")
+        results.append(('T33b', f'φ_SE×φ_AM²/√τ×exp(π/(T/d)) (β=π)', np.exp(log_C), r2, 1))
+
+    # T34: σ_th = C × σ_ion^a × k_ratio^b — thermal ∝ ionic geometry
+    # More general than T25 — include k_AM/k_SE effect
+    valid_34 = (sigma_ion > 0) & valid_tau
+    if np.sum(valid_34) > 10:
+        mask = valid_34
+        # T34a: σ_th = C × σ_ion^a (free a)
+        b34, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(sigma_ion[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred34 = np.column_stack([np.log(sigma_ion[mask]), np.ones(np.sum(mask))]) @ b34
+        ss34 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2_34 = 1 - np.sum((log_sigma[mask] - pred34)**2) / ss34
+        print(f"\n  T34: σ_th = {np.exp(b34[1]):.4f} × σ_ion^{b34[0]:.3f},  R²={r2_34:.4f}")
+        results.append(('T34', f'C × σ_ion^{b34[0]:.2f}', np.exp(b34[1]), r2_34, 2))
+
+        # T34b: σ_th = C × σ_ion^a × φ_AM^b (add AM contribution)
+        b34b, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(sigma_ion[mask]), np.log(phi_am[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred34b = np.column_stack([np.log(sigma_ion[mask]), np.log(phi_am[mask]), np.ones(np.sum(mask))]) @ b34b
+        r2_34b = 1 - np.sum((log_sigma[mask] - pred34b)**2) / ss34
+        print(f"  T34b: σ_th = C × σ_ion^{b34b[0]:.3f} × φ_AM^{b34b[1]:.3f},  R²={r2_34b:.4f}")
+        results.append(('T34b', f'C × σ_ion^{b34b[0]:.2f} × φ_AM^{b34b[1]:.2f}', np.exp(b34b[2]), r2_34b, 3))
+
+    # T35: k_hop × φ_SE / τ — SE backbone with probability-weighted k
+    if np.sum(valid_30) > 10:
+        mask = valid_30
+        log_rhs = np.log(k_hop_mScm[mask]) + np.log(phi_se[mask]) - np.log(tau[mask])
+        log_C = np.mean(log_sigma[mask] - log_rhs)
+        pred = log_C + log_rhs
+        ss35 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2_35 = 1 - np.sum((log_sigma[mask] - pred)**2) / ss35
+        print(f"\n  T35: σ_th = {np.exp(log_C):.4f} × k_hop × φ_SE / τ,  R²={r2_35:.4f}")
+        results.append(('T35', f'C × k_hop × φ_SE / τ', np.exp(log_C), r2_35, 1))
+
+    # T36: CN_SE^2 term from ionic, adapted for thermal
+    # σ_th = C × φ_SE^1.5 × CN_SE^2 × φ_AM^b
+    if np.sum(valid_tau) > 10:
+        mask = valid_tau
+        b36, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(phi_se[mask]), np.log(se_cn[mask]), np.log(phi_am[mask]),
+                           np.log(tau[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred36 = np.column_stack([np.log(phi_se[mask]), np.log(se_cn[mask]), np.log(phi_am[mask]),
+                                np.log(tau[mask]), np.ones(np.sum(mask))]) @ b36
+        ss36 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2_36 = 1 - np.sum((log_sigma[mask] - pred36)**2) / ss36
+        print(f"  T36: σ_th = C × φ_SE^{b36[0]:.2f} × CN_SE^{b36[1]:.2f} × φ_AM^{b36[2]:.2f} / τ^{-b36[3]:.2f}")
+        print(f"       R²={r2_36:.4f}")
+        results.append(('T36', f'φ_SE^{b36[0]:.1f}×CN^{b36[1]:.1f}×φ_AM^{b36[2]:.1f}×τ^{b36[3]:.1f}', np.exp(b36[4]), r2_36, 5))
+
+    # T37: Hybrid — ionic analog: C × k_SE × φ_SE × f_perc / τ² × (1 + k_r × φ_AM^a)
+    # This says thermal = ionic backbone × AM enhancement
+    valid_37 = valid_tau & (f_perc > 0)
+    if np.sum(valid_37) > 10:
+        mask = valid_37
+        try:
+            def model_t37(X, C, gamma):
+                phi_s, fp, tau_v, phi_a = X
+                se_backbone = C * K_SE_mScm * phi_s * fp / tau_v**2
+                am_enhance = 1 + (K_RATIO - 1) * phi_a**gamma
+                return np.log(se_backbone * am_enhance)
+
+            X37 = (phi_se[mask], f_perc[mask], tau[mask], phi_am[mask])
+            popt37, _ = curve_fit(model_t37, X37, log_sigma[mask], p0=[1.0, 1.0], maxfev=10000)
+            pred37 = model_t37(X37, *popt37)
+            ss37 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+            r2_37 = 1 - np.sum((log_sigma[mask] - pred37)**2) / ss37
+            print(f"\n  T37: σ_th = {popt37[0]:.4f} × k_SE × φ_SE × f_perc / τ² × (1 + {K_RATIO-1:.1f} × φ_AM^{popt37[1]:.2f})")
+            print(f"       R²={r2_37:.4f}  (ionic backbone × AM enhancement)")
+            results.append(('T37', f'k_SE×φ_SE×f_perc/τ²×(1+k_r×φ_AM^γ)', popt37[0], r2_37, 2))
+        except Exception as e:
+            print(f"  T37: FAILED ({e})")
+
+    # T38: Simple power law — φ_total^a / τ^b with CN_SE^c
+    # Trying to see if CN_SE helps
+    if np.sum(valid_tau) > 10:
+        mask = valid_tau
+        b38, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(phi_total[mask]), np.log(tau[mask]),
+                           np.log(se_cn[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred38 = np.column_stack([np.log(phi_total[mask]), np.log(tau[mask]),
+                                np.log(se_cn[mask]), np.ones(np.sum(mask))]) @ b38
+        ss38 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2_38 = 1 - np.sum((log_sigma[mask] - pred38)**2) / ss38
+        print(f"  T38: σ_th = C × φ_total^{b38[0]:.2f} / τ^{-b38[1]:.2f} × CN_SE^{b38[2]:.2f},  R²={r2_38:.4f}")
+        results.append(('T38', f'φ_total^{b38[0]:.1f}×τ^{b38[1]:.1f}×CN^{b38[2]:.1f}', np.exp(b38[3]), r2_38, 4))
+
+    # T39: (φ_SE × φ_AM)^a × CN_SE^b / τ^c (interaction × connectivity)
+    if np.sum(valid_tau) > 10:
+        mask = valid_tau
+        b39, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(phi_se[mask] * phi_am[mask]), np.log(se_cn[mask]),
+                           np.log(tau[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred39 = np.column_stack([np.log(phi_se[mask] * phi_am[mask]), np.log(se_cn[mask]),
+                                np.log(tau[mask]), np.ones(np.sum(mask))]) @ b39
+        ss39 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2_39 = 1 - np.sum((log_sigma[mask] - pred39)**2) / ss39
+        print(f"  T39: σ_th = C × (φ_SE×φ_AM)^{b39[0]:.2f} × CN_SE^{b39[1]:.2f} / τ^{-b39[2]:.2f},  R²={r2_39:.4f}")
+        results.append(('T39', f'(φ_SE×φ_AM)^{b39[0]:.1f}×CN^{b39[1]:.1f}×τ^{b39[2]:.1f}', np.exp(b39[3]), r2_39, 4))
+
+    # T40: UNIFIED thermal = electronic + ionic structure
+    # σ_th = C × k_hop × φ_total^1.5 × CN_SE^a / τ^b × exp(β/(T/d))
+    valid_40 = valid_tau & (d_am > 0) & (thickness > 0) & (k_hop > 0)
+    if np.sum(valid_40) > 10:
+        mask = valid_40
+        T_over_d = thickness[mask] / d_am[mask]
+        try:
+            def model_t40(X, C, a, b, beta):
+                k_h, phi_t, cn_s, tau_v, xi = X
+                return np.log(C * k_h * phi_t**1.5 * cn_s**a / tau_v**b) + beta / xi
+
+            X40 = (k_hop_mScm[mask], phi_total[mask], se_cn[mask], tau[mask], T_over_d)
+            popt40, _ = curve_fit(model_t40, X40, log_sigma[mask],
+                                  p0=[0.1, 0.5, 1.0, -1.0], maxfev=10000)
+            pred40 = model_t40(X40, *popt40)
+            ss40 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+            r2_40 = 1 - np.sum((log_sigma[mask] - pred40)**2) / ss40
+            print(f"\n  T40: σ_th = {popt40[0]:.4f} × k_hop × φ^1.5 × CN_SE^{popt40[1]:.2f} / τ^{popt40[2]:.2f} × exp({popt40[3]:.3f}/(T/d))")
+            print(f"       R²={r2_40:.4f}  (UNIFIED: k_hop + geometry + thin correction)")
+            results.append(('T40', f'k_hop×φ^1.5×CN^{popt40[1]:.1f}/τ^{popt40[2]:.1f}×exp(β/(T/d))', popt40[0], r2_40, 4))
+        except Exception as e:
+            print(f"  T40: FAILED ({e})")
+
+    # T41: THICK ONLY versions of best models
+    if np.sum(valid_31) > 10:
+        mask = valid_31
+        log_sigma_m = log_sigma[mask]
+        ss_thick = np.sum((log_sigma_m - np.mean(log_sigma_m))**2)
+        print(f"\n  --- THICK ONLY new models (T>50μm, n={np.sum(mask)}) ---")
+
+        # T41a: φ_SE × φ_AM² / √τ [THICK]
+        log_rhs = np.log(phi_se[mask]) + 2*np.log(phi_am[mask]) - 0.5*np.log(tau[mask])
+        log_C = np.mean(log_sigma_m - log_rhs)
+        pred = log_C + log_rhs
+        r2 = 1 - np.sum((log_sigma_m - pred)**2) / ss_thick
+        print(f"  T41a: σ_th = {np.exp(log_C):.4f} × φ_SE × φ_AM² / √τ [THICK],  R²={r2:.4f}")
+        results.append(('T41a', f'[THICK] C × φ_SE × φ_AM² / √τ', np.exp(log_C), r2, 1))
+
+        # T41b: σ_ion^a × φ_AM^b [THICK]
+        valid_41b = mask & (sigma_ion > 0)
+        if np.sum(valid_41b) > 10:
+            m2 = valid_41b
+            b41b, _, _, _ = np.linalg.lstsq(
+                np.column_stack([np.log(sigma_ion[m2]), np.log(phi_am[m2]), np.ones(np.sum(m2))]),
+                log_sigma[m2], rcond=None)
+            pred41b = np.column_stack([np.log(sigma_ion[m2]), np.log(phi_am[m2]), np.ones(np.sum(m2))]) @ b41b
+            ss41b = np.sum((log_sigma[m2] - np.mean(log_sigma[m2]))**2)
+            r2_41b = 1 - np.sum((log_sigma[m2] - pred41b)**2) / ss41b
+            print(f"  T41b: σ_th = C × σ_ion^{b41b[0]:.3f} × φ_AM^{b41b[1]:.3f} [THICK],  R²={r2_41b:.4f}")
+            results.append(('T41b', f'[THICK] σ_ion^{b41b[0]:.2f}×φ_AM^{b41b[1]:.2f}', np.exp(b41b[2]), r2_41b, 3))
+
+        # T41c: CN_SE^a × φ_SE^b × φ_AM^c [THICK, no τ]
+        b41c, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(se_cn[mask]), np.log(phi_se[mask]), np.log(phi_am[mask]), np.ones(np.sum(mask))]),
+            log_sigma_m, rcond=None)
+        pred41c = np.column_stack([np.log(se_cn[mask]), np.log(phi_se[mask]), np.log(phi_am[mask]), np.ones(np.sum(mask))]) @ b41c
+        r2_41c = 1 - np.sum((log_sigma_m - pred41c)**2) / ss_thick
+        print(f"  T41c: σ_th = C × CN_SE^{b41c[0]:.2f} × φ_SE^{b41c[1]:.2f} × φ_AM^{b41c[2]:.2f} [THICK],  R²={r2_41c:.4f}")
+        results.append(('T41c', f'[THICK] CN^{b41c[0]:.1f}×φ_SE^{b41c[1]:.1f}×φ_AM^{b41c[2]:.1f}', np.exp(b41c[3]), r2_41c, 4))
+
+    # ══════════════════════════════════════════════════════════════════════
     # LITERATURE-BASED MODELS (Glover 2010, Lichtenecker, 3-phase Bruggeman)
     # ══════════════════════════════════════════════════════════════════════
     print(f"\n  {'='*60}")

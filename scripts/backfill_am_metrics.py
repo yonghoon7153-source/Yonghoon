@@ -86,19 +86,23 @@ def calc_am_am_stats(atoms_path, contacts_path, type_map_str, scale=1000):
 
     values = np.array([cn.get(aid, 0) for aid in am_ids])
 
-    # Scale: sim → real (μm, μm², μN)
-    am_am_areas = [a * scale * scale for a in am_am_areas_sim]  # μm²
+    # Scale: sim(SI) → real
+    # Length: sim/scale (m→μm: ×1e6/scale)
+    # Area: sim/scale² (m²→μm²: ×1e12/scale²)
+    # Force: F_real = F_sim/scale (N), F_real(μN) = F_sim × (1e6/scale) = F_sim × scale (for scale=1000)
+    # Pressure: P_real = P_sim × scale (Pa→MPa: ×scale/1e6)
+    am_am_areas = [a * scale * scale for a in am_am_areas_sim]  # μm²  (A_sim × scale² for unit conv)
     am_am_deltas_real = [d * scale for d in am_am_deltas]  # μm
-    am_am_forces_real = [f * scale * scale for f in am_am_forces]  # μN (F_real = F_sim * scale²)
+    am_am_forces_real = [f * scale for f in am_am_forces]  # μN  (F_real = F_sim/scale in N = F_sim×scale in μN)
     am_am_hops_real = [h * scale for h in am_am_hops]  # μm
     am_am_radii_real = [r * scale for r in am_am_contact_radii]  # μm
 
-    # Contact pressure: P = F / A (MPa) — need consistent units
+    # Contact pressure: P = F / A
+    # F(μN) / A(μm²) = 1e-6 N / 1e-12 m² = 1e6 Pa = 1 MPa
     am_am_pressures = []
     for i in range(len(am_am_areas)):
         if am_am_areas[i] > 0:
-            # F in μN, A in μm² → P = F/A in μN/μm² = MPa
-            am_am_pressures.append(am_am_forces_real[i] / am_am_areas[i])
+            am_am_pressures.append(am_am_forces_real[i] / am_am_areas[i])  # MPa
 
     # φ_AM calculation (volume-based)
     v_am = sum(4/3 * np.pi * atoms[aid]['radius']**3 for aid in am_ids)

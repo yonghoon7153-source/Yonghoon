@@ -208,7 +208,7 @@ def thermal_regression():
     valid_amse = am_se_cn > 0
     if np.sum(valid_amse) > 10:
         mask = valid_amse
-        b6, _ = np.linalg.lstsq(
+        b6, _, _, _ = np.linalg.lstsq(
             np.column_stack([np.log(phi_se[mask]), np.log(se_cn[mask]),
                            np.log(am_se_cn[mask]), np.ones(np.sum(mask))]),
             log_sigma[mask], rcond=None)
@@ -223,7 +223,7 @@ def thermal_regression():
     valid_am = am_cn > 0
     if np.sum(valid_am) > 10:
         mask = valid_am
-        b7, _ = np.linalg.lstsq(
+        b7, _, _, _ = np.linalg.lstsq(
             np.column_stack([np.log(phi_total[mask]), np.log(se_cn[mask]),
                            np.log(am_cn[mask]), np.ones(np.sum(mask))]),
             log_sigma[mask], rcond=None)

@@ -510,6 +510,101 @@ def fit_sigma_eff(rows):
     print(f"  NEW: (A_hop×GB_d²)^(3/5) × CN², R²={r2_new:.4f}")
     print(f"  ΔR² = {r2_new - r2_fixed:+.4f}")
 
+    # ── UPGRADE ATTEMPTS ──
+    print(f"\n{'='*70}")
+    print(f"UPGRADE ATTEMPTS (beyond R²=0.923)")
+    print(f"{'='*70}")
+
+    valid2 = valid & (bn > 0)
+    residual2 = (log_sf - log_sb)[valid2]
+
+    # U1: (A_hop×GB_d²)^(3/5) × CN² × BN^d  (add bottleneck)
+    combo2 = hop[valid2] * gb_d[valid2]**2
+    X_u1 = np.column_stack([3/5*np.log(combo2), 2*np.log(cn[valid2]),
+                            np.log(bn[valid2]), np.ones(valid2.sum())])
+    b_u1, _, _, _ = np.linalg.lstsq(X_u1, residual2, rcond=None)
+    pred_u1 = log_sb[valid2] + X_u1 @ b_u1
+    r2_u1 = 1 - np.sum((log_sf[valid2]-pred_u1)**2)/np.sum((log_sf[valid2]-np.mean(log_sf[valid2]))**2)
+    print(f"\n  U1: (A_hop×GB_d²)^(3/5) × CN² × BN^{b_u1[2]:.3f}")
+    print(f"      R²={r2_u1:.4f} (+BN, but 3/5 and 2 fixed)")
+
+    # U1b: (A_hop×GB_d²)^a × CN^b × BN^c (all free)
+    X_u1b = np.column_stack([np.log(combo2), np.log(cn[valid2]),
+                             np.log(bn[valid2]), np.ones(valid2.sum())])
+    b_u1b, _, _, _ = np.linalg.lstsq(X_u1b, residual2, rcond=None)
+    pred_u1b = log_sb[valid2] + X_u1b @ b_u1b
+    r2_u1b = 1 - np.sum((log_sf[valid2]-pred_u1b)**2)/np.sum((log_sf[valid2]-np.mean(log_sf[valid2]))**2)
+    print(f"  U1b: (A_hop×GB_d²)^{b_u1b[0]:.3f} × CN^{b_u1b[1]:.3f} × BN^{b_u1b[2]:.3f}")
+    print(f"       R²={r2_u1b:.4f} (all free)")
+
+    # U2: BN instead of A_hop: (BN × GB_d²)^a × CN^b
+    combo_bn = bn[valid2] * gb_d[valid2]**2
+    X_u2 = np.column_stack([np.log(combo_bn), np.log(cn[valid2]), np.ones(valid2.sum())])
+    b_u2, _, _, _ = np.linalg.lstsq(X_u2, residual2, rcond=None)
+    pred_u2 = log_sb[valid2] + X_u2 @ b_u2
+    r2_u2 = 1 - np.sum((log_sf[valid2]-pred_u2)**2)/np.sum((log_sf[valid2]-np.mean(log_sf[valid2]))**2)
+    print(f"\n  U2: (BN×GB_d²)^{b_u2[0]:.3f} × CN^{b_u2[1]:.3f}")
+    print(f"      R²={r2_u2:.4f} (bottleneck replaces A_hop)")
+    # Fixed 3/5 test
+    log_rhs_u2f = 3/5*np.log(combo_bn) + 2*np.log(cn[valid2])
+    ln_C_u2f = np.mean(residual2 - log_rhs_u2f)
+    pred_u2f = log_sb[valid2] + ln_C_u2f + log_rhs_u2f
+    r2_u2f = 1 - np.sum((log_sf[valid2]-pred_u2f)**2)/np.sum((log_sf[valid2]-np.mean(log_sf[valid2]))**2)
+    print(f"  U2b: (BN×GB_d²)^(3/5) × CN² [fixed]: C={np.exp(ln_C_u2f):.4f}, R²={r2_u2f:.4f}")
+
+    # U3: Geometric mean of A_hop and BN: (√(A_hop×BN) × GB_d²)^a × CN^b
+    combo_geo = np.sqrt(hop[valid2] * bn[valid2]) * gb_d[valid2]**2
+    X_u3 = np.column_stack([np.log(combo_geo), np.log(cn[valid2]), np.ones(valid2.sum())])
+    b_u3, _, _, _ = np.linalg.lstsq(X_u3, residual2, rcond=None)
+    pred_u3 = log_sb[valid2] + X_u3 @ b_u3
+    r2_u3 = 1 - np.sum((log_sf[valid2]-pred_u3)**2)/np.sum((log_sf[valid2]-np.mean(log_sf[valid2]))**2)
+    print(f"\n  U3: (√(A_hop×BN)×GB_d²)^{b_u3[0]:.3f} × CN^{b_u3[1]:.3f}")
+    print(f"      R²={r2_u3:.4f} (geometric mean of A_hop & BN)")
+
+    # U4: G_path (path conductance) directly — most physically direct
+    g_path = np.array([r['g_path'] for r in rows])
+    valid3 = valid & (g_path > 0)
+    if valid3.sum() > 5:
+        X_u4 = np.column_stack([np.log(g_path[valid3]), np.log(cn[valid3]),
+                                np.log(gb_d[valid3]), np.ones(valid3.sum())])
+        b_u4, _, _, _ = np.linalg.lstsq(X_u4, (log_sf-log_sb)[valid3], rcond=None)
+        pred_u4 = log_sb[valid3] + X_u4 @ b_u4
+        r2_u4 = 1 - np.sum((log_sf[valid3]-pred_u4)**2)/np.sum((log_sf[valid3]-np.mean(log_sf[valid3]))**2)
+        print(f"\n  U4: G_path^{b_u4[0]:.3f} × CN^{b_u4[1]:.3f} × GB_d^{b_u4[2]:.3f}")
+        print(f"      R²={r2_u4:.4f} (G_path = harmonic mean conductance)")
+
+        # U4b: G_path only + CN
+        X_u4b = np.column_stack([np.log(g_path[valid3]), np.log(cn[valid3]), np.ones(valid3.sum())])
+        b_u4b, _, _, _ = np.linalg.lstsq(X_u4b, (log_sf-log_sb)[valid3], rcond=None)
+        pred_u4b = log_sb[valid3] + X_u4b @ b_u4b
+        r2_u4b = 1 - np.sum((log_sf[valid3]-pred_u4b)**2)/np.sum((log_sf[valid3]-np.mean(log_sf[valid3]))**2)
+        print(f"  U4b: G_path^{b_u4b[0]:.3f} × CN^{b_u4b[1]:.3f}: R²={r2_u4b:.4f}")
+
+    # U5: se_se_total (total SE-SE contact area) — network-level metric
+    se_total = np.array([r['se_se_total'] for r in rows])
+    valid4 = valid & (se_total > 0)
+    if valid4.sum() > 5:
+        X_u5 = np.column_stack([np.log(se_total[valid4]), np.log(cn[valid4]), np.ones(valid4.sum())])
+        b_u5, _, _, _ = np.linalg.lstsq(X_u5, (log_sf-log_sb)[valid4], rcond=None)
+        pred_u5 = log_sb[valid4] + X_u5 @ b_u5
+        r2_u5 = 1 - np.sum((log_sf[valid4]-pred_u5)**2)/np.sum((log_sf[valid4]-np.mean(log_sf[valid4]))**2)
+        print(f"\n  U5: SE_total^{b_u5[0]:.3f} × CN^{b_u5[1]:.3f}: R²={r2_u5:.4f} (total SE-SE area)")
+
+    # U6: (A_hop × GB_d²)^(3/5) × CN² with f_perc separated from σ_brug
+    # σ = σ_grain × φ_SE / τ² × C × f_perc^d × (A_hop×GB_d²)^(3/5) × CN²
+    sigma_brug_no_fperc = np.array([SIGMA_BULK * phi[i] / tau[i]**2 if tau[i] > 0 else 0 for i in range(n)])
+    valid5 = valid & (fp > 0) & (sigma_brug_no_fperc > 0)
+    if valid5.sum() > 5:
+        combo5 = hop[valid5] * gb_d[valid5]**2
+        log_sb5 = np.log(sigma_brug_no_fperc[valid5])
+        X_u6 = np.column_stack([np.log(fp[valid5]), 3/5*np.log(combo5),
+                                2*np.log(cn[valid5]), np.ones(valid5.sum())])
+        b_u6, _, _, _ = np.linalg.lstsq(X_u6, (log_sf - log_sb5)[valid5], rcond=None)
+        pred_u6 = log_sb5[valid5] + X_u6 @ b_u6
+        r2_u6 = 1 - np.sum((log_sf[valid5]-pred_u6)**2)/np.sum((log_sf[valid5]-np.mean(log_sf[valid5]))**2)
+        print(f"\n  U6: f_perc^{b_u6[0]:.3f} × (A_hop×GB_d²)^(3/5) × CN²")
+        print(f"      R²={r2_u6:.4f} (f_perc separated from σ_brug)")
+
     # Summary
     print(f"\n{'--- σ_eff Ranking ---':^60}")
     results.append(('NEW: σ_brug×(A_hop×GB_d²)^(3/5)×CN²', r2_new, 2))

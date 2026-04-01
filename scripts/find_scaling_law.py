@@ -605,8 +605,177 @@ def fit_sigma_eff(rows):
         print(f"\n  U6: f_perc^{b_u6[0]:.3f} × (A_hop×GB_d²)^(3/5) × CN²")
         print(f"      R²={r2_u6:.4f} (f_perc separated from σ_brug)")
 
+    # ══════════════════════════════════════════════════════════════════════
+    # EXHAUSTIVE SCREENING: find the ULTIMATE formula
+    # ══════════════════════════════════════════════════════════════════════
+    print(f"\n{'='*70}")
+    print(f"EXHAUSTIVE VARIABLE SCREENING")
+    print(f"{'='*70}")
+
+    # All available contact variables
+    var_pool = {}
+    var_pool['hop'] = hop
+    var_pool['CN'] = cn
+    var_pool['GB_d'] = gb_d
+    if (bn > 0).sum() > 35:
+        var_pool['BN'] = bn
+    if (g_path > 0).sum() > 35:
+        var_pool['G_path'] = g_path
+    var_pool['se_total'] = se_total
+    # Derived combinations
+    var_pool['hop×GB_d²'] = hop * gb_d**2
+    var_pool['BN×GB_d²'] = bn * gb_d**2
+    var_pool['√(hop×BN)'] = np.sqrt(np.maximum(hop * bn, 1e-30))
+    var_pool['√(hop×BN)×GB_d²'] = np.sqrt(np.maximum(hop * bn, 1e-30)) * gb_d**2
+    var_pool['G_path×GB_d'] = g_path * gb_d
+    var_pool['G_path×GB_d²'] = g_path * gb_d**2
+    var_pool['hop×CN'] = hop * cn
+    var_pool['BN×CN'] = bn * cn
+
+    var_names = list(var_pool.keys())
+    print(f"  Variables: {', '.join(var_names)}")
+    print(f"  n={n}, testing all 1/2/3-variable combos with σ_brug base\n")
+
+    screen_results = []
+
+    # 1-variable models: σ = σ_brug × C × X^a
+    print("  --- 1-variable models ---")
+    for v1 in var_names:
+        x1 = var_pool[v1]
+        mask_v = valid & (x1 > 0)
+        if mask_v.sum() < 10:
+            continue
+        X_s = np.column_stack([np.log(x1[mask_v]), np.ones(mask_v.sum())])
+        b_s, _, _, _ = np.linalg.lstsq(X_s, (log_sf-log_sb)[mask_v], rcond=None)
+        pred_s = log_sb[mask_v] + X_s @ b_s
+        ss_res = np.sum((log_sf[mask_v] - pred_s)**2)
+        ss_tot_s = np.sum((log_sf[mask_v] - np.mean(log_sf[mask_v]))**2)
+        r2_s = 1 - ss_res / ss_tot_s if ss_tot_s > 0 else 0
+        screen_results.append((f'{v1}^{b_s[0]:.2f}', r2_s, 2, b_s[0]))
+    screen_results.sort(key=lambda x: -x[1])
+    for name, r2_s, p, exp in screen_results[:5]:
+        print(f"    {name:35s} R²={r2_s:.4f}")
+
+    # 2-variable models: σ = σ_brug × C × X^a × Y^b
+    print("\n  --- 2-variable models (TOP 15) ---")
+    screen2 = []
+    for i, v1 in enumerate(var_names):
+        for v2 in var_names[i+1:]:
+            x1, x2 = var_pool[v1], var_pool[v2]
+            mask_v = valid & (x1 > 0) & (x2 > 0)
+            if mask_v.sum() < 10:
+                continue
+            X_s = np.column_stack([np.log(x1[mask_v]), np.log(x2[mask_v]), np.ones(mask_v.sum())])
+            b_s, _, _, _ = np.linalg.lstsq(X_s, (log_sf-log_sb)[mask_v], rcond=None)
+            pred_s = log_sb[mask_v] + X_s @ b_s
+            ss_res = np.sum((log_sf[mask_v] - pred_s)**2)
+            ss_tot_s = np.sum((log_sf[mask_v] - np.mean(log_sf[mask_v]))**2)
+            r2_s = 1 - ss_res / ss_tot_s if ss_tot_s > 0 else 0
+            screen2.append((f'{v1}^{b_s[0]:.2f} × {v2}^{b_s[1]:.2f}', r2_s, 3, v1, v2, b_s))
+    screen2.sort(key=lambda x: -x[1])
+    for name, r2_s, p, *_ in screen2[:15]:
+        print(f"    {name:50s} R²={r2_s:.4f}")
+
+    # 3-variable models: TOP combos only (avoid explosion)
+    print("\n  --- 3-variable models (TOP 15) ---")
+    screen3 = []
+    # Use top 2-var combos' variables + add one more
+    top_vars = set()
+    for _, _, _, v1, v2, _ in screen2[:10]:
+        top_vars.add(v1)
+        top_vars.add(v2)
+    base_vars = ['hop', 'CN', 'GB_d', 'BN', 'G_path']
+    for i, v1 in enumerate(base_vars):
+        for j, v2 in enumerate(base_vars[i+1:], i+1):
+            for v3 in base_vars[j+1:]:
+                x1, x2, x3 = var_pool.get(v1), var_pool.get(v2), var_pool.get(v3)
+                if x1 is None or x2 is None or x3 is None:
+                    continue
+                mask_v = valid & (x1 > 0) & (x2 > 0) & (x3 > 0)
+                if mask_v.sum() < 10:
+                    continue
+                X_s = np.column_stack([np.log(x1[mask_v]), np.log(x2[mask_v]),
+                                      np.log(x3[mask_v]), np.ones(mask_v.sum())])
+                b_s, _, _, _ = np.linalg.lstsq(X_s, (log_sf-log_sb)[mask_v], rcond=None)
+                pred_s = log_sb[mask_v] + X_s @ b_s
+                ss_res = np.sum((log_sf[mask_v] - pred_s)**2)
+                ss_tot_s = np.sum((log_sf[mask_v] - np.mean(log_sf[mask_v]))**2)
+                r2_s = 1 - ss_res / ss_tot_s if ss_tot_s > 0 else 0
+                screen3.append((f'{v1}^{b_s[0]:.2f} × {v2}^{b_s[1]:.2f} × {v3}^{b_s[2]:.2f}',
+                               r2_s, 4, v1, v2, v3, b_s))
+    # Also test combo variables + base vars
+    combo_vars = ['hop×GB_d²', 'BN×GB_d²', '√(hop×BN)×GB_d²', 'G_path×GB_d', 'G_path×GB_d²']
+    for cv in combo_vars:
+        if cv not in var_pool:
+            continue
+        xc = var_pool[cv]
+        for bv in base_vars:
+            xb = var_pool.get(bv)
+            if xb is None:
+                continue
+            mask_v = valid & (xc > 0) & (xb > 0)
+            if mask_v.sum() < 10:
+                continue
+            X_s = np.column_stack([np.log(xc[mask_v]), np.log(xb[mask_v]), np.ones(mask_v.sum())])
+            b_s, _, _, _ = np.linalg.lstsq(X_s, (log_sf-log_sb)[mask_v], rcond=None)
+            pred_s = log_sb[mask_v] + X_s @ b_s
+            ss_res = np.sum((log_sf[mask_v] - pred_s)**2)
+            ss_tot_s = np.sum((log_sf[mask_v] - np.mean(log_sf[mask_v]))**2)
+            r2_s = 1 - ss_res / ss_tot_s if ss_tot_s > 0 else 0
+            screen3.append((f'({cv})^{b_s[0]:.2f} × {bv}^{b_s[1]:.2f}',
+                           r2_s, 3, cv, bv, '', b_s))
+    screen3.sort(key=lambda x: -x[1])
+    for name, r2_s, p, *_ in screen3[:15]:
+        print(f"    {name:55s} R²={r2_s:.4f}")
+
+    # ── CHAMPION: Best formula with fixed beautiful exponents ──
+    print(f"\n{'='*70}")
+    print(f"CHAMPION CANDIDATES (fixed exponent test)")
+    print(f"{'='*70}")
+
+    # Top 3 from each category → test fixed exponents
+    champs = []
+    for name, r2_s, p, *rest in (screen2[:5] + screen3[:5]):
+        if len(rest) >= 3:
+            v1, v2 = rest[0], rest[1]
+            b_s = rest[-1]
+            # Try rounding exponents to simple fractions
+            for exp_set in [(round(b_s[0]*2)/2, round(b_s[1]*2)/2),  # nearest 0.5
+                           (round(b_s[0]*3)/3, round(b_s[1]*3)/3),  # nearest 1/3
+                           (round(b_s[0]*4)/4, round(b_s[1]*4)/4),  # nearest 1/4
+                           (round(b_s[0]*5)/5, round(b_s[1]*5)/5)]: # nearest 1/5
+                x1 = var_pool.get(v1)
+                x2 = var_pool.get(v2)
+                if x1 is None or x2 is None:
+                    continue
+                mask_v = valid & (x1 > 0) & (x2 > 0)
+                if mask_v.sum() < 10:
+                    continue
+                log_rhs_c = exp_set[0]*np.log(x1[mask_v]) + exp_set[1]*np.log(x2[mask_v])
+                ln_C_c = np.mean((log_sf-log_sb)[mask_v] - log_rhs_c)
+                pred_c = log_sb[mask_v] + ln_C_c + log_rhs_c
+                ss_res_c = np.sum((log_sf[mask_v] - pred_c)**2)
+                ss_tot_c = np.sum((log_sf[mask_v] - np.mean(log_sf[mask_v]))**2)
+                r2_c = 1 - ss_res_c / ss_tot_c if ss_tot_c > 0 else 0
+                if r2_c > 0.90:
+                    from fractions import Fraction
+                    f1 = Fraction(exp_set[0]).limit_denominator(10)
+                    f2 = Fraction(exp_set[1]).limit_denominator(10)
+                    champs.append((f'{v1}^({f1}) × {v2}^({f2})',
+                                  r2_c, r2_s, exp_set, np.exp(ln_C_c)))
+
+    champs.sort(key=lambda x: -x[1])
+    seen = set()
+    for name, r2_fixed, r2_free, exps, C in champs:
+        key = f"{exps[0]:.2f}_{exps[1]:.2f}"
+        if key in seen:
+            continue
+        seen.add(key)
+        gap = r2_free - r2_fixed
+        print(f"  {name:45s} Fixed R²={r2_fixed:.4f} (free {r2_free:.4f}, gap={gap:.4f}) C={C:.4f}")
+
     # Summary
-    print(f"\n{'--- σ_eff Ranking ---':^60}")
+    print(f"\n{'--- FINAL σ_eff Ranking ---':^60}")
     results.append(('NEW: σ_brug×(A_hop×GB_d²)^(3/5)×CN²', r2_new, 2))
     for rank, (name, r2, p) in enumerate(sorted(results, key=lambda x: -x[1]), 1):
         star = " ★" if r2 > 0.9 else ""

@@ -729,6 +729,199 @@ def electronic_regression_physics():
     print(f"  Best 'beautiful' formula = highest R^2 among 1-param models.\n")
 
 
+def electronic_unified_model():
+    """Unified model for ALL thicknesses: base × exp(β × d_AM/T) correction."""
+    rows = []
+    for base in [os.path.join(WEBAPP, 'results'), os.path.join(WEBAPP, 'archive')]:
+        if not os.path.isdir(base):
+            continue
+        for root, dirs, files in os.walk(base):
+            if 'full_metrics.json' not in files:
+                continue
+            met_path = os.path.join(root, 'full_metrics.json')
+            with open(met_path) as f:
+                m = json.load(f)
+
+            sigma_el = m.get('electronic_sigma_full_mScm', 0)
+            if not sigma_el or sigma_el <= 0:
+                continue
+
+            phi_am = m.get('phi_am', 0)
+            am_cn = m.get('am_am_cn', 0)
+            thickness = m.get('thickness_um', 0)
+            if phi_am <= 0 or am_cn <= 0 or thickness <= 0:
+                continue
+
+            # AM particle diameter (μm) - use largest AM type
+            d_am = 0
+            for key in ['r_AM_P', 'r_AM_S', 'r_AM']:
+                r = m.get(key, 0)
+                if r and r > d_am:
+                    d_am = r
+            d_am = d_am * 2  # radius → diameter
+            if d_am <= 0:
+                continue
+
+            rows.append({
+                'name': os.path.basename(root),
+                'sigma_el': sigma_el,
+                'phi_am': phi_am,
+                'am_cn': am_cn,
+                'thickness': thickness,
+                'd_am': d_am,
+                'T_over_d': thickness / d_am,
+            })
+
+    # Deduplicate
+    seen = set()
+    unique = []
+    for r in rows:
+        key = round(r['sigma_el'], 3)
+        if key not in seen:
+            seen.add(key)
+            unique.append(r)
+    rows = unique
+
+    if len(rows) < 10:
+        print(f"Only {len(rows)} unique cases. Need at least 10.")
+        return
+
+    sigma_el = np.array([r['sigma_el'] for r in rows])
+    phi_am = np.array([r['phi_am'] for r in rows])
+    cn = np.array([r['am_cn'] for r in rows])
+    T = np.array([r['thickness'] for r in rows])
+    d_am = np.array([r['d_am'] for r in rows])
+    T_over_d = T / d_am
+
+    n = len(rows)
+    log_sigma = np.log(sigma_el)
+    ss_tot = np.sum((log_sigma - np.mean(log_sigma))**2)
+
+    SIGMA_AM = 50.0
+
+    print(f"\n{'='*70}")
+    print(f"UNIFIED MODEL: ALL THICKNESSES (n={n} unique)")
+    print(f"{'='*70}")
+    print(f"T/d_AM range: {T_over_d.min():.1f} ~ {T_over_d.max():.1f}")
+    print(f"Thin (T/d<5): {np.sum(T_over_d < 5)}, Thick (T/d>10): {np.sum(T_over_d > 10)}")
+
+    results = []
+
+    # Model U1: C × φ^1.5 × CN² × exp(β/ξ), ξ = T/d_AM, fit C and β
+    try:
+        def model_u1(X, log_C, beta):
+            phi, z, xi = X
+            return log_C + 1.5*np.log(phi) + 2*np.log(z) + beta/xi
+
+        from scipy.optimize import curve_fit
+        X = (phi_am, cn, T_over_d)
+        popt, pcov = curve_fit(model_u1, X, log_sigma, p0=[np.log(1.0), 1.0], maxfev=10000)
+        pred = model_u1(X, *popt)
+        r2 = 1 - np.sum((log_sigma - pred)**2) / ss_tot
+        C_val = np.exp(popt[0])
+        beta = popt[1]
+        results.append(('U1', f'C × φ^1.5 × CN² × exp(β/(T/d))', C_val, beta, r2, 2))
+        print(f"\n  U1: σ = {C_val:.4f} × φ^1.5 × CN² × exp({beta:.2f} / (T/d_AM))")
+        print(f"      R² = {r2:.4f}  (2 free params: C, β)")
+        print(f"      T/d=2 → ×{np.exp(beta/2):.2f},  T/d=5 → ×{np.exp(beta/5):.2f},  T/d=15 → ×{np.exp(beta/15):.2f}")
+    except Exception as e:
+        print(f"\n  U1: FAILED ({e})")
+
+    # Model U2: C × σ_AM × φ^1.5 × CN² × exp(β/ξ)
+    try:
+        def model_u2(X, log_C, beta):
+            phi, z, xi = X
+            return log_C + np.log(SIGMA_AM) + 1.5*np.log(phi) + 2*np.log(z) + beta/xi
+
+        popt2, _ = curve_fit(model_u2, X, log_sigma, p0=[np.log(0.02), 1.0], maxfev=10000)
+        pred2 = model_u2(X, *popt2)
+        r2_2 = 1 - np.sum((log_sigma - pred2)**2) / ss_tot
+        C2 = np.exp(popt2[0])
+        beta2 = popt2[1]
+        results.append(('U2', f'C × σ_AM × φ^1.5 × CN² × exp(β/(T/d))', C2, beta2, r2_2, 2))
+        print(f"\n  U2: σ = {C2:.4f} × σ_AM × φ^1.5 × CN² × exp({beta2:.2f} / (T/d_AM))")
+        print(f"      R² = {r2_2:.4f}  (2 free params)")
+    except Exception as e:
+        print(f"\n  U2: FAILED ({e})")
+
+    # Model U3: C × φ^1.5 × CN² × (1 + α/ξ) — linear correction
+    try:
+        # log(σ) = log(C) + 1.5 log(φ) + 2 log(CN) + log(1 + α/ξ)
+        # Can't linearize log(1+α/ξ), use curve_fit
+        def model_u3(X, log_C, alpha):
+            phi, z, xi = X
+            return log_C + 1.5*np.log(phi) + 2*np.log(z) + np.log(1 + alpha/xi)
+
+        popt3, _ = curve_fit(model_u3, X, log_sigma, p0=[np.log(1.0), 5.0], maxfev=10000)
+        pred3 = model_u3(X, *popt3)
+        r2_3 = 1 - np.sum((log_sigma - pred3)**2) / ss_tot
+        C3 = np.exp(popt3[0])
+        alpha3 = popt3[1]
+        results.append(('U3', f'C × φ^1.5 × CN² × (1 + α/(T/d))', C3, alpha3, r2_3, 2))
+        print(f"\n  U3: σ = {C3:.4f} × φ^1.5 × CN² × (1 + {alpha3:.2f}/(T/d_AM))")
+        print(f"      R² = {r2_3:.4f}  (2 free params)")
+        print(f"      T/d=2 → ×{1+alpha3/2:.2f},  T/d=5 → ×{1+alpha3/5:.2f},  T/d=15 → ×{1+alpha3/15:.2f}")
+    except Exception as e:
+        print(f"\n  U3: FAILED ({e})")
+
+    # Model U4: C × φ^1.5 × CN² × (T/d_AM)^(-γ) — power law correction
+    try:
+        def model_u4(X, log_C, gamma):
+            phi, z, xi = X
+            return log_C + 1.5*np.log(phi) + 2*np.log(z) - gamma*np.log(xi)
+
+        popt4, _ = curve_fit(model_u4, X, log_sigma, p0=[np.log(5.0), 0.5], maxfev=10000)
+        pred4 = model_u4(X, *popt4)
+        r2_4 = 1 - np.sum((log_sigma - pred4)**2) / ss_tot
+        C4 = np.exp(popt4[0])
+        gamma4 = popt4[1]
+        results.append(('U4', f'C × φ^1.5 × CN² × (T/d)^(-γ)', C4, gamma4, r2_4, 2))
+        print(f"\n  U4: σ = {C4:.4f} × φ^1.5 × CN² × (T/d_AM)^(-{gamma4:.2f})")
+        print(f"      R² = {r2_4:.4f}  (2 free params)")
+    except Exception as e:
+        print(f"\n  U4: FAILED ({e})")
+
+    # Model U5: Free all — C × φ^a × CN^b × exp(β/ξ)
+    try:
+        def model_u5(X, log_C, a, b, beta):
+            phi, z, xi = X
+            return log_C + a*np.log(phi) + b*np.log(z) + beta/xi
+
+        popt5, _ = curve_fit(model_u5, X, log_sigma, p0=[np.log(1.0), 1.5, 2.0, 1.0], maxfev=10000)
+        pred5 = model_u5(X, *popt5)
+        r2_5 = 1 - np.sum((log_sigma - pred5)**2) / ss_tot
+        C5 = np.exp(popt5[0])
+        results.append(('U5', f'C × φ^a × CN^b × exp(β/ξ)  FREE', C5, popt5[3], r2_5, 4))
+        print(f"\n  U5: σ = {C5:.4f} × φ^{popt5[1]:.2f} × CN^{popt5[2]:.2f} × exp({popt5[3]:.2f}/(T/d))")
+        print(f"      R² = {r2_5:.4f}  (4 free params)")
+    except Exception as e:
+        print(f"\n  U5: FAILED ({e})")
+
+    # Reference: thick-only baseline
+    thick = T_over_d > 10
+    if np.sum(thick) > 5:
+        log_rhs = 1.5*np.log(phi_am[thick]) + 2*np.log(cn[thick])
+        log_C_ref = np.mean(log_sigma[thick] - log_rhs)
+        pred_ref = log_C_ref + log_rhs
+        ss_thick = np.sum((log_sigma[thick] - np.mean(log_sigma[thick]))**2)
+        r2_ref = 1 - np.sum((log_sigma[thick] - pred_ref)**2) / ss_thick
+        print(f"\n  REF (thick only T/d>10, n={np.sum(thick)}): φ^1.5 × CN², R²={r2_ref:.4f}")
+
+    # Comparison
+    print(f"\n{'='*70}")
+    print("UNIFIED MODEL COMPARISON")
+    print(f"{'='*70}")
+    print(f"  {'Model':6s} {'R²':>8s} {'#Params':>7s}   {'C':>8s} {'β/α/γ':>8s}   Description")
+    print(f"  {'-'*75}")
+    for tag, desc, C_val, param2, r2, np_ in sorted(results, key=lambda x: -x[4]):
+        print(f"  {tag:6s} {r2:8.4f} {np_:7d}   {C_val:8.4f} {param2:8.3f}   {desc}")
+
+    # Show per-case: predicted vs actual for best model
+    if results:
+        best = max(results, key=lambda x: x[4])
+        print(f"\n  Best: {best[0]} (R²={best[4]:.4f})")
+
+
 if __name__ == '__main__':
     print("Step 1: Backfilling AM-AM metrics...")
     backfill_all()
@@ -736,3 +929,5 @@ if __name__ == '__main__':
     electronic_regression()
     print("\nStep 3: Physics-motivated fixed-exponent models...")
     electronic_regression_physics()
+    print("\nStep 4: Unified thin+thick model...")
+    electronic_unified_model()

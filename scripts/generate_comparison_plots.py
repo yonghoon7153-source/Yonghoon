@@ -1825,7 +1825,6 @@ PLOT_REGISTRY = {
         "title": "Ionic: Scaling Law Fit (Predicted vs Actual)",
         "description": "σ_ion = σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\n예측값 vs Network solver 실측값 scatter plot\n1:1 line + ±20% band\nR²=0.93, 1 free param",
         "origin_tip": "Scatter (log-log): X=actual, Y=predicted.\n1:1 line (black dashed), ±20% band (green).",
-        "min_groups": 2,
     },
     "multiscale_sigma": {
         "func": plot_multiscale_sigma,

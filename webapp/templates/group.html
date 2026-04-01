@@ -748,9 +748,12 @@ async function generatePlots() {
 
         // Global-only plots: render as single full-width (all groups combined)
         const globalOnlyPlots = ['rgb_fitting', 'gb_corrected', 'ionic_scaling_fit'];
-        if (globalOnlyPlots.includes(pt) && globalPlotMap[file]) {
-          if (pt === 'rgb_fitting') grid.appendChild(createDerivationBox());
-          grid.appendChild(createPlotItem(globalRgbPlots.session, globalPlotMap[file]));
+        if (globalOnlyPlots.includes(pt)) {
+          if (globalPlotMap[file]) {
+            if (pt === 'rgb_fitting') grid.appendChild(createDerivationBox());
+            grid.appendChild(createPlotItem(globalRgbPlots.session, globalPlotMap[file]));
+          }
+          // Skip per-group rendering (handled globally or unavailable)
           continue;
         }
 

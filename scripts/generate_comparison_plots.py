@@ -1197,6 +1197,8 @@ def plot_multiscale_sigma(data_list, names, outdir):
         else:
             sigma_ms.append(0)
 
+    has_net = any(s > 0 for s in sigma_net)
+
     fig, ax = plt.subplots(figsize=FIG_SINGLE)
     x = np.arange(len(names))
     ms = _marker_size(len(names))

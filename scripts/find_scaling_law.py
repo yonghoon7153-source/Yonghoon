@@ -55,6 +55,23 @@ def load_all_data():
         if gb_d <= 0 or T <= 0 or tau <= 0:
             continue
 
+        # Load r_SE from input_params.json or full_metrics
+        r_se = m.get('r_SE', 0)
+        if r_se <= 0:
+            ip_path = os.path.join(os.path.dirname(mp), 'input_params.json')
+            if os.path.exists(ip_path):
+                with open(ip_path) as f_ip:
+                    ip = json.load(f_ip)
+                r_se = ip.get('r_SE', 0)
+                if r_se > 0 and r_se < 0.01:  # sim units (m), convert to μm
+                    r_se = r_se * ip.get('scale', 1000) * 1e6  # to μm
+                elif r_se == 0:
+                    # Try to get from scale
+                    for k, v in ip.items():
+                        if 'r_SE' in k and isinstance(v, (int, float)) and v > 0:
+                            r_se = v * ip.get('scale', 1000) * 1e6
+                            break
+
         rows.append({
             'name': nd['name'],
             # Network solver
@@ -87,6 +104,7 @@ def load_all_data():
             'constr_ratio': (1 - nd['bulk_resistance_fraction']) / nd['bulk_resistance_fraction']
                             if nd['bulk_resistance_fraction'] > 0 else 0,
             'sigma_brug': 3.0 * m.get('phi_se', 0) * m.get('percolation_pct', 0) / 100 / tau**2,
+            'd_se': 2 * r_se if r_se > 0 else 0,  # SE diameter (μm)
         })
     return rows
 
@@ -831,6 +849,61 @@ def fit_sigma_eff(rows):
         sign = '+' if s_pred_ch[j] > s_actual_ch[j] else '-'
         mark = ' ★' if errors_ch[j] > 30 else ''
         print(f"  {rows[i]['name']:25s} {s_actual_ch[j]:10.4f} {s_pred_ch[j]:10.4f} {sign}{errors_ch[j]:7.1f}% {gb_d[i]:6.2f} {g_path[i]:8.4f} {cn[i]:5.2f}{mark}")
+
+    # ── d_SE TEST: SE 크기를 직접 변수로 ──
+    d_se = np.array([r['d_se'] for r in rows])
+    valid_dse = valid_ch & (d_se > 0)
+    print(f"\n  {'═'*50}")
+    print(f"  d_SE VARIABLE TEST")
+    print(f"  {'═'*50}")
+    print(f"  d_SE available: {(d_se > 0).sum()}/{n}")
+    if (d_se > 0).sum() > 0:
+        print(f"  d_SE range: {d_se[d_se>0].min():.2f} ~ {d_se[d_se>0].max():.2f} μm")
+
+    if valid_dse.sum() > 10:
+        combo_dse = g_path[valid_dse] * gb_d[valid_dse]**2
+
+        # D1: (G_path × GB_d²)^(1/4) × CN² × d_SE^e (add d_SE)
+        X_d1 = np.column_stack([0.25*np.log(combo_dse), 2*np.log(cn[valid_dse]),
+                                np.log(d_se[valid_dse]), np.ones(valid_dse.sum())])
+        b_d1, _, _, _ = np.linalg.lstsq(X_d1, (log_sf-log_sb)[valid_dse], rcond=None)
+        pred_d1 = log_sb[valid_dse] + X_d1 @ b_d1
+        r2_d1 = 1 - np.sum((log_sf[valid_dse]-pred_d1)**2)/np.sum((log_sf[valid_dse]-np.mean(log_sf[valid_dse]))**2)
+        err_d1 = np.abs(np.exp(pred_d1) - np.exp(log_sf[valid_dse])) / np.exp(log_sf[valid_dse]) * 100
+        print(f"\n  D1: (G_path×GB_d²)^(1/4) × CN² × d_SE^{b_d1[2]:.3f}")
+        print(f"      R²={r2_d1:.4f}, mean|err|={np.mean(err_d1):.1f}%, max={np.max(err_d1):.1f}%")
+
+        # D2: (G_path × GB_d² × d_SE^a)^b × CN^c (결합에 d_SE 포함)
+        for a_test in [1, 2, -1, -2]:
+            combo_d2 = g_path[valid_dse] * gb_d[valid_dse]**2 * d_se[valid_dse]**a_test
+            X_d2 = np.column_stack([np.log(combo_d2), np.log(cn[valid_dse]), np.ones(valid_dse.sum())])
+            b_d2, _, _, _ = np.linalg.lstsq(X_d2, (log_sf-log_sb)[valid_dse], rcond=None)
+            pred_d2 = log_sb[valid_dse] + X_d2 @ b_d2
+            r2_d2 = 1 - np.sum((log_sf[valid_dse]-pred_d2)**2)/np.sum((log_sf[valid_dse]-np.mean(log_sf[valid_dse]))**2)
+            print(f"  D2(a={a_test}): (G_path×GB_d²×d_SE^{a_test})^{b_d2[0]:.3f} × CN^{b_d2[1]:.3f}: R²={r2_d2:.4f}")
+
+        # D3: Free all — d_SE^a × (G_path×GB_d²)^b × CN^c
+        X_d3 = np.column_stack([np.log(d_se[valid_dse]), np.log(combo_dse),
+                                np.log(cn[valid_dse]), np.ones(valid_dse.sum())])
+        b_d3, _, _, _ = np.linalg.lstsq(X_d3, (log_sf-log_sb)[valid_dse], rcond=None)
+        pred_d3 = log_sb[valid_dse] + X_d3 @ b_d3
+        r2_d3 = 1 - np.sum((log_sf[valid_dse]-pred_d3)**2)/np.sum((log_sf[valid_dse]-np.mean(log_sf[valid_dse]))**2)
+        err_d3 = np.abs(np.exp(pred_d3) - np.exp(log_sf[valid_dse])) / np.exp(log_sf[valid_dse]) * 100
+        print(f"\n  D3 FREE: d_SE^{b_d3[0]:.3f} × (G_path×GB_d²)^{b_d3[1]:.3f} × CN^{b_d3[2]:.3f}")
+        print(f"      R²={r2_d3:.4f}, mean|err|={np.mean(err_d3):.1f}%, max={np.max(err_d3):.1f}%")
+
+        # Per-SE with d_SE model
+        if r2_d3 > r2_ch + 0.005:
+            print(f"\n  Per-SE-size (D3 free, 공통 C):")
+            for se_label, gb_lo, gb_hi in [("SE 0.5μm", 1.0, 3.0), ("SE 1.0μm", 0.6, 1.0), ("SE 1.5μm", 0.0, 0.6)]:
+                mask_se = valid_dse & (gb_d >= gb_lo) & (gb_d < gb_hi)
+                if mask_se.sum() < 3:
+                    continue
+                pred_se = log_sb[mask_se] + b_d3[0]*np.log(d_se[mask_se]) + b_d3[1]*np.log(g_path[mask_se]*gb_d[mask_se]**2) + b_d3[2]*np.log(cn[mask_se]) + b_d3[3]
+                err_se = np.abs(np.exp(pred_se) - np.exp(log_sf[mask_se])) / np.exp(log_sf[mask_se]) * 100
+                print(f"    {se_label} (n={mask_se.sum()}): mean|err|={np.mean(err_se):.1f}%, max={np.max(err_se):.1f}%")
+    else:
+        print(f"  d_SE not available in data — need input_params.json with r_SE")
 
     # ── BIAS ANALYSIS: SE 0.5μm 편향 해결 ──
     print(f"\n  {'═'*50}")

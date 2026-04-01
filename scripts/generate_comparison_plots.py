@@ -1110,16 +1110,14 @@ def plot_electronic_sigma(data_list, names, outdir):
     ms = _marker_size(len(names))
     lw = _line_width(len(names))
 
-    # Color: None cases as X marker
-    has_val = [s > 0 for s in sigma_el]
-    x_valid = [x[i] for i in range(len(names)) if has_val[i]]
-    y_valid = [sigma_el[i] for i in range(len(names)) if has_val[i]]
-    x_none = [x[i] for i in range(len(names)) if not has_val[i]]
+    # Use NaN to break line at σ=0 cases (prevents cross-group connection)
+    y_line = np.array([s if s > 0 else np.nan for s in sigma_el])
+    x_none = [x[i] for i in range(len(names)) if sigma_el[i] <= 0]
 
-    ax.plot(x_valid, y_valid, 's-', color='#e74c3c', markersize=ms, linewidth=lw,
+    ax.plot(x, y_line, 's-', color='#e74c3c', markersize=ms, linewidth=lw,
             label="σ_electronic (mS/cm)")
     if x_none:
-        ax.plot(x_none, [0]*len(x_none), 'x', color='gray', markersize=ms,
+        ax.plot(x_none, [0]*len(x_none), 'x', color='gray', markersize=ms+2,
                 label="No AM percolation")
 
     _apply_style(ax, "σ_electronic (mS/cm)", names)
@@ -1201,11 +1199,19 @@ def plot_electronic_scaling(data_list, names, outdir):
     ms = _marker_size(len(names))
     lw = _line_width(len(names))
 
-    ax.plot(x, sigma_scaling, 's-', color=RED, markersize=ms, linewidth=lw,
+    # Use NaN to break line at σ=0 cases
+    y_scaling = np.array([s if s > 0 else np.nan for s in sigma_scaling])
+    y_net = np.array([s if s > 0 else np.nan for s in sigma_net]) if has_net else None
+    x_none = [x[i] for i in range(len(names)) if sigma_scaling[i] <= 0 and sigma_net[i] <= 0]
+
+    ax.plot(x, y_scaling, 's-', color=RED, markersize=ms, linewidth=lw,
             label="Scaling law (mS/cm)")
-    if has_net:
-        ax.plot(x, sigma_net, 'D--', color='#2ecc71', markersize=ms-2, linewidth=lw-0.5,
+    if has_net and y_net is not None:
+        ax.plot(x, y_net, 'D--', color='#2ecc71', markersize=ms-2, linewidth=lw-0.5,
                 alpha=0.7, label="Network solver (mS/cm)")
+    if x_none:
+        ax.plot(x_none, [0]*len(x_none), 'x', color='gray', markersize=ms+2,
+                label="No AM percolation")
 
     _apply_style(ax, "\u03c3_el (mS/cm)", names)
     ax.legend(fontsize=9, loc='best')
@@ -1253,10 +1259,14 @@ def plot_thermal_scaling(data_list, names, outdir):
     ms = _marker_size(len(names))
     lw = _line_width(len(names))
 
-    ax.plot(x, sigma_scaling, 's-', color='#ff922b', markersize=ms, linewidth=lw,
+    # Use NaN to break line at σ=0 cases
+    y_scaling = np.array([s if s > 0 else np.nan for s in sigma_scaling])
+    y_net = np.array([s if s > 0 else np.nan for s in sigma_net]) if has_net else None
+
+    ax.plot(x, y_scaling, 's-', color='#ff922b', markersize=ms, linewidth=lw,
             label="Scaling law (mS/cm)")
-    if has_net:
-        ax.plot(x, sigma_net, 'D--', color='#2ecc71', markersize=ms-2, linewidth=lw-0.5,
+    if has_net and y_net is not None:
+        ax.plot(x, y_net, 'D--', color='#2ecc71', markersize=ms-2, linewidth=lw-0.5,
                 alpha=0.7, label="Network solver (mS/cm)")
 
     _apply_style(ax, "\u03c3_th (mS/cm equiv.)", names)
@@ -1303,10 +1313,9 @@ def plot_transport_tradeoff(data_list, names, outdir):
     # Electronic on right Y
     ax2 = ax1.twinx()
     color_el = '#e74c3c'
-    has_el = [i for i in range(len(names)) if sigma_el[i] > 0]
+    y_el = np.array([s if s > 0 else np.nan for s in sigma_el])
     no_el = [i for i in range(len(names)) if sigma_el[i] == 0]
-    ax2.plot([x[i] for i in has_el], [sigma_el[i] for i in has_el],
-             'D-', color=color_el, markersize=ms, linewidth=lw, label="σ_electronic")
+    ax2.plot(x, y_el, 'D-', color=color_el, markersize=ms, linewidth=lw, label="σ_electronic")
     if no_el:
         ax2.plot([x[i] for i in no_el], [0]*len(no_el), 'x', color='gray', markersize=ms-2)
     ax2.set_ylabel("σ_electronic (mS/cm)", color=color_el, fontsize=11)
@@ -1395,9 +1404,9 @@ def plot_transport_absolute(data_list, names, outdir):
         ax.plot(x, sigma_ionic, 's-', color='#2ecc71', markersize=ms, linewidth=lw,
                 label="Ionic (SE-SE)")
     if has_el:
-        has_v = [i for i in range(len(names)) if sigma_el[i] > 0]
-        ax.plot([x[i] for i in has_v], [sigma_el[i] for i in has_v],
-                'D-', color='#e74c3c', markersize=ms, linewidth=lw, label="Electronic (AM-AM)")
+        y_el_abs = np.array([s if s > 0 else np.nan for s in sigma_el])
+        ax.plot(x, y_el_abs, 'D-', color='#e74c3c', markersize=ms, linewidth=lw,
+                label="Electronic (AM-AM)")
     if has_th:
         ax.plot(x, sigma_th, '^-', color='#ff922b', markersize=ms, linewidth=lw,
                 label="Thermal (ALL)")

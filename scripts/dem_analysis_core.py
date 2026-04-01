@@ -160,6 +160,32 @@ def calc_se_se_cn(atoms, contacts, se_types):
     }
 
 
+def calc_am_am_cn(atoms, contacts, am_types):
+    """AM-AM coordination number (for electronic percolation analysis)."""
+    cn = defaultdict(int)
+    am_am_areas = []
+    for c in contacts:
+        if c['id1'] in atoms and c['id2'] in atoms:
+            if atoms[c['id1']]['type'] in am_types and atoms[c['id2']]['type'] in am_types:
+                cn[c['id1']] += 1
+                cn[c['id2']] += 1
+                am_am_areas.append(c.get('contact_area', 0))
+
+    am_ids = [aid for aid, a in atoms.items() if a['type'] in am_types]
+    if not am_ids:
+        return {'mean': 0, 'std': 0, 'n_am': 0, 'n_contacts': 0, 'mean_area': 0}
+
+    values = np.array([cn.get(aid, 0) for aid in am_ids])
+    return {
+        'mean': float(np.mean(values)),
+        'std': float(np.std(values)),
+        'n_am': len(am_ids),
+        'n_contacts': sum(values) // 2,
+        'mean_area': float(np.mean(am_am_areas)) if am_am_areas else 0,
+        'total_area': float(np.sum(am_am_areas)) if am_am_areas else 0,
+    }
+
+
 # ─── SE Percolation ────────────────────────────────────────────────────────
 
 def calc_percolation(atoms, contacts, se_types, plate_z, boundary_factor=2.0, box_x=0.05, box_y=0.05):
@@ -651,6 +677,11 @@ def run_full_analysis(atoms_raw, contacts_raw, type_map, scale, results_dir, box
     cn = calc_se_se_cn(atoms_raw, contacts_raw, se_types)
     print(f"  SE-SE CN: {cn['mean']:.2f} ± {cn['std']:.2f}")
 
+    # 4b. AM-AM CN
+    am_am_cn = calc_am_am_cn(atoms_raw, contacts_raw, am_types)
+    if am_am_cn['mean'] > 0:
+        print(f"  AM-AM CN: {am_am_cn['mean']:.2f} ± {am_am_cn['std']:.2f}")
+
     # 5. Percolation
     perc = calc_percolation(atoms_raw, contacts_raw, se_types, plate_z, box_x=box_x, box_y=box_y)
     print(f"  Percolation: {perc['percolation_pct']:.1f}%, Top Reachable: {perc['top_reachable_pct']:.1f}%")
@@ -708,6 +739,7 @@ def run_full_analysis(atoms_raw, contacts_raw, type_map, scale, results_dir, box
         'interface': iface,
         'coverage': cov,
         'se_se_cn': cn,
+        'am_am_cn': am_am_cn,
         'percolation': perc,
         'tortuosity': tau,
         'ionic_active': ionic,

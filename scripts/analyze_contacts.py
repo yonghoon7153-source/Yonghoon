@@ -342,6 +342,14 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     if eff_cond:
         metrics['sigma_ratio'] = eff_cond['sigma_ratio']
         metrics['phi_se'] = eff_cond['phi_se']
+        metrics['phi_am'] = 1.0 - eff_cond['phi_se'] - results['porosity'] / 100.0
+    am_am_cn = results.get('am_am_cn')
+    if am_am_cn and am_am_cn.get('n_am', 0) > 0:
+        metrics['am_am_cn'] = am_am_cn['mean']
+        metrics['am_am_cn_std'] = am_am_cn['std']
+        metrics['am_am_n_contacts'] = am_am_cn['n_contacts']
+        metrics['am_am_mean_area'] = am_am_cn['mean_area']
+        metrics['am_am_total_area'] = am_am_cn['total_area']
     # Target pressure from input_params (sim → real MPa)
     if input_params.get('target_press_sim'):
         metrics['target_pressure_mpa'] = round(input_params['target_press_sim'] * scale, 1)

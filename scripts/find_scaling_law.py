@@ -832,6 +832,97 @@ def fit_sigma_eff(rows):
         mark = ' ★' if errors_ch[j] > 30 else ''
         print(f"  {rows[i]['name']:25s} {s_actual_ch[j]:10.4f} {s_pred_ch[j]:10.4f} {sign}{errors_ch[j]:7.1f}% {gb_d[i]:6.2f} {g_path[i]:8.4f} {cn[i]:5.2f}{mark}")
 
+    # ── BIAS ANALYSIS: SE 0.5μm 편향 해결 ──
+    print(f"\n  {'═'*50}")
+    print(f"  BIAS ANALYSIS")
+    print(f"  {'═'*50}")
+
+    # Weighted regression: equal weight per SE size group
+    weights = np.ones(valid_ch.sum())
+    ch_gb = gb_d[valid_ch]
+    for gb_lo, gb_hi, w in [(1.0, 3.0, 1/30), (0.6, 1.0, 1/4), (0.0, 0.6, 1/7)]:
+        mask_w = (ch_gb >= gb_lo) & (ch_gb < gb_hi)
+        if mask_w.any():
+            weights[mask_w] = w
+    weights /= weights.sum()  # normalize
+
+    # Weighted fit: C × (G_path×GB_d²)^a × CN^b
+    X_w = np.column_stack([np.log(combo_ch), np.log(cn[valid_ch]), np.ones(valid_ch.sum())])
+    resid_ch = (log_sf - log_sb)[valid_ch]
+    # Weighted least squares
+    W = np.diag(np.sqrt(weights * valid_ch.sum()))
+    b_w, _, _, _ = np.linalg.lstsq(W @ X_w, W @ resid_ch, rcond=None)
+    pred_w = log_sb[valid_ch] + X_w @ b_w
+    r2_w = 1 - np.sum(weights * valid_ch.sum() * (log_sf[valid_ch] - pred_w)**2) / \
+               np.sum(weights * valid_ch.sum() * (log_sf[valid_ch] - np.mean(log_sf[valid_ch]))**2)
+    # Also unweighted R² of weighted fit
+    ss_res_uw = np.sum((log_sf[valid_ch] - pred_w)**2)
+    r2_uw = 1 - ss_res_uw / ss_tot_ch
+    print(f"\n  Weighted fit (equal per SE group):")
+    print(f"    (G_path×GB_d²)^{b_w[0]:.3f} × CN^{b_w[1]:.3f}: C={np.exp(b_w[2]):.4f}")
+    print(f"    Weighted R²={r2_w:.4f}, Unweighted R²={r2_uw:.4f}")
+
+    # Weighted fixed (1/4, 2)
+    log_rhs_wf = 0.25 * np.log(combo_ch) + 2 * np.log(cn[valid_ch])
+    ln_C_wf = np.sum(weights * valid_ch.sum() * (resid_ch - log_rhs_wf)) / (weights.sum() * valid_ch.sum())
+    pred_wf = log_sb[valid_ch] + ln_C_wf + log_rhs_wf
+    ss_res_wf = np.sum((log_sf[valid_ch] - pred_wf)**2)
+    r2_wf = 1 - ss_res_wf / ss_tot_ch
+    err_wf = np.abs(np.exp(pred_wf) - s_actual_ch) / s_actual_ch * 100
+    print(f"    Fixed(1/4, 2) weighted C={np.exp(ln_C_wf):.4f}: R²={r2_wf:.4f}, mean|err|={np.mean(err_wf):.1f}%")
+
+    # Per-SE with weighted C
+    print(f"    Per-SE with weighted C={np.exp(ln_C_wf):.4f}:")
+    for se_label, gb_lo, gb_hi in [("SE 0.5μm", 1.0, 3.0), ("SE 1.0μm", 0.6, 1.0), ("SE 1.5μm", 0.0, 0.6)]:
+        mask_se = valid_ch & (gb_d >= gb_lo) & (gb_d < gb_hi)
+        if mask_se.sum() < 3:
+            continue
+        combo_se = g_path[mask_se] * gb_d[mask_se]**2
+        pred_se = log_sb[mask_se] + ln_C_wf + 0.25*np.log(combo_se) + 2*np.log(cn[mask_se])
+        err_se = np.abs(np.exp(pred_se) - np.exp(log_sf[mask_se])) / np.exp(log_sf[mask_se]) * 100
+        print(f"      {se_label} (n={mask_se.sum()}): mean|err|={np.mean(err_se):.1f}%, max={np.max(err_se):.1f}%")
+
+    # ── f_perc separated from σ_brug ──
+    print(f"\n  f_perc separation test:")
+    sigma_no_fp = np.array([3.0 * phi[i] / tau[i]**2 if tau[i] > 0 else 0 for i in range(n)])
+    valid_fp = valid_ch & (fp > 0) & (sigma_no_fp > 0)
+    if valid_fp.sum() > 10:
+        log_sb_nf = np.log(sigma_no_fp[valid_fp])
+        combo_fp = g_path[valid_fp] * gb_d[valid_fp]**2
+        X_fp = np.column_stack([np.log(fp[valid_fp]), 0.25*np.log(combo_fp),
+                                2*np.log(cn[valid_fp]), np.ones(valid_fp.sum())])
+        b_fp, _, _, _ = np.linalg.lstsq(X_fp, (log_sf - log_sb_nf)[valid_fp], rcond=None)
+        pred_fp = log_sb_nf[valid_fp] + X_fp @ b_fp
+        ss_res_fp = np.sum((log_sf[valid_fp] - pred_fp)**2)
+        ss_tot_fp = np.sum((log_sf[valid_fp] - np.mean(log_sf[valid_fp]))**2)
+        r2_fp = 1 - ss_res_fp / ss_tot_fp
+        print(f"    σ = (φ/τ²) × f_perc^{b_fp[0]:.3f} × (G_path×GB_d²)^(1/4) × CN²")
+        print(f"    R²={r2_fp:.4f}  (f_perc exponent: {b_fp[0]:.3f}, expected ~1 if σ_brug is correct)")
+
+        # Fixed f_perc=1 (= in σ_brug) vs free
+        log_rhs_fp1 = np.log(fp[valid_fp]) + 0.25*np.log(combo_fp) + 2*np.log(cn[valid_fp])
+        ln_C_fp1 = np.mean((log_sf - log_sb_nf)[valid_fp] - log_rhs_fp1)
+        pred_fp1 = log_sb_nf[valid_fp] + ln_C_fp1 + log_rhs_fp1
+        r2_fp1 = 1 - np.sum((log_sf[valid_fp]-pred_fp1)**2) / ss_tot_fp
+        print(f"    f_perc^1 (= σ_brug): R²={r2_fp1:.4f}")
+
+    # ── Thin vs Thick analysis ──
+    print(f"\n  Thin vs Thick:")
+    thick_t = np.array([r['T'] for r in rows])
+    for label, t_lo, t_hi in [("Thin (T<50μm)", 0, 50), ("Thick (T≥50μm)", 50, 300)]:
+        mask_t = valid_ch & (thick_t >= t_lo) & (thick_t < t_hi)
+        if mask_t.sum() < 3:
+            continue
+        combo_t = g_path[mask_t] * gb_d[mask_t]**2
+        log_rhs_t = 0.25*np.log(combo_t) + 2*np.log(cn[mask_t])
+        ln_C_t = np.mean((log_sf - log_sb)[mask_t] - log_rhs_t)
+        pred_t = log_sb[mask_t] + ln_C_t + log_rhs_t
+        ss_res_t = np.sum((log_sf[mask_t] - pred_t)**2)
+        ss_tot_t = np.sum((log_sf[mask_t] - np.mean(log_sf[mask_t]))**2)
+        r2_t = 1 - ss_res_t / ss_tot_t if ss_tot_t > 0 else 0
+        err_t = np.abs(np.exp(pred_t) - np.exp(log_sf[mask_t])) / np.exp(log_sf[mask_t]) * 100
+        print(f"    {label} (n={mask_t.sum()}): C={np.exp(ln_C_t):.4f}, R²={r2_t:.4f}, mean|err|={np.mean(err_t):.1f}%, max={np.max(err_t):.1f}%")
+
     # Formula comparison
     print(f"\n  {'═'*50}")
     print(f"  v1: √A_hop × CN² × GB_d^(4/3)        R²=0.894")

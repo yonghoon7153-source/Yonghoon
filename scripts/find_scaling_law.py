@@ -344,6 +344,110 @@ def fit_sigma_eff(rows):
     print(f"   R²={r2_full:.4f}")
     results.append(('σ_brug × hop^a (simplest)', r2_full, 3))
 
+    # ── SE size analysis: why does C vary with SE size? ──
+    print(f"\n{'='*70}")
+    print(f"SE SIZE ANALYSIS")
+    print(f"{'='*70}")
+
+    # Compute d_SE from hop_area (proxy: a_contact ∝ √A_hop, a ∝ d_SE via Hertz)
+    # Or use GB_d as inverse proxy for d_SE
+    # Test: does adding d_SE-related terms improve the model?
+
+    # 8. σ_brug × hop^a × CN^b × GB_d^c with various fixed exponent combos
+    valid = (hop > 0) & (cn > 0)
+    log_sb = np.log(sb)
+    residual = log_sf - log_sb
+
+    # 8a. Free fit all 3 (baseline from model 4)
+    X = np.column_stack([np.log(hop[valid]), np.log(cn[valid]),
+                         np.log(gb_d[valid]), np.ones(valid.sum())])
+    b, _, _, _ = np.linalg.lstsq(X, residual[valid], rcond=None)
+    pred = log_sb[valid] + X @ b
+    r2 = 1 - np.sum((log_sf[valid]-pred)**2)/np.sum((log_sf[valid]-np.mean(log_sf[valid]))**2)
+    print(f"\n8a. Free: hop^{b[0]:.3f} × CN^{b[1]:.3f} × GB_d^{b[2]:.3f} × {np.exp(b[3]):.4f}")
+    print(f"    R²={r2:.4f}")
+
+    # 8b. Fixed (0.5, 2, 4/3) + C
+    log_rhs = 0.5*np.log(hop[valid]) + 2*np.log(cn[valid]) + 4/3*np.log(gb_d[valid])
+    ln_C = np.mean(residual[valid] - log_rhs)
+    pred = log_sb[valid] + ln_C + log_rhs
+    r2_fixed = 1 - np.sum((log_sf[valid]-pred)**2)/np.sum((log_sf[valid]-np.mean(log_sf[valid]))**2)
+    print(f"8b. Fixed(0.5,2,4/3): C={np.exp(ln_C):.4f}, R²={r2_fixed:.4f}")
+
+    # 8c. Test various GB_d exponents with hop=0.5, CN=2 fixed
+    print(f"\n  GB_d exponent sweep (hop=0.5, CN=2 fixed):")
+    for c_test in [0.5, 0.75, 1.0, 1.2, 1.24, 1.33, 1.5, 2.0]:
+        log_rhs_t = 0.5*np.log(hop[valid]) + 2*np.log(cn[valid]) + c_test*np.log(gb_d[valid])
+        ln_C_t = np.mean(residual[valid] - log_rhs_t)
+        pred_t = log_sb[valid] + ln_C_t + log_rhs_t
+        r2_t = 1 - np.sum((log_sf[valid]-pred_t)**2)/np.sum((log_sf[valid]-np.mean(log_sf[valid]))**2)
+        print(f"    GB_d^{c_test:.2f}: C={np.exp(ln_C_t):.4f}, R²={r2_t:.4f}")
+
+    # 8d. Test hop exponent sweep with CN=2, GB_d=4/3 fixed
+    print(f"\n  hop exponent sweep (CN=2, GB_d=4/3 fixed):")
+    for a_test in [0.3, 0.4, 0.5, 0.55, 0.58, 0.6, 0.7, 0.8, 1.0]:
+        log_rhs_t = a_test*np.log(hop[valid]) + 2*np.log(cn[valid]) + 4/3*np.log(gb_d[valid])
+        ln_C_t = np.mean(residual[valid] - log_rhs_t)
+        pred_t = log_sb[valid] + ln_C_t + log_rhs_t
+        r2_t = 1 - np.sum((log_sf[valid]-pred_t)**2)/np.sum((log_sf[valid]-np.mean(log_sf[valid]))**2)
+        print(f"    hop^{a_test:.2f}: C={np.exp(ln_C_t):.4f}, R²={r2_t:.4f}")
+
+    # 9. Try normalized combinations that cancel SE size
+    # A_hop × GB_d² ∝ d_SE × (1/d_SE)² = 1/d_SE  (not cancel!)
+    # A_hop × GB_d ∝ const (cancel!)
+    # √A_hop × GB_d ∝ √d_SE × (1/d_SE) = 1/√d_SE
+    # A_hop^(2/3) × GB_d ∝ d_SE^(2/3) × (1/d_SE) = d_SE^(-1/3)
+    print(f"\n  SE-size-normalized combination tests:")
+
+    # 9a. (A_hop × GB_d)^a × CN^b  (A_hop×GB_d should cancel d_SE)
+    x_combo = hop[valid] * gb_d[valid]  # should be ~SE-size-independent
+    X9 = np.column_stack([np.log(x_combo), np.log(cn[valid]), np.ones(valid.sum())])
+    b9, _, _, _ = np.linalg.lstsq(X9, residual[valid], rcond=None)
+    pred9 = log_sb[valid] + X9 @ b9
+    r2_9 = 1 - np.sum((log_sf[valid]-pred9)**2)/np.sum((log_sf[valid]-np.mean(log_sf[valid]))**2)
+    print(f"  9a. (A_hop×GB_d)^{b9[0]:.3f} × CN^{b9[1]:.3f}: R²={r2_9:.4f}")
+
+    # 9b. (A_hop × GB_d²)^a × CN^b
+    x_combo2 = hop[valid] * gb_d[valid]**2
+    X9b = np.column_stack([np.log(x_combo2), np.log(cn[valid]), np.ones(valid.sum())])
+    b9b, _, _, _ = np.linalg.lstsq(X9b, residual[valid], rcond=None)
+    pred9b = log_sb[valid] + X9b @ b9b
+    r2_9b = 1 - np.sum((log_sf[valid]-pred9b)**2)/np.sum((log_sf[valid]-np.mean(log_sf[valid]))**2)
+    print(f"  9b. (A_hop×GB_d²)^{b9b[0]:.3f} × CN^{b9b[1]:.3f}: R²={r2_9b:.4f}")
+
+    # 9c. (√A_hop × GB_d)^a × CN^b  (= a_contact × GB_d, physically: constriction × density)
+    x_combo3 = np.sqrt(hop[valid]) * gb_d[valid]
+    X9c = np.column_stack([np.log(x_combo3), np.log(cn[valid]), np.ones(valid.sum())])
+    b9c, _, _, _ = np.linalg.lstsq(X9c, residual[valid], rcond=None)
+    pred9c = log_sb[valid] + X9c @ b9c
+    r2_9c = 1 - np.sum((log_sf[valid]-pred9c)**2)/np.sum((log_sf[valid]-np.mean(log_sf[valid]))**2)
+    print(f"  9c. (√A_hop×GB_d)^{b9c[0]:.3f} × CN^{b9c[1]:.3f}: R²={r2_9c:.4f}")
+
+    # 9d. bottleneck instead of A_hop
+    valid2 = valid & (bn > 0)
+    if valid2.sum() > 5:
+        X9d = np.column_stack([np.log(bn[valid2]), np.log(cn[valid2]),
+                               np.log(gb_d[valid2]), np.ones(valid2.sum())])
+        b9d, _, _, _ = np.linalg.lstsq(X9d, (log_sf - log_sb)[valid2], rcond=None)
+        pred9d = log_sb[valid2] + X9d @ b9d
+        r2_9d = 1 - np.sum(((log_sf-log_sb)[valid2]-X9d@b9d)**2)/np.sum(((log_sf)[valid2]-np.mean((log_sf)[valid2]))**2)
+        print(f"  9d. BN^{b9d[0]:.3f} × CN^{b9d[1]:.3f} × GB_d^{b9d[2]:.3f}: R²={r2_9d:.4f}  (bottleneck)")
+
+    # 10. Per-SE-size R² (how good is the model within each SE size?)
+    print(f"\n  Per-SE-size R² (fixed 0.5, 2, 4/3):")
+    # Group by GB_d: SE 0.5μm → GB_d > 1.0, SE 1.0μm → 0.6~0.8, SE 1.5μm → GB_d < 0.6
+    for se_label, gb_lo, gb_hi in [("SE 0.5μm", 1.0, 3.0), ("SE 1.0μm", 0.6, 1.0), ("SE 1.5μm", 0.0, 0.6)]:
+        mask = valid & (gb_d >= gb_lo) & (gb_d < gb_hi)
+        if mask.sum() < 3:
+            continue
+        log_rhs_m = 0.5*np.log(hop[mask]) + 2*np.log(cn[mask]) + 4/3*np.log(gb_d[mask])
+        ln_C_m = np.mean(residual[mask] - log_rhs_m)
+        pred_m = log_sb[mask] + ln_C_m + log_rhs_m
+        ss_res_m = np.sum((log_sf[mask] - pred_m)**2)
+        ss_tot_m = np.sum((log_sf[mask] - np.mean(log_sf[mask]))**2)
+        r2_m = 1 - ss_res_m / ss_tot_m if ss_tot_m > 0 else 0
+        print(f"    {se_label} (n={mask.sum()}, GB_d={gb_d[mask].min():.2f}~{gb_d[mask].max():.2f}): C={np.exp(ln_C_m):.4f}, R²={r2_m:.4f}")
+
     # Summary
     print(f"\n{'--- σ_eff Ranking ---':^60}")
     for rank, (name, r2, p) in enumerate(sorted(results, key=lambda x: -x[1]), 1):

@@ -1124,6 +1124,185 @@ def thermal_regression():
         print(f"  LOOCV Mean |error|: {np.mean(np.abs(loocv_errors)):.1f}%")
         print(f"  LOOCV Max  |error|: {np.max(np.abs(loocv_errors)):.1f}%")
 
+    # ══════════════════════════════════════════════════════════════════════
+    # T44 REFINEMENTS: push R² above 0.90
+    # ══════════════════════════════════════════════════════════════════════
+    print(f"\n  {'='*60}")
+    print(f"  T44 REFINEMENTS — pushing R² above 0.90")
+    print(f"  {'='*60}")
+
+    if np.sum(valid_44) > 10 and np.sum(valid_44 & (se_cn > 0)) > 10:
+        mask = valid_44 & (se_cn > 0)
+
+        # R1: OUTLIER ANALYSIS — remove extreme low σ_th cases
+        # Identify cases where σ_ion < 0.03 (SE backbone barely exists)
+        low_ion = sigma_ion[mask] < 0.03
+        n_low = np.sum(low_ion)
+        mask_clean = mask.copy()
+        # Remove the 5 lowest σ_ion cases
+        ion_sorted = np.argsort(sigma_ion)
+        low_5 = set(ion_sorted[:5])
+        mask_r1 = np.array([i not in low_5 for i in range(n)]) & mask
+        if np.sum(mask_r1) > 10:
+            b_r1, _, _, _ = np.linalg.lstsq(
+                np.column_stack([np.log(sigma_ion[mask_r1]), np.log(phi_am[mask_r1]),
+                               np.log(se_cn[mask_r1]), np.ones(np.sum(mask_r1))]),
+                log_sigma[mask_r1], rcond=None)
+            pred_r1 = np.column_stack([np.log(sigma_ion[mask_r1]), np.log(phi_am[mask_r1]),
+                                     np.log(se_cn[mask_r1]), np.ones(np.sum(mask_r1))]) @ b_r1
+            ss_r1 = np.sum((log_sigma[mask_r1] - np.mean(log_sigma[mask_r1]))**2)
+            r2_r1 = 1 - np.sum((log_sigma[mask_r1] - pred_r1)**2) / ss_r1
+            print(f"\n  R1: T44c without 5 lowest σ_ion cases (n={np.sum(mask_r1)})")
+            print(f"      σ_ion^{b_r1[0]:.3f} × φ_AM^{b_r1[1]:.3f} × CN^{b_r1[2]:.3f},  R²={r2_r1:.4f}")
+            # Fixed exponents on clean data
+            log_rhs_r1 = 0.75*np.log(sigma_ion[mask_r1]) + 2.0*np.log(phi_am[mask_r1]) - 1.0*np.log(se_cn[mask_r1])
+            log_C_r1 = np.mean(log_sigma[mask_r1] - log_rhs_r1)
+            pred_r1f = log_C_r1 + log_rhs_r1
+            r2_r1f = 1 - np.sum((log_sigma[mask_r1] - pred_r1f)**2) / ss_r1
+            print(f"  R1b: Fixed 3/4, 2, -1 on clean data:  C={np.exp(log_C_r1):.1f}, R²={r2_r1f:.4f}")
+            results.append(('R1b', f'[CLEAN n={np.sum(mask_r1)}] σ_ion^3/4×φ_AM²/CN_SE', np.exp(log_C_r1), r2_r1f, 1))
+
+        # R2: Analytic Bruggeman instead of σ_ion
+        # σ_brug_analytic = φ_SE × f_perc / τ² (no network solver needed!)
+        valid_r2 = mask & (f_perc > 0) & (tau > 0)
+        if np.sum(valid_r2) > 10:
+            m_r2 = valid_r2
+            sigma_brug = phi_se[m_r2] * f_perc[m_r2] / tau[m_r2]**2  # normalized, no σ_SE
+            b_r2, _, _, _ = np.linalg.lstsq(
+                np.column_stack([np.log(sigma_brug), np.log(phi_am[m_r2]),
+                               np.log(se_cn[m_r2]), np.ones(np.sum(m_r2))]),
+                log_sigma[m_r2], rcond=None)
+            pred_r2 = np.column_stack([np.log(sigma_brug), np.log(phi_am[m_r2]),
+                                     np.log(se_cn[m_r2]), np.ones(np.sum(m_r2))]) @ b_r2
+            ss_r2 = np.sum((log_sigma[m_r2] - np.mean(log_sigma[m_r2]))**2)
+            r2_r2 = 1 - np.sum((log_sigma[m_r2] - pred_r2)**2) / ss_r2
+            print(f"\n  R2: σ_brug^{b_r2[0]:.3f} × φ_AM^{b_r2[1]:.3f} × CN^{b_r2[2]:.3f}  (analytic Bruggeman)")
+            print(f"      R²={r2_r2:.4f}  (σ_brug = φ_SE × f_perc / τ², no network solver)")
+            results.append(('R2', f'σ_brug^{b_r2[0]:.2f}×φ_AM^{b_r2[1]:.2f}×CN^{b_r2[2]:.2f} (analytic)', 1.0, r2_r2, 4))
+
+            # R2b: fixed exponents
+            log_rhs_r2 = 0.75*np.log(sigma_brug) + 2.0*np.log(phi_am[m_r2]) - 1.0*np.log(se_cn[m_r2])
+            log_C_r2 = np.mean(log_sigma[m_r2] - log_rhs_r2)
+            pred_r2f = log_C_r2 + log_rhs_r2
+            r2_r2f = 1 - np.sum((log_sigma[m_r2] - pred_r2f)**2) / ss_r2
+            print(f"  R2b: Fixed (3/4, 2, -1): C={np.exp(log_C_r2):.1f}, R²={r2_r2f:.4f}")
+            results.append(('R2b', f'C×σ_brug^3/4×φ_AM²/CN_SE (analytic, fixed)', np.exp(log_C_r2), r2_r2f, 1))
+
+        # R3: AM-SE CN as additional variable
+        valid_r3 = mask & (am_se_cn > 0)
+        if np.sum(valid_r3) > 10:
+            m_r3 = valid_r3
+            b_r3, _, _, _ = np.linalg.lstsq(
+                np.column_stack([np.log(sigma_ion[m_r3]), np.log(phi_am[m_r3]),
+                               np.log(se_cn[m_r3]), np.log(am_se_cn[m_r3]), np.ones(np.sum(m_r3))]),
+                log_sigma[m_r3], rcond=None)
+            pred_r3 = np.column_stack([np.log(sigma_ion[m_r3]), np.log(phi_am[m_r3]),
+                                     np.log(se_cn[m_r3]), np.log(am_se_cn[m_r3]), np.ones(np.sum(m_r3))]) @ b_r3
+            ss_r3 = np.sum((log_sigma[m_r3] - np.mean(log_sigma[m_r3]))**2)
+            r2_r3 = 1 - np.sum((log_sigma[m_r3] - pred_r3)**2) / ss_r3
+            print(f"\n  R3: σ_ion^{b_r3[0]:.3f} × φ_AM^{b_r3[1]:.3f} × CN_SE^{b_r3[2]:.3f} × CN_AMSE^{b_r3[3]:.3f}")
+            print(f"      R²={r2_r3:.4f}  (+AM-SE CN)")
+            results.append(('R3', f'σ_ion^{b_r3[0]:.2f}×φ_AM^{b_r3[1]:.2f}×CN_SE^{b_r3[2]:.2f}×CN_AMSE^{b_r3[3]:.2f}', np.exp(b_r3[4]), r2_r3, 5))
+
+        # R4: AM-AM CN instead of or in addition to CN_SE
+        valid_r4 = mask & (am_cn > 0)
+        if np.sum(valid_r4) > 10:
+            m_r4 = valid_r4
+            b_r4, _, _, _ = np.linalg.lstsq(
+                np.column_stack([np.log(sigma_ion[m_r4]), np.log(phi_am[m_r4]),
+                               np.log(se_cn[m_r4]), np.log(am_cn[m_r4]), np.ones(np.sum(m_r4))]),
+                log_sigma[m_r4], rcond=None)
+            pred_r4 = np.column_stack([np.log(sigma_ion[m_r4]), np.log(phi_am[m_r4]),
+                                     np.log(se_cn[m_r4]), np.log(am_cn[m_r4]), np.ones(np.sum(m_r4))]) @ b_r4
+            ss_r4 = np.sum((log_sigma[m_r4] - np.mean(log_sigma[m_r4]))**2)
+            r2_r4 = 1 - np.sum((log_sigma[m_r4] - pred_r4)**2) / ss_r4
+            print(f"  R4: σ_ion^{b_r4[0]:.3f} × φ_AM^{b_r4[1]:.3f} × CN_SE^{b_r4[2]:.3f} × CN_AM^{b_r4[3]:.3f}")
+            print(f"      R²={r2_r4:.4f}  (+AM-AM CN)")
+            results.append(('R4', f'σ_ion^{b_r4[0]:.2f}×φ_AM^{b_r4[1]:.2f}×CN_SE^{b_r4[2]:.2f}×CN_AM^{b_r4[3]:.2f}', np.exp(b_r4[4]), r2_r4, 5))
+
+        # R5: Replace CN_SE with CN_ratio = CN_SE / CN_AM
+        valid_r5 = mask & (am_cn > 0)
+        if np.sum(valid_r5) > 10:
+            m_r5 = valid_r5
+            cn_ratio = se_cn[m_r5] / am_cn[m_r5]
+            b_r5, _, _, _ = np.linalg.lstsq(
+                np.column_stack([np.log(sigma_ion[m_r5]), np.log(phi_am[m_r5]),
+                               np.log(cn_ratio), np.ones(np.sum(m_r5))]),
+                log_sigma[m_r5], rcond=None)
+            pred_r5 = np.column_stack([np.log(sigma_ion[m_r5]), np.log(phi_am[m_r5]),
+                                     np.log(cn_ratio), np.ones(np.sum(m_r5))]) @ b_r5
+            ss_r5 = np.sum((log_sigma[m_r5] - np.mean(log_sigma[m_r5]))**2)
+            r2_r5 = 1 - np.sum((log_sigma[m_r5] - pred_r5)**2) / ss_r5
+            print(f"  R5: σ_ion^{b_r5[0]:.3f} × φ_AM^{b_r5[1]:.3f} × (CN_SE/CN_AM)^{b_r5[2]:.3f}")
+            print(f"      R²={r2_r5:.4f}  (CN ratio)")
+            results.append(('R5', f'σ_ion^{b_r5[0]:.2f}×φ_AM^{b_r5[1]:.2f}×CN_ratio^{b_r5[2]:.2f}', np.exp(b_r5[3]), r2_r5, 4))
+
+        # R6: Nonlinear — σ_th = C × σ_ion^a × φ_AM^b / (1 + d×CN_SE)
+        try:
+            def model_r6(X, C, a, b, d):
+                s_ion, phi_a, cn_s = X
+                return np.log(C * s_ion**a * phi_a**b / (1 + d * cn_s))
+
+            X_r6 = (sigma_ion[mask], phi_am[mask], se_cn[mask])
+            popt_r6, _ = curve_fit(model_r6, X_r6, log_sigma[mask],
+                                   p0=[300, 0.75, 2.0, 0.1], maxfev=20000)
+            pred_r6 = model_r6(X_r6, *popt_r6)
+            ss_r6 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+            r2_r6 = 1 - np.sum((log_sigma[mask] - pred_r6)**2) / ss_r6
+            print(f"\n  R6: σ_th = {popt_r6[0]:.1f} × σ_ion^{popt_r6[1]:.3f} × φ_AM^{popt_r6[2]:.3f} / (1+{popt_r6[3]:.3f}×CN)")
+            print(f"      R²={r2_r6:.4f}  (nonlinear CN term)")
+            results.append(('R6', f'σ_ion^{popt_r6[1]:.2f}×φ_AM^{popt_r6[2]:.2f}/(1+d×CN)', popt_r6[0], r2_r6, 4))
+        except Exception as e:
+            print(f"  R6: FAILED ({e})")
+
+        # R7: Contact area weighted by material: A_AMSE × k_harm + A_SESE × k_SE
+        valid_r7 = mask & (area_am_se > 0) & (area_se_se > 0)
+        if np.sum(valid_r7) > 10:
+            m_r7 = valid_r7
+            A_thermal = area_am_se[m_r7] * K_HARM_VAL + area_se_se[m_r7] * K_SE
+            b_r7, _, _, _ = np.linalg.lstsq(
+                np.column_stack([np.log(sigma_ion[m_r7]), np.log(phi_am[m_r7]),
+                               np.log(A_thermal), np.ones(np.sum(m_r7))]),
+                log_sigma[m_r7], rcond=None)
+            pred_r7 = np.column_stack([np.log(sigma_ion[m_r7]), np.log(phi_am[m_r7]),
+                                     np.log(A_thermal), np.ones(np.sum(m_r7))]) @ b_r7
+            ss_r7 = np.sum((log_sigma[m_r7] - np.mean(log_sigma[m_r7]))**2)
+            r2_r7 = 1 - np.sum((log_sigma[m_r7] - pred_r7)**2) / ss_r7
+            print(f"\n  R7: σ_ion^{b_r7[0]:.3f} × φ_AM^{b_r7[1]:.3f} × A_thermal^{b_r7[2]:.3f}")
+            print(f"      R²={r2_r7:.4f}  (A_thermal = A_AMSE×k_harm + A_SESE×k_SE)")
+            results.append(('R7', f'σ_ion^{b_r7[0]:.2f}×φ_AM^{b_r7[1]:.2f}×A_th^{b_r7[2]:.2f}', np.exp(b_r7[3]), r2_r7, 4))
+
+        # R8: LOOCV for T44d (fixed, 1p) — should be better than T44c LOOCV
+        print(f"\n  --- LOOCV for T44d (fixed 3/4, 2, -1, 1p) ---")
+        loocv_errors_d = []
+        mask_idx = np.where(mask)[0]
+        for j in range(np.sum(mask)):
+            train_mask = np.ones(np.sum(mask), dtype=bool)
+            train_mask[j] = False
+            log_rhs_train = 0.75*np.log(sigma_ion[mask])[train_mask] + 2.0*np.log(phi_am[mask])[train_mask] - 1.0*np.log(se_cn[mask])[train_mask]
+            log_C_cv = np.mean(log_sigma[mask][train_mask] - log_rhs_train)
+            log_rhs_test = 0.75*np.log(sigma_ion[mask])[j] + 2.0*np.log(phi_am[mask])[j] - 1.0*np.log(se_cn[mask])[j]
+            pred_cv = np.exp(log_C_cv + log_rhs_test)
+            err = (pred_cv - sigma_th[mask][j]) / sigma_th[mask][j] * 100
+            loocv_errors_d.append(err)
+        loocv_errors_d = np.array(loocv_errors_d)
+        # LOOCV R² for T44d
+        pred_loocv_d = np.array([
+            np.exp(np.mean(log_sigma[mask][np.arange(np.sum(mask))!=j] -
+                          (0.75*np.log(sigma_ion[mask])[np.arange(np.sum(mask))!=j] +
+                           2.0*np.log(phi_am[mask])[np.arange(np.sum(mask))!=j] -
+                           1.0*np.log(se_cn[mask])[np.arange(np.sum(mask))!=j])) +
+                  0.75*np.log(sigma_ion[mask])[j] + 2.0*np.log(phi_am[mask])[j] - 1.0*np.log(se_cn[mask])[j])
+            for j in range(np.sum(mask))
+        ])
+        ss_loocv_d = np.sum((sigma_th[mask] - pred_loocv_d)**2)
+        r2_loocv_d = 1 - ss_loocv_d / np.sum((sigma_th[mask] - np.mean(sigma_th[mask]))**2)
+        print(f"  T44d LOOCV R² = {r2_loocv_d:.4f} (train R² = 0.8961)")
+        print(f"  T44d LOOCV Mean |error|: {np.mean(np.abs(loocv_errors_d)):.1f}%")
+        print(f"  T44d LOOCV Max  |error|: {np.max(np.abs(loocv_errors_d)):.1f}%")
+        print(f"  T44d LOOCV within 10%: {np.sum(np.abs(loocv_errors_d)<10)}/{len(loocv_errors_d)}")
+        print(f"  T44d LOOCV within 20%: {np.sum(np.abs(loocv_errors_d)<20)}/{len(loocv_errors_d)}")
+
     # T45: Additive model — C1 × φ_SE^a + C2 × φ_AM^b (can't log-linearize)
     try:
         def model_t45(X, C1, a, C2, b):

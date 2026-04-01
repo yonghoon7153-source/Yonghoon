@@ -507,7 +507,7 @@ def analyze(case_id):
                     net_cmd = ['python3', os.path.join(app.config['SCRIPTS_FOLDER'], 'network_conductivity.py'),
                                atoms_csv, contacts_csv, '-o', results_dir,
                                '-t', meta['type_map'], '-s', str(meta.get('scale', 1000))]
-                    net_result = subprocess.run(net_cmd, capture_output=True, text=True, timeout=600)
+                    net_result = subprocess.run(net_cmd, capture_output=True, text=True, timeout=3600)
                     # Merge into full_metrics.json
                     net_json = os.path.join(results_dir, 'network_conductivity.json')
                     met_json = os.path.join(results_dir, 'full_metrics.json')
@@ -517,7 +517,9 @@ def analyze(case_id):
                         with open(met_json) as _mf:
                             met_data = json.load(_mf)
                         for k in ['sigma_full', 'sigma_full_mScm', 'sigma_bulk_net',
-                                  'sigma_bulk_net_mScm', 'R_brug_over_full', 'bulk_resistance_fraction']:
+                                  'sigma_bulk_net_mScm', 'R_brug_over_full', 'bulk_resistance_fraction',
+                                  'electronic_sigma_full_mScm', 'electronic_R_brug',
+                                  'thermal_sigma_full_mScm', 'thermal_R_brug']:
                             if k in net_data and net_data[k] is not None:
                                 met_data[k] = net_data[k]
                         with open(met_json, 'w') as _mf:

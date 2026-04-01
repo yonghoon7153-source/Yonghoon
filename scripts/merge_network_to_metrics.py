@@ -18,13 +18,14 @@ def merge_all():
                     met = json.load(f)
                 
                 changed = False
-                for key in ['sigma_full', 'sigma_full_mScm', 'sigma_bulk_net', 
-                           'sigma_bulk_net_mScm', 'R_brug_over_full', 
-                           'bulk_resistance_fraction']:
+                for key in ['sigma_full', 'sigma_full_mScm', 'sigma_bulk_net',
+                           'sigma_bulk_net_mScm', 'R_brug_over_full',
+                           'bulk_resistance_fraction',
+                           'electronic_sigma_full_mScm', 'electronic_R_brug',
+                           'thermal_sigma_full_mScm', 'thermal_R_brug']:
                     if key in net and net[key] is not None:
-                        if met.get(key) != net[key]:
-                            met[key] = net[key]
-                            changed = True
+                        met[key] = net[key]
+                        changed = True
                 
                 if changed:
                     with open(met_path, 'w') as f:

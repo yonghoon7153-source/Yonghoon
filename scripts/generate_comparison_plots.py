@@ -1107,14 +1107,11 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
                  fontsize=10, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
 
-    txt = (f"R² = {r2:.3f}  (C={C_fixed:.4f})\n"
-           f"(G_path × GB_d²)^(1/4) × CN²\n"
-           f"Mean |err| = {np.mean(errors):.1f}%\n"
-           f"Within 20%: {within_20}/{len(errors)}\n"
-           f"n = {len(valid_idx)}")
-    ax.text(0.95, 0.05, txt, transform=ax.transAxes, fontsize=10,
+    txt = (f"R²={r2:.3f} (n={len(valid_idx)})\n"
+           f"|err|={np.mean(errors):.0f}%, ≤20%: {within_20}/{len(errors)}")
+    ax.text(0.95, 0.05, txt, transform=ax.transAxes, fontsize=9,
             ha='right', va='bottom',
-            bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.8))
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
 
     ax.set_xlim(vmin, vmax)
     ax.set_ylim(vmin, vmax)

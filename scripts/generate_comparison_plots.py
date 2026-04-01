@@ -1166,14 +1166,28 @@ def plot_network_sigma(data_list, names, outdir):
 
 
 def plot_multiscale_sigma(data_list, names, outdir):
-    """Part III: Multi-scale model σ_eff = σ_brug × 0.073 × (G_path × GB_d²)^(1/4) × CN²."""
+    """Part III: Multi-scale model σ_eff = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²."""
     SIGMA_BULK = 3.0  # σ_grain (grain interior), NOT σ_pellet(1.3)
-    C_ms = 0.073
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     gb_dens = [_get(d, "gb_density_mean") for d in data_list]
     g_path = [_get(d, "path_conductance_mean", 0) for d in data_list]
     cn = [_get(d, "se_se_cn", 0) for d in data_list]
+    sigma_net = _load_network_sigma(data_list)
+
+    # Auto-fit C from data (like ionic_scaling_fit)
+    valid_fit = []
+    for i in range(len(data_list)):
+        if g_path[i] > 0 and cn[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0 and sigma_net[i] > 0:
+            valid_fit.append(i)
+
+    if len(valid_fit) < 3:
+        C_ms = 0.073  # fallback
+    else:
+        log_rhs = np.array([np.log(sigma_brug[i] * SIGMA_BULK) + 0.25*np.log(g_path[i]*gb_dens[i]**2) + 2*np.log(cn[i])
+                           for i in valid_fit])
+        log_actual = np.array([np.log(sigma_net[i]) for i in valid_fit])
+        C_ms = np.exp(np.mean(log_actual - log_rhs))
 
     sigma_ms = []
     for i in range(len(data_list)):
@@ -1182,10 +1196,6 @@ def plot_multiscale_sigma(data_list, names, outdir):
             sigma_ms.append(s)
         else:
             sigma_ms.append(0)
-
-    # Network for comparison
-    sigma_net = _load_network_sigma(data_list)
-    has_net = any(s > 0 for s in sigma_net)
 
     fig, ax = plt.subplots(figsize=FIG_SINGLE)
     x = np.arange(len(names))
@@ -1200,7 +1210,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     _apply_style(ax, "σ_eff (mS/cm)", names)
     ax.legend(fontsize=9, loc='best')
-    ax.set_title("Part III: σ_brug × 0.073 × (G_path × GB_d²)^(1/4) × CN²",
+    ax.set_title(f"Part III: σ_brug × {C_ms:.4f} × (G_path × GB_d²)^(1/4) × CN²",
                  fontsize=9, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',
@@ -1846,7 +1856,7 @@ PLOT_REGISTRY = {
         "func": plot_multiscale_sigma,
         "file": "multiscale_sigma.png",
         "title": "Ionic: Multi-scale Scaling Law (Part III)",
-        "description": "σ_ion = σ_brug × 0.073 × (G_path × GB_d²)^(1/4) × CN²\n(G_path×GB_d²)^(1/4): combined path conductance+mesh\nCN²: redundant path factor\nNew champion formula with path_conductance_mean",
+        "description": "σ_ion = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²\nC: 데이터에서 자동 fit (free param)\n(G_path×GB_d²)^(1/4): 접촉 품질+mesh 밀도\nCN²: redundant path factor",
         "origin_tip": "Red: Scaling law, Green dashed: Network solver.",
     },
 }
@@ -1855,7 +1865,7 @@ PLOT_REGISTRY = {
 def plot_sigma_decomposition(data_list, names, outdir):
     """Decompose σ_eff into Bruggeman + contact terms. Show which factor dominates."""
     SIGMA_BULK = 3.0  # σ_grain (grain interior)
-    C_ms = 0.073
+    C_ms = 0.073  # default, used only for reference σ_ms (decomposition is relative, C cancels out)
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     gb_dens = [_get(d, "gb_density_mean") for d in data_list]

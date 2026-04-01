@@ -1038,33 +1038,19 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.fill_between([vmin, vmax], [vmin*0.8, vmax*0.8], [vmin*1.2, vmax*1.2],
                     alpha=0.1, color='green', label='±20%')
 
-    # Labels
-    try:
-        from adjustText import adjust_text
-        texts = []
-        for j, i in enumerate(valid_idx):
-            texts.append(ax.text(s_actual[j], s_pred[j], names[i], fontsize=7, color=BLACK, zorder=6))
-        adjust_text(texts, x=list(s_actual), y=list(s_pred), ax=ax,
-                   arrowprops=dict(arrowstyle='-', color='gray', lw=0.5),
-                   force_text=(0.3, 0.3), expand=(1.2, 1.4))
-    except ImportError:
-        for j, i in enumerate(valid_idx):
-            ax.annotate(names[i], (s_actual[j], s_pred[j]),
-                       fontsize=7, ha='left', va='bottom', xytext=(3, 3),
-                       textcoords='offset points', color=BLACK, zorder=6)
-
-    # Group labels
+    # Group legend (no per-point labels to avoid MemoryError with adjustText on 41+ points)
     if _GROUP_INFO:
+        from matplotlib.patches import Patch
+        legend_patches = []
         for gi, (start, end) in enumerate(group_boundaries):
             group_js = [j for j, i in enumerate(valid_idx) if start <= i < end]
             if group_js:
-                cx = np.mean([s_actual[j] for j in group_js])
-                cy = min([s_pred[j] for j in group_js])
-                ax.text(cx, cy * 0.7, gnames[gi],
-                       ha='center', va='top',
-                       fontsize=9, fontweight='bold', color=GROUP_COLORS[gi % len(GROUP_COLORS)],
-                       bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
-                                edgecolor=GROUP_COLORS[gi % len(GROUP_COLORS)], alpha=0.8))
+                color = GROUP_COLORS[gi % len(GROUP_COLORS)]
+                legend_patches.append(Patch(facecolor=color, label=gnames[gi]))
+        if legend_patches:
+            ax.legend(handles=legend_patches + [
+                plt.Line2D([0], [0], linestyle='--', color='black', label='1:1 line'),
+            ], fontsize=7, loc='upper left', ncol=1)
 
     # R²
     log_pred = np.log(s_pred[s_pred > 0])

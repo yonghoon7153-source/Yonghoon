@@ -658,6 +658,31 @@ def single(case_id):
                 if val is not None:
                     row[1] = val
 
+    # Inject network solver results (no re-analysis needed)
+    if 'network_summary' in tables and metrics:
+        data = tables['network_summary']['data']
+        # Check if already has Network Solver section
+        has_net_section = any(str(row[0]).startswith('── Network Solver') for row in data)
+        if not has_net_section and metrics.get('sigma_full_mScm'):
+            # Find insert point: before "── 응력 ──" or at end
+            insert_idx = len(data)
+            for idx, row in enumerate(data):
+                if str(row[0]).startswith('── 응력'):
+                    insert_idx = idx
+                    break
+            net_rows = [['── Network Solver ──', '']]
+            net_rows.append(['σ_ionic (mS/cm)', round(metrics['sigma_full_mScm'], 4)])
+            if metrics.get('R_brug_over_full'):
+                net_rows.append(['R_brug (과대추정 배수)', f"{metrics['R_brug_over_full']:.1f}×"])
+            if metrics.get('bulk_resistance_fraction'):
+                net_rows.append(['Constriction 비율(%)', round((1 - metrics['bulk_resistance_fraction']) * 100, 1)])
+            if metrics.get('electronic_sigma_full_mScm'):
+                net_rows.append(['σ_electronic (mS/cm)', round(metrics['electronic_sigma_full_mScm'], 2)])
+            if metrics.get('thermal_sigma_full_mScm'):
+                net_rows.append(['σ_thermal (mS/cm equiv)', round(metrics['thermal_sigma_full_mScm'], 3)])
+            for i, r in enumerate(net_rows):
+                data.insert(insert_idx + i, r)
+
     # Load input_params.json
     input_params = {}
     params_path = os.path.join(results_dir, 'input_params.json')

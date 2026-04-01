@@ -3,13 +3,12 @@
 Core DEM analysis functions.
 Used by both analyze_contacts.py and analyze_contacts_bimodal.py.
 
-Scale convention:
-  - Length: sim(mm) → real(μm), factor = SCALE = 1000
-  - E: sim = real × 0.001
-  - P: sim = real × 0.001
-  - Area: sim(m²) → real(μm²) = sim / SCALE² × 1e12
-  - Force: F_real(μN) = F_sim(N) × SCALE  (∵ F_real_N = F_sim/SCALE)
-  - Stress: σ_real(MPa) = σ_sim(Pa) × SCALE / 1e6
+Scale convention (LIGGGHTS units si: m, kg, s, N, Pa):
+  DEM scaling: R×1000, E÷1000 → k preserved, δ×1000, F×1000, P÷1000
+  - Length: real(μm) = sim(m) / SCALE × 1e6    → ÷SCALE for real, ×1e6 for μm
+  - Area:   real(μm²) = sim(m²) / SCALE² × 1e12  (equivalently: sim × SCALE²)
+  - Force:  real(N) = sim(N) / SCALE             → real(μN) = sim × SCALE
+  - Pressure: real(Pa) = sim(Pa) × SCALE         → real(MPa) = sim × SCALE / 1e6
 """
 import numpy as np
 import json

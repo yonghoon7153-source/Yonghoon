@@ -120,7 +120,7 @@ def main():
 
         t0 = time.time()
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+            proc = subprocess.run(cmd, capture_output=True, text=True)
             elapsed = time.time() - t0
 
             if proc.returncode == 0 and os.path.exists(out_file):

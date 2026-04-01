@@ -1803,8 +1803,217 @@ def plot_sigma_decomposition(data_list, names, outdir):
 PLOT_REGISTRY["sigma_decomposition"] = {
     "func": plot_sigma_decomposition,
     "file": "sigma_decomposition.png",
-    "title": "σ_eff Factor Decomposition",
+    "title": "Ionic σ_eff Factor Decomposition",
     "description": "σ_eff = σ_brug × C × √A_hop × CN² × GB_d^(4/3) 각 항의 기여도 분해.",
+    "origin_tip": "Stacked bar (top) + Horizontal bar (bottom).",
+}
+
+
+def plot_electronic_decomposition(data_list, names, outdir):
+    """Decompose σ_el into φ_AM^(3/2), CN_AM², exp(π/(T/d)) factors."""
+    SIGMA_AM = 50.0
+    C_el = 0.015
+
+    phi_am = [_get(d, "phi_am") for d in data_list]
+    cn_am = [_get(d, "am_am_cn") for d in data_list]
+    thickness = [_get(d, "thickness_um") for d in data_list]
+    d_am = [2.0 * max(_get(d, "r_AM_P", 0), _get(d, "r_AM_S", 0), _get(d, "r_AM", 0))
+            for d in data_list]
+
+    n = len(data_list)
+
+    # log contributions
+    log_phi = np.array([1.5 * np.log(phi_am[i]) if phi_am[i] > 0 else 0 for i in range(n)])
+    log_cn2 = np.array([2 * np.log(cn_am[i]) if cn_am[i] > 0 else 0 for i in range(n)])
+    log_exp = np.array([np.pi / (thickness[i] / d_am[i]) if d_am[i] > 0 and thickness[i] > 0 else 0
+                        for i in range(n)])
+
+    # σ_el for reference selection
+    sigma_el = []
+    for i in range(n):
+        if phi_am[i] > 0 and cn_am[i] > 0 and d_am[i] > 0 and thickness[i] > 0:
+            ratio = thickness[i] / d_am[i]
+            sigma_el.append(C_el * SIGMA_AM * phi_am[i]**(3/2) * cn_am[i]**2 * np.exp(np.pi / ratio))
+        else:
+            sigma_el.append(0)
+
+    if not any(s > 0 for s in sigma_el):
+        return None
+
+    ref = int(np.argmax(sigma_el))
+    d_phi = log_phi - log_phi[ref]
+    d_cn = log_cn2 - log_cn2[ref]
+    d_exp = log_exp - log_exp[ref]
+
+    fig, axes = plt.subplots(2, 1, figsize=(max(8, len(names)*0.7), 10), gridspec_kw={'height_ratios': [2, 1]})
+
+    ax = axes[0]
+    x = np.arange(n)
+    w = 0.6
+
+    colors = ['#e74c3c', '#f39c12', '#9b59b6']
+    labels = ['φ_AM^(3/2)', 'CN_AM²', 'exp(π/(T/d))']
+    contributions = [d_phi, d_cn, d_exp]
+
+    pos_bottom = np.zeros(n)
+    neg_bottom = np.zeros(n)
+    for j, (contrib, color, label) in enumerate(zip(contributions, colors, labels)):
+        pos = np.maximum(contrib, 0)
+        neg = np.minimum(contrib, 0)
+        ax.bar(x, pos, w, bottom=pos_bottom, color=color, label=label, alpha=0.8, edgecolor='white', linewidth=0.5)
+        ax.bar(x, neg, w, bottom=neg_bottom, color=color, alpha=0.4, edgecolor='white', linewidth=0.5)
+        pos_bottom += pos
+        neg_bottom += neg
+
+    ax.axhline(0, color='gray', linewidth=0.5)
+    ax.set_ylabel('Δlog(σ_el) from reference', fontsize=11)
+    ax.set_title(f'Electronic σ_el Factor Decomposition (ref: {names[ref]})', fontsize=12, fontweight='bold')
+    ax.legend(fontsize=9, loc='best', ncol=3)
+    ax.set_xticks(x)
+    ax.set_xticklabels(names, rotation=45, ha='right', fontsize=8)
+    ax.yaxis.grid(True, linestyle='--', alpha=0.5)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    # Bottom: dominant factor
+    ax2 = axes[1]
+    all_contribs = np.array(contributions)
+    for i in range(n):
+        if i == ref:
+            ax2.barh(i, 0, color='gray')
+            continue
+        vals = all_contribs[:, i]
+        sorted_idx = np.argsort(np.abs(vals))[::-1]
+        for rank, j in enumerate(sorted_idx[:3]):
+            ax2.barh(i, vals[j], height=0.25, left=0,
+                    color=colors[j], alpha=0.9 - rank*0.25,
+                    edgecolor='white', linewidth=0.5)
+
+    ax2.set_yticks(range(n))
+    ax2.set_yticklabels(names, fontsize=8)
+    ax2.set_xlabel('Factor contribution (Δlog)', fontsize=10)
+    ax2.set_title('Dominant factors per case', fontsize=11, fontweight='bold')
+    ax2.axvline(0, color='gray', linewidth=0.5)
+    ax2.spines['top'].set_visible(False)
+    ax2.spines['right'].set_visible(False)
+    from matplotlib.patches import Patch
+    legend_elements = [Patch(facecolor=c, label=l) for c, l in zip(colors, labels)]
+    ax2.legend(handles=legend_elements, fontsize=8, loc='lower right', ncol=3)
+
+    plt.tight_layout()
+    _write_csv(outdir, 'electronic_decomposition.csv',
+               ['φ_AM^1.5(Δlog)', 'CN²(Δlog)', 'exp(π/(T/d))(Δlog)'],
+               names, list(d_phi), list(d_cn), list(d_exp))
+    return _save(fig, outdir, "electronic_decomposition.png")
+
+
+PLOT_REGISTRY["electronic_decomposition"] = {
+    "func": plot_electronic_decomposition,
+    "file": "electronic_decomposition.png",
+    "title": "Electronic σ_el Factor Decomposition",
+    "description": "σ_el = 0.015 × σ_AM × φ^(3/2) × CN² × exp(π/(T/d)) 각 항 기여도 분해.\nφ_AM^(3/2): Bruggeman volume fraction\nCN_AM²: network connectivity\nexp(π/(T/d)): thin electrode finite-size effect",
+    "origin_tip": "Stacked bar (top) + Horizontal bar (bottom).",
+}
+
+
+def plot_thermal_decomposition(data_list, names, outdir):
+    """Decompose σ_th into σ_ion^(3/4), φ_AM², CN_SE^(-1) factors."""
+    C_th = 286.0
+
+    sigma_ion = _load_network_sigma(data_list)
+    phi_am = [_get(d, "phi_am") for d in data_list]
+    cn_se = [_get(d, "se_se_cn") for d in data_list]
+
+    n = len(data_list)
+
+    # log contributions
+    log_ion = np.array([0.75 * np.log(sigma_ion[i]) if sigma_ion[i] > 0 else 0 for i in range(n)])
+    log_phi = np.array([2 * np.log(phi_am[i]) if phi_am[i] > 0 else 0 for i in range(n)])
+    log_cn = np.array([-1 * np.log(cn_se[i]) if cn_se[i] > 0 else 0 for i in range(n)])
+
+    # σ_th for reference selection
+    sigma_th = []
+    for i in range(n):
+        if sigma_ion[i] > 0 and phi_am[i] > 0 and cn_se[i] > 0:
+            sigma_th.append(C_th * sigma_ion[i]**(3/4) * phi_am[i]**2 / cn_se[i])
+        else:
+            sigma_th.append(0)
+
+    if not any(s > 0 for s in sigma_th):
+        return None
+
+    ref = int(np.argmax(sigma_th))
+    d_ion = log_ion - log_ion[ref]
+    d_phi = log_phi - log_phi[ref]
+    d_cn = log_cn - log_cn[ref]
+
+    fig, axes = plt.subplots(2, 1, figsize=(max(8, len(names)*0.7), 10), gridspec_kw={'height_ratios': [2, 1]})
+
+    ax = axes[0]
+    x = np.arange(n)
+    w = 0.6
+
+    colors = ['#2ecc71', '#e74c3c', '#3498db']
+    labels = ['σ_ion^(3/4)', 'φ_AM²', 'CN_SE⁻¹']
+    contributions = [d_ion, d_phi, d_cn]
+
+    pos_bottom = np.zeros(n)
+    neg_bottom = np.zeros(n)
+    for j, (contrib, color, label) in enumerate(zip(contributions, colors, labels)):
+        pos = np.maximum(contrib, 0)
+        neg = np.minimum(contrib, 0)
+        ax.bar(x, pos, w, bottom=pos_bottom, color=color, label=label, alpha=0.8, edgecolor='white', linewidth=0.5)
+        ax.bar(x, neg, w, bottom=neg_bottom, color=color, alpha=0.4, edgecolor='white', linewidth=0.5)
+        pos_bottom += pos
+        neg_bottom += neg
+
+    ax.axhline(0, color='gray', linewidth=0.5)
+    ax.set_ylabel('Δlog(σ_th) from reference', fontsize=11)
+    ax.set_title(f'Thermal σ_th Factor Decomposition (ref: {names[ref]})', fontsize=12, fontweight='bold')
+    ax.legend(fontsize=9, loc='best', ncol=3)
+    ax.set_xticks(x)
+    ax.set_xticklabels(names, rotation=45, ha='right', fontsize=8)
+    ax.yaxis.grid(True, linestyle='--', alpha=0.5)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    # Bottom: dominant factor
+    ax2 = axes[1]
+    all_contribs = np.array(contributions)
+    for i in range(n):
+        if i == ref:
+            ax2.barh(i, 0, color='gray')
+            continue
+        vals = all_contribs[:, i]
+        sorted_idx = np.argsort(np.abs(vals))[::-1]
+        for rank, j in enumerate(sorted_idx[:3]):
+            ax2.barh(i, vals[j], height=0.25, left=0,
+                    color=colors[j], alpha=0.9 - rank*0.25,
+                    edgecolor='white', linewidth=0.5)
+
+    ax2.set_yticks(range(n))
+    ax2.set_yticklabels(names, fontsize=8)
+    ax2.set_xlabel('Factor contribution (Δlog)', fontsize=10)
+    ax2.set_title('Dominant factors per case', fontsize=11, fontweight='bold')
+    ax2.axvline(0, color='gray', linewidth=0.5)
+    ax2.spines['top'].set_visible(False)
+    ax2.spines['right'].set_visible(False)
+    from matplotlib.patches import Patch
+    legend_elements = [Patch(facecolor=c, label=l) for c, l in zip(colors, labels)]
+    ax2.legend(handles=legend_elements, fontsize=8, loc='lower right', ncol=3)
+
+    plt.tight_layout()
+    _write_csv(outdir, 'thermal_decomposition.csv',
+               ['σ_ion^3/4(Δlog)', 'φ_AM²(Δlog)', 'CN_SE⁻¹(Δlog)'],
+               names, list(d_ion), list(d_phi), list(d_cn))
+    return _save(fig, outdir, "thermal_decomposition.png")
+
+
+PLOT_REGISTRY["thermal_decomposition"] = {
+    "func": plot_thermal_decomposition,
+    "file": "thermal_decomposition.png",
+    "title": "Thermal σ_th Factor Decomposition",
+    "description": "σ_th = 286 × σ_ion^(3/4) × φ_AM² / CN_SE 각 항 기여도 분해.\nσ_ion^(3/4): SE backbone geometry (ionic에서 계승)\nφ_AM²: AM thermal enhancement\nCN_SE⁻¹: SE clustering penalty (부호 역전!)",
     "origin_tip": "Stacked bar (top) + Horizontal bar (bottom).",
 }
 PLOT_REGISTRY["ion_path_quality"] = {

@@ -91,6 +91,17 @@ def load_thermal_data():
                 'cn_total': se_cn + am_cn,  # rough total CN
                 'k_eff_mix': phi_se * K_SE + phi_am * K_AM,  # linear mixing rule
                 'k_eff_harm': K_SE * K_AM / (phi_am * K_SE + phi_se * K_AM) if (phi_am * K_SE + phi_se * K_AM) > 0 else 0,
+                # Lichtenecker log mixing
+                'k_eff_log': np.exp(phi_se * np.log(K_SE) + phi_am * np.log(K_AM)) if phi_se > 0 and phi_am > 0 else K_SE,
+                # Thermal-weighted CN: k_weight per contact type
+                'cn_thermal_w': (n_se_se * 1.0 + n_am_am * K_RATIO + n_am_se * 2*K_RATIO/(1+K_RATIO)),
+                # Total contacts
+                'n_total': n_se_se + n_am_am + n_am_se,
+                # AM-SE bridge fraction
+                'amse_frac': n_am_se / max(n_se_se + n_am_am + n_am_se, 1),
+                # Area ratios
+                'area_total': area_se_se + area_am_am + area_am_se,
+                'amse_area_frac': area_am_se / max(area_se_se + area_am_am + area_am_se, 1),
             })
     return rows
 
@@ -132,15 +143,28 @@ def thermal_regression():
     log_sigma = np.log(sigma_th)
     ss_tot = np.sum((log_sigma - np.mean(log_sigma))**2)
 
+    cn_thermal_w = np.array([r['cn_thermal_w'] for r in rows])
+    n_total = np.array([r['n_total'] for r in rows])
+    amse_frac = np.array([r['amse_frac'] for r in rows])
+    area_total = np.array([r['area_total'] for r in rows])
+    amse_area_frac = np.array([r['amse_area_frac'] for r in rows])
+    k_log = np.array([r['k_eff_log'] for r in rows])
+    porosity_arr = np.array([r['porosity'] for r in rows])
+    solid_frac = 1 - porosity_arr / 100
+
     K_SE_mScm = K_SE * 1e3  # W/(cm·K) → mW/(cm·K) = mS/cm equiv
 
     # ── Correlation analysis ──
     print("\n--- Correlation with log(σ_th) ---")
     features = {
-        'φ_SE': phi_se, 'φ_AM': phi_am, 'φ_total': phi_total,
-        'CN_SE': se_cn, 'CN_AM': am_cn, 'CN_AM-SE': am_se_cn,
-        'τ': tau, 'T': thickness,
-        'A_AM-SE': area_am_se, 'k_mix': k_mix,
+        'φ_total': phi_total, 'τ': tau, 'φ_SE': phi_se,
+        'A_AM-SE': area_am_se, 'T': thickness,
+        'CN_SE': se_cn, 'φ_AM': phi_am, 'k_mix': k_mix,
+        'CN_AM': am_cn, 'CN_AM-SE': am_se_cn,
+        'CN_th_w': cn_thermal_w, 'N_total': n_total,
+        'AMSE_frac': amse_frac, 'A_total': area_total,
+        'AMSE_A%': amse_area_frac, 'k_log': k_log,
+        'porosity': porosity_arr, 'solid': solid_frac,
     }
     corrs = []
     for name, vals in features.items():
@@ -365,6 +389,98 @@ def thermal_regression():
         r2 = 1 - np.sum((log_sigma_m - pred)**2) / ss_m
         print(f"  T17: σ_th = {np.exp(log_C):.4f} × k_mix × φ^0.5 / τ²,  R²={r2:.4f}")
         results.append(('T17', f'C × k_mix × φ^0.5 / τ²', np.exp(log_C), r2, 1))
+
+    # ── Contact-based thermal models ──
+
+    # T18: Lichtenecker log-mixing × φ^1.5 / τ²
+    valid_klog = k_log > 0
+    if np.sum(valid_klog & valid_tau) > 10:
+        mask = valid_klog & valid_tau
+        log_rhs = np.log(k_log[mask]*1e3) + 1.5*np.log(phi_total[mask]) - 2*np.log(tau[mask])
+        log_C = np.mean(log_sigma[mask] - log_rhs)
+        pred = log_C + log_rhs
+        ss_m = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2 = 1 - np.sum((log_sigma[mask] - pred)**2) / ss_m
+        print(f"\n  T18: σ_th = {np.exp(log_C):.4f} × k_Lichtenecker × φ^1.5 / τ²,  R²={r2:.4f}")
+        results.append(('T18', f'C × k_Licht × φ^1.5 / τ²', np.exp(log_C), r2, 1))
+
+    # T19: φ_SE × φ_AM × τ (interaction term: SE-AM bridge)
+    if np.sum(valid_tau) > 10:
+        mask = valid_tau
+        b19, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(phi_se[mask]*phi_am[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred19 = np.column_stack([np.log(phi_se[mask]*phi_am[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]) @ b19
+        ss_m = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2_19 = 1 - np.sum((log_sigma[mask] - pred19)**2) / ss_m
+        print(f"  T19: σ_th = C × (φ_SE×φ_AM)^{b19[0]:.2f} / τ^{-b19[1]:.2f},  R²={r2_19:.4f}")
+        results.append(('T19', f'(φ_SE×φ_AM)^{b19[0]:.2f} × τ^{b19[1]:.2f}', np.exp(b19[2]), r2_19, 3))
+
+    # T20: Weighted CN thermal — CN_th_w^a (all contacts, k-weighted)
+    valid_cnw = cn_thermal_w > 0
+    if np.sum(valid_cnw & valid_tau) > 10:
+        mask = valid_cnw & valid_tau
+        b20, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(phi_total[mask]), np.log(cn_thermal_w[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred20 = np.column_stack([np.log(phi_total[mask]), np.log(cn_thermal_w[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]) @ b20
+        ss_m = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2_20 = 1 - np.sum((log_sigma[mask] - pred20)**2) / ss_m
+        print(f"  T20: σ_th = C × φ^{b20[0]:.2f} × CN_th_w^{b20[1]:.2f} / τ^{-b20[2]:.2f},  R²={r2_20:.4f}")
+        results.append(('T20', f'φ^{b20[0]:.2f} × CN_th_w^{b20[1]:.2f} × τ^{b20[2]:.2f}', np.exp(b20[3]), r2_20, 4))
+
+    # T21: N_total (total contacts) + φ + τ
+    valid_nt = n_total > 0
+    if np.sum(valid_nt & valid_tau) > 10:
+        mask = valid_nt & valid_tau
+        b21, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(phi_total[mask]), np.log(n_total[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred21 = np.column_stack([np.log(phi_total[mask]), np.log(n_total[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]) @ b21
+        ss_m = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2_21 = 1 - np.sum((log_sigma[mask] - pred21)**2) / ss_m
+        print(f"  T21: σ_th = C × φ^{b21[0]:.2f} × N_total^{b21[1]:.2f} / τ^{-b21[2]:.2f},  R²={r2_21:.4f}")
+        results.append(('T21', f'φ^{b21[0]:.2f} × N_total^{b21[1]:.2f} × τ^{b21[2]:.2f}', np.exp(b21[3]), r2_21, 4))
+
+    # T22: A_total (total contact area) + φ + τ
+    valid_at = area_total > 0
+    if np.sum(valid_at & valid_tau) > 10:
+        mask = valid_at & valid_tau
+        b22, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(phi_total[mask]), np.log(area_total[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred22 = np.column_stack([np.log(phi_total[mask]), np.log(area_total[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]) @ b22
+        ss_m = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2_22 = 1 - np.sum((log_sigma[mask] - pred22)**2) / ss_m
+        print(f"  T22: σ_th = C × φ^{b22[0]:.2f} × A_total^{b22[1]:.2f} / τ^{-b22[2]:.2f},  R²={r2_22:.4f}")
+        results.append(('T22', f'φ^{b22[0]:.2f} × A_total^{b22[1]:.2f} × τ^{b22[2]:.2f}', np.exp(b22[3]), r2_22, 4))
+
+    # T23: KITCHEN SINK — φ_SE, φ_AM, τ, CN_SE, AM-SE_area
+    valid_all = valid_tau & (area_am_se > 0)
+    if np.sum(valid_all) > 10:
+        mask = valid_all
+        b23, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(phi_se[mask]), np.log(phi_am[mask]), np.log(tau[mask]),
+                           np.log(se_cn[mask]), np.log(area_am_se[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred23 = np.column_stack([np.log(phi_se[mask]), np.log(phi_am[mask]), np.log(tau[mask]),
+                                np.log(se_cn[mask]), np.log(area_am_se[mask]), np.ones(np.sum(mask))]) @ b23
+        ss_m = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2_23 = 1 - np.sum((log_sigma[mask] - pred23)**2) / ss_m
+        print(f"  T23: φ_SE^{b23[0]:.2f} × φ_AM^{b23[1]:.2f} × τ^{b23[2]:.2f} × CN_SE^{b23[3]:.2f} × A_AMSE^{b23[4]:.2f},  R²={r2_23:.4f}")
+        results.append(('T23', f'φ_SE^{b23[0]:.1f}×φ_AM^{b23[1]:.1f}×τ^{b23[2]:.1f}×CN^{b23[3]:.1f}×A^{b23[4]:.1f}', np.exp(b23[5]), r2_23, 6))
+
+    # T24: solid_frac (1-porosity) based — simpler than φ_SE × φ_AM
+    if np.sum(valid_tau) > 10:
+        mask = valid_tau
+        b24, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(solid_frac[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred24 = np.column_stack([np.log(solid_frac[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]) @ b24
+        ss_m = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2_24 = 1 - np.sum((log_sigma[mask] - pred24)**2) / ss_m
+        print(f"  T24: σ_th = C × (1-ε)^{b24[0]:.2f} / τ^{-b24[1]:.2f},  R²={r2_24:.4f}")
+        results.append(('T24', f'(1-ε)^{b24[0]:.2f} × τ^{b24[1]:.2f}', np.exp(b24[2]), r2_24, 3))
 
     # ── Ranking ──
     print(f"\n{'='*70}")

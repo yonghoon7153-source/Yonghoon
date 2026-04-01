@@ -1663,32 +1663,32 @@ PLOT_REGISTRY = {
     "rgb_fitting": {
         "func": plot_rgb_fitting,
         "file": "rgb_fitting.png",
-        "title": "BLM+Constriction Fitting",
-        "description": "R = C × (GB_d²×T)^α [Proxy-based scaling, Part I]\n\nN_contact ∝ GB_d×T (BLM) × R_per ∝ GB_d (Constriction)\n→ R ∝ GB_d²×T\n\nα=1.82, R²=0.94 (n=41)\n\nNetwork solver (Part II) 검증:\n- 실제 R_brug = 3~10× (proxy R=15~1600은 single-path 과장)\n- σ_full = 0.01~0.28 mS/cm (실험과 same order)\n- n_eff = n_geo(2.54) + n_contact(0.83) = 3.37\n\nMulti-scale model (Part III):\nσ_eff = σ_brug × C × √A_hop × CN² × GB_d^(4/3)\nR²=0.93 (1 free param), LOOCV R²=0.93",
-        "origin_tip": "Scatter + Fit line (log-log).\nBlue dots: data, Red line: fitted.",
+        "title": "Ionic: Inter-particle Contact Resistance Scaling",
+        "description": "최종 Ionic Conductivity 공식:\nσ_ion = σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\n  R²=0.93, LOOCV R²=0.93 (1 free param)\n\n이 플롯: Contact resistance scaling 발견 과정\n  R = C × (GB_d²×T)^α,  α=1.82, R²=0.94\n  GB_d²: BLM(hop 수) × Maxwell(접촉 크기)\n  T: 총 경로 길이\n\nBruggeman exponent 분해:\n  n_eff = n_geo(2.54) + n_contact(0.83) = 3.37\n  → 문헌 n≈3의 물리적 기원 설명",
+        "origin_tip": "Scatter + Fit line (log-log).\n색상별 SE 크기: 0.5μm(warm), 1.0μm(green), 1.5μm(cool)\n숫자: P:S ratio",
         "min_groups": 2,
     },
     "gb_corrected": {
         "func": plot_gb_corrected,
         "file": "gb_corrected.png",
-        "title": "Part I: Proxy σ_eff",
-        "description": "σ_eff = σ_brug / [C × (GB_d²×T)^α]\nPart I의 proxy 기반 보정. GB_d²×T scaling 발견.\n빨간: σ_eff/σ_bulk | 오렌지: σ_eff (mS/cm)\n⚠ 절대값은 single-path 과장 포함 (R=15~1600).\nPart II(Network), III(Multi-scale) 참조.",
+        "title": "Ionic: Proxy σ_eff (Part I)",
+        "description": "σ_eff = σ_brug / [C × (GB_d²×T)^α]\nProxy 기반 보정 (single-path 근사)\n빨간: σ_eff/σ_bulk | 오렌지: σ_eff (mS/cm)\n⚠ 절대값은 과장 (R=15~1600, 실제 3~10)\nNetwork solver(Part II)로 검증 완료",
         "origin_tip": "Line (Red, ratio) + Dashed (Orange, mS/cm).",
         "min_groups": 2,
     },
     "network_sigma": {
         "func": plot_network_sigma,
         "file": "network_sigma.png",
-        "title": "Part II: Network σ_full",
-        "description": "DEM-native resistor network solver.\nR_bulk + R_constriction per edge, Kirchhoff 풀이.\n초록: σ_full (ground truth) | 파란: σ_brug (Bruggeman)\nR_brug = 3~10× (실험 τ_eff²≈4~5와 일치)\nConstriction 69~81% 지배.\nMinnmann(2021) 0.17 mS/cm과 same order.",
+        "title": "Ionic: Network Solver σ_full (Part II)",
+        "description": "Kirchhoff resistor network (R_bulk + R_constriction)\n초록: σ_full (ground truth) | 파란: σ_brug (Bruggeman)\nR_brug = 3~10× | Constriction 69~81% 지배\nMinnmann(2021) 0.17 mS/cm과 same order\nσ_grain = 3.0 mS/cm (grain interior, not pellet)",
         "origin_tip": "Green: Network solver, Blue dashed: Bruggeman.",
     },
     "multiscale_sigma": {
         "func": plot_multiscale_sigma,
         "file": "multiscale_sigma.png",
-        "title": "Part III: Multi-scale σ_eff",
-        "description": "σ_eff = σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\n√A_hop: Maxwell constriction (fit 0.525≈0.5)\nCN²: redundant path factor (fit 1.98≈2)\nGB_d^(4/3): mesh density + contact residual\nR²=0.93 (1 free param), LOOCV R²=0.93\nAblation: 모든 항 필수 (GB_d 없으면 R²→음수)",
-        "origin_tip": "Red: Multi-scale, Green dashed: Network solver (reference).",
+        "title": "Ionic: Multi-scale Scaling Law (Part III)",
+        "description": "σ_ion = σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\n√A_hop: Maxwell constriction (fit→0.5)\nCN²: redundant path factor (fit→2)\nGB_d^(4/3): mesh density(1) + Hertz(1/3)\nR²=0.93, LOOCV R²=0.93 (1 free param)\nAblation: GB_d 제거 시 R²→음수 (필수 항)",
+        "origin_tip": "Red: Scaling law, Green dashed: Network solver.",
     },
 }
 
@@ -1803,8 +1803,8 @@ def plot_sigma_decomposition(data_list, names, outdir):
 PLOT_REGISTRY["sigma_decomposition"] = {
     "func": plot_sigma_decomposition,
     "file": "sigma_decomposition.png",
-    "title": "Ionic σ_eff Factor Decomposition",
-    "description": "σ_eff = σ_brug × C × √A_hop × CN² × GB_d^(4/3) 각 항의 기여도 분해.",
+    "title": "Ionic: Factor Decomposition",
+    "description": "σ_ion = σ_brug × C × √A_hop × CN² × GB_d^(4/3)\n각 항의 상대 기여도 (ref: 최고 σ case)\nφ_SE: 부피분율 | τ²: 경로 꼬임\n√A_hop: 접촉면적 | CN²: 연결성 | GB_d: mesh 밀도",
     "origin_tip": "Stacked bar (top) + Horizontal bar (bottom).",
 }
 

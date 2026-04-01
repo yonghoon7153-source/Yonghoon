@@ -928,7 +928,7 @@ def _load_network_sigma(data_list):
 def plot_gb_corrected(data_list, names, outdir):
     """Part I: Proxy-based GB-corrected σ_eff using BLM+Constriction."""
     alpha, ln_C, _, r2_check = _fit_r_gb(data_list, names)
-    SIGMA_BULK = 1.3
+    SIGMA_BULK = 3.0  # σ_grain (grain interior)
     C = np.exp(ln_C)
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
@@ -977,7 +977,7 @@ def plot_gb_corrected(data_list, names, outdir):
 
 def plot_network_sigma(data_list, names, outdir):
     """Part II: Network solver σ_full (ground truth)."""
-    SIGMA_BULK = 1.3
+    SIGMA_BULK = 3.0  # σ_grain (grain interior)
     sigma_net = _load_network_sigma(data_list)
     sigma_brug_abs = [_get(d, "sigma_ratio") * SIGMA_BULK for d in data_list]
 
@@ -1014,7 +1014,7 @@ def plot_network_sigma(data_list, names, outdir):
 
 def plot_multiscale_sigma(data_list, names, outdir):
     """Part III: Multi-scale model σ_eff = σ_brug × C × √hop × CN² × GB_d^(4/3)."""
-    SIGMA_BULK = 1.3
+    SIGMA_BULK = 3.0  # σ_grain (grain interior), NOT σ_pellet(1.3)
     C_ms = 0.026
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
@@ -1239,7 +1239,7 @@ PLOT_REGISTRY = {
 
 def plot_sigma_decomposition(data_list, names, outdir):
     """Decompose σ_eff into Bruggeman + contact terms. Show which factor dominates."""
-    SIGMA_BULK = 1.3
+    SIGMA_BULK = 3.0  # σ_grain (grain interior)
     C_ms = 0.026
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]

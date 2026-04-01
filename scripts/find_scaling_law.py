@@ -58,7 +58,7 @@ def load_all_data():
         rows.append({
             'name': nd['name'],
             # Network solver
-            'sigma_full': nd.get('sigma_full_mScm', nd['sigma_full'] * 1.3),
+            'sigma_full': nd.get('sigma_full_mScm', nd['sigma_full'] * 3.0),
             'sigma_bulk_net': nd.get('sigma_bulk_net_mScm', 0),
             'R_brug': nd['R_brug_over_full'],
             'bulk_frac': nd['bulk_resistance_fraction'],
@@ -86,7 +86,7 @@ def load_all_data():
             'gb_d2T': gb_d**2 * T,
             'constr_ratio': (1 - nd['bulk_resistance_fraction']) / nd['bulk_resistance_fraction']
                             if nd['bulk_resistance_fraction'] > 0 else 0,
-            'sigma_brug': 1.3 * m.get('phi_se', 0) * m.get('percolation_pct', 0) / 100 / tau**2,
+            'sigma_brug': 3.0 * m.get('phi_se', 0) * m.get('percolation_pct', 0) / 100 / tau**2,
         })
     return rows
 

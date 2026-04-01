@@ -357,7 +357,7 @@ def generate_report(data_list, names, outdir):
     L.append("```\n")
     L.append("| 항 | 값 | 출처 | 의미 |")
     L.append("|-----|-----|------|------|")
-    L.append("| σ_bulk | 1.3 mS/cm | SE 물성 (Li₆PS₅Cl) | 벌크 전도도 |")
+    L.append("| σ_bulk | 3.0 mS/cm | SE grain interior (Li₆PS₅Cl) | σ_grain (NOT σ_pellet 1.3) |")
     L.append("| φ_SE | DEM 계산 | 부피분율 | SE 양 |")
     L.append("| f_perc | DEM 계산 | percolation | 연결된 SE 비율 |")
     L.append("| τ² | DEM 계산 | Bruggeman | 경로 기하 손실 |")

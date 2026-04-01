@@ -147,7 +147,7 @@ def main():
         print(f"E: FAILED ({e})")
 
     # F: Bruggeman exponent
-    sigma_ratio = sigma_full_mScm / 1.3
+    sigma_ratio = sigma_full_mScm / 3.0  # σ_grain
     valid_f = (phi_se > 0) & (sigma_ratio > 0)
     s, i, r, _, _ = stats.linregress(np.log(phi_se[valid_f]), np.log(sigma_ratio[valid_f]))
     r2 = r**2
@@ -163,7 +163,7 @@ def main():
     model_results.append(('G: GB_d^a×T^b (M6)', r2, 3, f'a={b[0]:.3f},b={b[1]:.3f}'))
 
     # H: τ_eff² 역산
-    tau_eff2 = 1.3 * phi_se / sigma_full_mScm
+    tau_eff2 = 3.0 * phi_se / sigma_full_mScm  # σ_grain
     print(f"\nτ_eff² (역산): {tau_eff2.min():.2f} ~ {tau_eff2.max():.2f} (문헌: 4~5)")
     print(f"  τ_geo²: {(tau**2).min():.2f} ~ {(tau**2).max():.2f}")
     print(f"  R_contact = τ_eff²/τ_geo²: {(tau_eff2/(tau**2)).min():.2f} ~ {(tau_eff2/(tau**2)).max():.2f}")
@@ -182,7 +182,7 @@ def main():
     print(f"{'Name':25s} {'GB_d':>6s} {'T':>6s} {'τ':>5s} {'φ_SE':>6s} {'R_brug':>7s} {'σ_full':>8s} {'τ_eff²':>7s}")
     print("-"*75)
     for r in sorted(results, key=lambda x: x['sigma_full_mScm']):
-        te2 = 1.3 * r['phi_se'] / r['sigma_full_mScm'] if r['sigma_full_mScm'] > 0 else 0
+        te2 = 3.0 * r['phi_se'] / r['sigma_full_mScm'] if r['sigma_full_mScm'] > 0 else 0
         print(f"  {r['name']:23s} {r['gb_d']:6.2f} {r['T']:6.0f} {r['tau']:5.2f} {r['phi_se']:6.3f} {r['R_brug']:7.2f} {r['sigma_full_mScm']:8.4f} {te2:7.2f}")
 
 

@@ -1259,8 +1259,14 @@ def plot_sigma_decomposition(data_list, names, outdir):
     log_cn2 = np.array([2 * np.log(cn[i]) if cn[i] > 0 else 0 for i in range(n)])
     log_gbd = np.array([4/3 * np.log(gb_dens[i]) if gb_dens[i] > 0 else 0 for i in range(n)])
 
-    # Normalize: relative to first case (show changes)
-    ref = 0  # reference case index
+    # Normalize: relative to best σ_eff case (show what limits performance)
+    sigma_ms = []
+    for i in range(n):
+        if hop[i] > 0 and cn[i] > 0 and gb_dens[i] > 0:
+            sigma_ms.append(sigma_brug[i] * C_ms * np.sqrt(hop[i]) * cn[i]**2 * gb_dens[i]**(4/3) * SIGMA_BULK)
+        else:
+            sigma_ms.append(0)
+    ref = int(np.argmax(sigma_ms))  # best σ_eff case
     d_phi = log_phi - log_phi[ref]
     d_tau = log_tau2 - log_tau2[ref]
     d_hop = log_hop - log_hop[ref]

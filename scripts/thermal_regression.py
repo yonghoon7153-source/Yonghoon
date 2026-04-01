@@ -482,6 +482,174 @@ def thermal_regression():
         print(f"  T24: σ_th = C × (1-ε)^{b24[0]:.2f} / τ^{-b24[1]:.2f},  R²={r2_24:.4f}")
         results.append(('T24', f'(1-ε)^{b24[0]:.2f} × τ^{b24[1]:.2f}', np.exp(b24[2]), r2_24, 3))
 
+    # ── Physics-based 2-phase models ──
+    sigma_ion = np.array([r['sigma_ion'] for r in rows])
+    f_perc = np.array([r['f_perc'] for r in rows])
+    sigma_brug_se = np.array([K_SE_mScm * r['phi_se'] * r['f_perc'] / r['tau']**2
+                              if r['tau'] > 0 else 0 for r in rows])
+
+    print(f"\n  --- Physics-based 2-phase models ---")
+
+    # T25: σ_th vs σ_ion correlation (same geometry hypothesis)
+    valid_ion = sigma_ion > 0
+    if np.sum(valid_ion) > 10:
+        mask = valid_ion
+        r_corr = np.corrcoef(np.log(sigma_ion[mask]), log_sigma[mask])[0, 1]
+        b25, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(sigma_ion[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred25 = np.column_stack([np.log(sigma_ion[mask]), np.ones(np.sum(mask))]) @ b25
+        ss25 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2_25 = 1 - np.sum((log_sigma[mask] - pred25)**2) / ss25
+        print(f"  T25: σ_th = C × σ_ion^{b25[0]:.2f}  (corr={r_corr:.3f}),  R²={r2_25:.4f}")
+        results.append(('T25', f'C × σ_ion^{b25[0]:.2f}', np.exp(b25[1]), r2_25, 2))
+
+    # T26: SE backbone model — k_SE × φ_SE^1.5 / τ² × (1 + (k_r-1) × φ_AM²)
+    try:
+        def model_t26(X, C, gamma):
+            phi_s, phi_a, tau_v = X
+            se_backbone = phi_s**1.5 / tau_v**2
+            am_enhance = 1 + (K_RATIO - 1) * phi_a**gamma
+            return np.log(C * K_SE_mScm * se_backbone * am_enhance)
+
+        mask26 = tau > 0
+        X26 = (phi_se[mask26], phi_am[mask26], tau[mask26])
+        popt26, _ = curve_fit(model_t26, X26, log_sigma[mask26], p0=[1.0, 2.0], maxfev=10000)
+        pred26 = model_t26(X26, *popt26)
+        ss26 = np.sum((log_sigma[mask26] - np.mean(log_sigma[mask26]))**2)
+        r2_26 = 1 - np.sum((log_sigma[mask26] - pred26)**2) / ss26
+        print(f"  T26: σ_th = {popt26[0]:.4f} × k_SE × φ_SE^1.5/τ² × (1+{K_RATIO-1:.1f}×φ_AM^{popt26[1]:.2f}),  R²={r2_26:.4f}")
+        results.append(('T26', f'k_SE×φ_SE^1.5/τ²×(1+k_r×φ_AM^γ)', popt26[0], r2_26, 2))
+    except Exception as e:
+        print(f"  T26: FAILED ({e})")
+
+    # T27: Dual backbone — k_SE×φ_SE^1.5/τ² + k_AM×φ_AM^1.5  (series + parallel)
+    try:
+        def model_t27(X, C1, C2):
+            phi_s, phi_a, tau_v = X
+            se_path = C1 * K_SE_mScm * phi_s**1.5 / tau_v**2
+            am_path = C2 * K_AM * 1e3 * phi_a**1.5
+            return np.log(se_path + am_path)
+
+        mask27 = tau > 0
+        X27 = (phi_se[mask27], phi_am[mask27], tau[mask27])
+        popt27, _ = curve_fit(model_t27, X27, log_sigma[mask27], p0=[1.0, 0.1], maxfev=10000)
+        pred27 = model_t27(X27, *popt27)
+        ss27 = np.sum((log_sigma[mask27] - np.mean(log_sigma[mask27]))**2)
+        r2_27 = 1 - np.sum((log_sigma[mask27] - pred27)**2) / ss27
+        print(f"  T27: σ_th = {popt27[0]:.4f}×k_SE×φ_SE^1.5/τ² + {popt27[1]:.4f}×k_AM×φ_AM^1.5,  R²={r2_27:.4f}")
+        results.append(('T27', f'C1×k_SE×φ_SE^1.5/τ² + C2×k_AM×φ_AM^1.5', popt27[0], r2_27, 2))
+    except Exception as e:
+        print(f"  T27: FAILED ({e})")
+
+    # T28: σ_brug_SE (ionic Bruggeman but with k_SE) as base
+    valid_brug = sigma_brug_se > 0
+    if np.sum(valid_brug) > 10:
+        mask = valid_brug
+        # T28a: σ_th = C × σ_brug_SE
+        log_C = np.mean(log_sigma[mask] - np.log(sigma_brug_se[mask]))
+        pred = log_C + np.log(sigma_brug_se[mask])
+        ss28 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2_28 = 1 - np.sum((log_sigma[mask] - pred)**2) / ss28
+        print(f"  T28: σ_th = {np.exp(log_C):.4f} × σ_brug_SE,  R²={r2_28:.4f}")
+        results.append(('T28', f'C × σ_brug_SE(=k_SE×φ_SE×f_perc/τ²)', np.exp(log_C), r2_28, 1))
+
+        # T28b: + AM correction
+        try:
+            def model_t28b(X, C, alpha):
+                brug_se, phi_a = X
+                return np.log(C * brug_se * (1 + alpha * phi_a))
+
+            X28b = (sigma_brug_se[mask], phi_am[mask])
+            popt28b, _ = curve_fit(model_t28b, X28b, log_sigma[mask], p0=[5.0, 5.0], maxfev=10000)
+            pred28b = model_t28b(X28b, *popt28b)
+            r2_28b = 1 - np.sum((log_sigma[mask] - pred28b)**2) / ss28
+            print(f"  T28b: σ_th = {popt28b[0]:.4f} × σ_brug_SE × (1+{popt28b[1]:.2f}×φ_AM),  R²={r2_28b:.4f}")
+            results.append(('T28b', f'C×σ_brug_SE×(1+α×φ_AM)', popt28b[0], r2_28b, 2))
+        except Exception as e:
+            print(f"  T28b: FAILED ({e})")
+
+    # T29: σ_th_brug = (φ_SE×k_SE + φ_AM×k_AM) × φ_total^0.5 × f_perc / τ²
+    # This is Bruggeman with WEIGHTED k for 2-phase
+    try:
+        valid_29 = (tau > 0) & (f_perc > 0)
+        if np.sum(valid_29) > 10:
+            mask = valid_29
+            sigma_brug_2phase = k_mix[mask]*1e3 * phi_total[mask]**0.5 * f_perc[mask] / tau[mask]**2
+            log_C = np.mean(log_sigma[mask] - np.log(sigma_brug_2phase))
+            pred = log_C + np.log(sigma_brug_2phase)
+            ss29 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+            r2_29 = 1 - np.sum((log_sigma[mask] - pred)**2) / ss29
+            print(f"  T29: σ_th = {np.exp(log_C):.4f} × k_mix × φ^0.5 × f_perc / τ²,  R²={r2_29:.4f}")
+            results.append(('T29', f'C × k_mix × φ^0.5 × f_perc / τ²', np.exp(log_C), r2_29, 1))
+    except Exception as e:
+        print(f"  T29: FAILED ({e})")
+
+    # T30: Probability-weighted k per hop
+    # P(SE-SE) ∝ φ_SE², P(AM-AM) ∝ φ_AM², P(AM-SE) ∝ 2φ_SE×φ_AM
+    # k_hop = φ_SE²×k_SE + φ_AM²×k_AM + 2×φ_SE×φ_AM×k_harm
+    K_HARM = 2 * K_AM * K_SE / (K_AM + K_SE)
+    k_hop = phi_se**2 * K_SE + phi_am**2 * K_AM + 2 * phi_se * phi_am * K_HARM
+    k_hop_mScm = k_hop * 1e3
+
+    valid_30 = (tau > 0) & (k_hop > 0)
+    if np.sum(valid_30) > 10:
+        mask = valid_30
+        # T30: k_hop × φ_total / τ²
+        log_rhs = np.log(k_hop_mScm[mask]) + np.log(phi_total[mask]) - 2*np.log(tau[mask])
+        log_C = np.mean(log_sigma[mask] - log_rhs)
+        pred = log_C + log_rhs
+        ss30 = np.sum((log_sigma[mask] - np.mean(log_sigma[mask]))**2)
+        r2_30 = 1 - np.sum((log_sigma[mask] - pred)**2) / ss30
+        print(f"  T30: σ_th = {np.exp(log_C):.4f} × k_hop(prob) × φ/τ²,  R²={r2_30:.4f}")
+        results.append(('T30', f'C × k_hop(prob-weighted) × φ/τ²', np.exp(log_C), r2_30, 1))
+
+        # T30b: k_hop × φ^1.5 / τ²
+        log_rhs = np.log(k_hop_mScm[mask]) + 1.5*np.log(phi_total[mask]) - 2*np.log(tau[mask])
+        log_C = np.mean(log_sigma[mask] - log_rhs)
+        pred = log_C + log_rhs
+        r2_30b = 1 - np.sum((log_sigma[mask] - pred)**2) / ss30
+        print(f"  T30b: σ_th = {np.exp(log_C):.4f} × k_hop × φ^1.5/τ²,  R²={r2_30b:.4f}")
+        results.append(('T30b', f'C × k_hop × φ^1.5/τ²', np.exp(log_C), r2_30b, 1))
+
+        # T30c: k_hop × φ^a / τ^b (free a, b)
+        b30c, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(k_hop_mScm[mask]), np.log(phi_total[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]),
+            log_sigma[mask], rcond=None)
+        pred30c = np.column_stack([np.log(k_hop_mScm[mask]), np.log(phi_total[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]) @ b30c
+        r2_30c = 1 - np.sum((log_sigma[mask] - pred30c)**2) / ss30
+        print(f"  T30c: σ_th = C × k_hop^{b30c[0]:.2f} × φ^{b30c[1]:.2f} / τ^{-b30c[2]:.2f},  R²={r2_30c:.4f}")
+        results.append(('T30c', f'k_hop^{b30c[0]:.2f}×φ^{b30c[1]:.2f}×τ^{b30c[2]:.2f}', np.exp(b30c[3]), r2_30c, 4))
+
+    # T31: THICK ONLY (T > 50μm)
+    thick = thickness > 50
+    valid_31 = thick & (tau > 0)
+    if np.sum(valid_31) > 10:
+        mask = valid_31
+        log_sigma_m = log_sigma[mask]
+        ss31 = np.sum((log_sigma_m - np.mean(log_sigma_m))**2)
+        print(f"\n  --- THICK ONLY (T>50μm, n={np.sum(mask)}) ---")
+
+        # T31a: φ_SE × φ_AM × τ
+        b31, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(phi_se[mask]), np.log(phi_am[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]),
+            log_sigma_m, rcond=None)
+        pred31 = np.column_stack([np.log(phi_se[mask]), np.log(phi_am[mask]), np.log(tau[mask]), np.ones(np.sum(mask))]) @ b31
+        r2_31 = 1 - np.sum((log_sigma_m - pred31)**2) / ss31
+        print(f"  T31: σ_th = C × φ_SE^{b31[0]:.2f} × φ_AM^{b31[1]:.2f} / τ^{-b31[2]:.2f},  R²={r2_31:.4f}")
+        results.append(('T31', f'[THICK] φ_SE^{b31[0]:.2f}×φ_AM^{b31[1]:.2f}×τ^{b31[2]:.2f}', np.exp(b31[3]), r2_31, 4))
+
+        # T31b: k_hop × φ / τ²
+        if np.sum(mask & (k_hop > 0)) > 10:
+            mask2 = mask & (k_hop > 0)
+            log_rhs = np.log(k_hop_mScm[mask2]) + np.log(phi_total[mask2]) - 2*np.log(tau[mask2])
+            log_C = np.mean(log_sigma[mask2] - log_rhs)
+            pred = log_C + log_rhs
+            ss31b = np.sum((log_sigma[mask2] - np.mean(log_sigma[mask2]))**2)
+            r2_31b = 1 - np.sum((log_sigma[mask2] - pred)**2) / ss31b
+            print(f"  T31b: σ_th = {np.exp(log_C):.4f} × k_hop × φ/τ² [THICK],  R²={r2_31b:.4f}")
+            results.append(('T31b', f'[THICK] C × k_hop × φ/τ²', np.exp(log_C), r2_31b, 1))
+
     # ── Ranking ──
     print(f"\n{'='*70}")
     print("RANKING — sorted by R²")

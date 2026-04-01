@@ -76,7 +76,10 @@
 
     <div id="ordered-inputs"></div>
     <input type="hidden" name="case_groups" id="case-groups-json" value="[]">
-    <button type="submit" class="btn btn-primary">비교하기</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button type="submit" class="btn btn-primary">비교하기</button>
+      <button type="button" class="btn btn-secondary" onclick="resetAllInputSelections()">입력 파일 초기화</button>
+    </div>
   </form>
   </div><!-- /case-select-body -->
 </div>
@@ -491,6 +494,13 @@ function renderPlotGroupSelector() {
     pg.caseGroupIdxs = pg.caseGroupIdxs.filter(i => i < caseGroups.length && caseGroups[i].cases.length > 0);
   });
   renderPlotGroups();
+}
+
+function resetAllInputSelections() {
+  // Clear all case selections from all groups, but keep groups themselves
+  caseGroups.forEach(g => { g.cases = []; });
+  updateCaseDisplay();
+  saveCaseGroupsToStorage();
 }
 
 function toggleCase(el, caseId) {

@@ -193,13 +193,13 @@ C는 다음을 포함한다:
 
 | | Ionic | Electronic | Thermal |
 |---|---|---|---|
-| **공식** | $\sigma_{\text{SE}} \times \frac{\phi_{\text{SE}} \times f_{\text{perc}}}{\tau^2}$ | $0.015 \times \sigma_{\text{AM}} \times \phi_{\text{AM}}^{3/2} \times \text{CN}_{\text{AM}}^2 \times e^{\pi/(T/d)}$ | $286 \times \sigma_{\text{ion}}^{3/4} \times \phi_{\text{AM}}^2 \times \text{CN}_{\text{SE}}^{-1}$ |
+| **공식** | $\frac{\sigma_{SE} \times \phi_{SE} \times f_{perc}}{\tau^2 \times C \times (GB_d^2 \times T)^\alpha}$ | $0.015 \times \sigma_{\text{AM}} \times \phi_{\text{AM}}^{3/2} \times \text{CN}_{\text{AM}}^2 \times e^{\pi/(T/d)}$ | $286 \times \sigma_{\text{ion}}^{3/4} \times \phi_{\text{AM}}^2 \times \text{CN}_{\text{SE}}^{-1}$ |
 | **Network** | SE-SE only | AM-AM only | All contacts |
-| **주도 인자** | SE geometry | AM topology | SE geometry + AM enhancement |
-| **CN 의존성** | CN² (positive) | CN² (positive) | CN⁻¹ (negative!) |
-| **Thickness** | No | exp(π/(T/d)) | No |
-| **R²** | ~0.85 | 0.89 | 0.90 |
-| **Free params** | 1 (C) | 1 (C) | 1 (C) |
+| **주도 인자** | Bruggeman + GB constriction | AM topology | SE geometry + AM enhancement |
+| **핵심 물리** | τ² (경로 꼬임) + GB_d²T (입계 접촉) | φ^(3/2) × CN² × exp(π/(T/d)) | σ_ion^(3/4) × φ_AM² / CN_SE |
+| **CN 의존성** | 간접 (GB_d에 포함) | CN² (positive) | CN⁻¹ (negative!) |
+| **Thickness** | (GB_d²×T)^α | exp(π/(T/d)) | No |
+| **R²** | **0.94** (2p) | 0.89 (1p) | 0.90 (1p) |
 
 ### 6.2 Thermal이 Ionic과 Electronic을 연결
 
@@ -209,11 +209,21 @@ $$
 \sigma_{\text{th}} = C \times \underbrace{\sigma_{\text{ion}}^{3/4}}_{\text{SE geometry (ionic)}} \times \underbrace{\phi_{\text{AM}}^2}_{\text{AM enhancement (electronic)}} \times \underbrace{\text{CN}_{\text{SE}}^{-1}}_{\text{phase balance}}
 $$
 
-- **σ_ion^(3/4)**: Ionic conductivity가 포착한 SE backbone 정보를 thermal에 계승
+- **σ_ion^(3/4)**: Ionic conductivity가 포착한 SE backbone 정보(Bruggeman + BLM+Constriction)를 thermal에 계승
 - **φ_AM²**: Electronic conductivity의 AM volume fraction 효과를 quadratic 형태로 반영
 - **CN_SE^(-1)**: SE와 AM 사이의 **competition** — ionic/electronic에는 없는 2상 고유 항
 
 이는 thermal conductivity가 단순히 "ionic + electronic"이 아니라, 두 transport의 **기하학적 competition**에 의해 결정됨을 보여준다.
+
+### 6.3 세 공식의 물리적 통일성
+
+세 transport 모두 같은 DEM granular network 위에서 작동하지만, 각각 다른 측면을 지배한다:
+
+- **Ionic**: **contact quality가 지배** — GB constriction이 전체 저항의 69-81%. τ²(경로 꼬임) + GB_d²T(입계 접촉) 이중 손실 구조. R²=0.94.
+- **Electronic**: **topology가 지배** — AM 입자가 크고 conductivity가 높아 constriction 무시 가능. φ^(3/2) × CN² × exp(π/(T/d)). R²=0.89.
+- **Thermal**: **두 상의 competition이 지배** — SE backbone(σ_ion) + AM enhancement(φ_AM²) - SE clustering penalty(CN_SE⁻¹). R²=0.90.
+
+특히 ionic의 τ²와 GB_d²는 같은 "이중 손실" 구조를 공유하며(경로 기하 × 단면적 감소 / 입계 수 × 개별 저항), 이는 DEM granular packing의 보편적 특성이다.
 
 ---
 

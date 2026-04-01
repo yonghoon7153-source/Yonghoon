@@ -288,6 +288,84 @@ def thermal_regression():
         except Exception as e:
             print(f"  T10: FAILED ({e})")
 
+    # ── τ-based models (Bruggeman structure) ──
+    valid_tau = tau > 0
+    if np.sum(valid_tau) > 10:
+        mask = valid_tau
+        tau_m = tau[mask]
+        log_sigma_m = log_sigma[mask]
+        ss_m = np.sum((log_sigma_m - np.mean(log_sigma_m))**2)
+
+        # T11: k_mix × φ_total / τ² (classic Bruggeman for 2-phase)
+        k_mix_m = k_mix[mask] * 1e3  # mS/cm equiv
+        log_rhs = np.log(k_mix_m) + np.log(phi_total[mask]) - 2*np.log(tau_m)
+        log_C = np.mean(log_sigma_m - log_rhs)
+        pred = log_C + log_rhs
+        r2 = 1 - np.sum((log_sigma_m - pred)**2) / ss_m
+        print(f"\n  T11: σ_th = {np.exp(log_C):.4f} × k_mix × φ_total / τ²,  R²={r2:.4f}")
+        results.append(('T11', f'C × k_mix × φ_total / τ²', np.exp(log_C), r2, 1))
+
+        # T12: k_mix × φ_total^1.5 / τ²
+        log_rhs = np.log(k_mix_m) + 1.5*np.log(phi_total[mask]) - 2*np.log(tau_m)
+        log_C = np.mean(log_sigma_m - log_rhs)
+        pred = log_C + log_rhs
+        r2 = 1 - np.sum((log_sigma_m - pred)**2) / ss_m
+        print(f"  T12: σ_th = {np.exp(log_C):.4f} × k_mix × φ^1.5 / τ²,  R²={r2:.4f}")
+        results.append(('T12', f'C × k_mix × φ^1.5 / τ²', np.exp(log_C), r2, 1))
+
+        # T13: φ_total / τ² (pure geometry, no k)
+        log_rhs = np.log(phi_total[mask]) - 2*np.log(tau_m)
+        log_C = np.mean(log_sigma_m - log_rhs)
+        pred = log_C + log_rhs
+        r2 = 1 - np.sum((log_sigma_m - pred)**2) / ss_m
+        print(f"  T13: σ_th = {np.exp(log_C):.4f} × φ_total / τ²,  R²={r2:.4f}")
+        results.append(('T13', f'C × φ_total / τ²', np.exp(log_C), r2, 1))
+
+        # T14: φ_total^a / τ^b (free)
+        b14, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(phi_total[mask]), np.log(tau_m), np.ones(np.sum(mask))]),
+            log_sigma_m, rcond=None)
+        pred14 = np.column_stack([np.log(phi_total[mask]), np.log(tau_m), np.ones(np.sum(mask))]) @ b14
+        r2_14 = 1 - np.sum((log_sigma_m - pred14)**2) / ss_m
+        print(f"  T14: σ_th = C × φ_total^{b14[0]:.2f} / τ^{-b14[1]:.2f},  R²={r2_14:.4f}")
+        results.append(('T14', f'φ_total^{b14[0]:.2f} × τ^{b14[1]:.2f}', np.exp(b14[2]), r2_14, 3))
+
+        # T15: φ_SE^a × φ_AM^b / τ^c (free, both phases + τ)
+        b15, _, _, _ = np.linalg.lstsq(
+            np.column_stack([np.log(phi_se[mask]), np.log(phi_am[mask]), np.log(tau_m), np.ones(np.sum(mask))]),
+            log_sigma_m, rcond=None)
+        pred15 = np.column_stack([np.log(phi_se[mask]), np.log(phi_am[mask]), np.log(tau_m), np.ones(np.sum(mask))]) @ b15
+        r2_15 = 1 - np.sum((log_sigma_m - pred15)**2) / ss_m
+        print(f"  T15: σ_th = C × φ_SE^{b15[0]:.2f} × φ_AM^{b15[1]:.2f} × τ^{b15[2]:.2f},  R²={r2_15:.4f}")
+        results.append(('T15', f'φ_SE^{b15[0]:.2f} × φ_AM^{b15[1]:.2f} × τ^{b15[2]:.2f}', np.exp(b15[3]), r2_15, 4))
+
+        # T16: k_mix × φ_total / τ² × (1 + α × A_AM-SE) — interface term
+        valid_16 = mask & (area_am_se > 0)
+        if np.sum(valid_16) > 10:
+            try:
+                def model_t16(X, C, alpha):
+                    k_m, phi_t, tau_v, a_amse = X
+                    return np.log(C * k_m * phi_t / tau_v**2 * (1 + alpha * a_amse))
+
+                X16 = (k_mix[valid_16]*1e3, phi_total[valid_16], tau[valid_16], area_am_se[valid_16])
+                popt16, _ = curve_fit(model_t16, X16, log_sigma[valid_16], p0=[1.0, 0.001], maxfev=10000)
+                pred16 = model_t16(X16, *popt16)
+                ss16 = np.sum((log_sigma[valid_16] - np.mean(log_sigma[valid_16]))**2)
+                r2_16 = 1 - np.sum((log_sigma[valid_16] - pred16)**2) / ss16
+                print(f"  T16: σ_th = {popt16[0]:.4f} × k_mix × φ/τ² × (1+{popt16[1]:.5f}×A_AM-SE),  R²={r2_16:.4f}")
+                results.append(('T16', f'k_mix×φ/τ²×(1+α×A_AMSE)', popt16[0], r2_16, 2))
+            except Exception as e:
+                print(f"  T16: FAILED ({e})")
+
+        # T17: Beautiful candidate — C × (φ_SE × k_SE + φ_AM × k_AM) × φ_total^0.5 / τ²
+        # This is: k_eff_mix × Bruggeman(φ^0.5 / τ²)
+        log_rhs = np.log(k_mix_m) + 0.5*np.log(phi_total[mask]) - 2*np.log(tau_m)
+        log_C = np.mean(log_sigma_m - log_rhs)
+        pred = log_C + log_rhs
+        r2 = 1 - np.sum((log_sigma_m - pred)**2) / ss_m
+        print(f"  T17: σ_th = {np.exp(log_C):.4f} × k_mix × φ^0.5 / τ²,  R²={r2:.4f}")
+        results.append(('T17', f'C × k_mix × φ^0.5 / τ²', np.exp(log_C), r2, 1))
+
     # ── Ranking ──
     print(f"\n{'='*70}")
     print("RANKING — sorted by R²")

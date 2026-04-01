@@ -984,7 +984,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     f_perc = [_get(d, "percolation_pct", 0) / 100 for d in data_list]
     tau = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)) for d in data_list]
     gb_dens = [_get(d, "gb_density_mean") for d in data_list]
-    hop = [_get(d, "path_hop_area_mean", 0) for d in data_list]
+    g_path = [_get(d, "path_conductance_mean", 0) for d in data_list]
     cn = [_get(d, "se_se_cn", 0) for d in data_list]
     sigma_net = _load_network_sigma(data_list)
 
@@ -992,7 +992,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     valid_idx = []
     for i in range(len(data_list)):
         if (phi_se[i] > 0 and f_perc[i] > 0 and tau[i] > 0 and
-            hop[i] > 0 and cn[i] > 0 and gb_dens[i] > 0 and sigma_net[i] > 0):
+            g_path[i] > 0 and cn[i] > 0 and gb_dens[i] > 0 and sigma_net[i] > 0):
             valid_idx.append(i)
 
     if len(valid_idx) < 3:
@@ -1005,17 +1005,16 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     sigma_brug = np.array([SIGMA_BULK * phi_se[i] * f_perc[i] / tau[i]**2 for i in valid_idx])
     log_sb = np.log(sigma_brug)
 
-    # Fit: log(σ_full) = log(σ_brug) + a*log(hop) + b*log(cn) + c*log(gb_d) + d
-    log_hop = np.array([np.log(hop[i]) for i in valid_idx])
+    # Fit: log(σ_full) = log(σ_brug) + a*log(g_path*gb_d²) + b*log(cn) + c
+    log_combo = np.array([np.log(g_path[i] * gb_dens[i]**2) for i in valid_idx])
     log_cn = np.array([np.log(cn[i]) for i in valid_idx])
-    log_gbd = np.array([np.log(gb_dens[i]) for i in valid_idx])
     residual = log_sf - log_sb
-    X = np.column_stack([log_hop, log_cn, log_gbd, np.ones(len(valid_idx))])
+    X = np.column_stack([log_combo, log_cn, np.ones(len(valid_idx))])
     b_fit, _, _, _ = np.linalg.lstsq(X, residual, rcond=None)
-    a_hop, b_cn, c_gbd, ln_C = b_fit
+    a_combo, b_cn, ln_C = b_fit
     C_fit = np.exp(ln_C)
 
-    # Predicted (using fixed beautiful exponents: 0.5, 2, 4/3)
+    # Predicted (using fixed champion exponents: 0.25, 2)
     # Also compute free-fit R² for comparison
     pred_free = log_sb + X @ b_fit
     ss_res_free = np.sum((log_sf - pred_free)**2)
@@ -1023,7 +1022,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     r2_free = 1 - ss_res_free / ss_tot
 
     # Fixed exponents + fit C only
-    log_rhs_fixed = log_sb + 0.5 * log_hop + 2 * log_cn + 4/3 * log_gbd
+    log_rhs_fixed = log_sb + 0.25 * log_combo + 2 * log_cn
     ln_C_fixed = np.mean(log_sf - log_rhs_fixed)
     C_fixed = np.exp(ln_C_fixed)
     pred_fixed = ln_C_fixed + log_rhs_fixed
@@ -1103,13 +1102,13 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title(f"Ionic: σ_brug × {C_fixed:.4f} × √A_hop × CN² × GB_d^(4/3)\n"
+    ax.set_title(f"Ionic: σ_brug × {C_fixed:.4f} × (G_path × GB_d²)^(1/4) × CN²\n"
                  f"R²={r2_fixed:.3f} (1 free param) | Free fit R²={r2_free:.3f}",
                  fontsize=10, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
 
     txt = (f"R² = {r2:.3f}  (C={C_fixed:.4f})\n"
-           f"√A_hop × CN² × GB_d^(4/3)\n"
+           f"(G_path × GB_d²)^(1/4) × CN²\n"
            f"Mean |err| = {np.mean(errors):.1f}%\n"
            f"Within 20%: {within_20}/{len(errors)}\n"
            f"n = {len(valid_idx)}")
@@ -1170,19 +1169,19 @@ def plot_network_sigma(data_list, names, outdir):
 
 
 def plot_multiscale_sigma(data_list, names, outdir):
-    """Part III: Multi-scale model σ_eff = σ_brug × C × √hop × CN² × GB_d^(4/3)."""
+    """Part III: Multi-scale model σ_eff = σ_brug × 0.073 × (G_path × GB_d²)^(1/4) × CN²."""
     SIGMA_BULK = 3.0  # σ_grain (grain interior), NOT σ_pellet(1.3)
-    C_ms = 0.026
+    C_ms = 0.073
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     gb_dens = [_get(d, "gb_density_mean") for d in data_list]
-    hop = [_get(d, "path_hop_area_mean", 0) for d in data_list]
+    g_path = [_get(d, "path_conductance_mean", 0) for d in data_list]
     cn = [_get(d, "se_se_cn", 0) for d in data_list]
 
     sigma_ms = []
     for i in range(len(data_list)):
-        if hop[i] > 0 and cn[i] > 0 and gb_dens[i] > 0:
-            s = sigma_brug[i] * C_ms * np.sqrt(hop[i]) * cn[i]**2 * gb_dens[i]**(4/3) * SIGMA_BULK
+        if g_path[i] > 0 and cn[i] > 0 and gb_dens[i] > 0:
+            s = sigma_brug[i] * C_ms * (g_path[i] * gb_dens[i]**2)**0.25 * cn[i]**2 * SIGMA_BULK
             sigma_ms.append(s)
         else:
             sigma_ms.append(0)
@@ -1204,13 +1203,12 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     _apply_style(ax, "σ_eff (mS/cm)", names)
     ax.legend(fontsize=9, loc='best')
-    ax.set_title("Part III: Multi-scale σ_eff = σ_brug × C × √A_hop × CN² × GB_d^(4/3)\n"
-                 "Fixed R²=0.89 (1p) | Free R²=0.93 (4p)",
+    ax.set_title("Part III: σ_brug × 0.073 × (G_path × GB_d²)^(1/4) × CN²",
                  fontsize=9, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',
-               ['GB_d', 'hop_area', 'CN', 'σ_multiscale(mS/cm)', 'σ_network(mS/cm)'],
-               names, gb_dens, hop, cn, sigma_ms, sigma_net)
+               ['GB_d', 'G_path', 'CN', 'σ_multiscale(mS/cm)', 'σ_network(mS/cm)'],
+               names, gb_dens, g_path, cn, sigma_ms, sigma_net)
     return _save(fig, outdir, "multiscale_sigma.png")
 
 
@@ -1821,7 +1819,7 @@ PLOT_REGISTRY = {
         "func": plot_rgb_fitting,
         "file": "rgb_fitting.png",
         "title": "Ionic: Inter-particle Contact Resistance Scaling",
-        "description": "최종 Ionic Conductivity 공식:\nσ_ion = σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\n  Fixed R²=0.89 (1p) | Free R²=0.93 (4p)\n\n이 플롯: Contact resistance scaling 발견 과정\n  R = C × (GB_d²×T)^α,  α=1.82, R²=0.94\n  GB_d²: BLM(hop 수) × Maxwell(접촉 크기)\n  T: 총 경로 길이\n\nBruggeman exponent 분해:\n  n_eff = n_geo(2.54) + n_contact(0.83) = 3.37\n  → 문헌 n≈3의 물리적 기원 설명",
+        "description": "최종 Ionic Conductivity 공식:\nσ_ion = σ_brug × 0.073 × (G_path × GB_d²)^(1/4) × CN²\n\n이 플롯: Contact resistance scaling 발견 과정\n  R = C × (GB_d²×T)^α,  α=1.82, R²=0.94\n  GB_d²: BLM(hop 수) × Maxwell(접촉 크기)\n  T: 총 경로 길이\n\nBruggeman exponent 분해:\n  n_eff = n_geo(2.54) + n_contact(0.83) = 3.37\n  → 문헌 n≈3의 물리적 기원 설명",
         "origin_tip": "Scatter + Fit line (log-log).\n색상별 SE 크기: 0.5μm(warm), 1.0μm(green), 1.5μm(cool)\n숫자: P:S ratio",
         "min_groups": 2,
     },
@@ -1844,14 +1842,14 @@ PLOT_REGISTRY = {
         "func": plot_ionic_scaling_fit,
         "file": "ionic_scaling_fit.png",
         "title": "Ionic: Scaling Law Fit (Predicted vs Actual)",
-        "description": "σ_ion = σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\n예측값 vs Network solver 실측값 scatter plot\n1:1 line + ±20% band\nR²=0.93, 1 free param",
+        "description": "σ_ion = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²\n예측값 vs Network solver 실측값 scatter plot\n1:1 line + ±20% band",
         "origin_tip": "Scatter (log-log): X=actual, Y=predicted.\n1:1 line (black dashed), ±20% band (green).",
     },
     "multiscale_sigma": {
         "func": plot_multiscale_sigma,
         "file": "multiscale_sigma.png",
         "title": "Ionic: Multi-scale Scaling Law (Part III)",
-        "description": "σ_ion = σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\n√A_hop: Maxwell constriction (free→0.58)\nCN²: redundant path factor (free→1.98)\nGB_d^(4/3): mesh+Hertz (free→1.24)\nFixed R²=0.89 (1p) | Free R²=0.93 (4p)\nAblation: GB_d 제거 시 R²→음수 (필수 항)",
+        "description": "σ_ion = σ_brug × 0.073 × (G_path × GB_d²)^(1/4) × CN²\n(G_path×GB_d²)^(1/4): combined path conductance+mesh\nCN²: redundant path factor\nNew champion formula with path_conductance_mean",
         "origin_tip": "Red: Scaling law, Green dashed: Network solver.",
     },
 }
@@ -1860,38 +1858,37 @@ PLOT_REGISTRY = {
 def plot_sigma_decomposition(data_list, names, outdir):
     """Decompose σ_eff into Bruggeman + contact terms. Show which factor dominates."""
     SIGMA_BULK = 3.0  # σ_grain (grain interior)
-    C_ms = 0.026
+    C_ms = 0.073
 
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     gb_dens = [_get(d, "gb_density_mean") for d in data_list]
-    hop = [_get(d, "path_hop_area_mean", 0) for d in data_list]
+    g_path = [_get(d, "path_conductance_mean", 0) for d in data_list]
     cn = [_get(d, "se_se_cn", 0) for d in data_list]
     phi = [_get(d, "phi_se") for d in data_list]
     tau = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)) for d in data_list]
     f_perc = [_get(d, "percolation_pct") / 100 for d in data_list]
 
     n = len(data_list)
-    # Decompose log(σ_eff) = log(σ_bulk) + log(φ_SE) + log(f_perc) - 2log(τ) + log(C) + 0.5log(hop) + 2log(CN) + 4/3 log(GB_d)
+    # Decompose log(σ_eff) = log(σ_bulk) + log(φ_SE) + log(f_perc) - 2log(τ) + log(C) + 0.25*log(G_path*GB_d²) + 2log(CN)
     log_phi = np.array([np.log(phi[i]) if phi[i] > 0 else 0 for i in range(n)])
     log_fperc = np.array([np.log(f_perc[i]) if f_perc[i] > 0 else 0 for i in range(n)])
     log_tau2 = np.array([-2 * np.log(tau[i]) if tau[i] > 0 else 0 for i in range(n)])
-    log_hop = np.array([0.5 * np.log(hop[i]) if hop[i] > 0 else 0 for i in range(n)])
+    log_gpath_gbd = np.array([0.25 * np.log(g_path[i] * gb_dens[i]**2) if g_path[i] > 0 and gb_dens[i] > 0 else 0 for i in range(n)])
     log_cn2 = np.array([2 * np.log(cn[i]) if cn[i] > 0 else 0 for i in range(n)])
-    log_gbd = np.array([4/3 * np.log(gb_dens[i]) if gb_dens[i] > 0 else 0 for i in range(n)])
 
     # Normalize: relative to best σ_eff case (show what limits performance)
     sigma_ms = []
     for i in range(n):
-        if hop[i] > 0 and cn[i] > 0 and gb_dens[i] > 0:
-            sigma_ms.append(sigma_brug[i] * C_ms * np.sqrt(hop[i]) * cn[i]**2 * gb_dens[i]**(4/3) * SIGMA_BULK)
+        if g_path[i] > 0 and cn[i] > 0 and gb_dens[i] > 0:
+            sigma_ms.append(sigma_brug[i] * C_ms * (g_path[i] * gb_dens[i]**2)**0.25 * cn[i]**2 * SIGMA_BULK)
         else:
             sigma_ms.append(0)
     ref = int(np.argmax(sigma_ms))  # best σ_eff case
     d_phi = log_phi - log_phi[ref]
     d_tau = log_tau2 - log_tau2[ref]
-    d_hop = log_hop - log_hop[ref]
+    d_fperc = log_fperc - log_fperc[ref]
+    d_gpath_gbd = log_gpath_gbd - log_gpath_gbd[ref]
     d_cn = log_cn2 - log_cn2[ref]
-    d_gbd = log_gbd - log_gbd[ref]
 
     fig, axes = plt.subplots(2, 1, figsize=(max(8, len(names)*0.7), 10), gridspec_kw={'height_ratios': [2, 1]})
 
@@ -1902,8 +1899,8 @@ def plot_sigma_decomposition(data_list, names, outdir):
 
     # Stacked bar: each factor's log contribution (relative to reference)
     colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6']
-    labels = ['φ_SE', 'τ²', '√A_hop', 'CN²', 'GB_d^(4/3)']
-    contributions = [d_phi, d_tau, d_hop, d_cn, d_gbd]
+    labels = ['φ_SE', 'τ²', 'f_perc', '(G_path×GB_d²)^¼', 'CN²']
+    contributions = [d_phi, d_tau, d_fperc, d_gpath_gbd, d_cn]
 
     # Positive and negative stacking
     pos_bottom = np.zeros(n)
@@ -1959,8 +1956,8 @@ def plot_sigma_decomposition(data_list, names, outdir):
 
     plt.tight_layout()
     _write_csv(outdir, 'sigma_decomposition.csv',
-               ['φ_SE(Δlog)', 'τ²(Δlog)', '√hop(Δlog)', 'CN²(Δlog)', 'GB_d(Δlog)'],
-               names, list(d_phi), list(d_tau), list(d_hop), list(d_cn), list(d_gbd))
+               ['φ_SE(Δlog)', 'τ²(Δlog)', 'f_perc(Δlog)', '(G_path×GB_d²)^¼(Δlog)', 'CN²(Δlog)'],
+               names, list(d_phi), list(d_tau), list(d_fperc), list(d_gpath_gbd), list(d_cn))
     return _save(fig, outdir, "sigma_decomposition.png")
 
 
@@ -1968,7 +1965,7 @@ PLOT_REGISTRY["sigma_decomposition"] = {
     "func": plot_sigma_decomposition,
     "file": "sigma_decomposition.png",
     "title": "Ionic: Factor Decomposition",
-    "description": "σ_ion = σ_brug × C × √A_hop × CN² × GB_d^(4/3)\n각 항의 상대 기여도 (ref: 최고 σ case)\nφ_SE: 부피분율 | τ²: 경로 꼬임\n√A_hop: 접촉면적 | CN²: 연결성 | GB_d: mesh 밀도",
+    "description": "σ_ion = σ_brug × 0.073 × (G_path × GB_d²)^(1/4) × CN²\n각 항의 상대 기여도 (ref: 최고 σ case)\nφ_SE: 부피분율 | τ²: 경로 꼬임 | f_perc: percolation\n(G_path×GB_d²)^¼: 전도+mesh | CN²: 연결성",
     "origin_tip": "Stacked bar (top) + Horizontal bar (bottom).",
 }
 

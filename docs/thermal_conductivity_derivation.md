@@ -193,13 +193,15 @@ C는 다음을 포함한다:
 
 | | Ionic | Electronic | Thermal |
 |---|---|---|---|
-| **공식** | $\frac{\sigma_{SE} \times \phi_{SE} \times f_{perc}}{\tau^2 \times C \times (GB_d^2 \times T)^\alpha}$ | $0.015 \times \sigma_{\text{AM}} \times \phi_{\text{AM}}^{3/2} \times \text{CN}_{\text{AM}}^2 \times e^{\pi/(T/d)}$ | $286 \times \sigma_{\text{ion}}^{3/4} \times \phi_{\text{AM}}^2 \times \text{CN}_{\text{SE}}^{-1}$ |
+| **공식** | $\sigma_{brug} \times 0.026 \times \sqrt{A_{hop}} \times CN_{SE}^2 \times GB_d^{4/3}$ | $0.015 \times \sigma_{\text{AM}} \times \phi_{\text{AM}}^{3/2} \times \text{CN}_{\text{AM}}^2 \times e^{\pi/(T/d)}$ | $286 \times \sigma_{\text{ion}}^{3/4} \times \phi_{\text{AM}}^2 \times \text{CN}_{\text{SE}}^{-1}$ |
+| **σ_brug** | $\sigma_{grain} \times \phi_{SE} \times f_{perc} / \tau^2$ | - | - |
 | **Network** | SE-SE only | AM-AM only | All contacts |
-| **주도 인자** | Bruggeman + GB constriction | AM topology | SE geometry + AM enhancement |
-| **핵심 물리** | τ² (경로 꼬임) + GB_d²T (입계 접촉) | φ^(3/2) × CN² × exp(π/(T/d)) | σ_ion^(3/4) × φ_AM² / CN_SE |
-| **CN 의존성** | 간접 (GB_d에 포함) | CN² (positive) | CN⁻¹ (negative!) |
-| **Thickness** | (GB_d²×T)^α | exp(π/(T/d)) | No |
-| **R²** | **0.94** (2p) | 0.89 (1p) | 0.90 (1p) |
+| **주도 인자** | Geometry + Contact quality | AM topology | SE geometry + AM enhancement |
+| **핵심 항** | √A_hop (constriction) + CN² (connectivity) + GB_d^(4/3) (mesh+Hertz) | φ^(3/2) × CN² × exp(π/(T/d)) | σ_ion^(3/4) × φ_AM² / CN_SE |
+| **CN 의존성** | CN_SE² (positive — redundant paths) | CN_AM² (positive) | CN_SE⁻¹ (negative — SE clustering!) |
+| **Thickness** | 간접 (GB_d에 반영) | exp(π/(T/d)) | No |
+| **R²** | **0.93** (1p), LOOCV 0.93 | 0.89 (1p) | 0.90 (1p) |
+| **n_eff 분해** | n_geo(2.54) + n_contact(0.83) = 3.37 | - | - |
 
 ### 6.2 Thermal이 Ionic과 Electronic을 연결
 
@@ -219,11 +221,16 @@ $$
 
 세 transport 모두 같은 DEM granular network 위에서 작동하지만, 각각 다른 측면을 지배한다:
 
-- **Ionic**: **contact quality가 지배** — GB constriction이 전체 저항의 69-81%. τ²(경로 꼬임) + GB_d²T(입계 접촉) 이중 손실 구조. R²=0.94.
+- **Ionic**: **contact quality가 지배** — constriction이 전체 저항의 69-81%. Bruggeman(σ_brug = σ_grain × φ_SE × f_perc / τ²)에 contact correction(√A_hop × CN² × GB_d^(4/3))을 곱하는 multi-scale 구조. n_eff = n_geo(2.54) + n_contact(0.83) = 3.37로 문헌값 n≈3을 정량 분해. R²=0.93, **LOOCV R²=0.93** (overfitting 없음).
 - **Electronic**: **topology가 지배** — AM 입자가 크고 conductivity가 높아 constriction 무시 가능. φ^(3/2) × CN² × exp(π/(T/d)). R²=0.89.
 - **Thermal**: **두 상의 competition이 지배** — SE backbone(σ_ion) + AM enhancement(φ_AM²) - SE clustering penalty(CN_SE⁻¹). R²=0.90.
 
-특히 ionic의 τ²와 GB_d²는 같은 "이중 손실" 구조를 공유하며(경로 기하 × 단면적 감소 / 입계 수 × 개별 저항), 이는 DEM granular packing의 보편적 특성이다.
+CN² 항이 ionic과 electronic에서 모두 나타난다는 것이 핵심:
+- Ionic CN_SE²: SE-SE redundant path → 병렬 경로 수 증가
+- Electronic CN_AM²: AM-AM redundant path → 동일한 물리
+- Thermal CN_SE⁻¹: SE clustering이 AM thermal path를 **차단** → 반대 부호!
+
+이 CN의 부호 역전(ionic/electronic: positive → thermal: negative)은 단일 상 transport(경로가 많을수록 좋음)와 2상 transport(한 상이 많으면 다른 상이 고립)의 근본적 차이를 반영한다.
 
 ---
 

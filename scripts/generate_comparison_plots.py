@@ -1057,6 +1057,342 @@ def plot_multiscale_sigma(data_list, names, outdir):
     return _save(fig, outdir, "multiscale_sigma.png")
 
 
+def _load_electronic_sigma(data_list):
+    """Load electronic σ_full from full_metrics or network_conductivity.json."""
+    vals = [0.0] * len(data_list)
+    for i, d in enumerate(data_list):
+        v = _get(d, "electronic_sigma_full_mScm", 0)
+        if v and v > 0:
+            vals[i] = v
+        else:
+            src = _get(d, "_source_path", "")
+            if src:
+                net_path = os.path.join(os.path.dirname(src), "network_conductivity.json")
+                if os.path.exists(net_path):
+                    try:
+                        with open(net_path) as _nf:
+                            nd = json.load(_nf)
+                        vals[i] = nd.get("electronic_sigma_full_mScm", 0) or 0
+                    except:
+                        pass
+    return vals
+
+
+def _load_thermal_sigma(data_list):
+    """Load thermal σ_full from full_metrics or network_conductivity.json."""
+    vals = [0.0] * len(data_list)
+    for i, d in enumerate(data_list):
+        v = _get(d, "thermal_sigma_full_mScm", 0)
+        if v and v > 0:
+            vals[i] = v
+        else:
+            src = _get(d, "_source_path", "")
+            if src:
+                net_path = os.path.join(os.path.dirname(src), "network_conductivity.json")
+                if os.path.exists(net_path):
+                    try:
+                        with open(net_path) as _nf:
+                            nd = json.load(_nf)
+                        vals[i] = nd.get("thermal_sigma_full_mScm", 0) or 0
+                    except:
+                        pass
+    return vals
+
+
+def plot_electronic_sigma(data_list, names, outdir):
+    """Electronic conductivity from AM-AM network."""
+    sigma_el = _load_electronic_sigma(data_list)
+    if not any(s > 0 for s in sigma_el):
+        return None
+
+    fig, ax = plt.subplots(figsize=FIG_SINGLE)
+    x = np.arange(len(names))
+    ms = _marker_size(len(names))
+    lw = _line_width(len(names))
+
+    # Color: None cases as X marker
+    has_val = [s > 0 for s in sigma_el]
+    x_valid = [x[i] for i in range(len(names)) if has_val[i]]
+    y_valid = [sigma_el[i] for i in range(len(names)) if has_val[i]]
+    x_none = [x[i] for i in range(len(names)) if not has_val[i]]
+
+    ax.plot(x_valid, y_valid, 's-', color='#e74c3c', markersize=ms, linewidth=lw,
+            label="σ_electronic (mS/cm)")
+    if x_none:
+        ax.plot(x_none, [0]*len(x_none), 'x', color='gray', markersize=ms,
+                label="No AM percolation")
+
+    _apply_style(ax, "σ_electronic (mS/cm)", names)
+    ax.legend(fontsize=9, loc='best')
+    ax.set_title("Electronic Conductivity (AM-AM Network)\nσ_AM = 0.05 S/cm",
+                 fontsize=10, fontweight='bold')
+
+    # Annotation: range
+    valid_vals = [s for s in sigma_el if s > 0]
+    if valid_vals:
+        ax.text(0.95, 0.95, f"Range: {min(valid_vals):.2f} ~ {max(valid_vals):.2f} mS/cm",
+                transform=ax.transAxes, fontsize=9, ha='right', va='top',
+                bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffeaea', alpha=0.8))
+
+    _write_csv(outdir, 'electronic_sigma.csv',
+               ['σ_electronic(mS/cm)'], names, sigma_el)
+    return _save(fig, outdir, "electronic_sigma.png")
+
+
+def plot_thermal_sigma(data_list, names, outdir):
+    """Thermal conductivity from ALL-contact network."""
+    sigma_th = _load_thermal_sigma(data_list)
+    if not any(s > 0 for s in sigma_th):
+        return None
+
+    fig, ax = plt.subplots(figsize=FIG_SINGLE)
+    x = np.arange(len(names))
+    ms = _marker_size(len(names))
+    lw = _line_width(len(names))
+
+    ax.plot(x, sigma_th, 's-', color='#ff922b', markersize=ms, linewidth=lw,
+            label="k_eff (mS/cm equiv.)")
+
+    _apply_style(ax, "k_eff (thermal, mS/cm equiv.)", names)
+    ax.legend(fontsize=9, loc='best')
+    ax.set_title("Thermal Conductivity (ALL Contact Network)\nk_AM=4.0e-2, k_SE=0.7e-2 W/(cm·K)",
+                 fontsize=10, fontweight='bold')
+
+    valid_vals = [s for s in sigma_th if s > 0]
+    if valid_vals:
+        ax.text(0.95, 0.95, f"Range: {min(valid_vals):.2f} ~ {max(valid_vals):.2f}",
+                transform=ax.transAxes, fontsize=9, ha='right', va='top',
+                bbox=dict(boxstyle='round,pad=0.4', facecolor='#fff3e0', alpha=0.8))
+
+    _write_csv(outdir, 'thermal_sigma.csv',
+               ['k_eff(mS/cm)'], names, sigma_th)
+    return _save(fig, outdir, "thermal_sigma.png")
+
+
+def plot_transport_tradeoff(data_list, names, outdir):
+    """Ionic vs Electronic trade-off: dual Y-axis showing inverse relationship."""
+    sigma_ionic = _load_network_sigma(data_list)
+    sigma_el = _load_electronic_sigma(data_list)
+
+    if not any(s > 0 for s in sigma_ionic) or not any(s > 0 for s in sigma_el):
+        return None
+
+    fig, ax1 = plt.subplots(figsize=FIG_SINGLE)
+    x = np.arange(len(names))
+    ms = _marker_size(len(names))
+    lw = _line_width(len(names))
+
+    # Ionic on left Y
+    color_ion = '#2ecc71'
+    ax1.plot(x, sigma_ionic, 's-', color=color_ion, markersize=ms, linewidth=lw,
+             label="σ_ionic")
+    ax1.set_ylabel("σ_ionic (mS/cm)", color=color_ion, fontsize=11)
+    ax1.tick_params(axis='y', labelcolor=color_ion)
+
+    # Electronic on right Y
+    ax2 = ax1.twinx()
+    color_el = '#e74c3c'
+    has_el = [i for i in range(len(names)) if sigma_el[i] > 0]
+    no_el = [i for i in range(len(names)) if sigma_el[i] == 0]
+    ax2.plot([x[i] for i in has_el], [sigma_el[i] for i in has_el],
+             'D-', color=color_el, markersize=ms, linewidth=lw, label="σ_electronic")
+    if no_el:
+        ax2.plot([x[i] for i in no_el], [0]*len(no_el), 'x', color='gray', markersize=ms-2)
+    ax2.set_ylabel("σ_electronic (mS/cm)", color=color_el, fontsize=11)
+    ax2.tick_params(axis='y', labelcolor=color_el)
+
+    _apply_style(ax1, "", names)
+    ax1.set_title("Ionic vs Electronic Conductivity Trade-off\n(↑ AM → ↑ electronic, ↓ ionic)",
+                  fontsize=10, fontweight='bold')
+
+    # Combined legend
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='best')
+
+    _write_csv(outdir, 'transport_tradeoff.csv',
+               ['σ_ionic(mS/cm)', 'σ_electronic(mS/cm)'],
+               names, sigma_ionic, sigma_el)
+    return _save(fig, outdir, "transport_tradeoff.png")
+
+
+def plot_transport_normalized(data_list, names, outdir):
+    """3-mode normalized comparison: ionic/electronic/thermal on same scale."""
+    sigma_ionic = _load_network_sigma(data_list)
+    sigma_el = _load_electronic_sigma(data_list)
+    sigma_th = _load_thermal_sigma(data_list)
+
+    has_ionic = any(s > 0 for s in sigma_ionic)
+    has_el = any(s > 0 for s in sigma_el)
+    has_th = any(s > 0 for s in sigma_th)
+
+    if not has_ionic:
+        return None
+
+    # Normalize each to its own max
+    def _norm(arr):
+        mx = max(arr) if max(arr) > 0 else 1
+        return [v / mx for v in arr]
+
+    fig, ax = plt.subplots(figsize=FIG_SINGLE)
+    x = np.arange(len(names))
+    ms = _marker_size(len(names))
+    lw = _line_width(len(names))
+    w = 0.25
+
+    if has_ionic:
+        norm_ion = _norm(sigma_ionic)
+        ax.bar(x - w, norm_ion, w, color='#2ecc71', alpha=0.8, label=f"Ionic (max={max(sigma_ionic):.2f})")
+    if has_el:
+        norm_el = _norm(sigma_el)
+        ax.bar(x, norm_el, w, color='#e74c3c', alpha=0.8, label=f"Electronic (max={max(sigma_el):.2f})")
+    if has_th:
+        norm_th = _norm(sigma_th)
+        ax.bar(x + w, norm_th, w, color='#ff922b', alpha=0.8, label=f"Thermal (max={max(sigma_th):.2f})")
+
+    _apply_style(ax, "Normalized σ (ratio to max)", names)
+    ax.legend(fontsize=8, loc='best')
+    ax.set_ylim(0, 1.15)
+    ax.set_title("3-Mode Transport Comparison (Normalized)\nIonic (SE-SE) | Electronic (AM-AM) | Thermal (ALL)",
+                 fontsize=10, fontweight='bold')
+
+    _write_csv(outdir, 'transport_normalized.csv',
+               ['ionic(mS/cm)', 'electronic(mS/cm)', 'thermal(mS/cm)'],
+               names, sigma_ionic, sigma_el, sigma_th)
+    return _save(fig, outdir, "transport_normalized.png")
+
+
+def plot_transport_absolute(data_list, names, outdir):
+    """3-mode absolute values on log scale."""
+    sigma_ionic = _load_network_sigma(data_list)
+    sigma_el = _load_electronic_sigma(data_list)
+    sigma_th = _load_thermal_sigma(data_list)
+
+    has_ionic = any(s > 0 for s in sigma_ionic)
+    has_el = any(s > 0 for s in sigma_el)
+    has_th = any(s > 0 for s in sigma_th)
+
+    if not has_ionic:
+        return None
+
+    fig, ax = plt.subplots(figsize=FIG_SINGLE)
+    x = np.arange(len(names))
+    ms = _marker_size(len(names))
+    lw = _line_width(len(names))
+
+    if has_ionic:
+        ax.plot(x, sigma_ionic, 's-', color='#2ecc71', markersize=ms, linewidth=lw,
+                label="Ionic (SE-SE)")
+    if has_el:
+        has_v = [i for i in range(len(names)) if sigma_el[i] > 0]
+        ax.plot([x[i] for i in has_v], [sigma_el[i] for i in has_v],
+                'D-', color='#e74c3c', markersize=ms, linewidth=lw, label="Electronic (AM-AM)")
+    if has_th:
+        ax.plot(x, sigma_th, '^-', color='#ff922b', markersize=ms, linewidth=lw,
+                label="Thermal (ALL)")
+
+    ax.set_yscale('log')
+    _apply_style(ax, "σ_eff (mS/cm, log scale)", names)
+    ax.legend(fontsize=9, loc='best')
+    ax.set_title("3-Mode Transport: Absolute Values\nIonic ≪ Thermal < Electronic (typical)",
+                 fontsize=10, fontweight='bold')
+
+    # Minnmann reference line
+    ax.axhline(0.17, color='gray', linestyle=':', linewidth=1, alpha=0.6)
+    ax.text(len(names)-0.5, 0.17, "Minnmann 0.17", fontsize=7, color='gray', va='bottom', ha='right')
+
+    _write_csv(outdir, 'transport_absolute.csv',
+               ['ionic(mS/cm)', 'electronic(mS/cm)', 'thermal(mS/cm)'],
+               names, sigma_ionic, sigma_el, sigma_th)
+    return _save(fig, outdir, "transport_absolute.png")
+
+
+def plot_r_brug_comparison(data_list, names, outdir):
+    """R_brug for ionic vs electronic vs thermal — how much does Bruggeman overestimate?"""
+    # Ionic R_brug
+    r_ionic = []
+    for d in data_list:
+        v = _get(d, "R_brug_over_full", 0)
+        r_ionic.append(v if v > 0 else 0)
+
+    # Electronic R_brug
+    r_el = []
+    for i, d in enumerate(data_list):
+        v = _get(d, "electronic_R_brug", 0)
+        if v and v > 0:
+            r_el.append(v)
+        else:
+            src = _get(d, "_source_path", "")
+            if src:
+                net_path = os.path.join(os.path.dirname(src), "network_conductivity.json")
+                if os.path.exists(net_path):
+                    try:
+                        with open(net_path) as _nf:
+                            nd = json.load(_nf)
+                        r_el.append(nd.get("electronic_R_brug", 0) or 0)
+                    except:
+                        r_el.append(0)
+                else:
+                    r_el.append(0)
+            else:
+                r_el.append(0)
+
+    # Thermal R_brug
+    r_th = []
+    for i, d in enumerate(data_list):
+        v = _get(d, "thermal_R_brug", 0)
+        if v and v > 0:
+            r_th.append(v)
+        else:
+            src = _get(d, "_source_path", "")
+            if src:
+                net_path = os.path.join(os.path.dirname(src), "network_conductivity.json")
+                if os.path.exists(net_path):
+                    try:
+                        with open(net_path) as _nf:
+                            nd = json.load(_nf)
+                        r_th.append(nd.get("thermal_R_brug", 0) or 0)
+                    except:
+                        r_th.append(0)
+                else:
+                    r_th.append(0)
+            else:
+                r_th.append(0)
+
+    has_ionic = any(r > 0 for r in r_ionic)
+    has_el = any(r > 0 for r in r_el)
+    has_th = any(r > 0 for r in r_th)
+
+    if not has_ionic:
+        return None
+
+    fig, ax = plt.subplots(figsize=FIG_SINGLE)
+    x = np.arange(len(names))
+    ms = _marker_size(len(names))
+    lw = _line_width(len(names))
+    w = 0.25
+
+    if has_ionic:
+        ax.bar(x - w, r_ionic, w, color='#2ecc71', alpha=0.8, label="Ionic R_brug")
+    if has_el:
+        ax.bar(x, r_el, w, color='#e74c3c', alpha=0.8, label="Electronic R_brug")
+    if has_th:
+        ax.bar(x + w, r_th, w, color='#ff922b', alpha=0.8, label="Thermal R_brug")
+
+    ax.axhline(1.0, color='gray', linestyle='--', linewidth=1, alpha=0.5)
+    ax.text(len(names)-0.5, 1.05, "Bruggeman = exact", fontsize=7, color='gray', ha='right')
+
+    _apply_style(ax, "R_brug (σ_brug / σ_network)", names)
+    ax.legend(fontsize=8, loc='best')
+    ax.set_title("Bruggeman Overestimation by Transport Mode\nR_brug > 1 = Bruggeman overestimates",
+                 fontsize=10, fontweight='bold')
+
+    _write_csv(outdir, 'r_brug_comparison.csv',
+               ['R_ionic', 'R_electronic', 'R_thermal'],
+               names, r_ionic, r_el, r_th)
+    return _save(fig, outdir, "r_brug_comparison.png")
+
+
 def plot_ion_path_quality(data_list, names, outdir):
     """Ion path quality: GB Density, Hop Area, Bottleneck, Conductance (2x2)."""
     fig, axes = plt.subplots(2, 2, figsize=(12, 9))
@@ -1358,6 +1694,48 @@ PLOT_REGISTRY["ion_path_quality"] = {
 
         "description": "이온 경로 품질 4종 (모두 percolating 경로들의 mean):\n\n• GB Density = mean(N_hops / L_z) (hops/μm)\n  → ↓ 좋음 (입계 적을수록 저항↓)\n• Path Hop Area = mean(각 hop의 접촉면적)\n  → ↑ 좋음\n• Bottleneck = mean(각 경로의 최소 접촉면적)\n  → ↑ 좋음\n• Path Conductance = mean(1/Σ(1/A_i)) (μm²)\n  → ↑ 좋음 (직렬 저항 모델의 유효 면적)\n\n왜 mean? 경로 안은 직렬, 경로끼리는 병렬.\nmean = 경로 품질, f_perc = 경로 수량 (역할 분리).\n30개 shortest path 샘플 (best/mean/worst 10개씩).\nConductance가 가장 종합적 지표.",
         "origin_tip": "2×2 Subplots → GB Density (Blue), Hop Area (Orange), Bottleneck (Red), Conductance (Green).",
+}
+PLOT_REGISTRY["electronic_sigma"] = {
+    "func": plot_electronic_sigma,
+    "file": "electronic_sigma.png",
+    "title": "Electronic Conductivity",
+    "description": "AM-AM 접촉 네트워크 기반 전자 전도도.\nσ_AM = 0.05 S/cm (NCM 활물질).\nAM percolation 없으면 σ=0 (도전재 필요).\n10:0(P only)에서 AM 부족 → percolation 실패 가능.",
+    "origin_tip": "Line (Red) + X markers for no-percolation cases.",
+}
+PLOT_REGISTRY["thermal_sigma"] = {
+    "func": plot_thermal_sigma,
+    "file": "thermal_sigma.png",
+    "title": "Thermal Conductivity",
+    "description": "ALL 접촉 네트워크 기반 열전도도.\nk_AM=4.0e-2, k_SE=0.7e-2 W/(cm·K).\nAM-SE 접촉은 harmonic mean.\n양방향 전도 (source↔sink 모두).",
+    "origin_tip": "Line (Orange).",
+}
+PLOT_REGISTRY["transport_tradeoff"] = {
+    "func": plot_transport_tradeoff,
+    "file": "transport_tradeoff.png",
+    "title": "Ionic vs Electronic Trade-off",
+    "description": "이온 전도(SE-SE)와 전자 전도(AM-AM)의 역관계.\nAM↑ → electronic↑, ionic↓.\n최적 조성 = 두 곡선의 교차점 근처.\n도전재(carbon) 추가 시 electronic 병목 완화 가능.",
+    "origin_tip": "Dual Y-axis: Green (ionic, left), Red (electronic, right).",
+}
+PLOT_REGISTRY["transport_normalized"] = {
+    "func": plot_transport_normalized,
+    "file": "transport_normalized.png",
+    "title": "3-Mode Transport (Normalized)",
+    "description": "Ionic/Electronic/Thermal 정규화 비교.\n각 mode를 자체 최대값으로 나눔 (0~1).\n어떤 mode가 조성 변화에 가장 민감한지 비교.\nIonic이 보통 가장 민감 (AM 비율에 강하게 반응).",
+    "origin_tip": "Grouped Bar: Green(ionic), Red(electronic), Orange(thermal).",
+}
+PLOT_REGISTRY["transport_absolute"] = {
+    "func": plot_transport_absolute,
+    "file": "transport_absolute.png",
+    "title": "3-Mode Transport (Absolute, Log)",
+    "description": "Ionic/Electronic/Thermal 절대값 비교 (log scale).\nIonic ≪ Thermal < Electronic (typical).\nMinnmann(2021) 0.17 mS/cm 참고선 포함.\n이온 전도가 항상 rate-limiting → ionic 최적화 우선.",
+    "origin_tip": "Multi-line (log Y): Green(ionic), Red(electronic), Orange(thermal).",
+}
+PLOT_REGISTRY["r_brug_comparison"] = {
+    "func": plot_r_brug_comparison,
+    "file": "r_brug_comparison.png",
+    "title": "R_brug by Transport Mode",
+    "description": "각 transport mode별 Bruggeman 과대추정 배수.\nR_brug = σ_brug / σ_network.\nIonic R_brug=3~10× (constriction 지배).\nElectronic/Thermal은 R_brug 다를 수 있음.\nR_brug가 클수록 접촉 저항 기여가 큼.",
+    "origin_tip": "Grouped Bar: Green(ionic), Red(electronic), Orange(thermal).",
 }
 PLOT_REGISTRY["stress_z_layer"] = {
     "func": plot_stress_z_layer,

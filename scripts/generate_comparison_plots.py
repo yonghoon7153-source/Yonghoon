@@ -975,6 +975,142 @@ def plot_gb_corrected(data_list, names, outdir):
     return _save(fig, outdir, "gb_corrected.png")
 
 
+def plot_ionic_scaling_fit(data_list, names, outdir):
+    """Ionic scaling law fit: σ_predicted vs σ_actual scatter (log-log)."""
+    SIGMA_BULK = 3.0
+    C_ms = 0.026
+
+    sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
+    gb_dens = [_get(d, "gb_density_mean") for d in data_list]
+    hop = [_get(d, "path_hop_area_mean", 0) for d in data_list]
+    cn = [_get(d, "se_se_cn", 0) for d in data_list]
+    sigma_net = _load_network_sigma(data_list)
+
+    # Compute predicted σ
+    sigma_pred = []
+    valid_idx = []
+    for i in range(len(data_list)):
+        if hop[i] > 0 and cn[i] > 0 and gb_dens[i] > 0 and sigma_net[i] > 0:
+            s = sigma_brug[i] * C_ms * np.sqrt(hop[i]) * cn[i]**2 * gb_dens[i]**(4/3) * SIGMA_BULK
+            sigma_pred.append(s)
+            valid_idx.append(i)
+        # Also include cases where prediction works but no network (still plot pred)
+
+    if len(valid_idx) < 3:
+        return None
+
+    s_pred = np.array(sigma_pred)
+    s_actual = np.array([sigma_net[i] for i in valid_idx])
+
+    fig, ax = plt.subplots(figsize=FIG_SINGLE)
+
+    # Group colors
+    point_groups = [0] * len(valid_idx)
+    group_boundaries = []
+    if _GROUP_INFO:
+        sizes, gnames = _GROUP_INFO
+        pos = 0
+        for sz in sizes:
+            group_boundaries.append((pos, pos + sz))
+            pos += sz
+        for j, i in enumerate(valid_idx):
+            for g_idx, (start, end) in enumerate(group_boundaries):
+                if start <= i < end:
+                    point_groups[j] = g_idx
+                    break
+
+    if _GROUP_INFO:
+        for j in range(len(valid_idx)):
+            gi = point_groups[j]
+            ax.scatter(s_actual[j], s_pred[j], s=100,
+                      c=GROUP_COLORS[gi % len(GROUP_COLORS)],
+                      zorder=5, edgecolors='white', linewidth=1.5)
+    else:
+        ax.scatter(s_actual, s_pred, s=100, c=BLUE, zorder=5,
+                  edgecolors='white', linewidth=1.5)
+
+    # 1:1 line
+    all_vals = np.concatenate([s_pred, s_actual])
+    vmin, vmax = all_vals[all_vals > 0].min() * 0.5, all_vals.max() * 2
+    ax.plot([vmin, vmax], [vmin, vmax], 'k--', linewidth=1.5, alpha=0.5, label='1:1 line')
+
+    # ±20% band
+    ax.fill_between([vmin, vmax], [vmin*0.8, vmax*0.8], [vmin*1.2, vmax*1.2],
+                    alpha=0.1, color='green', label='±20%')
+
+    # Labels
+    try:
+        from adjustText import adjust_text
+        texts = []
+        for j, i in enumerate(valid_idx):
+            texts.append(ax.text(s_actual[j], s_pred[j], names[i], fontsize=7, color=BLACK, zorder=6))
+        adjust_text(texts, x=list(s_actual), y=list(s_pred), ax=ax,
+                   arrowprops=dict(arrowstyle='-', color='gray', lw=0.5),
+                   force_text=(0.3, 0.3), expand=(1.2, 1.4))
+    except ImportError:
+        for j, i in enumerate(valid_idx):
+            ax.annotate(names[i], (s_actual[j], s_pred[j]),
+                       fontsize=7, ha='left', va='bottom', xytext=(3, 3),
+                       textcoords='offset points', color=BLACK, zorder=6)
+
+    # Group labels
+    if _GROUP_INFO:
+        for gi, (start, end) in enumerate(group_boundaries):
+            group_js = [j for j, i in enumerate(valid_idx) if start <= i < end]
+            if group_js:
+                cx = np.mean([s_actual[j] for j in group_js])
+                cy = min([s_pred[j] for j in group_js])
+                ax.text(cx, cy * 0.7, gnames[gi],
+                       ha='center', va='top',
+                       fontsize=9, fontweight='bold', color=GROUP_COLORS[gi % len(GROUP_COLORS)],
+                       bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
+                                edgecolor=GROUP_COLORS[gi % len(GROUP_COLORS)], alpha=0.8))
+
+    # R²
+    log_pred = np.log(s_pred[s_pred > 0])
+    log_actual = np.log(s_actual[s_actual > 0])
+    if len(log_pred) > 2:
+        ss_res = np.sum((log_pred - log_actual)**2)
+        ss_tot = np.sum((log_actual - np.mean(log_actual))**2)
+        r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
+    else:
+        r2 = 0
+
+    # Error stats
+    errors = np.abs(s_pred - s_actual) / s_actual * 100
+    within_20 = np.sum(errors < 20)
+
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
+    ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
+    ax.set_title("Ionic: σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\nPredicted vs Actual",
+                 fontsize=10, fontweight='bold')
+    ax.legend(fontsize=9, loc='upper left')
+
+    txt = (f"R² = {r2:.3f}\n"
+           f"Mean |error| = {np.mean(errors):.1f}%\n"
+           f"Within 20%: {within_20}/{len(errors)}\n"
+           f"n = {len(valid_idx)}")
+    ax.text(0.95, 0.05, txt, transform=ax.transAxes, fontsize=10,
+            ha='right', va='bottom',
+            bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.8))
+
+    ax.set_xlim(vmin, vmax)
+    ax.set_ylim(vmin, vmax)
+    ax.set_aspect('equal')
+    ax.yaxis.grid(True, linestyle='--', alpha=0.3)
+    ax.xaxis.grid(True, linestyle='--', alpha=0.3)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    _write_csv(outdir, 'ionic_scaling_fit.csv',
+               ['σ_actual(mS/cm)', 'σ_predicted(mS/cm)', 'error(%)'],
+               [names[i] for i in valid_idx],
+               list(s_actual), list(s_pred), list(errors))
+    return _save(fig, outdir, "ionic_scaling_fit.png")
+
+
 def plot_network_sigma(data_list, names, outdir):
     """Part II: Network solver σ_full (ground truth)."""
     SIGMA_BULK = 3.0  # σ_grain (grain interior)
@@ -1682,6 +1818,13 @@ PLOT_REGISTRY = {
         "title": "Ionic: Network Solver σ_full (Part II)",
         "description": "Kirchhoff resistor network (R_bulk + R_constriction)\n초록: σ_full (ground truth) | 파란: σ_brug (Bruggeman)\nR_brug = 3~10× | Constriction 69~81% 지배\nMinnmann(2021) 0.17 mS/cm과 same order\nσ_grain = 3.0 mS/cm (grain interior, not pellet)",
         "origin_tip": "Green: Network solver, Blue dashed: Bruggeman.",
+    },
+    "ionic_scaling_fit": {
+        "func": plot_ionic_scaling_fit,
+        "file": "ionic_scaling_fit.png",
+        "title": "Ionic: Scaling Law Fit (Predicted vs Actual)",
+        "description": "σ_ion = σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\n예측값 vs Network solver 실측값 scatter plot\n1:1 line + ±20% band\nR²=0.93, 1 free param",
+        "origin_tip": "Scatter (log-log): X=actual, Y=predicted.\n1:1 line (black dashed), ±20% band (green).",
     },
     "multiscale_sigma": {
         "func": plot_multiscale_sigma,

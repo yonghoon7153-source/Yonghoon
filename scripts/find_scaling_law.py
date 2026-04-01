@@ -448,8 +448,71 @@ def fit_sigma_eff(rows):
         r2_m = 1 - ss_res_m / ss_tot_m if ss_tot_m > 0 else 0
         print(f"    {se_label} (n={mask.sum()}, GB_d={gb_d[mask].min():.2f}~{gb_d[mask].max():.2f}): C={np.exp(ln_C_m):.4f}, R²={r2_m:.4f}")
 
+    # ── NEW BEAUTIFUL FORMULA: (A_hop × GB_d²)^(3/5) × CN² ──
+    print(f"\n{'='*70}")
+    print(f"NEW FORMULA: σ = σ_brug × C × (A_hop × GB_d²)^(3/5) × CN²")
+    print(f"{'='*70}")
+
+    valid = (hop > 0) & (cn > 0)
+    combo = hop[valid] * gb_d[valid]**2  # combined variable
+
+    # Fixed 3/5 + C only (1 free param)
+    log_rhs_new = 3/5 * np.log(combo) + 2 * np.log(cn[valid])
+    ln_C_new = np.mean(residual[valid] - log_rhs_new)
+    pred_new = log_sb[valid] + ln_C_new + log_rhs_new
+    r2_new = 1 - np.sum((log_sf[valid]-pred_new)**2)/np.sum((log_sf[valid]-np.mean(log_sf[valid]))**2)
+    print(f"\n  Fixed (3/5, 2): C={np.exp(ln_C_new):.4f}, R²={r2_new:.4f}")
+
+    # Free fit for comparison
+    X_new = np.column_stack([np.log(combo), np.log(cn[valid]), np.ones(valid.sum())])
+    b_new, _, _, _ = np.linalg.lstsq(X_new, residual[valid], rcond=None)
+    pred_new_free = log_sb[valid] + X_new @ b_new
+    r2_new_free = 1 - np.sum((log_sf[valid]-pred_new_free)**2)/np.sum((log_sf[valid]-np.mean(log_sf[valid]))**2)
+    print(f"  Free fit: (A_hop×GB_d²)^{b_new[0]:.3f} × CN^{b_new[1]:.3f}: C={np.exp(b_new[2]):.4f}, R²={r2_new_free:.4f}")
+
+    # Exponent sweep for (A_hop × GB_d²)
+    print(f"\n  (A_hop×GB_d²) exponent sweep (CN=2 fixed):")
+    for e_test in [0.4, 0.5, 3/5, 0.65, 0.7, 0.8]:
+        log_rhs_t = e_test * np.log(combo) + 2 * np.log(cn[valid])
+        ln_C_t = np.mean(residual[valid] - log_rhs_t)
+        pred_t = log_sb[valid] + ln_C_t + log_rhs_t
+        r2_t = 1 - np.sum((log_sf[valid]-pred_t)**2)/np.sum((log_sf[valid]-np.mean(log_sf[valid]))**2)
+        label = " ← 3/5" if abs(e_test - 3/5) < 0.001 else ""
+        print(f"    ^{e_test:.3f}: C={np.exp(ln_C_t):.4f}, R²={r2_t:.4f}{label}")
+
+    # Per-SE-size with new formula
+    print(f"\n  Per-SE-size R² (NEW: (A_hop×GB_d²)^(3/5) × CN²):")
+    for se_label, gb_lo, gb_hi in [("SE 0.5μm", 1.0, 3.0), ("SE 1.0μm", 0.6, 1.0), ("SE 1.5μm", 0.0, 0.6)]:
+        mask = valid & (gb_d >= gb_lo) & (gb_d < gb_hi)
+        if mask.sum() < 3:
+            continue
+        combo_m = hop[mask] * gb_d[mask]**2
+        log_rhs_m = 3/5 * np.log(combo_m) + 2 * np.log(cn[mask])
+        ln_C_m = np.mean((log_sf - log_sb)[mask] - log_rhs_m)
+        pred_m = log_sb[mask] + ln_C_m + log_rhs_m
+        ss_res_m = np.sum((log_sf[mask] - pred_m)**2)
+        ss_tot_m = np.sum((log_sf[mask] - np.mean(log_sf[mask]))**2)
+        r2_m = 1 - ss_res_m / ss_tot_m if ss_tot_m > 0 else 0
+        print(f"    {se_label} (n={mask.sum()}): C={np.exp(ln_C_m):.4f}, R²={r2_m:.4f}")
+
+    # Per-case accuracy
+    s_pred_new = np.exp(pred_new)
+    s_actual_new = np.exp(log_sf[valid])
+    errors_new = np.abs(s_pred_new - s_actual_new) / s_actual_new * 100
+    within_20 = np.sum(errors_new < 20)
+    print(f"\n  Mean |error|: {np.mean(errors_new):.1f}%")
+    print(f"  Within 20%: {within_20}/{len(errors_new)}")
+    print(f"  Max |error|: {np.max(errors_new):.1f}%")
+
+    # Compare old vs new
+    print(f"\n  {'─'*50}")
+    print(f"  OLD: √A_hop × CN² × GB_d^(4/3), R²={r2_fixed:.4f}")
+    print(f"  NEW: (A_hop×GB_d²)^(3/5) × CN², R²={r2_new:.4f}")
+    print(f"  ΔR² = {r2_new - r2_fixed:+.4f}")
+
     # Summary
     print(f"\n{'--- σ_eff Ranking ---':^60}")
+    results.append(('NEW: σ_brug×(A_hop×GB_d²)^(3/5)×CN²', r2_new, 2))
     for rank, (name, r2, p) in enumerate(sorted(results, key=lambda x: -x[1]), 1):
         star = " ★" if r2 > 0.9 else ""
         print(f"  {rank:2d}. {name:40s} R²={r2:.4f} ({p}p){star}")

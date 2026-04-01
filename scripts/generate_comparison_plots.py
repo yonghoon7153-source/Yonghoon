@@ -976,34 +976,64 @@ def plot_gb_corrected(data_list, names, outdir):
 
 
 def plot_ionic_scaling_fit(data_list, names, outdir):
-    """Ionic scaling law fit: σ_predicted vs σ_actual scatter (log-log)."""
+    """Ionic scaling law fit: σ_predicted vs σ_actual scatter (log-log).
+    Uses same fitting approach as find_scaling_law.py model 4."""
     SIGMA_BULK = 3.0
 
-    sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
+    phi_se = [_get(d, "phi_se") for d in data_list]
+    f_perc = [_get(d, "percolation_pct", 0) / 100 for d in data_list]
+    tau = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)) for d in data_list]
     gb_dens = [_get(d, "gb_density_mean") for d in data_list]
     hop = [_get(d, "path_hop_area_mean", 0) for d in data_list]
     cn = [_get(d, "se_se_cn", 0) for d in data_list]
     sigma_net = _load_network_sigma(data_list)
 
-    # Compute σ_brug × √A_hop × CN² × GB_d^(4/3) (without C)
-    sigma_raw = []  # σ_brug × √hop × CN² × GB_d^(4/3) × σ_grain
+    # Same as find_scaling_law.py: σ_brug = 3.0 × φ_SE × f_perc / τ²
     valid_idx = []
     for i in range(len(data_list)):
-        if hop[i] > 0 and cn[i] > 0 and gb_dens[i] > 0 and sigma_net[i] > 0 and sigma_brug[i] > 0:
-            s = sigma_brug[i] * np.sqrt(hop[i]) * cn[i]**2 * gb_dens[i]**(4/3) * SIGMA_BULK
-            sigma_raw.append(s)
+        if (phi_se[i] > 0 and f_perc[i] > 0 and tau[i] > 0 and
+            hop[i] > 0 and cn[i] > 0 and gb_dens[i] > 0 and sigma_net[i] > 0):
             valid_idx.append(i)
 
     if len(valid_idx) < 3:
         return None
 
-    s_raw = np.array(sigma_raw)
     s_actual = np.array([sigma_net[i] for i in valid_idx])
+    log_sf = np.log(s_actual)
 
-    # Fit C in log space: log(σ_actual) = log(C) + log(σ_raw)
-    log_C = np.mean(np.log(s_actual) - np.log(s_raw))
-    C_fit = np.exp(log_C)
-    s_pred = s_raw * C_fit
+    # σ_brug in mS/cm (same as find_scaling_law.py)
+    sigma_brug = np.array([SIGMA_BULK * phi_se[i] * f_perc[i] / tau[i]**2 for i in valid_idx])
+    log_sb = np.log(sigma_brug)
+
+    # Fit: log(σ_full) = log(σ_brug) + a*log(hop) + b*log(cn) + c*log(gb_d) + d
+    log_hop = np.array([np.log(hop[i]) for i in valid_idx])
+    log_cn = np.array([np.log(cn[i]) for i in valid_idx])
+    log_gbd = np.array([np.log(gb_dens[i]) for i in valid_idx])
+    residual = log_sf - log_sb
+    X = np.column_stack([log_hop, log_cn, log_gbd, np.ones(len(valid_idx))])
+    b_fit, _, _, _ = np.linalg.lstsq(X, residual, rcond=None)
+    a_hop, b_cn, c_gbd, ln_C = b_fit
+    C_fit = np.exp(ln_C)
+
+    # Predicted (using fixed beautiful exponents: 0.5, 2, 4/3)
+    # Also compute free-fit R² for comparison
+    pred_free = log_sb + X @ b_fit
+    ss_res_free = np.sum((log_sf - pred_free)**2)
+    ss_tot = np.sum((log_sf - np.mean(log_sf))**2)
+    r2_free = 1 - ss_res_free / ss_tot
+
+    # Fixed exponents + fit C only
+    log_rhs_fixed = log_sb + 0.5 * log_hop + 2 * log_cn + 4/3 * log_gbd
+    ln_C_fixed = np.mean(log_sf - log_rhs_fixed)
+    C_fixed = np.exp(ln_C_fixed)
+    pred_fixed = ln_C_fixed + log_rhs_fixed
+    ss_res_fixed = np.sum((log_sf - pred_fixed)**2)
+    r2_fixed = 1 - ss_res_fixed / ss_tot
+
+    # Use fixed exponents for the plot
+    s_pred = np.exp(pred_fixed)
+    C_fit = C_fixed
+    r2 = r2_fixed
     s_actual = np.array([sigma_net[i] for i in valid_idx])
 
     fig, ax = plt.subplots(figsize=FIG_SINGLE)
@@ -1074,7 +1104,8 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title(f"Ionic: σ_brug × {C_fit:.4f} × √A_hop × CN² × GB_d^(4/3)\nPredicted vs Actual (C fitted from data)",
+    ax.set_title(f"Ionic: σ_brug × {C_fit:.4f} × √A_hop × CN² × GB_d^(4/3)\n"
+                 f"Fixed exp R²={r2_fixed:.3f} | Free fit R²={r2_free:.3f} (a={a_hop:.2f}, b={b_cn:.2f}, c={c_gbd:.2f})",
                  fontsize=10, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
 

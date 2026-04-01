@@ -1205,7 +1205,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
     _apply_style(ax, "σ_eff (mS/cm)", names)
     ax.legend(fontsize=9, loc='best')
     ax.set_title("Part III: Multi-scale σ_eff = σ_brug × C × √A_hop × CN² × GB_d^(4/3)\n"
-                 "R²=0.93, LOOCV R²=0.93, 1 free param",
+                 "Fixed R²=0.89 (1p) | Free R²=0.93 (4p)",
                  fontsize=9, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',
@@ -1821,7 +1821,7 @@ PLOT_REGISTRY = {
         "func": plot_rgb_fitting,
         "file": "rgb_fitting.png",
         "title": "Ionic: Inter-particle Contact Resistance Scaling",
-        "description": "최종 Ionic Conductivity 공식:\nσ_ion = σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\n  R²=0.93, LOOCV R²=0.93 (1 free param)\n\n이 플롯: Contact resistance scaling 발견 과정\n  R = C × (GB_d²×T)^α,  α=1.82, R²=0.94\n  GB_d²: BLM(hop 수) × Maxwell(접촉 크기)\n  T: 총 경로 길이\n\nBruggeman exponent 분해:\n  n_eff = n_geo(2.54) + n_contact(0.83) = 3.37\n  → 문헌 n≈3의 물리적 기원 설명",
+        "description": "최종 Ionic Conductivity 공식:\nσ_ion = σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\n  Fixed R²=0.89 (1p) | Free R²=0.93 (4p)\n\n이 플롯: Contact resistance scaling 발견 과정\n  R = C × (GB_d²×T)^α,  α=1.82, R²=0.94\n  GB_d²: BLM(hop 수) × Maxwell(접촉 크기)\n  T: 총 경로 길이\n\nBruggeman exponent 분해:\n  n_eff = n_geo(2.54) + n_contact(0.83) = 3.37\n  → 문헌 n≈3의 물리적 기원 설명",
         "origin_tip": "Scatter + Fit line (log-log).\n색상별 SE 크기: 0.5μm(warm), 1.0μm(green), 1.5μm(cool)\n숫자: P:S ratio",
         "min_groups": 2,
     },
@@ -1851,7 +1851,7 @@ PLOT_REGISTRY = {
         "func": plot_multiscale_sigma,
         "file": "multiscale_sigma.png",
         "title": "Ionic: Multi-scale Scaling Law (Part III)",
-        "description": "σ_ion = σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\n√A_hop: Maxwell constriction (fit→0.5)\nCN²: redundant path factor (fit→2)\nGB_d^(4/3): mesh density(1) + Hertz(1/3)\nR²=0.93, LOOCV R²=0.93 (1 free param)\nAblation: GB_d 제거 시 R²→음수 (필수 항)",
+        "description": "σ_ion = σ_brug × 0.026 × √A_hop × CN² × GB_d^(4/3)\n√A_hop: Maxwell constriction (free→0.58)\nCN²: redundant path factor (free→1.98)\nGB_d^(4/3): mesh+Hertz (free→1.24)\nFixed R²=0.89 (1p) | Free R²=0.93 (4p)\nAblation: GB_d 제거 시 R²→음수 (필수 항)",
         "origin_tip": "Red: Scaling law, Green dashed: Network solver.",
     },
 }

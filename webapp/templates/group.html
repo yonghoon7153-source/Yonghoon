@@ -650,7 +650,7 @@ async function generatePlots() {
   try {
     // Global R_gb: always use all data combined for rgb_fitting/gb_corrected
     // Plots that need ALL groups combined (not per-group)
-    const globalOnlyTypes = ['rgb_fitting', 'gb_corrected'];
+    const globalOnlyTypes = ['rgb_fitting', 'gb_corrected', 'ionic_scaling_fit'];
     const needsGlobalRgb = validPGs.length > 1 &&
       plotTypes.some(p => globalOnlyTypes.includes(p));
     let globalRgb = '';
@@ -671,7 +671,9 @@ async function generatePlots() {
       allCaseGroups.forEach(g => g.cases.forEach(cid => { gform.append('cases', cid); totalCases++; }));
       gform.append('case_groups', JSON.stringify(allCaseGroups));
       globalOnlyTypes.forEach(p => { if (plotTypes.includes(p)) gform.append('plots', p); });
-      console.log(`Global R_gb: ${allCaseGroups.length} groups, ${totalCases} total cases`);
+      const globalPlotList = [];
+      globalOnlyTypes.forEach(p => { if (plotTypes.includes(p)) globalPlotList.push(p); });
+      console.log(`Global plots: ${globalPlotList.join(', ')} | ${allCaseGroups.length} groups, ${totalCases} cases`);
       const gres = await fetch('/group/plots', { method: 'POST', body: gform });
       const gdata = await gres.json();
       // Extract b and ln_k from the CSV
@@ -685,9 +687,12 @@ async function generatePlots() {
           }
         } catch(e) {}
       }
-      // Save global rgb/gb_corrected plots for later
+      // Save global plots for later
       if (gdata.plots) {
         globalRgbPlots = {session: gdata.session, plots: gdata.plots.filter(p => p.file !== 'particle_info.png')};
+        console.log('Global plots received:', globalRgbPlots.plots.map(p => p.file));
+      } else {
+        console.log('Global plots: NO PLOTS returned', gdata);
       }
     }
 
@@ -703,7 +708,7 @@ async function generatePlots() {
       form.append('case_groups', JSON.stringify(pgCaseGroups));
       // Exclude global-only plots from per-group (handled globally)
       const groupPlots = needsGlobalRgb
-        ? plotTypes.filter(p => p !== 'rgb_fitting' && p !== 'gb_corrected')
+        ? plotTypes.filter(p => !globalOnlyTypes.includes(p))
         : plotTypes;
       groupPlots.forEach(p => form.append('plots', p));
       if (globalRgb) form.append('global_rgb', globalRgb);
@@ -747,7 +752,7 @@ async function generatePlots() {
         const file = pt + '.png';
 
         // Global-only plots: render as single full-width (all groups combined)
-        const globalOnlyPlots = ['rgb_fitting', 'gb_corrected'];
+        const globalOnlyPlots = ['rgb_fitting', 'gb_corrected', 'ionic_scaling_fit'];
         if (globalOnlyPlots.includes(pt)) {
           if (globalPlotMap[file]) {
             if (pt === 'rgb_fitting') grid.appendChild(createDerivationBox());

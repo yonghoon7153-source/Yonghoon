@@ -938,6 +938,10 @@ def group_plots():
     if global_rgb:
         cmd += ['--global-rgb', global_rgb]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    if result.stdout:
+        print(f"[plots] stdout: {result.stdout[-500:]}")
+    if result.stderr:
+        print(f"[plots] stderr: {result.stderr[-500:]}")
 
     if result.returncode != 0:
         return jsonify({'error': f'Plot 생성 실패: {result.stderr}'}), 500

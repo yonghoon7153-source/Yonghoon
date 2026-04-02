@@ -986,6 +986,7 @@ def group_plots():
         group_names_list.append(g.get('name', '') or f"Case {chr(65 + len(group_names_list))}")
 
     global_rgb = request.form.get('global_rgb', '')
+    global_c_ion = request.form.get('global_c_ion', '')
 
     scripts = app.config['SCRIPTS_FOLDER']
     cmd = ['python3', os.path.join(scripts, 'generate_comparison_plots.py'),
@@ -995,6 +996,8 @@ def group_plots():
                 '--group-names', ','.join(group_names_list)]
     if global_rgb:
         cmd += ['--global-rgb', global_rgb]
+    if global_c_ion:
+        cmd += ['--global-c-ion', global_c_ion]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if result.stdout:
         print(f"[plots] stdout: {result.stdout[-500:]}")

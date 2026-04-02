@@ -664,6 +664,7 @@ async function generatePlots() {
     const needsGlobalRgb = validPGs.length > 1 &&
       plotTypes.some(p => globalOnlyTypes.includes(p));
     let globalRgb = '';
+    let globalCIon = '';
     let globalRgbPlots = null;
 
     if (needsGlobalRgb) {
@@ -695,6 +696,10 @@ async function generatePlots() {
             globalRgb = `${info.rgb_fitting.b},${info.rgb_fitting.ln_k || 0}`;
             console.log('Global R_gb:', globalRgb);
           }
+          if (info.ionic_scaling_fit && info.ionic_scaling_fit.C_ion !== undefined) {
+            globalCIon = `${info.ionic_scaling_fit.C_ion}`;
+            console.log('Global C_ion:', globalCIon);
+          }
         } catch(e) {}
       }
       // Save global plots for later
@@ -722,6 +727,7 @@ async function generatePlots() {
         : plotTypes;
       groupPlots.forEach(p => form.append('plots', p));
       if (globalRgb) form.append('global_rgb', globalRgb);
+      if (globalCIon) form.append('global_c_ion', globalCIon);
 
       const res = await fetch('/group/plots', { method: 'POST', body: form });
       const data = await res.json();

@@ -40,6 +40,7 @@ GROUP_COLORS = ['#6c8cff', '#ff6b6b', '#51cf66', '#ffd43b', '#cc5de8', '#ff922b'
 
 _GROUP_INFO = None  # Set by main()
 _GLOBAL_RGB = None  # (b, ln_k) from global fit across all plot groups
+_GLOBAL_C_ION = None  # Fitted C for ionic scaling law (from global/ionic_scaling_fit)
 
 def _apply_style(ax, ylabel, names):
     """Apply common academic style with group separators."""
@@ -1025,6 +1026,9 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     log_rhs_fixed = log_sb + 0.25 * log_combo + 2 * log_cn
     ln_C_fixed = np.mean(log_sf - log_rhs_fixed)
     C_fixed = np.exp(ln_C_fixed)
+    # Save to global for multiscale_sigma to use
+    global _GLOBAL_C_ION
+    _GLOBAL_C_ION = C_fixed
     pred_fixed = ln_C_fixed + log_rhs_fixed
     ss_res_fixed = np.sum((log_sf - pred_fixed)**2)
     r2_fixed = 1 - ss_res_fixed / ss_tot
@@ -1181,7 +1185,10 @@ def plot_multiscale_sigma(data_list, names, outdir):
         if g_path[i] > 0 and cn[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0 and sigma_net[i] > 0:
             valid_fit.append(i)
 
-    if len(valid_fit) < 3:
+    # Use global C from ionic_scaling_fit if available (consistent across groups)
+    if _GLOBAL_C_ION is not None:
+        C_ms = _GLOBAL_C_ION
+    elif len(valid_fit) < 3:
         C_ms = 0.073  # fallback
     else:
         log_rhs = np.array([np.log(sigma_brug[i] * SIGMA_BULK) + 0.25*np.log(g_path[i]*gb_dens[i]**2) + 2*np.log(cn[i])
@@ -2271,6 +2278,7 @@ def main():
     parser.add_argument("--group-sizes", default="")  # e.g. "3,5"
     parser.add_argument("--group-names", default="")  # e.g. "Case A,Case B"
     parser.add_argument("--global-rgb", default="")   # e.g. "5.21,0.20" (b,ln_k from global fit)
+    parser.add_argument("--global-c-ion", default="")  # e.g. "0.0727" (C from ionic scaling fit)
     args = parser.parse_args()
 
     # Parse group info
@@ -2319,6 +2327,14 @@ def main():
             print(f"  Using global R_gb: b={_GLOBAL_RGB[0]:.2f}, ln(k)={_GLOBAL_RGB[1]:.2f}")
     else:
         _GLOBAL_RGB = None
+
+    # Set global C for ionic scaling if provided
+    global _GLOBAL_C_ION
+    if args.global_c_ion:
+        _GLOBAL_C_ION = float(args.global_c_ion)
+        print(f"  Using global C_ion: {_GLOBAL_C_ION:.6f}")
+    else:
+        _GLOBAL_C_ION = None
 
     # Generate particle info table as first plot
     if 'particle_info' in args.plots or True:  # always generate
@@ -2446,6 +2462,8 @@ def main():
             r_gb, ln_k, _, _ = _fit_r_gb(all_data, plot_names, use_global=False)
             info_entry['b'] = round(r_gb, 4)
             info_entry['ln_k'] = round(ln_k, 4)
+        if plot_name == 'ionic_scaling_fit' and _GLOBAL_C_ION is not None:
+            info_entry['C_ion'] = round(_GLOBAL_C_ION, 6)
         plot_info[plot_name] = info_entry
         print(f"  [OK] {plot_name} -> {outpath}")
 

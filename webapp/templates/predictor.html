@@ -83,6 +83,14 @@
         </div>
       </div>
 
+      <div class="input-group">
+        <label><input type="checkbox" class="fix-check" data-param="temperature" checked> Temperature</label>
+        <div class="slider-row">
+          <input type="range" id="temperature" min="233" max="373" step="5" value="298">
+          <span class="slider-val" id="temperature_val">298 K (25&deg;C)</span>
+        </div>
+      </div>
+
     </div>
 
     <div class="btn-row">
@@ -117,7 +125,7 @@
 
   <!-- Optimal Design Section -->
   <div id="optimal-section" class="card" style="display:none;">
-    <h3 class="card-title">Optimal Design (Top 10 by &sigma;<sub>ionic</sub>)</h3>
+    <h3 class="card-title">Optimal Design (Top 10 by Performance Score = &sigma;<sub>ionic</sub> × util@1C)</h3>
     <div class="table-wrap">
       <table class="result-table optimal-table">
         <thead id="optimal-header">
@@ -273,12 +281,14 @@ const sliders = [
   { id: 'ps_frac', suffix: '', decimals: 1 },
   { id: 'loading', suffix: ' mAh/cm\u00b2', decimals: 1 },
   { id: 'rve', suffix: ' \u00b5m', decimals: 0 },
+  { id: 'temperature', suffix: '', decimals: 0, format: v => `${v} K (${(v-273).toFixed(0)}\u00b0C)` },
 ];
 sliders.forEach(s => {
   const el = document.getElementById(s.id);
   const val = document.getElementById(s.id + '_val');
   el.addEventListener('input', () => {
-    val.textContent = parseFloat(el.value).toFixed(s.decimals) + s.suffix;
+    if (s.format) val.textContent = s.format(parseFloat(el.value));
+    else val.textContent = parseFloat(el.value).toFixed(s.decimals) + s.suffix;
   });
 });
 
@@ -321,6 +331,7 @@ function getParams() {
     ps_frac: parseFloat(document.getElementById('ps_frac').value),
     loading: parseFloat(document.getElementById('loading').value),
     rve: parseFloat(document.getElementById('rve').value),
+    temperature: parseFloat(document.getElementById('temperature').value),
   };
 }
 
@@ -484,7 +495,7 @@ function renderOptimal(results) {
   const thead = document.getElementById('optimal-header');
   thead.innerHTML = '<tr><th>#</th>' +
     activeParams.map(k => `<th>${paramLabels[k]}</th>`).join('') +
-    '<th>σ<sub>ionic</sub></th><th>σ<sub>elec</sub></th><th>σ<sub>therm</sub></th><th>Rate Limiting</th></tr>';
+    '<th>σ<sub>ionic</sub></th><th>util@1C</th><th style="color:#2ecc71">Score</th><th>E(mWh/cm²)</th><th>σ<sub>elec</sub></th><th>Rate Limiting</th></tr>';
 
   // Rows
   const tbody = document.getElementById('optimal-results');
@@ -499,10 +510,15 @@ function renderOptimal(results) {
       if (k === 'loading') return `<td>${v}</td>`;
       return `<td>${v}</td>`;
     }).join('');
+    const util1c = r.util_1C !== undefined ? (r.util_1C * 100).toFixed(1) + '%' : '-';
+    const perf = r.perf_score !== undefined ? r.perf_score.toFixed(4) : '-';
+    const energy = r.energy_mWh_cm2 !== undefined ? r.energy_mWh_cm2.toFixed(1) : '-';
     tr.innerHTML = `<td>${i + 1}</td>${paramCells}
       <td><strong>${r.sigma_ionic.toFixed(4)}</strong></td>
-      <td>${r.sigma_electronic.toFixed(4)}</td>
-      <td>${r.sigma_thermal.toFixed(4)}</td>
+      <td>${util1c}</td>
+      <td style="color:#2ecc71;font-weight:700">${perf}</td>
+      <td>${energy}</td>
+      <td>${r.sigma_electronic.toFixed(2)}</td>
       <td>${r.rate_limiting}</td>`;
     tbody.appendChild(tr);
   });

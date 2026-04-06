@@ -2082,6 +2082,7 @@ def predictor_predict():
             ps_frac=float(data.get('ps_frac', 0.5)),
             loading=float(data.get('loading', 6)),
             rve=float(data.get('rve', 50)),
+            temperature=float(data.get('temperature', 298)),
         )
         return jsonify(result)
     except Exception as e:

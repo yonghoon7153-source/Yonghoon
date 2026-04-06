@@ -101,10 +101,17 @@ def _run_pybamm_dfn(pybamm, sigma_ionic, phi_se, phi_am, thickness,
             t = sol["Time [s]"].entries
             V = sol["Voltage [V]"].entries
             Q = sol["Discharge capacity [A.h]"].entries
-            nominal = param["Nominal cell capacity [A.h]"]
 
-            # Utilization = total discharged / nominal
-            util = Q[-1] / nominal if nominal > 0 else 0
+            # Calculate theoretical capacity from OUR electrode, not PyBaMM nominal
+            # Q_theo = specific_capacity(mAh/g) × ρ_AM(g/cm³) × φ_AM × T(cm) × A(cm²)
+            # PyBaMM uses 1m² electrode area by default
+            A_electrode = 1e4  # cm² (1 m²)
+            Q_theo_Ah = 200e-3 * 4.8 * phi_am * T_m * 100 * A_electrode / 1000  # Ah
+            if Q_theo_Ah <= 0:
+                Q_theo_Ah = Q[-1] if Q[-1] > 0 else 1e-6
+
+            # Utilization = total discharged / OUR theoretical capacity
+            util = Q[-1] / Q_theo_Ah if Q_theo_Ah > 0 else 0
 
             # Find time indices for voltage curve sampling
             n_points = min(100, len(t))

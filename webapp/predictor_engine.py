@@ -293,7 +293,7 @@ def get_data_count(results_folder, archive_folder):
     return _training_data_count
 
 
-def predict(d_se, d_am, am_pct, ps_frac, loading, rve):
+def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298):
     """Run prediction using cached models."""
     if _cached_models is None:
         return {'error': 'Models not trained. Click "Train Models" first.'}
@@ -347,12 +347,28 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve):
     else:
         sigma_ionic_final = sigma_gpr
 
+    # ── Temperature correction (Arrhenius) ──
+    # σ(T) = σ(298) × exp(-Ea/R × (1/T - 1/298))
+    # Ea_SE ≈ 0.30 eV (LPSCl argyrodite, Kraft 2017)
+    # Ea_AM ≈ 0.50 eV (NCM811 electronic, rough)
+    Ea_SE_eV = 0.30
+    Ea_AM_eV = 0.50
+    k_B = 8.617e-5  # eV/K
+    if temperature != 298 and temperature > 0:
+        arrhenius_SE = np.exp(-Ea_SE_eV / k_B * (1/temperature - 1/298))
+        arrhenius_AM = np.exp(-Ea_AM_eV / k_B * (1/temperature - 1/298))
+        sigma_ionic_final *= arrhenius_SE
+    else:
+        arrhenius_SE = 1.0
+        arrhenius_AM = 1.0
+
     # Electronic conductivity
     sigma_electronic = 0
     if phi_am > 0 and am_cn > 0 and d_am > 0 and thickness > 0:
         ratio = thickness / d_am
         if ratio > 0:
             sigma_electronic = 0.015 * SIGMA_AM * phi_am ** 1.5 * am_cn ** 2 * np.exp(np.pi / ratio)
+            sigma_electronic *= arrhenius_AM  # temperature correction
 
     # Thermal conductivity
     sigma_thermal = 0
@@ -464,6 +480,8 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve):
         'utilization': utilizations,
         'performance_score': round(performance_score, 4),
         'rate_limiting': rate_limiting,
+        'temperature': temperature,
+        'arrhenius_factor_SE': round(arrhenius_SE, 4),
         'input': input_dict,
     }
 
@@ -525,6 +543,18 @@ def sweep_optimal(top_n=5, fixed_params=None, sweep_keys=None, defaults=None):
             continue
         sig = pred['conductivity']['sigma_ionic']
         if sig > 0:
+            # Calculate energy density & performance score
+            util_1c = pred.get('utilization', {}).get('1.0C', 1.0)
+            perf_score = sig * util_1c
+            thickness_pred = pred['microstructure'].get('thickness', {})
+            T_pred = thickness_pred.get('value', 0) if isinstance(thickness_pred, dict) else 0
+            # Energy density: E = Q_theo × V_avg × utilization / Area
+            # Q_theo_per_area = 200(mAh/g) × 4.8(g/cm³) × φ_AM × T(cm) = mAh/cm²
+            phi_am_pred = pred['microstructure'].get('phi_am', {})
+            phi_am_val = phi_am_pred.get('value', 0.5) if isinstance(phi_am_pred, dict) else 0.5
+            Q_per_cm2 = 200 * 4.8 * phi_am_val * T_pred * 1e-4  # mAh/cm²
+            E_density = Q_per_cm2 * 3.7 * util_1c / 1000  # mWh/cm²
+
             r = {
                 'd_se': round(float(params['d_se']), 1),
                 'am_pct': int(params['am_pct']),
@@ -533,6 +563,9 @@ def sweep_optimal(top_n=5, fixed_params=None, sweep_keys=None, defaults=None):
                 'sigma_ionic': round(sig, 4),
                 'sigma_electronic': pred['conductivity']['sigma_electronic'],
                 'sigma_thermal': pred['conductivity']['sigma_thermal'],
+                'util_1C': round(util_1c, 3),
+                'perf_score': round(perf_score, 4),
+                'energy_mWh_cm2': round(E_density, 2),
                 'rate_limiting': pred['rate_limiting'],
             }
             # Add sweep params to result
@@ -541,5 +574,6 @@ def sweep_optimal(top_n=5, fixed_params=None, sweep_keys=None, defaults=None):
                     r[k] = round(float(params[k]), 1)
             results.append(r)
 
-    results.sort(key=lambda x: x['sigma_ionic'], reverse=True)
+    # Sort by performance score (σ × util@1C) — realistic optimum
+    results.sort(key=lambda x: x.get('perf_score', x['sigma_ionic']), reverse=True)
     return results[:top_n]

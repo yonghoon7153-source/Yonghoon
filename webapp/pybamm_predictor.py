@@ -83,7 +83,7 @@ def _run_pybamm_dfn(pybamm, sigma_ionic, phi_se, phi_am, thickness,
             param["Cation transference number"] = 1.0
 
             # Thermodynamic factor = 1 (ideal solution, no activity correction)
-            param["1 + dlnf/dlnc"] = 1.0
+            param["Thermodynamic factor"] = 1.0
 
             # ═══ CELL GEOMETRY (ASSB) ═══
             param["Negative electrode thickness [m]"] = 20e-6  # thin Li metal

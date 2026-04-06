@@ -36,10 +36,18 @@
       </div>
 
       <div class="input-group">
-        <label for="d_am">d<sub>AM</sub> (AM diameter)</label>
+        <label for="d_am_p">d<sub>AM_P</sub> (대립 AM diameter)</label>
         <div class="slider-row">
-          <input type="range" id="d_am" min="3" max="12" step="1" value="5">
-          <span class="slider-val" id="d_am_val">5 &mu;m</span>
+          <input type="range" id="d_am_p" min="3" max="12" step="1" value="10">
+          <span class="slider-val" id="d_am_p_val">10 &mu;m</span>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label for="d_am_s">d<sub>AM_S</sub> (소립 AM diameter)</label>
+        <div class="slider-row">
+          <input type="range" id="d_am_s" min="1" max="8" step="0.5" value="4">
+          <span class="slider-val" id="d_am_s_val">4 &mu;m</span>
         </div>
       </div>
 
@@ -52,7 +60,7 @@
       </div>
 
       <div class="input-group">
-        <label for="ps_frac">P:S Fraction</label>
+        <label for="ps_frac">P:S Fraction (0=S only, 1=P only)</label>
         <div class="slider-row">
           <input type="range" id="ps_frac" min="0.0" max="1.0" step="0.1" value="0.5">
           <span class="slider-val" id="ps_frac_val">0.5</span>
@@ -259,7 +267,8 @@
 // Slider value display
 const sliders = [
   { id: 'd_se', suffix: ' \u00b5m', decimals: 1 },
-  { id: 'd_am', suffix: ' \u00b5m', decimals: 0 },
+  { id: 'd_am_p', suffix: ' \u00b5m', decimals: 0 },
+  { id: 'd_am_s', suffix: ' \u00b5m', decimals: 1 },
   { id: 'am_pct', suffix: '%', decimals: 0 },
   { id: 'ps_frac', suffix: '', decimals: 1 },
   { id: 'loading', suffix: ' mAh/cm\u00b2', decimals: 1 },
@@ -301,9 +310,13 @@ function trainModels() {
 }
 
 function getParams() {
+  const d_am_p = parseFloat(document.getElementById('d_am_p').value);
+  const d_am_s = parseFloat(document.getElementById('d_am_s').value);
   return {
     d_se: parseFloat(document.getElementById('d_se').value),
-    d_am: parseFloat(document.getElementById('d_am').value),
+    d_am: Math.max(d_am_p, d_am_s),
+    d_am_p: d_am_p,
+    d_am_s: d_am_s,
     am_pct: parseFloat(document.getElementById('am_pct').value),
     ps_frac: parseFloat(document.getElementById('ps_frac').value),
     loading: parseFloat(document.getElementById('loading').value),

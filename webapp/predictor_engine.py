@@ -791,13 +791,23 @@ def sweep_optimal(top_n=5, fixed_params=None, sweep_keys=None, defaults=None):
             util_1c = pred.get('utilization', {}).get('1.0C', 1.0)
             perf_score = sig * util_1c
             thickness_pred = pred['microstructure'].get('thickness', {})
-            T_pred = thickness_pred.get('value', 0) if isinstance(thickness_pred, dict) else 0
-            # Energy density: E = Q_theo × V_avg × utilization / Area
-            # Q_theo_per_area = 200(mAh/g) × 4.8(g/cm³) × φ_AM × T(cm) = mAh/cm²
+            T_pred = thickness_pred.get('value', 100) if isinstance(thickness_pred, dict) else 100
+            if T_pred <= 0:
+                T_pred = params.get('loading', 6) * 20  # rough estimate: 1mAh≈20μm
+
             phi_am_pred = pred['microstructure'].get('phi_am', {})
             phi_am_val = phi_am_pred.get('value', 0.5) if isinstance(phi_am_pred, dict) else 0.5
+            if phi_am_val <= 0:
+                phi_am_val = (100 - params['am_pct']) / 100 * 0.65  # rough
+
+            # Energy density: Q(mAh/cm²) = specific_cap × ρ_AM × φ_AM × T(cm)
             Q_per_cm2 = 200 * 4.8 * phi_am_val * T_pred * 1e-4  # mAh/cm²
-            E_density = Q_per_cm2 * 3.7 * util_1c / 1000  # mWh/cm²
+            E_density = Q_per_cm2 * 3.7 * util_1c  # μWh/cm² → mWh/cm² (keep as mWh)
+
+            # σ_electronic from prediction
+            sigma_el_val = pred['conductivity'].get('sigma_electronic', 0)
+            if sigma_el_val is None or sigma_el_val == 0:
+                sigma_el_val = 0
 
             r = {
                 'd_se': round(float(params['d_se']), 1),
@@ -805,8 +815,8 @@ def sweep_optimal(top_n=5, fixed_params=None, sweep_keys=None, defaults=None):
                 'ps_frac': round(float(params['ps_frac']), 1),
                 'loading': round(float(params['loading']), 1),
                 'sigma_ionic': round(sig, 4),
-                'sigma_electronic': pred['conductivity']['sigma_electronic'],
-                'sigma_thermal': pred['conductivity']['sigma_thermal'],
+                'sigma_electronic': round(sigma_el_val, 2),
+                'sigma_thermal': pred['conductivity'].get('sigma_thermal', 0),
                 'util_1C': round(util_1c, 3),
                 'perf_score': round(perf_score, 4),
                 'energy_mWh_cm2': round(E_density, 2),

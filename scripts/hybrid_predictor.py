@@ -147,6 +147,8 @@ def load_data():
                 'sigma_ion': sigma_ion,
                 'sigma_el': m.get('electronic_sigma_full_mScm', 0),
                 'sigma_th': m.get('thermal_sigma_full_mScm', 0),
+                # σ_brug = φ_SE × f_perc/100 / τ² (combines φ, f_perc, τ into one)
+                'sigma_brug': m.get('sigma_ratio', 0),  # = φ×f_perc/τ² (ratio to σ_grain)
             })
 
     # Deduplicate
@@ -197,7 +199,7 @@ def train_stage1(rows):
     input_features = ['d_se', 'd_am', 'am_pct', 'ps_frac', 'rve', 'loading',
                       # Derived features for tau prediction
                       'd_ratio', 'am_loading', 'se_density_proxy']
-    micro_targets = ['phi_se', 'phi_am', 'tau', 'cn', 'gb_d', 'g_path', 'hop_area',
+    micro_targets = ['phi_se', 'phi_am', 'sigma_brug', 'tau', 'cn', 'gb_d', 'g_path', 'hop_area',
                      'f_perc', 'thickness', 'porosity', 'am_cn']
 
     # Build arrays
@@ -312,11 +314,18 @@ def evaluate_hybrid(rows, models, input_features):
         micro = predict_microstructure(models, input_features, input_dict)
 
         # Stage 2: Scaling law with GPR-predicted microstructure
-        sigma_h = scaling_law_ionic(
-            micro['phi_se']['value'], micro['f_perc']['value'],
-            micro['tau']['value'], micro['g_path']['value'],
-            micro['gb_d']['value'], micro['cn']['value'], C=C_fit
-        )
+        # Use σ_brug directly if predicted (bypasses τ problem!)
+        if 'sigma_brug' in micro and micro['sigma_brug']['value'] > 0:
+            sigma_brug_pred = micro['sigma_brug']['value'] * SIGMA_GRAIN
+            sigma_h = sigma_brug_pred * C_fit * \
+                      (micro['g_path']['value'] * micro['gb_d']['value']**2)**0.25 * \
+                      micro['cn']['value']**2
+        else:
+            sigma_h = scaling_law_ionic(
+                micro['phi_se']['value'], micro['f_perc']['value'],
+                micro['tau']['value'], micro['g_path']['value'],
+                micro['gb_d']['value'], micro['cn']['value'], C=C_fit
+            )
         sigma_hybrid.append(sigma_h)
 
         # Scaling law with TRUE microstructure (for comparison)

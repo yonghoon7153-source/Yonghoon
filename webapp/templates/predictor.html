@@ -413,6 +413,24 @@ function renderResults(data) {
     const label = data.rate_limiting === 'ionic' ? 'Ionic transport' : 'Electronic transport';
     rateBox.innerHTML = `Rate-limiting: <strong>${label}</strong>`;
   }
+
+  // Utilization by C-rate
+  if (data.utilization) {
+    let utilHtml = '<div class="cond-card" style="background:var(--card);border:1px solid var(--border);margin-top:12px;padding:12px">';
+    utilHtml += '<div style="font-weight:700;margin-bottom:8px">📊 Utilization by C-rate</div>';
+    utilHtml += '<table style="width:100%;font-size:.85rem"><tr>';
+    for (const [cr, val] of Object.entries(data.utilization)) {
+      const pct = (val * 100).toFixed(1);
+      const color = val > 0.8 ? '#2ecc71' : val > 0.5 ? '#f39c12' : '#e74c3c';
+      utilHtml += `<td style="text-align:center"><div style="color:var(--dim);font-size:.75rem">${cr}</div><div style="color:${color};font-weight:700;font-size:1.1rem">${pct}%</div></td>`;
+    }
+    utilHtml += '</tr></table>';
+    if (data.performance_score !== undefined) {
+      utilHtml += `<div style="margin-top:8px;font-size:.8rem;color:var(--dim)">Performance Score (σ×util@1C): <strong style="color:var(--text)">${data.performance_score.toFixed(4)}</strong></div>`;
+    }
+    utilHtml += '</div>';
+    rateBox.insertAdjacentHTML('afterend', utilHtml);
+  }
 }
 
 function findOptimal() {

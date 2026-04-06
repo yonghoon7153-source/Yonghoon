@@ -326,6 +326,31 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve):
     # Uncertainty from GPR std
     sigma_ion_std = micro.get('sigma_ion', {}).get('std', 0)
 
+    # ── Utilization & Effective Performance ──
+    # Li diffusion in AM: D_AM ≈ 1e-10 cm²/s (NCM811)
+    # At C-rate C, discharge time = 3600/C seconds
+    # Li penetration depth in electrode: L_pen ∝ √(σ_ionic_eff × D_eff × t)
+    D_AM = 1e-10  # cm²/s (Li diffusion in NCM811)
+    c_rates = [0.1, 0.2, 0.5, 1.0, 2.0]  # C-rates to evaluate
+    T_cm = thickness * 1e-4 if thickness > 0 else 0.01  # μm → cm
+    sigma_eff_cm = sigma_ionic_final * 1e-3 if sigma_ionic_final > 0 else 1e-6  # mS/cm → S/cm
+
+    utilizations = {}
+    for c_rate in c_rates:
+        t_discharge = 3600 / c_rate  # seconds
+        # Effective penetration: combines ionic transport + solid diffusion
+        # L_ion = √(σ_eff × R × T_kelvin × t / (F² × c_Li))
+        # Simplified: L_pen ≈ √(2 × D_eff × t) where D_eff includes ionic contribution
+        D_eff = D_AM * (1 + sigma_eff_cm * 100)  # ionic enhancement factor
+        L_pen = np.sqrt(2 * D_eff * t_discharge)  # cm
+        util = min(1.0, L_pen / T_cm) if T_cm > 0 else 1.0
+        utilizations[f'{c_rate}C'] = round(util, 3)
+
+    # Effective capacity = theoretical × utilization
+    # Score = σ_ionic × utilization(1C) → balanced metric
+    util_1C = utilizations.get('1.0C', 1.0)
+    performance_score = sigma_ionic_final * util_1C
+
     # Rate limiting
     rate_limiting = 'ionic'
     if sigma_ionic_final > 0 and sigma_electronic > 0:
@@ -355,6 +380,8 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve):
             'sigma_electronic': round(sigma_electronic, 4),
             'sigma_thermal': round(sigma_thermal, 4),
         },
+        'utilization': utilizations,
+        'performance_score': round(performance_score, 4),
         'rate_limiting': rate_limiting,
         'input': input_dict,
     }

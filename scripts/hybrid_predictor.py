@@ -101,6 +101,23 @@ def load_data():
             if 0 < sigma_ion < 0.01:
                 continue
 
+            # Loading (mAh/cm²) — infer from folder name or thickness
+            loading = 0
+            folder_path = str(met_path.parent)
+            if '1mAh' in folder_path or 'thin' in folder_path.lower():
+                loading = 1
+            elif '8mAh' in folder_path:
+                loading = 8
+            elif '6mAh' in folder_path or 'real' in folder_path.lower() or 'Real' in folder_path:
+                loading = 6
+            elif 'particulate' in folder_path.lower():
+                # Estimate from thickness: loading ≈ T(μm) × 0.05 (rough)
+                t = m.get('thickness_um', 0)
+                if t > 0:
+                    loading = round(t * 0.05, 1)  # rough estimate
+            if loading <= 0 and m.get('thickness_um', 0) > 0:
+                loading = round(m['thickness_um'] * 0.05, 1)
+
             # d_am: use whichever is available
             d_am = max(d_am_p, d_am_s)
 
@@ -109,6 +126,7 @@ def load_data():
                 # Input
                 'd_se': d_se, 'd_am': d_am, 'd_am_p': d_am_p, 'd_am_s': d_am_s,
                 'am_pct': am_pct, 'ps_frac': ps_frac, 'rve': rve,
+                'loading': loading,
                 # Microstructure (Stage 1 targets)
                 'phi_se': m.get('phi_se', 0),
                 'phi_am': m.get('phi_am', 0),
@@ -172,7 +190,7 @@ def train_stage1(rows):
     from sklearn.preprocessing import StandardScaler
     from sklearn.model_selection import LeaveOneOut
 
-    input_features = ['d_se', 'd_am', 'am_pct', 'ps_frac', 'rve']
+    input_features = ['d_se', 'd_am', 'am_pct', 'ps_frac', 'rve', 'loading']
     micro_targets = ['phi_se', 'phi_am', 'tau', 'cn', 'gb_d', 'g_path', 'hop_area',
                      'f_perc', 'thickness', 'porosity', 'am_cn']
 
@@ -348,11 +366,12 @@ def interactive_predict(models, input_features):
         am_pct = float(input("  AM:SE - AM% [75/80/85]: ") or 80)
         ps_frac = float(input("  P:S fraction (0=S only, 1=P only) [0.5]: ") or 0.5)
         rve = float(input("  RVE size (μm) [50]: ") or 50)
+        loading = float(input("  Loading (mAh/cm²) [1/6/8]: ") or 6)
     except (ValueError, EOFError):
-        d_se, d_am, am_pct, ps_frac, rve = 1.0, 5.0, 80, 0.5, 50
+        d_se, d_am, am_pct, ps_frac, rve, loading = 1.0, 5.0, 80, 0.5, 50, 6
 
     input_dict = {'d_se': d_se, 'd_am': d_am, 'am_pct': am_pct,
-                  'ps_frac': ps_frac, 'rve': rve}
+                  'ps_frac': ps_frac, 'rve': rve, 'loading': loading}
 
     print(f"\n{'─'*50}")
     print(f"INPUT: d_SE={d_se}μm, d_AM={d_am}μm, AM:SE={am_pct}:{100-am_pct}, P:S={ps_frac*10:.0f}:{(1-ps_frac)*10:.0f}, RVE={rve}μm")
@@ -412,7 +431,7 @@ def parameter_sweep(models, input_features):
         for am_pct in [62, 75, 80, 85]:
             for ps_frac in [0.0, 0.3, 0.5, 0.7, 1.0]:
                 input_dict = {'d_se': d_se, 'd_am': 5.0, 'am_pct': am_pct,
-                             'ps_frac': ps_frac, 'rve': 50}
+                             'ps_frac': ps_frac, 'rve': 50, 'loading': 6}
                 micro = predict_microstructure(models, input_features, input_dict)
 
                 sigma_ion = scaling_law_ionic(

@@ -2083,6 +2083,7 @@ def predictor_predict():
             loading=float(data.get('loading', 6)),
             rve=float(data.get('rve', 50)),
             temperature=float(data.get('temperature', 298)),
+            additive=data.get('additive', 'none'),
         )
         return jsonify(result)
     except Exception as e:

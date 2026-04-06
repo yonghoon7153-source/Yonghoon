@@ -293,7 +293,7 @@ def get_data_count(results_folder, archive_folder):
     return _training_data_count
 
 
-def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298):
+def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive='none'):
     """Run prediction using cached models."""
     if _cached_models is None:
         return {'error': 'Models not trained. Click "Train Models" first.'}
@@ -369,6 +369,24 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298):
         if ratio > 0:
             sigma_electronic = 0.015 * SIGMA_AM * phi_am ** 1.5 * am_cn ** 2 * np.exp(np.pi / ratio)
             sigma_electronic *= arrhenius_AM  # temperature correction
+
+    # ── Conductive Additive Effect ──
+    # Ref: Bielefeld/Nanomaterials 2023, Minnmann 2021, Kang 2024
+    if additive == 'vgcf':
+        # VGCF 1wt%: adds ~0.4 mS/cm to electronic network
+        # Also slightly reduces ionic (SE volume displaced ~0.5 vol%)
+        sigma_electronic = max(sigma_electronic, 0.4) + 0.4
+        sigma_ionic_final *= 0.98  # ~2% ionic reduction from SE displacement
+    elif additive == 'c65':
+        # C65 (carbon black) 1wt%: adds ~30 mS/cm
+        # But degrades SE interface + blocks ionic paths more
+        sigma_electronic = max(sigma_electronic, 30) + 30
+        sigma_ionic_final *= 0.93  # ~7% ionic reduction (pathway blocking + SE decomposition)
+    elif additive == 'ptfe':
+        # PTFE binder 1wt%: insulator, coats AM surface
+        # Reduces AM-AM electronic contact but improves mechanical integrity
+        sigma_electronic *= 0.3  # 70% reduction in electronic conductivity
+        sigma_ionic_final *= 0.95  # 5% ionic reduction from SE displacement
 
     # Thermal conductivity
     sigma_thermal = 0

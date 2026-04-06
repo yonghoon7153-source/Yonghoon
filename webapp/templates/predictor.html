@@ -91,6 +91,16 @@
         </div>
       </div>
 
+      <div class="input-group">
+        <label>Conductive Additive</label>
+        <select id="additive" style="width:100%;padding:6px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;margin-top:4px">
+          <option value="none">None (AM-AM only)</option>
+          <option value="vgcf">VGCF 1wt% (σ_el +0.4 mS/cm)</option>
+          <option value="c65">C65 1wt% (σ_el +30 mS/cm)</option>
+          <option value="ptfe">PTFE 1wt% (σ_el ×0.3, 절연)</option>
+        </select>
+      </div>
+
     </div>
 
     <div class="btn-row">
@@ -446,6 +456,7 @@ function getParams() {
     loading: parseFloat(document.getElementById('loading').value),
     rve: parseFloat(document.getElementById('rve').value),
     temperature: parseFloat(document.getElementById('temperature').value),
+    additive: document.getElementById('additive').value,
   };
 }
 

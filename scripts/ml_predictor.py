@@ -135,12 +135,27 @@ def build_dataset(rows):
 
     X_list, Y_list, names = [], [], []
     seen = set()
+    skipped = {'tau_outlier': 0, 'low_sigma': 0, 'high_porosity': 0}
     for r in rows:
-        # Deduplicate by rounding key metrics (same case = same phi_se + thickness + tau)
+        # Deduplicate by rounding key metrics
         dedup_key = f"{r['phi_se']:.4f}_{r['thickness']:.1f}_{r['tau']:.3f}"
         if dedup_key in seen:
             continue
         seen.add(dedup_key)
+
+        # ── Preprocessing filters ──
+        # 1. tau outlier (> 10 = non-physical, DEM artifact)
+        if r['tau'] > 10:
+            skipped['tau_outlier'] += 1
+            continue
+        # 2. σ_ionic < 0.01 mS/cm (near percolation threshold)
+        if 0 < r['sigma_ion'] < 0.01:
+            skipped['low_sigma'] += 1
+            continue
+        # 3. porosity > 30% (electrode not properly formed)
+        if r['porosity'] > 30:
+            skipped['high_porosity'] += 1
+            continue
 
         # Require valid inputs
         if r['phi_se'] <= 0 or r['thickness'] <= 0 or r['d_se'] <= 0:
@@ -287,7 +302,7 @@ def main():
     print(f"\nLoaded {len(rows)} cases")
 
     X, Y, feature_names, target_names, names = build_dataset(rows)
-    print(f"Valid dataset: {len(X)} cases, {len(feature_names)} features, {len(target_names)} targets")
+    print(f"Valid dataset: {len(X)} cases (after preprocessing)")
 
     if len(X) < 10:
         print("ERROR: Need at least 10 cases for ML. Run more DEM simulations!")

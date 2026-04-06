@@ -532,6 +532,7 @@ def analyze(case_id):
                         for k in ['sigma_full', 'sigma_full_mScm', 'sigma_bulk_net',
                                   'sigma_bulk_net_mScm', 'R_brug_over_full', 'bulk_resistance_fraction',
                                   'electronic_sigma_full_mScm', 'electronic_R_brug',
+                                  'electronic_active_fraction', 'electronic_percolating_fraction',
                                   'thermal_sigma_full_mScm', 'thermal_R_brug']:
                             if k in net_data and net_data[k] is not None:
                                 met_data[k] = net_data[k]
@@ -679,6 +680,10 @@ def single(case_id):
                 net_rows.append(['Constriction 비율(%)', round((1 - metrics['bulk_resistance_fraction']) * 100, 1)])
             if metrics.get('electronic_sigma_full_mScm'):
                 net_rows.append(['σ_electronic (mS/cm)', round(metrics['electronic_sigma_full_mScm'], 2)])
+            if metrics.get('electronic_active_fraction') is not None:
+                net_rows.append(['Electronic Active AM (%)', f"{metrics['electronic_active_fraction']*100:.1f}"])
+            if metrics.get('electronic_percolating_fraction') is not None:
+                net_rows.append(['AM Percolation (%)', f"{metrics['electronic_percolating_fraction']*100:.1f}"])
             if metrics.get('thermal_sigma_full_mScm'):
                 net_rows.append(['σ_thermal (mS/cm equiv)', round(metrics['thermal_sigma_full_mScm'], 3)])
             for i, r in enumerate(net_rows):

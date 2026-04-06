@@ -364,6 +364,15 @@ def run_decomposition(atoms_raw, contacts_raw, target_types, scale,
     V_box = box_x * box_y * plate_z
     phi_se = V_se / V_box if V_box > 0 else 0
 
+    # Active fraction: percolating nodes / total nodes
+    # For electronic: "bottom-reachable AM" = AM that can receive electrons from CC
+    bottom_reachable = set()
+    for comp in nx.connected_components(G_nx):
+        if len(comp & net['bottom']) > 0:
+            bottom_reachable |= comp
+    active_fraction = len(bottom_reachable) / n_nodes if n_nodes > 0 else 0
+    perc_fraction = len(perc_nodes) / n_nodes if n_nodes > 0 else 0
+
     # Results
     results = {
         'n_nodes': n_nodes,
@@ -372,6 +381,8 @@ def run_decomposition(atoms_raw, contacts_raw, target_types, scale,
         'n_top': n_top,
         'phi_se': round(phi_se, 4),
         'bulk_resistance_fraction': round(bulk_frac, 4),
+        'active_fraction': round(active_fraction, 4),  # bottom-reachable (electronic active)
+        'percolating_fraction': round(perc_fraction, 4),  # top+bottom connected
         'sigma_full': round(sigma_full, 8) if sigma_full else None,
         'sigma_bulk_net': round(sigma_bulk_net, 8) if sigma_bulk_net else None,
         'sigma_constr_net': round(sigma_constr_net, 8) if sigma_constr_net else None,
@@ -496,6 +507,8 @@ if __name__ == '__main__':
             results['electronic_bulk_frac'] = results_el.get('bulk_resistance_fraction')
             results['electronic_n_nodes'] = results_el.get('n_nodes')
             results['electronic_n_edges'] = results_el.get('n_edges')
+            results['electronic_active_fraction'] = results_el.get('active_fraction')  # bottom-reachable AM
+            results['electronic_percolating_fraction'] = results_el.get('percolating_fraction')
         if results_th:
             results['thermal_sigma_full'] = results_th.get('sigma_full')
             results['thermal_sigma_full_mScm'] = results_th.get('sigma_full_mScm')

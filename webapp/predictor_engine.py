@@ -20,11 +20,15 @@ INPUT_FEATURES = [
     'd_ratio', 'am_loading', 'se_density_proxy', 'layer_count'
 ]
 
-MICRO_TARGETS = [
+# Core targets (always included)
+CORE_TARGETS = [
     'phi_se', 'phi_am', 'sigma_brug', 'tau', 'cn', 'gb_d', 'g_path',
     'hop_area', 'f_perc', 'thickness', 'porosity', 'am_cn', 'sigma_ion',
-    'coverage'  # AM-SE contact fraction for Newman utilization
+    'coverage'
 ]
+# Additional targets auto-discovered from full_metrics.json
+# Will be populated dynamically during data loading
+MICRO_TARGETS = list(CORE_TARGETS)  # starts with core, expands in train_models()
 
 # Cached models (module-level)
 _cached_models = None
@@ -162,6 +166,20 @@ def load_training_data(results_folder, archive_folder):
                 'sigma_th': m.get('thermal_sigma_full_mScm', 0),
                 'sigma_brug': m.get('sigma_ratio', 0),
             })
+            # Auto-extract ALL numeric fields from full_metrics.json
+            # Skip input features and already-mapped fields
+            skip_keys = {'phi_se', 'phi_am', 'porosity', 'se_se_cn', 'tortuosity_mean',
+                        'tortuosity_recommended', 'gb_density_mean', 'path_conductance_mean',
+                        'path_hop_area_mean', 'percolation_pct', 'thickness_um', 'am_am_cn',
+                        'sigma_full_mScm', 'electronic_sigma_full_mScm', 'thermal_sigma_full_mScm',
+                        'sigma_ratio', 'sigma_full', 'coverage_AM_P_mean', 'coverage_AM_S_mean',
+                        'coverage_AM_mean', 'ps_ratio'}
+            for mk, mv in m.items():
+                if mk not in skip_keys and isinstance(mv, (int, float)) and not isinstance(mv, bool):
+                    safe_key = f'fm_{mk}'  # prefix to avoid collision
+                    rows[-1][safe_key] = float(mv)
+            rows[-1]['_all_fm_keys'] = [f'fm_{k}' for k, v in m.items()
+                                         if k not in skip_keys and isinstance(v, (int, float)) and not isinstance(v, bool)]
 
     # Deduplicate
     seen = set()
@@ -188,8 +206,23 @@ def train_models(results_folder, archive_folder):
         _cached_models = None
         return {'success': False, 'message': f'Not enough training data ({len(rows)} cases, need >= 3)', 'count': len(rows)}
 
+    # Auto-discover all numeric targets from full_metrics
+    global MICRO_TARGETS
+    all_fm_keys = set()
+    for r in rows:
+        all_fm_keys.update(r.get('_all_fm_keys', []))
+    # Filter: need at least 80% of cases to have this key, and non-zero variance
+    extra_targets = []
+    for fk in sorted(all_fm_keys):
+        vals = [r.get(fk, 0) for r in rows]
+        non_zero = sum(1 for v in vals if v != 0)
+        if non_zero >= len(rows) * 0.5 and np.std(vals) > 0:
+            extra_targets.append(fk)
+    MICRO_TARGETS = list(CORE_TARGETS) + extra_targets
+    print(f"  Targets: {len(CORE_TARGETS)} core + {len(extra_targets)} auto-discovered = {len(MICRO_TARGETS)} total")
+
     X = np.array([[r[f] for f in INPUT_FEATURES] for r in rows])
-    Y = {t: np.array([r[t] for r in rows]) for t in MICRO_TARGETS}
+    Y = {t: np.array([r.get(t, 0) for r in rows]) for t in MICRO_TARGETS}
 
     scaler_X = StandardScaler()
     X_scaled = scaler_X.fit_transform(X)

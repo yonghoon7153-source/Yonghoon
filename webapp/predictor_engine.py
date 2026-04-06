@@ -22,7 +22,8 @@ INPUT_FEATURES = [
 
 MICRO_TARGETS = [
     'phi_se', 'phi_am', 'sigma_brug', 'tau', 'cn', 'gb_d', 'g_path',
-    'hop_area', 'f_perc', 'thickness', 'porosity', 'am_cn', 'sigma_ion'
+    'hop_area', 'f_perc', 'thickness', 'porosity', 'am_cn', 'sigma_ion',
+    'coverage'  # AM-SE contact fraction for Newman utilization
 ]
 
 # Cached models (module-level)
@@ -154,6 +155,8 @@ def load_training_data(results_folder, archive_folder):
                 'f_perc': m.get('percolation_pct', 0),
                 'thickness': m.get('thickness_um', 0),
                 'am_cn': m.get('am_am_cn', 0),
+                # Coverage: fraction of AM surface in contact with SE
+                'coverage': max(m.get('coverage_AM_P_mean', 0), m.get('coverage_AM_S_mean', 0), m.get('coverage_AM_mean', 0)) / 100 if max(m.get('coverage_AM_P_mean', 0), m.get('coverage_AM_S_mean', 0), m.get('coverage_AM_mean', 0)) > 0 else 0.20,
                 'sigma_ion': sigma_ion,
                 'sigma_el': m.get('electronic_sigma_full_mScm', 0),
                 'sigma_th': m.get('thermal_sigma_full_mScm', 0),
@@ -346,9 +349,10 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve):
 
     # Specific interfacial area: a_s = 3 × φ_AM / r_AM (spherical particles)
     # But in ASSB, not all AM surface contacts SE — apply coverage fraction
-    # DEM data shows coverage_AM ~ 20% for typical composites
+    # Use GPR-predicted coverage (NOT fixed 20%)
     a_s_geometric = 3 * phi_am / r_AM_cm if r_AM_cm > 0 and phi_am > 0 else 1e4  # cm⁻¹
-    coverage_fraction = 0.20  # from DEM: ~20% of AM surface contacts SE
+    coverage_pred = micro.get('coverage', {}).get('value', 0.20) if isinstance(micro.get('coverage'), dict) else 0.20
+    coverage_fraction = max(0.05, min(0.50, coverage_pred))  # clamp to reasonable range
     a_s = a_s_geometric * coverage_fraction  # effective interfacial area
 
     # Exchange current density: FIXED material property (NOT C-rate dependent!)

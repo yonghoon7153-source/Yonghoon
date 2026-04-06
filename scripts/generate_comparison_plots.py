@@ -991,9 +991,10 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
 
     # Same as find_scaling_law.py: σ_brug = 3.0 × φ_SE × f_perc / τ²
     valid_idx = []
+    SIGMA_MIN = 0.01  # mS/cm — below this, near percolation threshold, scaling law breaks
     for i in range(len(data_list)):
         if (phi_se[i] > 0 and f_perc[i] > 0 and tau[i] > 0 and
-            g_path[i] > 0 and cn[i] > 0 and gb_dens[i] > 0 and sigma_net[i] > 0):
+            g_path[i] > 0 and cn[i] > 0 and gb_dens[i] > 0 and sigma_net[i] > SIGMA_MIN):
             valid_idx.append(i)
 
     if len(valid_idx) < 3:
@@ -1182,7 +1183,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
     # Auto-fit C from data (like ionic_scaling_fit)
     valid_fit = []
     for i in range(len(data_list)):
-        if g_path[i] > 0 and cn[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0 and sigma_net[i] > 0:
+        if g_path[i] > 0 and cn[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0 and sigma_net[i] > 0.01:
             valid_fit.append(i)
 
     # Use global C from ionic_scaling_fit if available (consistent across groups)

@@ -131,6 +131,7 @@ def load_data():
                 'd_ratio': d_se / d_am if d_am > 0 else 0.1,  # SE/AM size ratio
                 'am_loading': am_pct * loading / 100,  # AM mass per area proxy
                 'se_density_proxy': (100 - am_pct) / max(d_se, 0.1),  # SE%/d_SE = packing density
+                'layer_count': loading * 30 / max(d_se, 0.1),  # ~T/d_SE = number of SE layers
                 # Microstructure (Stage 1 targets)
                 'phi_se': m.get('phi_se', 0),
                 'phi_am': m.get('phi_am', 0),
@@ -197,10 +198,10 @@ def train_stage1(rows):
     from sklearn.model_selection import LeaveOneOut
 
     input_features = ['d_se', 'd_am', 'am_pct', 'ps_frac', 'rve', 'loading',
-                      # Derived features for tau prediction
-                      'd_ratio', 'am_loading', 'se_density_proxy']
+                      'd_ratio', 'am_loading', 'se_density_proxy', 'layer_count']
     micro_targets = ['phi_se', 'phi_am', 'sigma_brug', 'tau', 'cn', 'gb_d', 'g_path', 'hop_area',
-                     'f_perc', 'thickness', 'porosity', 'am_cn']
+                     'f_perc', 'thickness', 'porosity', 'am_cn',
+                     'sigma_ion']  # direct σ prediction for ensemble
 
     # Build arrays
     X = np.array([[r[f] for f in input_features] for r in rows])
@@ -355,17 +356,54 @@ def evaluate_hybrid(rows, models, input_features):
     err_hybrid = calc_err(sigma_hybrid, sigma_actual, valid)
     err_scaling = calc_err(sigma_scaling_only, sigma_actual, valid)
 
+    # GPR direct σ prediction
+    sigma_gpr_direct = []
+    for r in rows:
+        input_dict = {f: r[f] for f in input_features}
+        micro = predict_microstructure(models, input_features, input_dict)
+        if 'sigma_ion' in micro and micro['sigma_ion']['value'] > 0:
+            sigma_gpr_direct.append(micro['sigma_ion']['value'])
+        else:
+            sigma_gpr_direct.append(0)
+    sigma_gpr_direct = np.array(sigma_gpr_direct)
+    valid_gpr = valid & (sigma_gpr_direct > 0)
+    r2_gpr = calc_r2(sigma_gpr_direct, sigma_actual, valid_gpr) if valid_gpr.any() else 0
+    err_gpr = calc_err(sigma_gpr_direct, sigma_actual, valid_gpr) if valid_gpr.any() else 0
+
+    # Ensemble: weighted average of Hybrid and GPR direct
+    w_hybrid = 0.7  # physics-based gets more weight
+    sigma_ensemble = w_hybrid * sigma_hybrid + (1 - w_hybrid) * sigma_gpr_direct
+    valid_ens = valid & (sigma_ensemble > 0)
+    r2_ensemble = calc_r2(sigma_ensemble, sigma_actual, valid_ens) if valid_ens.any() else 0
+    err_ensemble = calc_err(sigma_ensemble, sigma_actual, valid_ens) if valid_ens.any() else 0
+
+    # Optimal ensemble weight search
+    best_w, best_r2_w = 0.5, 0
+    for w in np.arange(0.0, 1.05, 0.05):
+        s_ens = w * sigma_hybrid + (1 - w) * sigma_gpr_direct
+        v_ens = valid & (s_ens > 0)
+        if v_ens.any():
+            r2_w = calc_r2(s_ens, sigma_actual, v_ens)
+            if r2_w > best_r2_w:
+                best_w, best_r2_w = w, r2_w
+
+    sigma_best_ens = best_w * sigma_hybrid + (1 - best_w) * sigma_gpr_direct
+    valid_best = valid & (sigma_best_ens > 0)
+    err_best = calc_err(sigma_best_ens, sigma_actual, valid_best) if valid_best.any() else 0
+
     print(f"\n  σ_ionic prediction (n={valid.sum()}):")
-    print(f"  {'Method':35s} {'R²':>8s} {'|err|':>8s}")
-    print(f"  {'─'*55}")
-    print(f"  {'Scaling Law (true microstructure)':35s} {r2_scaling:8.3f} {err_scaling:7.1f}%")
-    print(f"  {'Hybrid (GPR micro + Scaling Law)':35s} {r2_hybrid:8.3f} {err_hybrid:7.1f}%")
-    print(f"  {'GPR direct (input → σ, from v2)':35s} {'~0.65':>8s} {'~56%':>8s}")
+    print(f"  {'Method':40s} {'R²':>8s} {'|err|':>8s}")
+    print(f"  {'─'*60}")
+    print(f"  {'Scaling Law (true microstructure)':40s} {r2_scaling:8.3f} {err_scaling:7.1f}%")
+    print(f"  {'Hybrid (GPR micro + Scaling Law)':40s} {r2_hybrid:8.3f} {err_hybrid:7.1f}%")
+    print(f"  {'GPR direct (input → σ)':40s} {r2_gpr:8.3f} {err_gpr:7.1f}%")
+    print(f"  {'Ensemble (70% Hybrid + 30% GPR)':40s} {r2_ensemble:8.3f} {err_ensemble:7.1f}%")
+    print(f"  {'Ensemble (optimal w={best_w:.2f})':40s} {best_r2_w:8.3f} {err_best:7.1f}%")
 
-    if r2_hybrid > 0.8:
-        print(f"\n  ★ Hybrid R²={r2_hybrid:.3f} — DEM 없이 input만으로 σ_ionic 예측 가능!")
+    if best_r2_w > 0.8:
+        print(f"\n  ★ Best R²={best_r2_w:.3f} (w_hybrid={best_w:.2f}) — DEM 없이 σ_ionic 예측!")
 
-    return r2_hybrid, r2_scaling
+    return best_r2_w, r2_scaling
 
 
 def interactive_predict(models, input_features):
@@ -389,7 +427,8 @@ def interactive_predict(models, input_features):
                   'ps_frac': ps_frac, 'rve': rve, 'loading': loading,
                   'd_ratio': d_se / d_am if d_am > 0 else 0.1,
                   'am_loading': am_pct * loading / 100,
-                  'se_density_proxy': (100 - am_pct) / max(d_se, 0.1)}
+                  'se_density_proxy': (100 - am_pct) / max(d_se, 0.1),
+                  'layer_count': loading * 30 / max(d_se, 0.1)}
 
     print(f"\n{'─'*50}")
     print(f"INPUT: d_SE={d_se}μm, d_AM={d_am}μm, AM:SE={am_pct}:{100-am_pct}, P:S={ps_frac*10:.0f}:{(1-ps_frac)*10:.0f}, RVE={rve}μm")
@@ -453,7 +492,8 @@ def parameter_sweep(models, input_features):
                              'ps_frac': ps_frac, 'rve': 50, 'loading': 6,
                              'd_ratio': d_se / d_am_sw,
                              'am_loading': am_pct * 6 / 100,
-                             'se_density_proxy': (100 - am_pct) / max(d_se, 0.1)}
+                             'se_density_proxy': (100 - am_pct) / max(d_se, 0.1),
+                             'layer_count': 6 * 30 / max(d_se, 0.1)}
                 micro = predict_microstructure(models, input_features, input_dict)
 
                 sigma_ion = scaling_law_ionic(

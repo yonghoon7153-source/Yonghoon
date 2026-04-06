@@ -28,6 +28,7 @@ from flask import (
     redirect, url_for, send_file
 )
 import storage_sync
+import predictor_engine
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max
@@ -2045,6 +2046,58 @@ def download_fitting_report(session_id):
     report_dir = os.path.join(app.config['RESULTS_FOLDER'], 'fitting_reports', session_id)
     return send_from_directory(report_dir, 'fitting_report.md', as_attachment=True,
                               download_name='GB_correction_fitting_report.md')
+
+
+# ─── ML Predictor ──────────────────────────────────────────────────────────
+
+@app.route('/predictor')
+def predictor_page():
+    """ML-based electrode property predictor page."""
+    data_count = predictor_engine.get_data_count(
+        app.config['RESULTS_FOLDER'], app.config['ARCHIVE_FOLDER'])
+    models_ready = predictor_engine._cached_models is not None
+    return render_template('predictor.html', active='predictor',
+                           data_count=data_count, models_ready=models_ready)
+
+
+@app.route('/predictor/train')
+def predictor_train():
+    """Train GPR models from existing data."""
+    result = predictor_engine.train_models(
+        app.config['RESULTS_FOLDER'], app.config['ARCHIVE_FOLDER'])
+    return jsonify(result)
+
+
+@app.route('/predictor/predict', methods=['POST'])
+def predictor_predict():
+    """Predict electrode properties from design parameters."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No input data'}), 400
+    try:
+        result = predictor_engine.predict(
+            d_se=float(data.get('d_se', 1.0)),
+            d_am=float(data.get('d_am', 5.0)),
+            am_pct=float(data.get('am_pct', 80)),
+            ps_frac=float(data.get('ps_frac', 0.5)),
+            loading=float(data.get('loading', 6)),
+            rve=float(data.get('rve', 50)),
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/predictor/optimal')
+def predictor_optimal():
+    """Find optimal design by sweeping parameter space."""
+    try:
+        result = predictor_engine.sweep_optimal(top_n=5)
+        if isinstance(result, dict) and 'error' in result:
+            return jsonify(result), 400
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':

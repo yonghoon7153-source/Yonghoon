@@ -326,35 +326,65 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve):
     # Uncertainty from GPR std
     sigma_ion_std = micro.get('sigma_ion', {}).get('std', 0)
 
-    # ── Utilization: Newman Electrode Model ──
-    # Newman & Tobias (1962): util = tanh(ν)/ν
-    # ν = T × √(a_s × j₀ × F / (κ_eff × R × T_K))
-    # Ref: Fuller, Doyle, Newman (1994), J. Electrochem. Soc.
-    F_const = 96485      # C/mol (Faraday)
+    # ── Utilization: Newman Electrode Model (Corrected) ──
+    # Two versions: A) Newman simplified, B) PyBaMM (if available)
+    #
+    # Newman: util = tanh(ν)/ν where ν = T/L_c
+    # L_c = characteristic length = √(κ_eff / (a_s × j₀ × F / (R×T_K)))
+    # Ref: Newman & Tobias (1962), Fuller, Doyle, Newman (1994)
+    #
+    # Key correction: j₀ is FIXED (exchange current density, material property)
+    # C-rate affects applied current i_app, which changes overpotential η
+    # At high η (high C-rate), effective reaction rate increases → ν changes
+
+    F_const = 96485      # C/mol
     R_const = 8.314      # J/(mol·K)
-    T_kelvin = 298       # K (25°C)
-    r_AM_cm = d_am * 1e-4 / 2 if d_am > 0 else 2.5e-4  # μm → cm, radius
+    T_kelvin = 298       # K
+    r_AM_cm = d_am * 1e-4 / 2 if d_am > 0 else 2.5e-4  # μm → cm
     T_cm = thickness * 1e-4 if thickness > 0 else 0.01   # μm → cm
     kappa_eff = sigma_ionic_final * 1e-3 if sigma_ionic_final > 0 else 1e-6  # mS/cm → S/cm
 
     # Specific interfacial area: a_s = 3 × φ_AM / r_AM (spherical particles)
     a_s = 3 * phi_am / r_AM_cm if r_AM_cm > 0 and phi_am > 0 else 1e4  # cm⁻¹
 
-    # Exchange current density depends on C-rate (Butler-Volmer linearization)
-    # j₀ ≈ 0.1~1 mA/cm² for NCM/LPSCl interface (Ketter 2025, Minnmann 2021)
-    j0_base = 0.5e-3  # A/cm² (0.5 mA/cm², moderate estimate)
+    # Exchange current density: FIXED material property (NOT C-rate dependent!)
+    # NCM811/LPSCl: j₀ ≈ 0.05~0.5 mA/cm² (ASSB is lower than liquid LIB)
+    # Ref: Sakuda (2017), Kato (2016), Minnmann (2021)
+    j0 = 0.1e-3  # A/cm² (0.1 mA/cm², conservative for ASSB)
 
-    c_rates = [0.1, 0.2, 0.5, 1.0, 2.0]
+    # Theoretical capacity for C-rate calculation
+    # NCM811: 200 mAh/g, ρ_AM = 4.8 g/cm³
+    Q_theo = 200  # mAh/g
+    rho_AM = 4.8  # g/cm³
+    # Volumetric capacity = Q × ρ × φ_AM
+    Q_vol = Q_theo * rho_AM * phi_am * 1e-3  # Ah/cm³
+
+    c_rates = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
     utilizations = {}
     for c_rate in c_rates:
-        # At higher C-rate, effective j₀ increases (more current demanded)
-        j0_eff = j0_base * c_rate  # scale with C-rate
-        if kappa_eff > 0 and a_s > 0:
-            nu_sq = a_s * j0_eff * F_const / (kappa_eff * R_const * T_kelvin)
-            nu = T_cm * np.sqrt(nu_sq) if nu_sq > 0 else 0
-            util = np.tanh(nu) / nu if nu > 0.01 else 1.0
+        # Applied current density (A/cm²) = C-rate × Q_vol × T
+        i_app = c_rate * Q_vol * T_cm  # A/cm²
+
+        # Newman dimensionless parameter
+        # ν² = a_s × j₀ × F × T² / (κ_eff × R × T_K)
+        # This gives characteristic penetration depth vs electrode thickness
+        if kappa_eff > 0 and a_s > 0 and j0 > 0:
+            nu_sq = a_s * j0 * F_const * T_cm**2 / (kappa_eff * R_const * T_kelvin)
+            nu = np.sqrt(nu_sq) if nu_sq > 0 else 0
+
+            # Base utilization from Newman
+            util_newman = np.tanh(nu) / nu if nu > 0.01 else 1.0
+
+            # Additional C-rate penalty: ohmic drop limits
+            # ΔV_ohmic = i_app × T / (2 × κ_eff)
+            delta_V = i_app * T_cm / (2 * kappa_eff) if kappa_eff > 0 else 10
+            V_cutoff = 0.3  # V (typical cutoff overpotential)
+            ohmic_factor = min(1.0, V_cutoff / delta_V) if delta_V > 0 else 1.0
+
+            util = util_newman * ohmic_factor
         else:
             util = 1.0
+
         utilizations[f'{c_rate}C'] = round(min(1.0, max(0.0, util)), 3)
 
     util_1C = utilizations.get('1.0C', 1.0)

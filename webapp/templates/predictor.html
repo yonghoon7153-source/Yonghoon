@@ -117,16 +117,12 @@
 
   <!-- Optimal Design Section -->
   <div id="optimal-section" class="card" style="display:none;">
-    <h3 class="card-title">Optimal Design (Top 5 by &sigma;<sub>ionic</sub>)</h3>
+    <h3 class="card-title">Optimal Design (Top 10 by &sigma;<sub>ionic</sub>)</h3>
     <div class="table-wrap">
       <table class="result-table optimal-table">
-        <thead>
+        <thead id="optimal-header">
           <tr>
             <th>#</th>
-            <th>d<sub>SE</sub></th>
-            <th>AM%</th>
-            <th>P:S</th>
-            <th>Loading</th>
             <th>&sigma;<sub>ionic</sub></th>
             <th>&sigma;<sub>elec</sub></th>
             <th>&sigma;<sub>therm</sub></th>
@@ -457,17 +453,35 @@ function findOptimal() {
 
 function renderOptimal(results) {
   document.getElementById('optimal-section').style.display = 'block';
+
+  // Detect which param columns exist in results
+  const paramKeys = ['d_se', 'd_am_p', 'd_am_s', 'am_pct', 'ps_frac', 'loading', 'rve'];
+  const paramLabels = {
+    d_se: 'd<sub>SE</sub>', d_am_p: 'd<sub>AM_P</sub>', d_am_s: 'd<sub>AM_S</sub>',
+    am_pct: 'AM%', ps_frac: 'P:S', loading: 'Loading', rve: 'RVE'
+  };
+  const activeParams = paramKeys.filter(k => results.length > 0 && results[0][k] !== undefined);
+
+  // Dynamic header
+  const thead = document.getElementById('optimal-header');
+  thead.innerHTML = '<tr><th>#</th>' +
+    activeParams.map(k => `<th>${paramLabels[k]}</th>`).join('') +
+    '<th>σ<sub>ionic</sub></th><th>σ<sub>elec</sub></th><th>σ<sub>therm</sub></th><th>Rate Limiting</th></tr>';
+
+  // Rows
   const tbody = document.getElementById('optimal-results');
   tbody.innerHTML = '';
   results.forEach((r, i) => {
     const tr = document.createElement('tr');
     if (i === 0) tr.className = 'rank-1';
-    tr.innerHTML = `
-      <td>${i + 1}</td>
-      <td>${r.d_se} \u00b5m</td>
-      <td>${r.am_pct}%</td>
-      <td>${r.ps_frac}</td>
-      <td>${r.loading}</td>
+    const paramCells = activeParams.map(k => {
+      let v = r[k];
+      if (k === 'am_pct') return `<td>${v}%</td>`;
+      if (k.startsWith('d_')) return `<td>${v} μm</td>`;
+      if (k === 'loading') return `<td>${v}</td>`;
+      return `<td>${v}</td>`;
+    }).join('');
+    tr.innerHTML = `<td>${i + 1}</td>${paramCells}
       <td><strong>${r.sigma_ionic.toFixed(4)}</strong></td>
       <td>${r.sigma_electronic.toFixed(4)}</td>
       <td>${r.sigma_thermal.toFixed(4)}</td>

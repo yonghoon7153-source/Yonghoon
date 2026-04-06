@@ -132,7 +132,13 @@ def build_dataset(rows):
                     'sigma_ion', 'sigma_el', 'sigma_th']
 
     X_list, Y_list, names = [], [], []
+    seen = set()
     for r in rows:
+        # Deduplicate by name
+        if r['name'] in seen:
+            continue
+        seen.add(r['name'])
+
         # Require valid inputs
         if r['phi_se'] <= 0 or r['thickness'] <= 0 or r['d_se'] <= 0:
             continue

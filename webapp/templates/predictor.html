@@ -142,6 +142,63 @@
     </div>
   </div>
 
+  <!-- Analysis Tools -->
+  <div class="card" id="analysis-section">
+    <h3 class="card-title">Analysis Tools</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      <button class="btn btn-primary" onclick="showHeatmap()">2D Heatmap</button>
+      <button class="btn btn-primary" onclick="showSensitivity()">Sensitivity</button>
+      <button class="btn btn-accent" onclick="showPareto()">Pareto Front</button>
+      <button class="btn btn-accent" onclick="suggestNext()">Next DEM Suggestion</button>
+      <button class="btn btn-secondary" onclick="exportCSV()">Export CSV</button>
+    </div>
+
+    <!-- Heatmap -->
+    <div id="heatmap-container" style="display:none">
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap">
+        <label style="color:var(--dim);font-size:.85rem">X:</label>
+        <select id="heatmap-x" class="analysis-select">
+          <option value="d_se">d_SE</option>
+          <option value="am_pct">AM%</option>
+          <option value="ps_frac">P:S</option>
+          <option value="loading">Loading</option>
+          <option value="d_am">d_AM</option>
+        </select>
+        <label style="color:var(--dim);font-size:.85rem">Y:</label>
+        <select id="heatmap-y" class="analysis-select">
+          <option value="am_pct">AM%</option>
+          <option value="d_se">d_SE</option>
+          <option value="ps_frac">P:S</option>
+          <option value="loading">Loading</option>
+          <option value="d_am">d_AM</option>
+        </select>
+        <label style="color:var(--dim);font-size:.85rem">Target:</label>
+        <select id="heatmap-z" class="analysis-select">
+          <option value="sigma_ionic">sigma_ionic</option>
+          <option value="sigma_electronic">sigma_electronic</option>
+          <option value="energy">Energy density</option>
+          <option value="performance">Perf Score</option>
+        </select>
+        <button class="btn btn-primary" onclick="generateHeatmap()" style="padding:6px 16px">Generate</button>
+      </div>
+      <div id="heatmap-grid"></div>
+      <div id="heatmap-legend" style="display:none;margin-top:8px;font-size:.75rem;color:var(--dim)">
+        <span style="display:inline-block;width:14px;height:14px;background:#dc2626;vertical-align:middle;border-radius:2px"></span> Low
+        <span style="display:inline-block;width:14px;height:14px;background:#f59e0b;vertical-align:middle;border-radius:2px;margin-left:12px"></span> Mid
+        <span style="display:inline-block;width:14px;height:14px;background:#22c55e;vertical-align:middle;border-radius:2px;margin-left:12px"></span> High
+      </div>
+    </div>
+
+    <!-- Sensitivity -->
+    <div id="sensitivity-container" style="display:none"></div>
+
+    <!-- Pareto -->
+    <div id="pareto-container" style="display:none"></div>
+
+    <!-- BO suggestion -->
+    <div id="suggest-container" style="display:none"></div>
+  </div>
+
   <!-- Loading Overlay -->
   <div id="loading-overlay" style="display:none;">
     <div class="spinner"></div>
@@ -265,6 +322,63 @@
   .fix-check:not(:checked) + * { color: #ff922b; }
   label:has(.fix-check:not(:checked)) { color: #ff922b; font-weight: 700; }
   .sweep-hint { font-size: .75rem; color: var(--dim); margin-top: 4px; }
+  .analysis-select {
+    background: var(--bg2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 8px; font-size: 0.85rem; font-family: var(--font);
+  }
+
+  .heatmap-table { border-collapse: collapse; font-size: 0.65rem; }
+  .heatmap-table td {
+    width: 28px; height: 22px; text-align: center; color: #fff;
+    font-family: var(--mono); font-weight: 600; font-size: 0.6rem;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .heatmap-table .axis-label {
+    background: transparent; color: var(--dim); font-size: 0.65rem;
+    font-weight: 400; border: none; width: auto; padding: 2px 4px;
+  }
+
+  .sensitivity-bar-wrap {
+    margin-bottom: 8px; font-size: 0.85rem;
+  }
+  .sensitivity-bar-label {
+    display: flex; justify-content: space-between; margin-bottom: 2px;
+    color: var(--text); font-weight: 500;
+  }
+  .sensitivity-bar-bg {
+    background: var(--bg2); border-radius: 4px; height: 22px; overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .sensitivity-bar-fill {
+    height: 100%; border-radius: 4px; transition: width 0.3s;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding-right: 6px; font-size: 0.7rem; color: #fff; font-weight: 700;
+  }
+
+  .pareto-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .pareto-table th {
+    text-align: left; padding: 6px 10px; color: var(--dim); font-weight: 500;
+    border-bottom: 1px solid var(--border);
+  }
+  .pareto-table td {
+    padding: 5px 10px; border-bottom: 1px solid rgba(42,45,62,0.5);
+    font-family: var(--mono);
+  }
+  .pareto-table tr:hover td { background: rgba(108,140,255,0.04); }
+
+  .suggest-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; margin-bottom: 10px;
+  }
+  .suggest-rank {
+    font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-right: 10px;
+  }
+  .suggest-params { font-size: 0.82rem; color: var(--text); }
+  .suggest-scores {
+    display: flex; gap: 16px; margin-top: 6px; font-size: 0.8rem; color: var(--dim);
+  }
+  .suggest-scores strong { color: var(--green); }
+
   @media (max-width: 800px) {
     .input-grid { grid-template-columns: 1fr; }
     .results-grid { grid-template-columns: 1fr; }
@@ -522,6 +636,225 @@ function renderOptimal(results) {
       <td>${r.rate_limiting}</td>`;
     tbody.appendChild(tr);
   });
+}
+
+// ═══ Analysis Tools ═══
+
+function hideAllAnalysis() {
+  ['heatmap-container','sensitivity-container','pareto-container','suggest-container'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+}
+
+function showHeatmap() {
+  hideAllAnalysis();
+  document.getElementById('heatmap-container').style.display = 'block';
+  document.getElementById('analysis-section').scrollIntoView({behavior:'smooth'});
+}
+
+function showSensitivity() {
+  hideAllAnalysis();
+  const container = document.getElementById('sensitivity-container');
+  container.style.display = 'block';
+  container.innerHTML = '<div style="color:var(--dim)">Computing sensitivity...</div>';
+  const params = getParams();
+  fetch('/predictor/sensitivity', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(params),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { container.innerHTML = `<div style="color:var(--red)">${data.error}</div>`; return; }
+      renderSensitivity(data);
+    })
+    .catch(err => { container.innerHTML = `<div style="color:var(--red)">Error: ${err}</div>`; });
+}
+
+function renderSensitivity(data) {
+  const container = document.getElementById('sensitivity-container');
+  const sens = data.sensitivities;
+  const maxDelta = Math.max(...sens.map(s => s.delta_sigma), 0.001);
+  const paramLabels = {d_se:'d_SE', am_pct:'AM%', ps_frac:'P:S frac', loading:'Loading'};
+  let html = `<div style="margin-bottom:10px;font-size:.85rem;color:var(--dim)">Base sigma_ionic: <strong style="color:var(--text)">${data.base_sigma.toFixed(4)} mS/cm</strong> &mdash; Variation: +/-30%</div>`;
+  sens.forEach(s => {
+    const pct = Math.min(100, (s.delta_sigma / maxDelta) * 100);
+    const color = pct > 66 ? 'var(--accent)' : pct > 33 ? 'var(--yellow)' : 'var(--dim)';
+    const label = paramLabels[s.param] || s.param;
+    html += `<div class="sensitivity-bar-wrap">
+      <div class="sensitivity-bar-label"><span>${label}</span><span style="font-family:var(--mono);font-size:.8rem">${s.delta_minus >= 0 ? '+' : ''}${s.delta_minus.toFixed(4)} / ${s.delta_plus >= 0 ? '+' : ''}${s.delta_plus.toFixed(4)}</span></div>
+      <div class="sensitivity-bar-bg"><div class="sensitivity-bar-fill" style="width:${pct}%;background:${color}">${s.delta_sigma.toFixed(4)}</div></div>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+function showPareto() {
+  hideAllAnalysis();
+  const container = document.getElementById('pareto-container');
+  container.style.display = 'block';
+  container.innerHTML = '<div style="color:var(--dim)">Computing Pareto front (this may take a moment)...</div>';
+  const params = getParams();
+  fetch('/predictor/pareto', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({d_am: params.d_am, ps_frac: params.ps_frac, rve: params.rve, n_points: 8}),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { container.innerHTML = `<div style="color:var(--red)">${data.error}</div>`; return; }
+      renderPareto(data);
+    })
+    .catch(err => { container.innerHTML = `<div style="color:var(--red)">Error: ${err}</div>`; });
+}
+
+function renderPareto(data) {
+  const container = document.getElementById('pareto-container');
+  const pareto = data.pareto;
+  if (!pareto || pareto.length === 0) {
+    container.innerHTML = '<div style="color:var(--dim)">No Pareto-optimal points found.</div>';
+    return;
+  }
+  let html = `<div style="margin-bottom:10px;font-size:.85rem;color:var(--dim)">Pareto front: ${pareto.length} optimal points from ${data.all_count} evaluated</div>`;
+
+  // Simple scatter visualization using CSS
+  const maxSigma = Math.max(...pareto.map(p => p.sigma_ionic));
+  const maxEnergy = Math.max(...pareto.map(p => p.energy));
+  html += `<div style="position:relative;width:100%;height:220px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;overflow:hidden">`;
+  html += `<div style="position:absolute;bottom:2px;left:50%;transform:translateX(-50%);font-size:.7rem;color:var(--dim)">sigma_ionic (mS/cm) &rarr;</div>`;
+  html += `<div style="position:absolute;left:4px;top:50%;transform:rotate(-90deg) translateX(-50%);font-size:.7rem;color:var(--dim);transform-origin:left center">Energy (mWh/cm2) &rarr;</div>`;
+  pareto.forEach((p, i) => {
+    const x = 30 + (p.sigma_ionic / (maxSigma * 1.1)) * 65;
+    const y = 85 - (p.energy / (maxEnergy * 1.1)) * 75;
+    html += `<div style="position:absolute;left:${x}%;top:${y}%;width:10px;height:10px;background:var(--accent);border-radius:50%;transform:translate(-50%,-50%)" title="sigma=${p.sigma_ionic}, E=${p.energy}, d_se=${p.d_se}, AM=${p.am_pct}%, L=${p.loading}"></div>`;
+  });
+  html += `</div>`;
+
+  // Table
+  html += `<table class="pareto-table"><thead><tr><th>#</th><th>d_SE</th><th>AM%</th><th>Loading</th><th>sigma_ionic</th><th>Energy</th></tr></thead><tbody>`;
+  pareto.forEach((p, i) => {
+    html += `<tr><td>${i+1}</td><td>${p.d_se}</td><td>${p.am_pct}%</td><td>${p.loading}</td><td style="color:var(--accent);font-weight:700">${p.sigma_ionic.toFixed(4)}</td><td style="color:var(--green);font-weight:700">${p.energy.toFixed(4)}</td></tr>`;
+  });
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+}
+
+function suggestNext() {
+  hideAllAnalysis();
+  const container = document.getElementById('suggest-container');
+  container.style.display = 'block';
+  container.innerHTML = '<div style="color:var(--dim)">Computing next best DEM conditions...</div>';
+  fetch('/predictor/suggest')
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { container.innerHTML = `<div style="color:var(--red)">${data.error}</div>`; return; }
+      renderSuggestions(data);
+    })
+    .catch(err => { container.innerHTML = `<div style="color:var(--red)">Error: ${err}</div>`; });
+}
+
+function renderSuggestions(data) {
+  const container = document.getElementById('suggest-container');
+  let html = `<div style="margin-bottom:12px;font-size:.85rem;color:var(--dim)">Best known sigma: <strong style="color:var(--text)">${data.best_known_sigma.toFixed(4)} mS/cm</strong> &mdash; Top 3 suggestions (UCB acquisition)</div>`;
+  data.suggestions.forEach((s, i) => {
+    html += `<div class="suggest-card">
+      <span class="suggest-rank">#${i+1}</span>
+      <span class="suggest-params">d_SE=${s.d_se} um &nbsp; AM=${s.am_pct}% &nbsp; P:S=${s.ps_frac} &nbsp; Loading=${s.loading}</span>
+      <div class="suggest-scores">
+        <span>Predicted: <strong>${s.predicted_sigma.toFixed(4)} mS/cm</strong></span>
+        <span>Uncertainty: <strong style="color:var(--yellow)">&plusmn;${s.uncertainty.toFixed(4)}</strong></span>
+        <span>Acquisition: <strong>${s.acquisition_score.toFixed(4)}</strong></span>
+      </div>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+function exportCSV() {
+  window.location.href = '/predictor/export';
+}
+
+function generateHeatmap() {
+  const xParam = document.getElementById('heatmap-x').value;
+  const yParam = document.getElementById('heatmap-y').value;
+  const target = document.getElementById('heatmap-z').value;
+  if (xParam === yParam) {
+    showToast('X and Y parameters must be different');
+    return;
+  }
+  const grid = document.getElementById('heatmap-grid');
+  grid.innerHTML = '<div style="color:var(--dim);padding:8px">Generating heatmap...</div>';
+
+  const params = getParams();
+  const fixed = {};
+  ['d_se','d_am','am_pct','ps_frac','loading','rve'].forEach(k => {
+    if (k !== xParam && k !== yParam) fixed[k] = params[k] || params[k.replace('d_am','d_am')];
+  });
+  // Ensure d_am is set
+  if (!fixed.d_am && xParam !== 'd_am' && yParam !== 'd_am') fixed.d_am = params.d_am;
+
+  fetch('/predictor/heatmap', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({x_param: xParam, y_param: yParam, target: target, fixed: fixed, n_points: 15}),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { grid.innerHTML = `<div style="color:var(--red)">${data.error}</div>`; return; }
+      renderHeatmap(data);
+    })
+    .catch(err => { grid.innerHTML = `<div style="color:var(--red)">Error: ${err}</div>`; });
+}
+
+function heatmapColor(val, minVal, maxVal) {
+  const t = maxVal > minVal ? (val - minVal) / (maxVal - minVal) : 0.5;
+  // Red (low) -> Yellow (mid) -> Green (high)
+  let r, g, b;
+  if (t < 0.5) {
+    const s = t * 2;
+    r = Math.round(220 - s * 60);
+    g = Math.round(38 + s * 197);
+    b = Math.round(38 + s * 0);
+  } else {
+    const s = (t - 0.5) * 2;
+    r = Math.round(160 - s * 126);
+    g = Math.round(235 - s * 38);
+    b = Math.round(38 + s * 59);
+  }
+  return `rgb(${r},${g},${b})`;
+}
+
+function renderHeatmap(data) {
+  const grid = document.getElementById('heatmap-grid');
+  document.getElementById('heatmap-legend').style.display = 'block';
+  const z = data.z_matrix;
+  const allVals = z.flat();
+  const minZ = Math.min(...allVals);
+  const maxZ = Math.max(...allVals);
+
+  let html = `<div style="margin-bottom:6px;font-size:.8rem;color:var(--dim)">${data.z_label} &mdash; range: ${minZ.toFixed(4)} to ${maxZ.toFixed(4)}</div>`;
+  html += '<div style="overflow-x:auto"><table class="heatmap-table">';
+
+  // Header row (x values)
+  html += '<tr><td class="axis-label" style="font-weight:600">' + data.y_label.split(' ')[0] + '\\' + data.x_label.split(' ')[0] + '</td>';
+  data.x_values.forEach((xv, i) => {
+    if (i % 3 === 0) html += `<td class="axis-label">${xv}</td>`;
+    else html += `<td class="axis-label" style="font-size:.5rem">${xv}</td>`;
+  });
+  html += '</tr>';
+
+  // Data rows (y reversed so high values at top)
+  for (let j = z.length - 1; j >= 0; j--) {
+    html += `<tr><td class="axis-label">${data.y_values[j]}</td>`;
+    for (let i = 0; i < z[j].length; i++) {
+      const val = z[j][i];
+      const bg = heatmapColor(val, minZ, maxZ);
+      html += `<td style="background:${bg}" title="${data.x_label}=${data.x_values[i]}, ${data.y_label}=${data.y_values[j]}: ${val.toFixed(4)}">${val > 0 ? val.toFixed(2) : ''}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</table></div>';
+  grid.innerHTML = html;
 }
 </script>
 {% endblock %}

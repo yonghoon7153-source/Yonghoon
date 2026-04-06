@@ -2106,6 +2106,85 @@ def predictor_optimal():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/predictor/heatmap', methods=['POST'])
+def predictor_heatmap():
+    """Generate 2D heatmap data for two parameters vs a target."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No input data'}), 400
+    try:
+        fixed = {}
+        for k in ['d_se', 'd_am', 'am_pct', 'ps_frac', 'loading', 'rve']:
+            if k in data.get('fixed', {}):
+                fixed[k] = float(data['fixed'][k])
+        result = predictor_engine.generate_heatmap(
+            x_param=data.get('x_param', 'd_se'),
+            y_param=data.get('y_param', 'am_pct'),
+            target=data.get('target', 'sigma_ionic'),
+            fixed_params=fixed,
+            n_points=int(data.get('n_points', 15)),
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/predictor/sensitivity', methods=['POST'])
+def predictor_sensitivity():
+    """Sensitivity analysis: vary each param +/-30%."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No input data'}), 400
+    try:
+        result = predictor_engine.sensitivity_analysis(data)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/predictor/pareto', methods=['POST'])
+def predictor_pareto():
+    """Compute Pareto front for sigma_ionic vs energy density."""
+    data = request.get_json() or {}
+    try:
+        fixed = {}
+        for k in ['d_am', 'ps_frac', 'rve']:
+            if k in data:
+                fixed[k] = float(data[k])
+        result = predictor_engine.compute_pareto(fixed_params=fixed, n_points=int(data.get('n_points', 8)))
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/predictor/suggest')
+def predictor_suggest():
+    """Suggest next DEM conditions using Bayesian optimization."""
+    try:
+        result = predictor_engine.suggest_next(
+            app.config['RESULTS_FOLDER'], app.config['ARCHIVE_FOLDER'])
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/predictor/export')
+def predictor_export():
+    """Export training data as CSV download."""
+    try:
+        csv_str = predictor_engine.export_training_csv(
+            app.config['RESULTS_FOLDER'], app.config['ARCHIVE_FOLDER'])
+        if not csv_str:
+            return jsonify({'error': 'No training data available'}), 404
+        import io
+        buf = io.BytesIO(csv_str.encode('utf-8'))
+        buf.seek(0)
+        return send_file(buf, mimetype='text/csv', as_attachment=True,
+                         download_name='predictor_training_data.csv')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=True, host='0.0.0.0', port=port)

@@ -494,6 +494,250 @@ def _fmt(val, micro_entry):
     }
 
 
+def generate_heatmap(x_param, y_param, target, fixed_params, n_points=20):
+    """Generate 2D heatmap data for two parameters vs a target."""
+    if _cached_models is None:
+        return {'error': 'Models not trained.'}
+
+    sweep_ranges = {
+        'd_se': (0.3, 3.0),
+        'd_am': (3, 12),
+        'am_pct': (60, 90),
+        'ps_frac': (0.0, 1.0),
+        'loading': (1, 10),
+        'rve': (30, 100),
+    }
+
+    base = {'d_se': 1.0, 'd_am': 5.0, 'am_pct': 80, 'ps_frac': 0.5, 'loading': 6, 'rve': 50}
+    base.update(fixed_params or {})
+
+    x_range = sweep_ranges.get(x_param, (0.5, 5.0))
+    y_range = sweep_ranges.get(y_param, (0.5, 5.0))
+    x_values = np.linspace(x_range[0], x_range[1], n_points).tolist()
+    y_values = np.linspace(y_range[0], y_range[1], n_points).tolist()
+
+    z_matrix = []
+    for yi in y_values:
+        row = []
+        for xi in x_values:
+            params = dict(base)
+            params[x_param] = xi
+            params[y_param] = yi
+            pred = predict(
+                d_se=params['d_se'], d_am=params['d_am'],
+                am_pct=params['am_pct'], ps_frac=params['ps_frac'],
+                loading=params['loading'], rve=params['rve'],
+            )
+            if 'error' in pred:
+                row.append(0)
+            elif target == 'sigma_ionic':
+                row.append(pred['conductivity']['sigma_ionic'])
+            elif target == 'sigma_electronic':
+                row.append(pred['conductivity']['sigma_electronic'])
+            elif target == 'energy':
+                # Quick energy estimate
+                phi_am_v = pred['microstructure'].get('phi_am', {}).get('value', 0.5)
+                thick_v = pred['microstructure'].get('thickness', {}).get('value', 100)
+                util_1c = pred.get('utilization', {}).get('1.0C', 1.0)
+                row.append(200 * 4.8 * phi_am_v * thick_v * 1e-4 * 3.7 * util_1c / 1000)
+            elif target == 'performance':
+                row.append(pred.get('performance_score', 0))
+            else:
+                row.append(pred['conductivity'].get(target, 0))
+            row[-1] = round(row[-1], 6)
+        z_matrix.append(row)
+
+    labels = {
+        'd_se': 'd_SE (um)', 'd_am': 'd_AM (um)', 'am_pct': 'AM%',
+        'ps_frac': 'P:S fraction', 'loading': 'Loading (mAh/cm2)', 'rve': 'RVE (um)',
+        'sigma_ionic': 'sigma_ionic (mS/cm)', 'sigma_electronic': 'sigma_elec (mS/cm)',
+        'energy': 'Energy (mWh/cm2)', 'performance': 'Perf Score',
+    }
+
+    return {
+        'x_values': [round(v, 3) for v in x_values],
+        'y_values': [round(v, 3) for v in y_values],
+        'z_matrix': z_matrix,
+        'x_label': labels.get(x_param, x_param),
+        'y_label': labels.get(y_param, y_param),
+        'z_label': labels.get(target, target),
+    }
+
+
+def sensitivity_analysis(base_params):
+    """Vary each param +/-30% and measure sigma change."""
+    if _cached_models is None:
+        return {'error': 'Models not trained.'}
+
+    d_am = base_params.get('d_am', max(base_params.get('d_am_p', 5), base_params.get('d_am_s', 4)))
+    base_pred = predict(
+        d_se=base_params['d_se'], d_am=d_am,
+        am_pct=base_params['am_pct'], ps_frac=base_params['ps_frac'],
+        loading=base_params['loading'], rve=base_params['rve'],
+    )
+    if 'error' in base_pred:
+        return base_pred
+    base_sigma = base_pred['conductivity']['sigma_ionic']
+
+    params_to_vary = ['d_se', 'am_pct', 'ps_frac', 'loading']
+    results = []
+    for p in params_to_vary:
+        val = base_params.get(p, 1.0)
+        deltas = []
+        for factor in [0.7, 1.3]:
+            new_val = val * factor
+            params_copy = dict(base_params)
+            params_copy[p] = new_val
+            d_am_c = max(params_copy.get('d_am_p', d_am), params_copy.get('d_am_s', d_am))
+            pred = predict(
+                d_se=params_copy.get('d_se', 1.0), d_am=d_am_c,
+                am_pct=params_copy.get('am_pct', 80), ps_frac=params_copy.get('ps_frac', 0.5),
+                loading=params_copy.get('loading', 6), rve=params_copy.get('rve', 50),
+            )
+            if 'error' not in pred:
+                deltas.append(pred['conductivity']['sigma_ionic'] - base_sigma)
+        avg_delta = np.mean([abs(d) for d in deltas]) if deltas else 0
+        results.append({
+            'param': p,
+            'delta_sigma': round(float(avg_delta), 6),
+            'delta_minus': round(float(deltas[0]), 6) if len(deltas) > 0 else 0,
+            'delta_plus': round(float(deltas[1]), 6) if len(deltas) > 1 else 0,
+        })
+
+    results.sort(key=lambda x: x['delta_sigma'], reverse=True)
+    return {'base_sigma': round(base_sigma, 6), 'sensitivities': results}
+
+
+def compute_pareto(fixed_params=None, n_points=8):
+    """Sweep combinations, compute sigma_ionic and energy_density, return Pareto front."""
+    if _cached_models is None:
+        return {'error': 'Models not trained.'}
+
+    import itertools
+    base = {'d_se': 1.0, 'd_am': 5.0, 'am_pct': 80, 'ps_frac': 0.5, 'loading': 6, 'rve': 50}
+    base.update(fixed_params or {})
+
+    d_se_vals = np.linspace(0.3, 3.0, n_points)
+    am_pct_vals = np.linspace(60, 90, n_points)
+    loading_vals = np.linspace(1, 10, n_points)
+
+    all_points = []
+    for d_se, am_pct, loading in itertools.product(d_se_vals, am_pct_vals, loading_vals):
+        pred = predict(d_se=d_se, d_am=base['d_am'], am_pct=am_pct,
+                       ps_frac=base['ps_frac'], loading=loading, rve=base['rve'])
+        if 'error' in pred:
+            continue
+        sigma = pred['conductivity']['sigma_ionic']
+        phi_am_v = pred['microstructure'].get('phi_am', {}).get('value', 0.5)
+        thick_v = pred['microstructure'].get('thickness', {}).get('value', 100)
+        util_1c = pred.get('utilization', {}).get('1.0C', 1.0)
+        energy = 200 * 4.8 * phi_am_v * thick_v * 1e-4 * 3.7 * util_1c / 1000
+        if sigma > 0 and energy > 0:
+            all_points.append({
+                'd_se': round(float(d_se), 2),
+                'am_pct': round(float(am_pct), 1),
+                'loading': round(float(loading), 1),
+                'sigma_ionic': round(float(sigma), 4),
+                'energy': round(float(energy), 4),
+            })
+
+    # Find Pareto front: no other point dominates in BOTH sigma AND energy
+    pareto = []
+    for p in all_points:
+        dominated = False
+        for q in all_points:
+            if q['sigma_ionic'] >= p['sigma_ionic'] and q['energy'] >= p['energy'] and \
+               (q['sigma_ionic'] > p['sigma_ionic'] or q['energy'] > p['energy']):
+                dominated = True
+                break
+        if not dominated:
+            pareto.append(p)
+
+    pareto.sort(key=lambda x: x['sigma_ionic'])
+    return {'pareto': pareto, 'all_count': len(all_points)}
+
+
+def suggest_next(results_folder, archive_folder, top_n=3):
+    """Suggest next DEM conditions using GPR uncertainty + predicted value (Expected Improvement)."""
+    if _cached_models is None:
+        return {'error': 'Models not trained.'}
+
+    models = _cached_models['models']
+    if 'sigma_ion' not in models:
+        return {'error': 'sigma_ion model not available.'}
+
+    m = models['sigma_ion']
+
+    # Generate candidate points
+    import itertools
+    d_se_vals = np.linspace(0.3, 3.0, 10)
+    am_pct_vals = np.linspace(60, 90, 7)
+    ps_frac_vals = np.array([0.0, 0.3, 0.5, 0.7, 1.0])
+    loading_vals = np.array([1, 3, 6, 8, 10])
+
+    best_sigma = 0
+    rows = load_training_data(results_folder, archive_folder)
+    for r in rows:
+        if r.get('sigma_ion', 0) > best_sigma:
+            best_sigma = r['sigma_ion']
+
+    candidates = []
+    for d_se, am_pct, ps_frac, loading in itertools.product(d_se_vals, am_pct_vals, ps_frac_vals, loading_vals):
+        d_am = 5.0
+        rve = 50.0
+        inp = derive_features(d_se, d_am, am_pct, ps_frac, rve, loading)
+        x = np.array([[inp.get(f, 0) for f in INPUT_FEATURES]])
+        x_scaled = m['scaler_X'].transform(x)
+        pred_scaled, std_scaled = m['gpr'].predict(x_scaled, return_std=True)
+        pred = m['scaler_y'].inverse_transform(pred_scaled.reshape(-1, 1)).ravel()[0]
+        std_raw = std_scaled[0] * m['scaler_y'].scale_[0]
+        if m['use_log']:
+            pred = np.exp(pred)
+            std_raw = pred * abs(std_raw)
+
+        # Expected Improvement: EI = (pred - best) * Phi(z) + std * phi(z)
+        # Simplified: score = pred + 1.5 * std (upper confidence bound)
+        score = float(pred) + 1.5 * float(abs(std_raw))
+
+        candidates.append({
+            'd_se': round(float(d_se), 2),
+            'am_pct': round(float(am_pct), 1),
+            'ps_frac': round(float(ps_frac), 1),
+            'loading': round(float(loading), 1),
+            'predicted_sigma': round(float(pred), 4),
+            'uncertainty': round(float(abs(std_raw)), 4),
+            'acquisition_score': round(score, 4),
+        })
+
+    candidates.sort(key=lambda x: x['acquisition_score'], reverse=True)
+    return {'suggestions': candidates[:top_n], 'best_known_sigma': round(best_sigma, 4)}
+
+
+def export_training_csv(results_folder, archive_folder):
+    """Export training data as CSV string."""
+    rows = load_training_data(results_folder, archive_folder)
+    if not rows:
+        return ''
+
+    # Collect all keys except internal ones
+    skip = {'_all_fm_keys'}
+    keys = []
+    for r in rows:
+        for k in r:
+            if k not in skip and k not in keys:
+                keys.append(k)
+
+    import csv
+    import io
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=keys, extrasaction='ignore')
+    writer.writeheader()
+    for r in rows:
+        clean = {k: v for k, v in r.items() if k not in skip}
+        writer.writerow(clean)
+    return output.getvalue()
+
+
 def sweep_optimal(top_n=5, fixed_params=None, sweep_keys=None, defaults=None):
     """Sweep unchecked parameters, keep checked ones fixed."""
     if _cached_models is None:

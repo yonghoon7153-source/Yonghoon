@@ -74,7 +74,9 @@ def load_all_data():
                     for k in ['r_SE']:
                         v = ip.get(k, 0)
                         if v > 0:
-                            d_se = v * scale * 1e6 * 2  # sim → μm, diameter
+                            # v is in sim units (m, already scaled by DEM)
+                            # Real radius (μm) = v / scale * 1e6, diameter = *2
+                            d_se = v / scale * 1e6 * 2
                             break
                 except:
                     pass
@@ -134,10 +136,11 @@ def build_dataset(rows):
     X_list, Y_list, names = [], [], []
     seen = set()
     for r in rows:
-        # Deduplicate by name
-        if r['name'] in seen:
+        # Deduplicate by rounding key metrics (same case = same phi_se + thickness + tau)
+        dedup_key = f"{r['phi_se']:.4f}_{r['thickness']:.1f}_{r['tau']:.3f}"
+        if dedup_key in seen:
             continue
-        seen.add(r['name'])
+        seen.add(dedup_key)
 
         # Require valid inputs
         if r['phi_se'] <= 0 or r['thickness'] <= 0 or r['d_se'] <= 0:

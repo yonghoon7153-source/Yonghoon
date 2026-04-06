@@ -127,6 +127,10 @@ def load_data():
                 'd_se': d_se, 'd_am': d_am, 'd_am_p': d_am_p, 'd_am_s': d_am_s,
                 'am_pct': am_pct, 'ps_frac': ps_frac, 'rve': rve,
                 'loading': loading,
+                # Derived features
+                'd_ratio': d_se / d_am if d_am > 0 else 0.1,  # SE/AM size ratio
+                'am_loading': am_pct * loading / 100,  # AM mass per area proxy
+                'se_density_proxy': (100 - am_pct) / max(d_se, 0.1),  # SE%/d_SE = packing density
                 # Microstructure (Stage 1 targets)
                 'phi_se': m.get('phi_se', 0),
                 'phi_am': m.get('phi_am', 0),
@@ -190,7 +194,9 @@ def train_stage1(rows):
     from sklearn.preprocessing import StandardScaler
     from sklearn.model_selection import LeaveOneOut
 
-    input_features = ['d_se', 'd_am', 'am_pct', 'ps_frac', 'rve', 'loading']
+    input_features = ['d_se', 'd_am', 'am_pct', 'ps_frac', 'rve', 'loading',
+                      # Derived features for tau prediction
+                      'd_ratio', 'am_loading', 'se_density_proxy']
     micro_targets = ['phi_se', 'phi_am', 'tau', 'cn', 'gb_d', 'g_path', 'hop_area',
                      'f_perc', 'thickness', 'porosity', 'am_cn']
 
@@ -371,7 +377,10 @@ def interactive_predict(models, input_features):
         d_se, d_am, am_pct, ps_frac, rve, loading = 1.0, 5.0, 80, 0.5, 50, 6
 
     input_dict = {'d_se': d_se, 'd_am': d_am, 'am_pct': am_pct,
-                  'ps_frac': ps_frac, 'rve': rve, 'loading': loading}
+                  'ps_frac': ps_frac, 'rve': rve, 'loading': loading,
+                  'd_ratio': d_se / d_am if d_am > 0 else 0.1,
+                  'am_loading': am_pct * loading / 100,
+                  'se_density_proxy': (100 - am_pct) / max(d_se, 0.1)}
 
     print(f"\n{'─'*50}")
     print(f"INPUT: d_SE={d_se}μm, d_AM={d_am}μm, AM:SE={am_pct}:{100-am_pct}, P:S={ps_frac*10:.0f}:{(1-ps_frac)*10:.0f}, RVE={rve}μm")
@@ -430,8 +439,12 @@ def parameter_sweep(models, input_features):
     for d_se in [0.5, 1.0, 1.5, 3.0]:
         for am_pct in [62, 75, 80, 85]:
             for ps_frac in [0.0, 0.3, 0.5, 0.7, 1.0]:
-                input_dict = {'d_se': d_se, 'd_am': 5.0, 'am_pct': am_pct,
-                             'ps_frac': ps_frac, 'rve': 50, 'loading': 6}
+                d_am_sw = 5.0
+                input_dict = {'d_se': d_se, 'd_am': d_am_sw, 'am_pct': am_pct,
+                             'ps_frac': ps_frac, 'rve': 50, 'loading': 6,
+                             'd_ratio': d_se / d_am_sw,
+                             'am_loading': am_pct * 6 / 100,
+                             'se_density_proxy': (100 - am_pct) / max(d_se, 0.1)}
                 micro = predict_microstructure(models, input_features, input_dict)
 
                 sigma_ion = scaling_law_ionic(

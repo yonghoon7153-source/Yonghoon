@@ -264,8 +264,23 @@ def evaluate_hybrid(rows, models, input_features):
     print(f"{'═'*60}")
 
     sigma_actual = np.array([r['sigma_ion'] for r in rows])
+
+    # Fit C from true microstructure data
+    log_rhs = []
+    valid_fit = []
+    for i, r in enumerate(rows):
+        if r['g_path'] > 0 and r['gb_d'] > 0 and r['cn'] > 0 and r['tau'] > 0 and r['phi_se'] > 0 and r['f_perc'] > 0 and sigma_actual[i] > 0.01:
+            sb = SIGMA_GRAIN * r['phi_se'] * (r['f_perc']/100) / r['tau']**2
+            rhs = np.log(sb) + 0.25*np.log(r['g_path']*r['gb_d']**2) + 2*np.log(r['cn'])
+            log_rhs.append(rhs)
+            valid_fit.append(i)
+    if valid_fit:
+        C_fit = np.exp(np.mean(np.log(sigma_actual[valid_fit]) - np.array(log_rhs)))
+    else:
+        C_fit = 0.073
+
     sigma_hybrid = []
-    sigma_scaling_only = []  # scaling law with TRUE microstructure
+    sigma_scaling_only = []
 
     for r in rows:
         # Stage 1: GPR predict microstructure
@@ -276,14 +291,14 @@ def evaluate_hybrid(rows, models, input_features):
         sigma_h = scaling_law_ionic(
             micro['phi_se']['value'], micro['f_perc']['value'],
             micro['tau']['value'], micro['g_path']['value'],
-            micro['gb_d']['value'], micro['cn']['value']
+            micro['gb_d']['value'], micro['cn']['value'], C=C_fit
         )
         sigma_hybrid.append(sigma_h)
 
         # Scaling law with TRUE microstructure (for comparison)
         sigma_s = scaling_law_ionic(
             r['phi_se'], r['f_perc'], r['tau'],
-            r['g_path'], r['gb_d'], r['cn']
+            r['g_path'], r['gb_d'], r['cn'], C=C_fit
         )
         sigma_scaling_only.append(sigma_s)
 

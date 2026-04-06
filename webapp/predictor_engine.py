@@ -380,12 +380,12 @@ def sweep_optimal(top_n=5, fixed_params=None, sweep_keys=None, defaults=None):
 
     # Sweep ranges for each parameter
     sweep_ranges = {
-        'd_se': np.arange(0.3, 3.1, 0.3),
-        'd_am_p': np.arange(3, 13, 2),
-        'd_am_s': np.arange(1, 9, 1.5),
-        'am_pct': np.arange(60, 91, 5),
-        'ps_frac': np.arange(0.0, 1.1, 0.2),
-        'loading': np.arange(1, 11, 2),
+        'd_se': np.arange(0.3, 3.1, 0.1),
+        'd_am_p': np.arange(3, 13, 1),
+        'd_am_s': np.arange(1, 9, 0.5),
+        'am_pct': np.arange(60, 91, 2),
+        'ps_frac': np.arange(0.0, 1.05, 0.1),
+        'loading': np.arange(1, 11, 1),
         'rve': np.array([30, 50, 100]),
     }
 

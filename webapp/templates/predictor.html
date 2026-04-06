@@ -548,7 +548,11 @@ function renderResults(data) {
   if (data.rate_limiting) {
     rateBox.style.display = 'block';
     const label = data.rate_limiting === 'ionic' ? 'Ionic transport' : 'Electronic transport';
-    rateBox.innerHTML = `Rate-limiting: <strong>${label}</strong>`;
+    const deadAm = data.dead_am_pct !== undefined ? data.dead_am_pct : 0;
+    const activeColor = deadAm > 10 ? '#e74c3c' : deadAm > 3 ? '#f39c12' : '#2ecc71';
+    rateBox.innerHTML = `Rate-limiting: <strong>${label}</strong> | ` +
+      `Electronic Active AM: <span style="color:${activeColor};font-weight:700">${(100-deadAm).toFixed(1)}%</span>` +
+      (deadAm > 1 ? ` (<span style="color:#e74c3c">${deadAm.toFixed(1)}% dead</span>)` : ' (no dead AM)');
   }
 
   // Utilization by C-rate

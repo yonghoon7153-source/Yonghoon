@@ -370,28 +370,48 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
             sigma_electronic = 0.015 * SIGMA_AM * phi_am ** 1.5 * am_cn ** 2 * np.exp(np.pi / ratio)
             sigma_electronic *= arrhenius_AM  # temperature correction
 
+    # ── Electronic Active AM (Dead AM estimation) ──
+    # Ref: Minnmann 2021, Clausnitzer 2023, Bielefeld 2023
+    # Percolation threshold: ~25-30 vol% AM
+    # >55 vol%: fully percolating, 0% dead
+    # 30-55%: transition zone
+    # <25%: severe electronic isolation
+    if phi_am >= 0.55:
+        electronic_active_pct = 100.0
+    elif phi_am >= 0.30:
+        # Linear interpolation: 30%→87%, 55%→100%
+        electronic_active_pct = 87 + (phi_am - 0.30) / 0.25 * 13
+    elif phi_am >= 0.18:
+        # Below threshold: sharp drop
+        electronic_active_pct = 50 + (phi_am - 0.18) / 0.12 * 37
+    else:
+        electronic_active_pct = max(10, phi_am / 0.18 * 50)
+
     # ── Conductive Additive / Binder Effect ──
     # Ref: Bielefeld 2023, Minnmann 2021, Kang 2024, Rosner 2026
     # KEY: C65 percolation threshold ~4wt%! Below that, NO electronic network!
     if additive == 'vgcf':
         # VGCF 1wt%: fiber morphology, poor percolation even at 10vol%
         # σ_el ≈ 0.4 mS/cm (Bielefeld 2023) — NOT percolating, just local enhancement
-        # Ionic: minimal impact (fiber doesn't block SE paths much)
+        # But bridges isolated AM → dead AM reduced by ~10% (Minnmann 2021: +13% capacity)
         sigma_electronic = max(sigma_electronic, 0.4)
-        sigma_ionic_final *= 0.99  # ~1% ionic reduction (Nat. Commun. 2025: "minor influence")
+        sigma_ionic_final *= 0.99
+        electronic_active_pct = min(100, electronic_active_pct + 10)  # VGCF bridges dead AM
     elif additive == 'c65':
         # C65 1wt%: BELOW percolation threshold (~4wt%!)
         # At 1wt%: sub-percolation, no e- network. σ_el barely improves.
         # At ≥4wt%: σ_el ≈ 70 mS/cm (Bielefeld 2023)
         # 1wt% → maybe 0.5~1 mS/cm boost (isolated clusters, not network)
         sigma_electronic = max(sigma_electronic, sigma_electronic + 1.0)
-        sigma_ionic_final *= 0.97  # ~3% ionic reduction (SE contact disruption)
+        sigma_ionic_final *= 0.97
+        electronic_active_pct = min(100, electronic_active_pct + 5)  # C65 1wt% sub-perc, minor
     elif additive == 'c65_4wt':
         # C65 4wt%: AT percolation threshold — full electronic network!
         # σ_el ≈ 70 mS/cm (Bielefeld 2023, directly measured)
         # But significant ionic penalty + SE decomposition at C/SE interface
         sigma_electronic = max(sigma_electronic, 70)
-        sigma_ionic_final *= 0.85  # ~15% ionic reduction (pathway blocking + SE decomposition)
+        sigma_ionic_final *= 0.85
+        electronic_active_pct = 100.0  # Full percolation! All AM electronically active
     elif additive == 'ptfe':
         # PTFE 0.5wt%: dry process binder (fibrillization)
         # Insulator but at 0.1-0.5wt% minimal content
@@ -509,6 +529,8 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
         },
         'utilization': utilizations,
         'performance_score': round(performance_score, 4),
+        'electronic_active_pct': round(electronic_active_pct, 1),
+        'dead_am_pct': round(100 - electronic_active_pct, 1),
         'rate_limiting': rate_limiting,
         'temperature': temperature,
         'arrhenius_factor_SE': round(arrhenius_SE, 4),

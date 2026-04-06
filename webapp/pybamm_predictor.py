@@ -115,7 +115,7 @@ def _run_pybamm_dfn(pybamm, sigma_ionic, phi_se, phi_am, thickness,
                 'capacity_mAh': round(float(Q[-1] * 1000), 2),
                 'voltage_final': round(float(V[-1]), 3),
                 'voltage_mean': round(float(np.mean(V)), 3),
-                'energy_Wh': round(float(np.trapz(V, Q)), 4),
+                'energy_Wh': round(float(np.trapezoid(V, Q) if hasattr(np, 'trapezoid') else np.trapz(V, Q)), 4),
                 'voltage_curve': {
                     'time_s': [round(float(t[i]), 1) for i in idx],
                     'voltage_V': [round(float(V[i]), 4) for i in idx],

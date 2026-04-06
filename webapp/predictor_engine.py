@@ -370,23 +370,35 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
             sigma_electronic = 0.015 * SIGMA_AM * phi_am ** 1.5 * am_cn ** 2 * np.exp(np.pi / ratio)
             sigma_electronic *= arrhenius_AM  # temperature correction
 
-    # ── Conductive Additive Effect ──
-    # Ref: Bielefeld/Nanomaterials 2023, Minnmann 2021, Kang 2024
+    # ── Conductive Additive / Binder Effect ──
+    # Ref: Bielefeld 2023, Minnmann 2021, Kang 2024, Rosner 2026
+    # KEY: C65 percolation threshold ~4wt%! Below that, NO electronic network!
     if additive == 'vgcf':
-        # VGCF 1wt%: adds ~0.4 mS/cm to electronic network
-        # Also slightly reduces ionic (SE volume displaced ~0.5 vol%)
-        sigma_electronic = max(sigma_electronic, 0.4) + 0.4
-        sigma_ionic_final *= 0.98  # ~2% ionic reduction from SE displacement
+        # VGCF 1wt%: fiber morphology, poor percolation even at 10vol%
+        # σ_el ≈ 0.4 mS/cm (Bielefeld 2023) — NOT percolating, just local enhancement
+        # Ionic: minimal impact (fiber doesn't block SE paths much)
+        sigma_electronic = max(sigma_electronic, 0.4)
+        sigma_ionic_final *= 0.99  # ~1% ionic reduction (Nat. Commun. 2025: "minor influence")
     elif additive == 'c65':
-        # C65 (carbon black) 1wt%: adds ~30 mS/cm
-        # But degrades SE interface + blocks ionic paths more
-        sigma_electronic = max(sigma_electronic, 30) + 30
-        sigma_ionic_final *= 0.93  # ~7% ionic reduction (pathway blocking + SE decomposition)
+        # C65 1wt%: BELOW percolation threshold (~4wt%!)
+        # At 1wt%: sub-percolation, no e- network. σ_el barely improves.
+        # At ≥4wt%: σ_el ≈ 70 mS/cm (Bielefeld 2023)
+        # 1wt% → maybe 0.5~1 mS/cm boost (isolated clusters, not network)
+        sigma_electronic = max(sigma_electronic, sigma_electronic + 1.0)
+        sigma_ionic_final *= 0.97  # ~3% ionic reduction (SE contact disruption)
+    elif additive == 'c65_4wt':
+        # C65 4wt%: AT percolation threshold — full electronic network!
+        # σ_el ≈ 70 mS/cm (Bielefeld 2023, directly measured)
+        # But significant ionic penalty + SE decomposition at C/SE interface
+        sigma_electronic = max(sigma_electronic, 70)
+        sigma_ionic_final *= 0.85  # ~15% ionic reduction (pathway blocking + SE decomposition)
     elif additive == 'ptfe':
-        # PTFE binder 1wt%: insulator, coats AM surface
-        # Reduces AM-AM electronic contact but improves mechanical integrity
-        sigma_electronic *= 0.3  # 70% reduction in electronic conductivity
-        sigma_ionic_final *= 0.95  # 5% ionic reduction from SE displacement
+        # PTFE 0.5wt%: dry process binder (fibrillization)
+        # Insulator but at 0.1-0.5wt% minimal content
+        # Ref: Rosner 2026, Mun 2025 — 209.7 mAh/g, 97.4% retention
+        # Effect: slight σ_el reduction (AM surface coating), σ_ion nearly unchanged
+        sigma_electronic *= 0.7  # ~30% e- reduction from surface coating
+        sigma_ionic_final *= 0.99  # ~1% ionic (dry process, no solvent damage)
 
     # Thermal conductivity
     sigma_thermal = 0

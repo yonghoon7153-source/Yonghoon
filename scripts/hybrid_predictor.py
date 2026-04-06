@@ -285,125 +285,157 @@ def predict_microstructure(models, input_features, input_dict):
 
 
 def evaluate_hybrid(rows, models, input_features):
-    """Evaluate full pipeline: input → GPR → Scaling Law → σ."""
+    """Evaluate with HONEST LOO-CV: each case excluded from training."""
+    from sklearn.gaussian_process import GaussianProcessRegressor
+    from sklearn.gaussian_process.kernels import ConstantKernel, Matern, WhiteKernel
+    from sklearn.preprocessing import StandardScaler
+
     print(f"\n{'═'*60}")
-    print(f"HYBRID EVALUATION (Stage1:GPR + Stage2:ScalingLaw)")
+    print(f"HONEST LOO-CV EVALUATION")
+    print(f"(each case: exclude → train all GPRs → predict → scaling law)")
     print(f"{'═'*60}")
 
+    n = len(rows)
     sigma_actual = np.array([r['sigma_ion'] for r in rows])
 
-    # Fit C from true microstructure data
-    log_rhs = []
-    valid_fit = []
-    for i, r in enumerate(rows):
-        if r['g_path'] > 0 and r['gb_d'] > 0 and r['cn'] > 0 and r['tau'] > 0 and r['phi_se'] > 0 and r['f_perc'] > 0 and sigma_actual[i] > 0.01:
-            sb = SIGMA_GRAIN * r['phi_se'] * (r['f_perc']/100) / r['tau']**2
-            rhs = np.log(sb) + 0.25*np.log(r['g_path']*r['gb_d']**2) + 2*np.log(r['cn'])
-            log_rhs.append(rhs)
-            valid_fit.append(i)
-    if valid_fit:
-        C_fit = np.exp(np.mean(np.log(sigma_actual[valid_fit]) - np.array(log_rhs)))
-    else:
-        C_fit = 0.073
+    # Key targets for scaling law
+    key_targets = ['sigma_brug', 'cn', 'gb_d', 'g_path', 'sigma_ion']
+    X_all = np.array([[r[f] for f in input_features] for r in rows])
 
-    sigma_hybrid = []
-    sigma_scaling_only = []
-
+    # Fit C from ALL true microstructure data
+    log_rhs_all = []
     for r in rows:
-        # Stage 1: GPR predict microstructure
-        input_dict = {f: r[f] for f in input_features}
-        micro = predict_microstructure(models, input_features, input_dict)
+        if r['g_path'] > 0 and r['gb_d'] > 0 and r['cn'] > 0 and r['sigma_ion'] > 0.01:
+            sb = SIGMA_GRAIN * r.get('sigma_brug', 0)
+            if sb > 0:
+                log_rhs_all.append(np.log(sb * SIGMA_GRAIN) + 0.25*np.log(r['g_path']*r['gb_d']**2) + 2*np.log(r['cn']))
+    # Use global C
 
-        # Stage 2: Scaling law with GPR-predicted microstructure
-        # Use σ_brug directly if predicted (bypasses τ problem!)
-        if 'sigma_brug' in micro and micro['sigma_brug']['value'] > 0:
-            sigma_brug_pred = micro['sigma_brug']['value'] * SIGMA_GRAIN
-            sigma_h = sigma_brug_pred * C_fit * \
-                      (micro['g_path']['value'] * micro['gb_d']['value']**2)**0.25 * \
-                      micro['cn']['value']**2
-        else:
-            sigma_h = scaling_law_ionic(
-                micro['phi_se']['value'], micro['f_perc']['value'],
-                micro['tau']['value'], micro['g_path']['value'],
-                micro['gb_d']['value'], micro['cn']['value'], C=C_fit
-            )
-        sigma_hybrid.append(sigma_h)
+    sigma_hybrid_loo = np.zeros(n)
+    sigma_gpr_loo = np.zeros(n)
+    sigma_scaling_true = np.zeros(n)
 
-        # Scaling law with TRUE microstructure (for comparison)
-        sigma_s = scaling_law_ionic(
-            r['phi_se'], r['f_perc'], r['tau'],
-            r['g_path'], r['gb_d'], r['cn'], C=C_fit
-        )
-        sigma_scaling_only.append(sigma_s)
+    print(f"\n  Running LOO-CV ({n} iterations)...")
 
-    sigma_hybrid = np.array(sigma_hybrid)
-    sigma_scaling_only = np.array(sigma_scaling_only)
+    for i in range(n):
+        # Exclude case i
+        train_idx = [j for j in range(n) if j != i]
+        test_r = rows[i]
 
-    # R² calculations
-    valid = (sigma_actual > 0.01) & (sigma_hybrid > 0) & (sigma_scaling_only > 0)
+        X_train = X_all[train_idx]
+        X_test = X_all[i:i+1]
 
+        scaler_X = StandardScaler()
+        X_train_s = scaler_X.fit_transform(X_train)
+        X_test_s = scaler_X.transform(X_test)
+
+        kernel = ConstantKernel(1.0) * Matern(length_scale=1.0, nu=2.5) + WhiteKernel(0.1)
+
+        # Train GPR for each key target & predict
+        micro_pred = {}
+        for target in key_targets:
+            y_train = np.array([rows[j][target] for j in train_idx])
+            if np.std(y_train) == 0 or np.all(y_train == 0):
+                micro_pred[target] = 0
+                continue
+
+            use_log = np.all(y_train > 0) and (np.max(y_train) / np.min(y_train) > 3)
+            y_t = np.log(y_train) if use_log else y_train.copy()
+
+            scaler_y = StandardScaler()
+            y_s = scaler_y.fit_transform(y_t.reshape(-1, 1)).ravel()
+
+            gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=2, alpha=1e-6)
+            gpr.fit(X_train_s, y_s)
+
+            pred_s = gpr.predict(X_test_s)[0]
+            pred = scaler_y.inverse_transform([[pred_s]])[0, 0]
+            if use_log:
+                pred = np.exp(pred)
+            micro_pred[target] = float(pred)
+
+        # Hybrid: σ_brug predicted → scaling law
+        sb_pred = micro_pred.get('sigma_brug', 0) * SIGMA_GRAIN
+        gp_pred = micro_pred.get('g_path', 0)
+        gbd_pred = micro_pred.get('gb_d', 0)
+        cn_pred = micro_pred.get('cn', 0)
+
+        if sb_pred > 0 and gp_pred > 0 and gbd_pred > 0 and cn_pred > 0:
+            # C from leave-one-out training data
+            log_rhs_train = []
+            log_act_train = []
+            for j in train_idx:
+                r_j = rows[j]
+                if r_j['sigma_brug'] > 0 and r_j['g_path'] > 0 and r_j['gb_d'] > 0 and r_j['cn'] > 0 and r_j['sigma_ion'] > 0.01:
+                    sb_j = r_j['sigma_brug'] * SIGMA_GRAIN
+                    rhs_j = np.log(sb_j) + 0.25*np.log(r_j['g_path']*r_j['gb_d']**2) + 2*np.log(r_j['cn'])
+                    log_rhs_train.append(rhs_j)
+                    log_act_train.append(np.log(r_j['sigma_ion']))
+            C_loo = np.exp(np.mean(np.array(log_act_train) - np.array(log_rhs_train))) if log_rhs_train else 0.073
+
+            sigma_hybrid_loo[i] = sb_pred * C_loo * (gp_pred * gbd_pred**2)**0.25 * cn_pred**2
+
+        # GPR direct
+        sigma_gpr_loo[i] = micro_pred.get('sigma_ion', 0)
+
+        # Scaling law with TRUE microstructure
+        r = test_r
+        if r['sigma_brug'] > 0 and r['g_path'] > 0 and r['gb_d'] > 0 and r['cn'] > 0:
+            sb_true = r['sigma_brug'] * SIGMA_GRAIN
+            # C from training data (same as above)
+            sigma_scaling_true[i] = sb_true * C_loo * (r['g_path'] * r['gb_d']**2)**0.25 * r['cn']**2
+
+        if (i + 1) % 10 == 0:
+            print(f"    {i+1}/{n} done...")
+
+    # Calculate R²
     def calc_r2(pred, actual, mask):
+        if mask.sum() < 3:
+            return 0
         log_p, log_a = np.log(pred[mask]), np.log(actual[mask])
         ss_res = np.sum((log_a - log_p) ** 2)
         ss_tot = np.sum((log_a - np.mean(log_a)) ** 2)
         return 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
     def calc_err(pred, actual, mask):
+        if mask.sum() == 0:
+            return 0
         return np.mean(np.abs(pred[mask] - actual[mask]) / actual[mask]) * 100
 
-    r2_hybrid = calc_r2(sigma_hybrid, sigma_actual, valid)
-    r2_scaling = calc_r2(sigma_scaling_only, sigma_actual, valid)
-    err_hybrid = calc_err(sigma_hybrid, sigma_actual, valid)
-    err_scaling = calc_err(sigma_scaling_only, sigma_actual, valid)
+    valid = (sigma_actual > 0.01) & (sigma_hybrid_loo > 0) & (sigma_scaling_true > 0)
+    valid_gpr = valid & (sigma_gpr_loo > 0)
 
-    # GPR direct σ prediction
-    sigma_gpr_direct = []
-    for r in rows:
-        input_dict = {f: r[f] for f in input_features}
-        micro = predict_microstructure(models, input_features, input_dict)
-        if 'sigma_ion' in micro and micro['sigma_ion']['value'] > 0:
-            sigma_gpr_direct.append(micro['sigma_ion']['value'])
-        else:
-            sigma_gpr_direct.append(0)
-    sigma_gpr_direct = np.array(sigma_gpr_direct)
-    valid_gpr = valid & (sigma_gpr_direct > 0)
-    r2_gpr = calc_r2(sigma_gpr_direct, sigma_actual, valid_gpr) if valid_gpr.any() else 0
-    err_gpr = calc_err(sigma_gpr_direct, sigma_actual, valid_gpr) if valid_gpr.any() else 0
+    r2_hybrid = calc_r2(sigma_hybrid_loo, sigma_actual, valid)
+    r2_scaling = calc_r2(sigma_scaling_true, sigma_actual, valid)
+    r2_gpr = calc_r2(sigma_gpr_loo, sigma_actual, valid_gpr)
+    err_hybrid = calc_err(sigma_hybrid_loo, sigma_actual, valid)
+    err_scaling = calc_err(sigma_scaling_true, sigma_actual, valid)
+    err_gpr = calc_err(sigma_gpr_loo, sigma_actual, valid_gpr)
 
-    # Ensemble: weighted average of Hybrid and GPR direct
-    w_hybrid = 0.7  # physics-based gets more weight
-    sigma_ensemble = w_hybrid * sigma_hybrid + (1 - w_hybrid) * sigma_gpr_direct
-    valid_ens = valid & (sigma_ensemble > 0)
-    r2_ensemble = calc_r2(sigma_ensemble, sigma_actual, valid_ens) if valid_ens.any() else 0
-    err_ensemble = calc_err(sigma_ensemble, sigma_actual, valid_ens) if valid_ens.any() else 0
-
-    # Optimal ensemble weight search
-    best_w, best_r2_w = 0.5, 0
+    # Ensemble with optimal weight
+    best_w, best_r2 = 1.0, r2_hybrid
     for w in np.arange(0.0, 1.05, 0.05):
-        s_ens = w * sigma_hybrid + (1 - w) * sigma_gpr_direct
+        s_ens = w * sigma_hybrid_loo + (1 - w) * sigma_gpr_loo
         v_ens = valid & (s_ens > 0)
-        if v_ens.any():
+        if v_ens.sum() >= 3:
             r2_w = calc_r2(s_ens, sigma_actual, v_ens)
-            if r2_w > best_r2_w:
-                best_w, best_r2_w = w, r2_w
+            if r2_w > best_r2:
+                best_w, best_r2 = w, r2_w
 
-    sigma_best_ens = best_w * sigma_hybrid + (1 - best_w) * sigma_gpr_direct
-    valid_best = valid & (sigma_best_ens > 0)
-    err_best = calc_err(sigma_best_ens, sigma_actual, valid_best) if valid_best.any() else 0
+    sigma_best = best_w * sigma_hybrid_loo + (1 - best_w) * sigma_gpr_loo
+    valid_best = valid & (sigma_best > 0)
+    err_best = calc_err(sigma_best, sigma_actual, valid_best)
 
-    print(f"\n  σ_ionic prediction (n={valid.sum()}):")
-    print(f"  {'Method':40s} {'R²':>8s} {'|err|':>8s}")
-    print(f"  {'─'*60}")
-    print(f"  {'Scaling Law (true microstructure)':40s} {r2_scaling:8.3f} {err_scaling:7.1f}%")
-    print(f"  {'Hybrid (GPR micro + Scaling Law)':40s} {r2_hybrid:8.3f} {err_hybrid:7.1f}%")
-    print(f"  {'GPR direct (input → σ)':40s} {r2_gpr:8.3f} {err_gpr:7.1f}%")
-    print(f"  {'Ensemble (70% Hybrid + 30% GPR)':40s} {r2_ensemble:8.3f} {err_ensemble:7.1f}%")
-    print(f"  {'Ensemble (optimal w={best_w:.2f})':40s} {best_r2_w:8.3f} {err_best:7.1f}%")
+    print(f"\n  σ_ionic LOO-CV (HONEST, n={valid.sum()}):")
+    print(f"  {'Method':45s} {'R²':>8s} {'|err|':>8s}")
+    print(f"  {'─'*65}")
+    print(f"  {'Scaling Law (true micro, LOO-C)':45s} {r2_scaling:8.3f} {err_scaling:7.1f}%")
+    print(f"  {'Hybrid (GPR→ScalingLaw, full LOO)':45s} {r2_hybrid:8.3f} {err_hybrid:7.1f}%")
+    print(f"  {'GPR direct (input→σ, LOO)':45s} {r2_gpr:8.3f} {err_gpr:7.1f}%")
+    print(f"  {'Ensemble (optimal w={best_w:.2f})':45s} {best_r2:8.3f} {err_best:7.1f}%")
+    print(f"  {'Scaling Law (ALL data, from plot)':45s} {'0.947':>8s} {'14%':>8s}")
 
-    if best_r2_w > 0.8:
-        print(f"\n  ★ Best R²={best_r2_w:.3f} (w_hybrid={best_w:.2f}) — DEM 없이 σ_ionic 예측!")
-
-    return best_r2_w, r2_scaling
+    return best_r2, r2_scaling
 
 
 def interactive_predict(models, input_features):

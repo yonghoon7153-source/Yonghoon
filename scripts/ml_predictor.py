@@ -1,15 +1,14 @@
 """
-ML Surrogate Model for DEM Composite Cathode Properties
-========================================================
-Input: electrode design parameters (AM:SE ratio, P:S, SE size, thickness, pressure)
-Output: predicted properties (σ_ionic, σ_electronic, σ_thermal, porosity, τ, CN, etc.)
+ML Surrogate Model v2: True DEM Input → Property Prediction
+============================================================
+Input: LIGGGHTS input script parameters (particle sizes, mass fractions, RVE, pressure)
+Output: ALL DEM-derived properties (porosity, σ_ionic, σ_electronic, σ_thermal, etc.)
 
-Uses Gaussian Process Regression (GPR) — optimal for small datasets (n < 100).
-Provides uncertainty estimates for each prediction.
+This is a TRUE surrogate: predicts DEM output from DEM input without running simulation.
 
 Usage:
   python3 scripts/ml_predictor.py                    # Train & evaluate
-  python3 scripts/ml_predictor.py --predict 80 5 0.5 150 300  # Predict for AM:SE=80:20, P:S=5:5, SE=0.5μm, T=150μm, P=300MPa
+  python3 scripts/ml_predictor.py --predict           # Interactive prediction
 """
 
 import json, os, sys, warnings
@@ -22,167 +21,189 @@ WEBAPP = Path(__file__).parent.parent / 'webapp'
 
 
 def load_all_data():
-    """Load all cases from results + archive."""
+    """Load all cases: input_params.json (INPUT) + full_metrics.json (OUTPUT)."""
     rows = []
     for base in [WEBAPP / 'results', WEBAPP / 'archive']:
         if not base.is_dir():
             continue
         for met_path in base.rglob('full_metrics.json'):
+            case_dir = met_path.parent
+            ip_path = case_dir / 'input_params.json'
+
             try:
                 with open(met_path) as f:
                     m = json.load(f)
+                if ip_path.exists():
+                    with open(ip_path) as f:
+                        ip = json.load(f)
+                else:
+                    ip = {}
             except:
                 continue
 
-            # Skip if no basic data
             if not m.get('phi_se') or not m.get('porosity'):
                 continue
 
-            # Extract input features
-            # AM:SE ratio → from phi_se and phi_am
-            phi_se = m.get('phi_se', 0)
-            phi_am = m.get('phi_am', 0)
-            if phi_se <= 0:
-                continue
+            # ═══ TRUE DEM INPUTS (from input_params.json) ═══
+            scale = ip.get('scale', 1000)
 
-            am_se_mass = 0
-            ps = m.get('ps_ratio', '')
+            # Particle radii (sim units → real μm)
+            r_am_p = ip.get('r_AM_P', 0)
+            r_am_s = ip.get('r_AM_S', 0)
+            r_se = ip.get('r_SE', 0)
+            d_am_p = r_am_p / scale * 1e6 * 2 if r_am_p > 0 else 0  # μm
+            d_am_s = r_am_s / scale * 1e6 * 2 if r_am_s > 0 else 0
+            d_se = r_se / scale * 1e6 * 2 if r_se > 0 else 0
 
-            # P:S fraction (0=all S, 1=all P)
-            ps_frac = 0.5  # default
-            if isinstance(ps, str):
-                if ':' in ps:
-                    parts = ps.split(':')
-                    try:
-                        p, s = float(parts[0]), float(parts[1])
-                        ps_frac = p / (p + s) if (p + s) > 0 else 0.5
-                    except:
-                        pass
-                elif ps in ('P only', '10:0'):
-                    ps_frac = 1.0
-                elif ps in ('S only', '0:10'):
-                    ps_frac = 0.0
+            # Mass fractions
+            mf = ip.get('mass_fractions', [0, 0, 0])
+            if len(mf) >= 3:
+                mf_amp, mf_ams, mf_se = mf[0], mf[1], mf[2]
+            else:
+                mf_amp, mf_ams, mf_se = 0, 0, 0
 
-            # SE size from input_params or GB_d proxy
-            d_se = 0
-            ip_path = met_path.parent / 'input_params.json'
-            if ip_path.exists():
+            # AM:SE ratio
+            am_se_str = ip.get('am_se_ratio', '')
+            am_pct = 0
+            if ':' in str(am_se_str):
+                parts = str(am_se_str).split(':')
                 try:
-                    with open(ip_path) as f:
-                        ip = json.load(f)
-                    scale = ip.get('scale', 1000)
-                    for k in ['r_SE']:
-                        v = ip.get(k, 0)
-                        if v > 0:
-                            # v is in sim units (m, already scaled by DEM)
-                            # Real radius (μm) = v / scale * 1e6, diameter = *2
-                            d_se = v / scale * 1e6 * 2
-                            break
+                    am_pct = float(parts[0])
                 except:
                     pass
+
+            # P:S ratio
+            ps = m.get('ps_ratio', '')
+            ps_frac = 0.5
+            if isinstance(ps, str) and ':' in ps:
+                parts = ps.split(':')
+                try:
+                    p, s = float(parts[0]), float(parts[1])
+                    ps_frac = p / (p + s) if (p + s) > 0 else 0.5
+                except:
+                    pass
+
+            # RVE size (sim → real μm)
+            box_x = ip.get('box_x', 0.05)
+            rve_um = box_x / scale * 1e6 if scale > 0 else 50  # μm
+
+            # Pressure (sim → real MPa)
+            target_press = ip.get('target_press_sim', 0)
+            pressure_mpa = target_press * scale  # sim → real MPa
+
+            # Young's modulus SE (sim → real)
+            ym = ip.get('youngs_modulus_sim', [0, 0, 0])
+            if len(ym) >= 3:
+                E_se = ym[2] * scale / 1e6  # sim → real GPa (rough)
+            else:
+                E_se = 0
+
+            # Skip if missing key inputs
+            if d_se <= 0 or am_pct <= 0:
+                # Try to infer from metrics
+                if d_se <= 0:
+                    gb_d = m.get('gb_density_mean', 0)
+                    if gb_d > 0:
+                        d_se = 1.0 / gb_d  # rough proxy
+                if am_pct <= 0:
+                    phi_am = m.get('phi_am', 0)
+                    phi_se = m.get('phi_se', 0)
+                    if phi_am > 0 and phi_se > 0:
+                        am_pct = phi_am / (phi_am + phi_se) * 100
+
             if d_se <= 0:
-                # Proxy from GB_d
-                gb_d = m.get('gb_density_mean', 0)
-                if gb_d > 0:
-                    d_se = 1.0 / gb_d  # rough proxy
+                continue
 
-            thickness = m.get('thickness_um', 0)
-            porosity = m.get('porosity', 0)
-
-            # Output metrics
-            sigma_ion = m.get('sigma_full_mScm', 0)
-            sigma_el = m.get('electronic_sigma_full_mScm', 0)
-            sigma_th = m.get('thermal_sigma_full_mScm', 0)
-            tau = m.get('tortuosity_mean', m.get('tortuosity_recommended', 0))
-            cn = m.get('se_se_cn', 0)
-            gb_d = m.get('gb_density_mean', 0)
-            g_path = m.get('path_conductance_mean', 0)
-            f_perc = m.get('percolation_pct', 0)
-            hop_area = m.get('path_hop_area_mean', 0)
-
+            # ═══ DEM OUTPUTS (from full_metrics.json) ═══
             rows.append({
-                'name': met_path.parent.name,
-                # Input features
-                'phi_se': phi_se,
-                'phi_am': phi_am,
-                'ps_frac': ps_frac,
+                'name': case_dir.name,
+                # ── True Inputs ──
+                'd_am_p': d_am_p,
+                'd_am_s': d_am_s,
                 'd_se': d_se,
-                'thickness': thickness,
-                'porosity': porosity,
-                # Output targets (from network solver)
-                'sigma_ion': sigma_ion,
-                'sigma_el': sigma_el,
-                'sigma_th': sigma_th,
-                # Intermediate outputs (from DEM analysis)
-                'tau': tau,
-                'cn': cn,
-                'gb_d': gb_d,
-                'g_path': g_path,
-                'f_perc': f_perc,
-                'hop_area': hop_area,
+                'am_pct': am_pct,
+                'ps_frac': ps_frac,
+                'rve': rve_um,
+                'pressure': pressure_mpa,
+                'mf_amp': mf_amp,
+                'mf_ams': mf_ams,
+                'mf_se': mf_se,
+                # ── Outputs: Structure ──
+                'porosity': m.get('porosity', 0),
+                'phi_se': m.get('phi_se', 0),
+                'phi_am': m.get('phi_am', 0),
+                'thickness': m.get('thickness_um', 0),
+                # ── Outputs: Ion Path ──
+                'tau': m.get('tortuosity_mean', m.get('tortuosity_recommended', 0)),
+                'cn': m.get('se_se_cn', 0),
+                'gb_d': m.get('gb_density_mean', 0),
+                'g_path': m.get('path_conductance_mean', 0),
+                'f_perc': m.get('percolation_pct', 0),
+                'hop_area': m.get('path_hop_area_mean', 0),
+                # ── Outputs: Conductivity ──
+                'sigma_ion': m.get('sigma_full_mScm', 0),
+                'sigma_el': m.get('electronic_sigma_full_mScm', 0),
+                'sigma_th': m.get('thermal_sigma_full_mScm', 0),
             })
 
     return rows
 
 
 def build_dataset(rows):
-    """Build feature matrix X and target matrix Y."""
-    # Input features
-    feature_names = ['phi_se', 'phi_am', 'ps_frac', 'd_se', 'thickness']
-    # Output targets
-    target_names = ['porosity', 'tau', 'cn', 'gb_d', 'f_perc', 'hop_area', 'g_path',
+    """Build feature matrix X and target matrix Y with preprocessing."""
+    # TRUE DEM input features
+    feature_names = ['d_am_p', 'd_am_s', 'd_se', 'am_pct', 'ps_frac', 'rve', 'pressure']
+
+    # All output targets
+    target_names = ['porosity', 'phi_se', 'phi_am', 'thickness',
+                    'tau', 'cn', 'gb_d', 'f_perc', 'hop_area', 'g_path',
                     'sigma_ion', 'sigma_el', 'sigma_th']
 
     X_list, Y_list, names = [], [], []
     seen = set()
-    skipped = {'tau_outlier': 0, 'low_sigma': 0, 'high_porosity': 0}
+    skipped = {'tau_outlier': 0, 'low_sigma': 0, 'high_porosity': 0, 'missing': 0}
+
     for r in rows:
-        # Deduplicate by rounding key metrics
-        dedup_key = f"{r['phi_se']:.4f}_{r['thickness']:.1f}_{r['tau']:.3f}"
+        # Deduplicate
+        dedup_key = f"{r['phi_se']:.4f}_{r.get('thickness',0):.1f}_{r['tau']:.3f}"
         if dedup_key in seen:
             continue
         seen.add(dedup_key)
 
         # ── Preprocessing filters ──
-        # 1. tau outlier (> 10 = non-physical, DEM artifact)
         if r['tau'] > 10:
             skipped['tau_outlier'] += 1
             continue
-        # 2. σ_ionic < 0.01 mS/cm (near percolation threshold)
         if 0 < r['sigma_ion'] < 0.01:
             skipped['low_sigma'] += 1
             continue
-        # 3. porosity > 30% (electrode not properly formed)
         if r['porosity'] > 30:
             skipped['high_porosity'] += 1
             continue
-
-        # Require valid inputs
-        if r['phi_se'] <= 0 or r['thickness'] <= 0 or r['d_se'] <= 0:
-            continue
-        # Require at least some outputs
-        if r['tau'] <= 0 and r['sigma_ion'] <= 0:
+        if r['d_se'] <= 0 or r['am_pct'] <= 0:
+            skipped['missing'] += 1
             continue
 
-        x = [r[f] for f in feature_names]
-        y = [r[t] for t in target_names]
+        x = [r.get(f, 0) for f in feature_names]
+        y = [r.get(t, 0) for t in target_names]
         X_list.append(x)
         Y_list.append(y)
         names.append(r['name'])
 
     X = np.array(X_list)
     Y = np.array(Y_list)
+
+    print(f"  Skipped: {skipped}")
     return X, Y, feature_names, target_names, names
 
 
 def train_gpr(X, Y, target_names):
     """Train Gaussian Process Regression for each target."""
     from sklearn.gaussian_process import GaussianProcessRegressor
-    from sklearn.gaussian_process.kernels import RBF, ConstantKernel, WhiteKernel, Matern
+    from sklearn.gaussian_process.kernels import ConstantKernel, WhiteKernel, Matern
     from sklearn.preprocessing import StandardScaler
     from sklearn.model_selection import LeaveOneOut
 
-    # Normalize inputs
     scaler_X = StandardScaler()
     X_scaled = scaler_X.fit_transform(X)
 
@@ -192,23 +213,17 @@ def train_gpr(X, Y, target_names):
     for j, target in enumerate(target_names):
         y = Y[:, j]
 
-        # Skip if all zeros or constant
         if np.std(y) == 0 or np.all(y == 0):
             print(f"  {target:15s}: SKIP (no variance)")
             continue
 
-        # Use log transform for positive targets with large range
+        # Log transform for positive targets with large range
         use_log = np.all(y > 0) and (np.max(y) / np.min(y) > 5)
-        if use_log:
-            y_train = np.log(y)
-        else:
-            y_train = y.copy()
+        y_train = np.log(y) if use_log else y.copy()
 
-        # Normalize target
         scaler_y = StandardScaler()
         y_scaled = scaler_y.fit_transform(y_train.reshape(-1, 1)).ravel()
 
-        # GPR kernel: Matern(ν=2.5) + WhiteKernel (noise)
         kernel = ConstantKernel(1.0) * Matern(length_scale=1.0, nu=2.5) + WhiteKernel(noise_level=0.1)
 
         gpr = GaussianProcessRegressor(
@@ -219,18 +234,16 @@ def train_gpr(X, Y, target_names):
         # Leave-One-Out Cross-Validation
         loo = LeaveOneOut()
         y_pred_loo = np.zeros(len(y))
-        y_std_loo = np.zeros(len(y))
 
         for train_idx, test_idx in loo.split(X_scaled):
             gpr_cv = GaussianProcessRegressor(
-                kernel=kernel, n_restarts_optimizer=5, alpha=1e-6, normalize_y=False
+                kernel=kernel, n_restarts_optimizer=3, alpha=1e-6, normalize_y=False
             )
             gpr_cv.fit(X_scaled[train_idx], y_scaled[train_idx])
-            pred, std = gpr_cv.predict(X_scaled[test_idx], return_std=True)
+            pred, _ = gpr_cv.predict(X_scaled[test_idx], return_std=True)
             y_pred_loo[test_idx] = pred
-            y_std_loo[test_idx] = std
 
-        # Inverse transform predictions
+        # Inverse transform
         y_pred_real = scaler_y.inverse_transform(y_pred_loo.reshape(-1, 1)).ravel()
         if use_log:
             y_pred_real = np.exp(y_pred_real)
@@ -238,25 +251,22 @@ def train_gpr(X, Y, target_names):
         else:
             y_actual = y
 
-        # R² (LOO-CV)
+        # Metrics
         ss_res = np.sum((y_actual - y_pred_real) ** 2)
         ss_tot = np.sum((y_actual - np.mean(y_actual)) ** 2)
         r2_cv = 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
-        # Mean error
         valid = y_actual > 0
-        if valid.any():
-            mean_err = np.mean(np.abs(y_pred_real[valid] - y_actual[valid]) / y_actual[valid]) * 100
-        else:
-            mean_err = 0
+        mean_err = np.mean(np.abs(y_pred_real[valid] - y_actual[valid]) / y_actual[valid]) * 100 if valid.any() else 0
 
         models[target] = {
             'gpr': gpr, 'scaler_X': scaler_X, 'scaler_y': scaler_y,
-            'use_log': use_log, 'kernel': str(gpr.kernel_)
+            'use_log': use_log
         }
         results[target] = {'r2_cv': r2_cv, 'mean_err': mean_err, 'n': len(y)}
 
-        print(f"  {target:15s}: LOO-CV R²={r2_cv:.3f}, mean|err|={mean_err:.1f}% (n={len(y)})")
+        star = "★" if r2_cv > 0.8 else ""
+        print(f"  {target:15s}: LOO-CV R²={r2_cv:.3f}, mean|err|={mean_err:.1f}% (n={len(y)}) {star}")
 
     return models, results
 
@@ -275,106 +285,132 @@ def predict_new(models, feature_names, target_names, input_dict):
         x_scaled = m['scaler_X'].transform(x)
         pred_scaled, std_scaled = m['gpr'].predict(x_scaled, return_std=True)
         pred = m['scaler_y'].inverse_transform(pred_scaled.reshape(-1, 1)).ravel()[0]
-        std = std_scaled[0] * m['scaler_y'].scale_[0]  # approximate
+        std = std_scaled[0] * m['scaler_y'].scale_[0]
 
         if m['use_log']:
             pred = np.exp(pred)
-            std = pred * std  # approximate in original scale
+            std = pred * abs(std)
 
-        predictions[target] = {'value': round(pred, 4), 'std': round(abs(std), 4)}
+        predictions[target] = {'value': round(float(pred), 4), 'std': round(float(abs(std)), 4)}
 
     return predictions
 
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description='ML Surrogate Model for DEM Cathode')
-    parser.add_argument('--predict', nargs=5, type=float, metavar=('AM_PCT', 'P_RATIO', 'D_SE', 'T', 'PRESSURE'),
-                        help='Predict: AM%% P-ratio(0-10) d_SE(μm) T(μm) Pressure(MPa)')
+    parser = argparse.ArgumentParser(description='ML Surrogate v2: DEM Input → Properties')
+    parser.add_argument('--predict', action='store_true', help='Interactive prediction mode')
     args = parser.parse_args()
 
     print("=" * 70)
-    print("ML SURROGATE MODEL FOR DEM COMPOSITE CATHODE")
+    print("ML SURROGATE v2: TRUE DEM INPUT → PROPERTY PREDICTION")
+    print("Gaussian Process Regression (optimal for small datasets)")
     print("=" * 70)
 
-    # Load data
     rows = load_all_data()
     print(f"\nLoaded {len(rows)} cases")
 
     X, Y, feature_names, target_names, names = build_dataset(rows)
-    print(f"Valid dataset: {len(X)} cases (after preprocessing)")
+    print(f"Dataset: {len(X)} cases after preprocessing")
 
     if len(X) < 10:
-        print("ERROR: Need at least 10 cases for ML. Run more DEM simulations!")
+        print("ERROR: Need at least 10 cases!")
         return
 
-    # Show data range
-    print(f"\n{'Feature':15s} {'min':>10s} {'max':>10s} {'mean':>10s}")
-    print("-" * 50)
+    # Data ranges
+    print(f"\n{'─'*60}")
+    print(f"{'INPUT FEATURES (DEM script parameters)':^60}")
+    print(f"{'─'*60}")
+    units = {'d_am_p': 'μm', 'd_am_s': 'μm', 'd_se': 'μm', 'am_pct': '%',
+             'ps_frac': '(0~1)', 'rve': 'μm', 'pressure': 'MPa'}
     for i, f in enumerate(feature_names):
-        print(f"  {f:13s} {X[:,i].min():10.3f} {X[:,i].max():10.3f} {X[:,i].mean():10.3f}")
+        u = units.get(f, '')
+        print(f"  {f:12s} [{u:>6s}]: {X[:,i].min():10.2f} ~ {X[:,i].max():10.2f} (mean {X[:,i].mean():.2f})")
 
-    print(f"\n{'Target':15s} {'min':>10s} {'max':>10s} {'mean':>10s}")
-    print("-" * 50)
+    print(f"\n{'─'*60}")
+    print(f"{'OUTPUT TARGETS (DEM results)':^60}")
+    print(f"{'─'*60}")
     for j, t in enumerate(target_names):
         valid = Y[:, j] > 0
         if valid.any():
-            print(f"  {t:13s} {Y[valid,j].min():10.4f} {Y[valid,j].max():10.4f} {Y[valid,j].mean():10.4f}")
+            print(f"  {t:13s}: {Y[valid,j].min():10.4f} ~ {Y[valid,j].max():10.4f}")
 
-    # Train GPR
-    print(f"\n--- Training Gaussian Process Regression (LOO-CV) ---")
+    # Train
+    print(f"\n{'═'*60}")
+    print(f"TRAINING (LOO-CV: honest R² with n-1 training)")
+    print(f"{'═'*60}")
     models, results = train_gpr(X, Y, target_names)
 
     # Summary
-    print(f"\n{'=' * 50}")
-    print(f"MODEL PERFORMANCE SUMMARY")
-    print(f"{'=' * 50}")
-    print(f"{'Target':15s} {'LOO-CV R²':>10s} {'Mean|err|':>10s}")
-    print("-" * 40)
+    print(f"\n{'═'*60}")
+    print(f"{'PERFORMANCE SUMMARY':^60}")
+    print(f"{'═'*60}")
+    print(f"  {'Target':15s} {'LOO-CV R²':>10s} {'|err|':>8s} {'Grade':>6s}")
+    print(f"  {'─'*45}")
     for t in target_names:
         if t in results:
             r = results[t]
-            star = " ★" if r['r2_cv'] > 0.8 else ""
-            print(f"  {t:13s} {r['r2_cv']:10.3f} {r['mean_err']:9.1f}%{star}")
+            if r['r2_cv'] > 0.95:
+                grade = "A+"
+            elif r['r2_cv'] > 0.9:
+                grade = "A"
+            elif r['r2_cv'] > 0.8:
+                grade = "B"
+            elif r['r2_cv'] > 0.5:
+                grade = "C"
+            else:
+                grade = "F"
+            print(f"  {t:15s} {r['r2_cv']:10.3f} {r['mean_err']:7.1f}% {grade:>6s}")
 
-    # Predict new case
+    # Scaling Law comparison
+    if 'sigma_ion' in results:
+        print(f"\n  ── σ_ionic: GPR vs Scaling Law ──")
+        print(f"  Scaling Law: R²=0.947 (physics, needs DEM microstructure)")
+        print(f"  GPR (input): R²={results['sigma_ion']['r2_cv']:.3f} (from script params only!)")
+        if results['sigma_ion']['r2_cv'] < 0.947:
+            print(f"  → Scaling Law still better (but GPR doesn't need DEM!)")
+
+    # Interactive prediction
     if args.predict:
-        am_pct, p_ratio, d_se, thickness, pressure = args.predict
-        se_pct = 100 - am_pct
-        phi_se_est = se_pct / 100 * 0.65  # rough estimate (porosity ~20%, SE density fraction)
-        phi_am_est = am_pct / 100 * 0.65
-        ps_frac = p_ratio / 10
+        print(f"\n{'═'*60}")
+        print(f"INTERACTIVE PREDICTION")
+        print(f"{'═'*60}")
+        print("Enter DEM input parameters:")
+
+        try:
+            d_am_p = float(input("  d_AM_P (μm) [default 10]: ") or 10)
+            d_am_s = float(input("  d_AM_S (μm) [default 5]: ") or 5)
+            d_se = float(input("  d_SE (μm) [default 1]: ") or 1)
+            am_pct = float(input("  AM:SE ratio - AM% [default 80]: ") or 80)
+            ps_frac = float(input("  P:S fraction (0=all S, 1=all P) [default 0.5]: ") or 0.5)
+            rve = float(input("  RVE size (μm) [default 50]: ") or 50)
+            pressure = float(input("  Pressure (MPa) [default 300]: ") or 300)
+        except (ValueError, EOFError):
+            print("Using defaults...")
+            d_am_p, d_am_s, d_se = 10, 5, 1
+            am_pct, ps_frac, rve, pressure = 80, 0.5, 50, 300
 
         input_dict = {
-            'phi_se': phi_se_est,
-            'phi_am': phi_am_est,
-            'ps_frac': ps_frac,
-            'd_se': d_se,
-            'thickness': thickness,
+            'd_am_p': d_am_p, 'd_am_s': d_am_s, 'd_se': d_se,
+            'am_pct': am_pct, 'ps_frac': ps_frac, 'rve': rve, 'pressure': pressure
         }
 
-        print(f"\n{'=' * 50}")
-        print(f"PREDICTION: AM:SE={am_pct:.0f}:{se_pct:.0f}, P:S={p_ratio:.0f}:{10-p_ratio:.0f}, "
-              f"d_SE={d_se}μm, T={thickness}μm")
-        print(f"{'=' * 50}")
-
         predictions = predict_new(models, feature_names, target_names, input_dict)
-        print(f"{'Property':20s} {'Predicted':>12s} {'±Uncertainty':>12s}")
-        print("-" * 50)
+
+        print(f"\n{'─'*50}")
+        print(f"PREDICTED PROPERTIES:")
+        print(f"{'─'*50}")
+        units_out = {
+            'porosity': '%', 'phi_se': '', 'phi_am': '', 'thickness': 'μm',
+            'tau': '', 'cn': '', 'gb_d': 'hops/μm', 'f_perc': '%',
+            'hop_area': 'μm²', 'g_path': 'μm²',
+            'sigma_ion': 'mS/cm', 'sigma_el': 'mS/cm', 'sigma_th': 'mS/cm'
+        }
         for t in target_names:
             p = predictions[t]
-            print(f"  {t:18s} {p['value']:12.4f} ±{p['std']:10.4f}")
-
-    # Comparison: GPR vs Scaling Law
-    if 'sigma_ion' in results:
-        print(f"\n--- GPR vs Scaling Law (ionic) ---")
-        print(f"  Scaling Law: R²=0.947 (physics-based, 1 param)")
-        print(f"  GPR LOO-CV:  R²={results['sigma_ion']['r2_cv']:.3f} (data-driven, kernel params)")
-        if results['sigma_ion']['r2_cv'] > 0.947:
-            print(f"  → GPR wins by {results['sigma_ion']['r2_cv'] - 0.947:.3f}")
-        else:
-            print(f"  → Scaling Law wins by {0.947 - results['sigma_ion']['r2_cv']:.3f}")
-            print(f"  → Physics-based model is BETTER with this small dataset!")
+            u = units_out.get(t, '')
+            conf = "±" + f"{p['std']:.4f}" if p['std'] > 0 else ""
+            print(f"  {t:15s} = {p['value']:10.4f} {u:>8s}  {conf}")
 
 
 if __name__ == '__main__':

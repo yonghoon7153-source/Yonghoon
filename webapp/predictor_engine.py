@@ -368,33 +368,70 @@ def _fmt(val, micro_entry):
     }
 
 
-def sweep_optimal(top_n=5):
-    """Sweep parameter space to find optimal design."""
+def sweep_optimal(top_n=5, fixed_params=None, sweep_keys=None, defaults=None):
+    """Sweep unchecked parameters, keep checked ones fixed."""
     if _cached_models is None:
         return {'error': 'Models not trained.'}
 
+    if fixed_params is None:
+        fixed_params = {}
+    if defaults is None:
+        defaults = {}
+
+    # Sweep ranges for each parameter
+    sweep_ranges = {
+        'd_se': np.arange(0.3, 3.1, 0.3),
+        'd_am_p': np.arange(3, 13, 2),
+        'd_am_s': np.arange(1, 9, 1.5),
+        'am_pct': np.arange(60, 91, 5),
+        'ps_frac': np.arange(0.0, 1.1, 0.2),
+        'loading': np.arange(1, 11, 2),
+        'rve': np.array([30, 50, 100]),
+    }
+
+    if sweep_keys is None:
+        sweep_keys = ['d_se', 'am_pct', 'ps_frac', 'loading']
+
+    # Build combinations for sweep params only
+    import itertools
+    sweep_vals = [sweep_ranges.get(k, np.array([defaults.get(k, 1.0)])) for k in sweep_keys]
+    combos = list(itertools.product(*sweep_vals))
+
+    # Base params from fixed + defaults
+    base = {
+        'd_se': 1.0, 'd_am_p': 10, 'd_am_s': 4, 'am_pct': 80,
+        'ps_frac': 0.5, 'loading': 6, 'rve': 50,
+    }
+    base.update(defaults)
+    base.update(fixed_params)
+
     results = []
-    for d_se in np.arange(0.3, 3.1, 0.3):
-        for am_pct in range(60, 91, 5):
-            for ps_frac in np.arange(0.0, 1.1, 0.2):
-                for loading in np.arange(1, 11, 2):
-                    pred = predict(d_se, 5.0, am_pct, ps_frac, loading, 50)
-                    if 'error' in pred:
-                        continue
-                    sig = pred['conductivity']['sigma_ionic']
-                    if sig > 0:
-                        results.append({
-                            'd_se': round(float(d_se), 1),
-                            'd_am': 5.0,
-                            'am_pct': int(am_pct),
-                            'ps_frac': round(float(ps_frac), 1),
-                            'loading': round(float(loading), 1),
-                            'rve': 50,
-                            'sigma_ionic': round(sig, 4),
-                            'sigma_electronic': pred['conductivity']['sigma_electronic'],
-                            'sigma_thermal': pred['conductivity']['sigma_thermal'],
-                            'rate_limiting': pred['rate_limiting'],
-                        })
+    for combo in combos:
+        params = dict(base)
+        for i, k in enumerate(sweep_keys):
+            params[k] = float(combo[i])
+        d_am = max(params.get('d_am_p', 5), params.get('d_am_s', 4))
+        pred = predict(params['d_se'], d_am, params['am_pct'],
+                      params['ps_frac'], params['loading'], params['rve'])
+        if 'error' in pred:
+            continue
+        sig = pred['conductivity']['sigma_ionic']
+        if sig > 0:
+            r = {
+                'd_se': round(float(params['d_se']), 1),
+                'am_pct': int(params['am_pct']),
+                'ps_frac': round(float(params['ps_frac']), 1),
+                'loading': round(float(params['loading']), 1),
+                'sigma_ionic': round(sig, 4),
+                'sigma_electronic': pred['conductivity']['sigma_electronic'],
+                'sigma_thermal': pred['conductivity']['sigma_thermal'],
+                'rate_limiting': pred['rate_limiting'],
+            }
+            # Add sweep params to result
+            for k in sweep_keys:
+                if k not in r:
+                    r[k] = round(float(params[k]), 1)
+            results.append(r)
 
     results.sort(key=lambda x: x['sigma_ionic'], reverse=True)
     return results[:top_n]

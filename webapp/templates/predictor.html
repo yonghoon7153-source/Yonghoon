@@ -28,7 +28,7 @@
     <div class="input-grid">
 
       <div class="input-group">
-        <label for="d_se">d<sub>SE</sub> (SE diameter)</label>
+        <label><input type="checkbox" class="fix-check" data-param="d_se" checked> d<sub>SE</sub> (SE diameter)</label>
         <div class="slider-row">
           <input type="range" id="d_se" min="0.3" max="3.0" step="0.1" value="1.0">
           <span class="slider-val" id="d_se_val">1.0 &mu;m</span>
@@ -36,7 +36,7 @@
       </div>
 
       <div class="input-group">
-        <label for="d_am_p">d<sub>AM_P</sub> (대립 AM diameter)</label>
+        <label><input type="checkbox" class="fix-check" data-param="d_am_p" checked> d<sub>AM_P</sub> (대립 AM)</label>
         <div class="slider-row">
           <input type="range" id="d_am_p" min="3" max="12" step="1" value="10">
           <span class="slider-val" id="d_am_p_val">10 &mu;m</span>
@@ -44,7 +44,7 @@
       </div>
 
       <div class="input-group">
-        <label for="d_am_s">d<sub>AM_S</sub> (소립 AM diameter)</label>
+        <label><input type="checkbox" class="fix-check" data-param="d_am_s" checked> d<sub>AM_S</sub> (소립 AM)</label>
         <div class="slider-row">
           <input type="range" id="d_am_s" min="1" max="8" step="0.5" value="4">
           <span class="slider-val" id="d_am_s_val">4 &mu;m</span>
@@ -52,7 +52,7 @@
       </div>
 
       <div class="input-group">
-        <label for="am_pct">AM:SE Ratio (AM%)</label>
+        <label><input type="checkbox" class="fix-check" data-param="am_pct" checked> AM:SE Ratio (AM%)</label>
         <div class="slider-row">
           <input type="range" id="am_pct" min="60" max="90" step="1" value="80">
           <span class="slider-val" id="am_pct_val">80%</span>
@@ -60,7 +60,7 @@
       </div>
 
       <div class="input-group">
-        <label for="ps_frac">P:S Fraction (0=S only, 1=P only)</label>
+        <label><input type="checkbox" class="fix-check" data-param="ps_frac" checked> P:S Fraction (0=S, 1=P)</label>
         <div class="slider-row">
           <input type="range" id="ps_frac" min="0.0" max="1.0" step="0.1" value="0.5">
           <span class="slider-val" id="ps_frac_val">0.5</span>
@@ -68,7 +68,7 @@
       </div>
 
       <div class="input-group">
-        <label for="loading">Loading</label>
+        <label><input type="checkbox" class="fix-check" data-param="loading" checked> Loading</label>
         <div class="slider-row">
           <input type="range" id="loading" min="1" max="10" step="0.5" value="6">
           <span class="slider-val" id="loading_val">6.0 mAh/cm&sup2;</span>
@@ -76,7 +76,7 @@
       </div>
 
       <div class="input-group">
-        <label for="rve">RVE Size</label>
+        <label><input type="checkbox" class="fix-check" data-param="rve" checked> RVE Size</label>
         <div class="slider-row">
           <input type="range" id="rve" min="30" max="100" step="10" value="50">
           <span class="slider-val" id="rve_val">50 &mu;m</span>
@@ -257,6 +257,10 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  .fix-check { margin-right: 6px; accent-color: var(--primary); cursor: pointer; }
+  .fix-check:not(:checked) + * { color: #ff922b; }
+  label:has(.fix-check:not(:checked)) { color: #ff922b; font-weight: 700; }
+  .sweep-hint { font-size: .75rem; color: var(--dim); margin-top: 4px; }
   @media (max-width: 800px) {
     .input-grid { grid-template-columns: 1fr; }
     .results-grid { grid-template-columns: 1fr; }
@@ -416,8 +420,32 @@ function renderResults(data) {
 }
 
 function findOptimal() {
-  showLoading('Sweeping parameter space (this may take a moment)...');
-  fetch('/predictor/optimal')
+  // Collect fixed vs sweep params
+  const params = getParams();
+  const sweepParams = {};
+  const fixedParams = {};
+  document.querySelectorAll('.fix-check').forEach(cb => {
+    const p = cb.dataset.param;
+    if (cb.checked) {
+      fixedParams[p] = params[p] || parseFloat(document.getElementById(p).value);
+    } else {
+      sweepParams[p] = true;
+    }
+  });
+  const sweepKeys = Object.keys(sweepParams);
+  if (sweepKeys.length === 0) {
+    showToast('체크 해제된 파라미터가 없습니다! sweep할 파라미터의 체크를 풀어주세요.');
+    return;
+  }
+  showLoading(`Sweeping ${sweepKeys.join(' × ')} (${sweepKeys.length}D)...`);
+
+  const qs = new URLSearchParams();
+  qs.set('fixed', JSON.stringify(fixedParams));
+  qs.set('sweep', JSON.stringify(sweepKeys));
+  // Pass current slider values as defaults
+  for (const [k, v] of Object.entries(params)) qs.set(k, v);
+
+  fetch('/predictor/optimal?' + qs.toString())
     .then(r => r.json())
     .then(data => {
       hideLoading();

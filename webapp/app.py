@@ -2092,7 +2092,12 @@ def predictor_predict():
 def predictor_optimal():
     """Find optimal design by sweeping parameter space."""
     try:
-        result = predictor_engine.sweep_optimal(top_n=5)
+        fixed = json.loads(request.args.get('fixed', '{}'))
+        sweep = json.loads(request.args.get('sweep', '[]'))
+        defaults = {k: float(v) for k, v in request.args.items() if k not in ('fixed', 'sweep')}
+        result = predictor_engine.sweep_optimal(
+            top_n=10, fixed_params=fixed, sweep_keys=sweep if sweep else None, defaults=defaults
+        )
         if isinstance(result, dict) and 'error' in result:
             return jsonify(result), 400
         return jsonify(result)

@@ -41,21 +41,45 @@ GROUP_COLORS = ['#6c8cff', '#ff6b6b', '#51cf66', '#ffd43b', '#cc5de8', '#ff922b'
 _GROUP_INFO = None  # Set by main()
 _GLOBAL_RGB = None  # (b, ln_k) from global fit across all plot groups
 _GLOBAL_C_ION = None  # Fitted C for ionic scaling law (from global/ionic_scaling_fit)
+_ALL_DATA = None  # all_data for _apply_style auto-detect
 
-def _apply_style(ax, ylabel, names):
-    """Apply common academic style with group separators."""
+def _apply_style(ax, ylabel, names, data_list=None):
+    """Apply common academic style with group separators.
+    Auto-detect monomodal: if all P:S are same, use AM:SE as x-axis."""
     n = len(names)
     ax.set_xticks(range(n))
 
+    # Check if all names (P:S) are the same → monomodal, use AM:SE instead
+    x_labels = list(names)
+    x_title = "P:S Configuration"
+    if data_list is None:
+        data_list = _ALL_DATA
+    unique_names = set(names)
+    if len(unique_names) == 1 and data_list is not None:
+        # All P:S same → show AM:SE ratio instead
+        am_se_labels = []
+        for d in data_list:
+            am_se = _get(d, 'am_se_ratio', '')
+            if not am_se:
+                phi_am = _get(d, 'phi_am', 0)
+                phi_se = _get(d, 'phi_se', 0)
+                if phi_am > 0 and phi_se > 0:
+                    am_pct = phi_am / (phi_am + phi_se) * 100
+                    am_se = f"{am_pct:.0f}:{100-am_pct:.0f}"
+            am_se_labels.append(str(am_se) if am_se else '?')
+        if any(l != '?' for l in am_se_labels):
+            x_labels = am_se_labels
+            x_title = f"AM:SE Ratio (P:S={names[0]})"
+
     # Adaptive x-axis label sizing
     if n <= 8:
-        ax.set_xticklabels(names, fontsize=10)
+        ax.set_xticklabels(x_labels, fontsize=10)
     elif n <= 15:
-        ax.set_xticklabels(names, fontsize=8, rotation=45, ha='right')
+        ax.set_xticklabels(x_labels, fontsize=8, rotation=45, ha='right')
     else:
-        ax.set_xticklabels(names, fontsize=7, rotation=45, ha='right')
+        ax.set_xticklabels(x_labels, fontsize=7, rotation=45, ha='right')
 
-    ax.set_xlabel("P:S Configuration", fontsize=10)
+    ax.set_xlabel(x_title, fontsize=10)
     ax.set_ylabel(ylabel, fontsize=11)
     ax.yaxis.grid(True, linestyle="--", linewidth=0.4, color="#CCCCCC", alpha=0.7)
     ax.set_axisbelow(True)
@@ -2355,12 +2379,14 @@ def main():
         print(f"ERROR: inputs ({len(args.inputs)}) != names ({len(args.names)})")
         sys.exit(1)
 
+    global _ALL_DATA
     all_data = []
     for path in args.inputs:
         with open(path, "r") as f:
             d = json.load(f)
         d["_source_path"] = path
         all_data.append(d)
+    _ALL_DATA = all_data
 
     # Use P:S ratio as x-axis labels (fallback to case names)
     plot_names = []

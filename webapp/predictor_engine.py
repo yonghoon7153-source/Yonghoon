@@ -790,6 +790,111 @@ def export_training_csv(results_folder, archive_folder):
     return output.getvalue()
 
 
+def generate_phase_diagram(x_param, y_param, fixed_params, n_points=30):
+    """Generate phase diagram with contour boundaries.
+    Returns grid data + boundary lines for multiple criteria."""
+    if _cached_models is None:
+        return {'error': 'Models not trained.'}
+
+    sweep_ranges = {
+        'd_se': (0.3, 3.0),
+        'd_am': (3, 12),
+        'am_pct': (60, 90),
+        'ps_frac': (0.0, 1.0),
+        'loading': (1, 10),
+        'rve': (30, 100),
+    }
+
+    labels = {
+        'd_se': 'd_SE (\u03bcm)', 'd_am': 'd_AM (\u03bcm)', 'am_pct': 'AM%',
+        'ps_frac': 'P:S fraction', 'loading': 'Loading (mAh/cm\u00b2)', 'rve': 'RVE (\u03bcm)',
+    }
+
+    base = {'d_se': 1.0, 'd_am': 5.0, 'am_pct': 80, 'ps_frac': 0.5, 'loading': 6, 'rve': 50}
+    base.update(fixed_params or {})
+
+    x_range = sweep_ranges.get(x_param, (0.5, 5.0))
+    y_range = sweep_ranges.get(y_param, (0.5, 5.0))
+    x_values = np.linspace(x_range[0], x_range[1], n_points).tolist()
+    y_values = np.linspace(y_range[0], y_range[1], n_points).tolist()
+
+    sigma_ionic_grid = []
+    electronic_active_grid = []
+    util_1C_grid = []
+    performance_grid = []
+
+    for yi in y_values:
+        sigma_row = []
+        elec_row = []
+        util_row = []
+        perf_row = []
+        for xi in x_values:
+            params = dict(base)
+            params[x_param] = xi
+            params[y_param] = yi
+            pred = predict(
+                d_se=params['d_se'], d_am=params['d_am'],
+                am_pct=params['am_pct'], ps_frac=params['ps_frac'],
+                loading=params['loading'], rve=params['rve'],
+            )
+            if 'error' in pred:
+                sigma_row.append(0)
+                elec_row.append(0)
+                util_row.append(0)
+                perf_row.append(0)
+            else:
+                sigma_row.append(round(pred['conductivity']['sigma_ionic'], 6))
+                elec_row.append(round(pred.get('electronic_active_pct', 0), 2))
+                util_row.append(round(pred.get('utilization', {}).get('1.0C', 0), 4))
+                perf_row.append(round(pred.get('performance_score', 0), 6))
+        sigma_ionic_grid.append(sigma_row)
+        electronic_active_grid.append(elec_row)
+        util_1C_grid.append(util_row)
+        performance_grid.append(perf_row)
+
+    # Extract contour boundary points
+    def find_boundary(grid, threshold):
+        """Find cells where the grid crosses the threshold value."""
+        points = []
+        ny = len(grid)
+        nx = len(grid[0]) if ny > 0 else 0
+        for j in range(ny):
+            for i in range(nx):
+                val = grid[j][i]
+                # Check neighbors (right and down)
+                crosses = False
+                if i + 1 < nx:
+                    neighbor = grid[j][i + 1]
+                    if (val < threshold and neighbor >= threshold) or (val >= threshold and neighbor < threshold):
+                        crosses = True
+                if j + 1 < ny:
+                    neighbor = grid[j + 1][i]
+                    if (val < threshold and neighbor >= threshold) or (val >= threshold and neighbor < threshold):
+                        crosses = True
+                if crosses:
+                    points.append({'x': round(x_values[i], 4), 'y': round(y_values[j], 4), 'i': i, 'j': j})
+        return points
+
+    boundaries = {
+        'sigma_0.1': find_boundary(sigma_ionic_grid, 0.1),
+        'sigma_0.2': find_boundary(sigma_ionic_grid, 0.2),
+        'electronic_80': find_boundary(electronic_active_grid, 80),
+        'util_80': find_boundary(util_1C_grid, 0.8),
+    }
+
+    return {
+        'x_values': [round(v, 4) for v in x_values],
+        'y_values': [round(v, 4) for v in y_values],
+        'x_label': labels.get(x_param, x_param),
+        'y_label': labels.get(y_param, y_param),
+        'sigma_ionic': sigma_ionic_grid,
+        'electronic_active': electronic_active_grid,
+        'util_1C': util_1C_grid,
+        'performance': performance_grid,
+        'boundaries': boundaries,
+    }
+
+
 def sweep_optimal(top_n=5, fixed_params=None, sweep_keys=None, defaults=None):
     """Sweep unchecked parameters, keep checked ones fixed."""
     if _cached_models is None:

@@ -158,6 +158,7 @@
     <h3 class="card-title">Analysis Tools</h3>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
       <button class="btn btn-primary" onclick="showHeatmap()">2D Heatmap</button>
+      <button class="btn btn-primary" onclick="showPhaseDiagram()">Phase Diagram</button>
       <button class="btn btn-primary" onclick="showSensitivity()">Sensitivity</button>
       <button class="btn btn-accent" onclick="showPareto()">Pareto Front</button>
       <button class="btn btn-accent" onclick="suggestNext()">Next DEM Suggestion</button>
@@ -197,6 +198,42 @@
         <span style="display:inline-block;width:14px;height:14px;background:#dc2626;vertical-align:middle;border-radius:2px"></span> Low
         <span style="display:inline-block;width:14px;height:14px;background:#f59e0b;vertical-align:middle;border-radius:2px;margin-left:12px"></span> Mid
         <span style="display:inline-block;width:14px;height:14px;background:#22c55e;vertical-align:middle;border-radius:2px;margin-left:12px"></span> High
+      </div>
+    </div>
+
+    <!-- Phase Diagram -->
+    <div id="phase-container" style="display:none">
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap">
+        <label style="color:var(--dim);font-size:.85rem">X:</label>
+        <select id="phase-x" class="analysis-select">
+          <option value="d_se">d_SE</option>
+          <option value="am_pct">AM%</option>
+          <option value="ps_frac">P:S</option>
+          <option value="loading">Loading</option>
+          <option value="d_am">d_AM</option>
+        </select>
+        <label style="color:var(--dim);font-size:.85rem">Y:</label>
+        <select id="phase-y" class="analysis-select">
+          <option value="am_pct">AM%</option>
+          <option value="d_se">d_SE</option>
+          <option value="ps_frac">P:S</option>
+          <option value="loading">Loading</option>
+          <option value="d_am">d_AM</option>
+        </select>
+        <button class="btn btn-primary" onclick="generatePhaseDiagram()" style="padding:6px 16px">Generate</button>
+      </div>
+      <div id="phase-grid"></div>
+      <div id="phase-legend" style="display:none;margin-top:10px;font-size:.8rem;color:var(--dim);background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="font-weight:600;margin-bottom:6px;color:var(--text)">Legend</div>
+        <div style="margin-bottom:4px"><span style="display:inline-block;width:24px;height:3px;background:#fff;vertical-align:middle;margin-right:8px"></span> <span style="font-family:var(--mono)">&sigma;<sub>ionic</sub> = 0.1 mS/cm</span> (minimum viable)</div>
+        <div style="margin-bottom:4px"><span style="display:inline-block;width:24px;height:3px;background:#2ecc71;vertical-align:middle;margin-right:8px"></span> <span style="font-family:var(--mono)">&sigma;<sub>ionic</sub> = 0.2 mS/cm</span> (good)</div>
+        <div style="margin-bottom:4px"><span style="display:inline-block;width:24px;height:3px;background:#e74c3c;vertical-align:middle;margin-right:8px"></span> <span style="font-family:var(--mono)">Electronic Active AM = 80%</span> (additive needed below)</div>
+        <div><span style="display:inline-block;width:24px;height:3px;background:#f39c12;vertical-align:middle;margin-right:8px"></span> <span style="font-family:var(--mono)">Utilization @1C = 80%</span> (rate capability limit)</div>
+        <div style="margin-top:8px">
+          <span style="display:inline-block;width:14px;height:14px;background:#dc2626;vertical-align:middle;border-radius:2px"></span> Low &sigma;
+          <span style="display:inline-block;width:14px;height:14px;background:#f59e0b;vertical-align:middle;border-radius:2px;margin-left:12px"></span> Mid &sigma;
+          <span style="display:inline-block;width:14px;height:14px;background:#22c55e;vertical-align:middle;border-radius:2px;margin-left:12px"></span> High &sigma;
+        </div>
       </div>
     </div>
 
@@ -337,6 +374,24 @@
     background: var(--bg2); color: var(--text); border: 1px solid var(--border);
     border-radius: 6px; padding: 4px 8px; font-size: 0.85rem; font-family: var(--font);
   }
+
+  .phase-table { border-collapse: collapse; font-size: 0.65rem; }
+  .phase-table td {
+    width: 22px; height: 18px; text-align: center;
+    font-family: var(--mono); font-weight: 600; font-size: 0.55rem;
+    border: 1px solid rgba(255,255,255,0.03); padding: 0;
+  }
+  .phase-table .axis-label {
+    background: transparent; color: var(--dim); font-size: 0.65rem;
+    font-weight: 400; border: none; width: auto; padding: 2px 4px;
+  }
+  .phase-cell.boundary-01 { box-shadow: inset 0 0 0 2px #fff; }
+  .phase-cell.boundary-02 { box-shadow: inset 0 0 0 2px #2ecc71; }
+  .phase-cell.boundary-el { box-shadow: inset 0 0 0 2px #e74c3c; }
+  .phase-cell.boundary-util { box-shadow: inset 0 0 0 2px #f39c12; }
+  .phase-cell.boundary-01.boundary-02 { box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 4px #2ecc71; }
+  .phase-cell.boundary-01.boundary-el { box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 4px #e74c3c; }
+  .phase-cell.boundary-02.boundary-el { box-shadow: inset 0 0 0 2px #2ecc71, inset 0 0 0 4px #e74c3c; }
 
   .heatmap-table { border-collapse: collapse; font-size: 0.65rem; }
   .heatmap-table td {
@@ -657,7 +712,7 @@ function renderOptimal(results) {
 // ═══ Analysis Tools ═══
 
 function hideAllAnalysis() {
-  ['heatmap-container','sensitivity-container','pareto-container','suggest-container'].forEach(id => {
+  ['heatmap-container','phase-container','sensitivity-container','pareto-container','suggest-container'].forEach(id => {
     document.getElementById(id).style.display = 'none';
   });
 }
@@ -788,6 +843,131 @@ function renderSuggestions(data) {
 
 function exportCSV() {
   window.location.href = '/predictor/export';
+}
+
+function showPhaseDiagram() {
+  hideAllAnalysis();
+  document.getElementById('phase-container').style.display = 'block';
+  document.getElementById('analysis-section').scrollIntoView({behavior:'smooth'});
+}
+
+function generatePhaseDiagram() {
+  const xParam = document.getElementById('phase-x').value;
+  const yParam = document.getElementById('phase-y').value;
+  if (xParam === yParam) {
+    showToast('X and Y parameters must be different');
+    return;
+  }
+  const grid = document.getElementById('phase-grid');
+  grid.innerHTML = '<div style="color:var(--dim);padding:8px">Generating phase diagram (30x30 grid)... this may take a moment.</div>';
+
+  const params = getParams();
+  const fixed = {};
+  ['d_se','d_am','am_pct','ps_frac','loading','rve'].forEach(k => {
+    if (k !== xParam && k !== yParam) fixed[k] = params[k] || params[k];
+  });
+  if (!fixed.d_am && xParam !== 'd_am' && yParam !== 'd_am') fixed.d_am = params.d_am;
+
+  fetch('/predictor/phase-diagram', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({x_param: xParam, y_param: yParam, fixed: fixed, n_points: 30}),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { grid.innerHTML = `<div style="color:var(--red)">${data.error}</div>`; return; }
+      renderPhaseDiagram(data);
+    })
+    .catch(err => { grid.innerHTML = `<div style="color:var(--red)">Error: ${err}</div>`; });
+}
+
+function renderPhaseDiagram(data) {
+  const grid = document.getElementById('phase-grid');
+  document.getElementById('phase-legend').style.display = 'block';
+
+  const sigma = data.sigma_ionic;
+  const elecActive = data.electronic_active;
+  const util = data.util_1C;
+  const ny = sigma.length;
+  const nx = sigma[0].length;
+
+  // Find sigma range for coloring
+  const allSigma = sigma.flat();
+  const minS = Math.min(...allSigma);
+  const maxS = Math.max(...allSigma);
+
+  // Build boundary lookup: set of "j,i" strings for each boundary type
+  const bSigma01 = new Set();
+  const bSigma02 = new Set();
+  const bElec80 = new Set();
+  const bUtil80 = new Set();
+
+  // Compute boundaries from grid data (check neighbors)
+  function markBoundary(gridData, threshold, bSet) {
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        const val = gridData[j][i];
+        let crosses = false;
+        if (i + 1 < nx) {
+          const nb = gridData[j][i + 1];
+          if ((val < threshold && nb >= threshold) || (val >= threshold && nb < threshold)) crosses = true;
+        }
+        if (j + 1 < ny) {
+          const nb = gridData[j + 1][i];
+          if ((val < threshold && nb >= threshold) || (val >= threshold && nb < threshold)) crosses = true;
+        }
+        if (i > 0) {
+          const nb = gridData[j][i - 1];
+          if ((val < threshold && nb >= threshold) || (val >= threshold && nb < threshold)) crosses = true;
+        }
+        if (j > 0) {
+          const nb = gridData[j - 1][i];
+          if ((val < threshold && nb >= threshold) || (val >= threshold && nb < threshold)) crosses = true;
+        }
+        if (crosses) bSet.add(j + ',' + i);
+      }
+    }
+  }
+
+  markBoundary(sigma, 0.1, bSigma01);
+  markBoundary(sigma, 0.2, bSigma02);
+  markBoundary(elecActive, 80, bElec80);
+  markBoundary(util, 0.8, bUtil80);
+
+  let html = `<div style="margin-bottom:6px;font-size:.8rem;color:var(--dim)">&sigma;<sub>ionic</sub> range: ${minS.toFixed(4)} to ${maxS.toFixed(4)} mS/cm</div>`;
+  html += '<div style="overflow-x:auto"><table class="phase-table">';
+
+  // Header row (x values)
+  html += '<tr><td class="axis-label" style="font-weight:600">' + data.y_label.split('(')[0].trim() + '\\' + data.x_label.split('(')[0].trim() + '</td>';
+  data.x_values.forEach((xv, i) => {
+    if (i % 5 === 0) html += `<td class="axis-label">${typeof xv === 'number' ? xv.toFixed(1) : xv}</td>`;
+    else html += `<td class="axis-label"></td>`;
+  });
+  html += '</tr>';
+
+  // Data rows (y reversed so high values at top)
+  for (let j = ny - 1; j >= 0; j--) {
+    const yLabel = j % 5 === 0 ? (typeof data.y_values[j] === 'number' ? data.y_values[j].toFixed(1) : data.y_values[j]) : '';
+    html += `<tr><td class="axis-label">${yLabel}</td>`;
+    for (let i = 0; i < nx; i++) {
+      const val = sigma[j][i];
+      const bg = heatmapColor(val, minS, maxS);
+      const key = j + ',' + i;
+      let cls = 'phase-cell';
+      if (bSigma01.has(key)) cls += ' boundary-01';
+      else if (bSigma02.has(key)) cls += ' boundary-02';
+      if (bElec80.has(key)) cls += ' boundary-el';
+      if (bUtil80.has(key)) cls += ' boundary-util';
+
+      const elVal = elecActive[j][i];
+      const utVal = util[j][i];
+      const tip = `${data.x_label}=${data.x_values[i]}, ${data.y_label}=${data.y_values[j]}\n\u03c3_ionic=${val.toFixed(4)} mS/cm\nElec Active=${elVal.toFixed(1)}%\nutil@1C=${(utVal*100).toFixed(1)}%`;
+      html += `<td class="${cls}" style="background:${bg}" title="${tip}"></td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</table></div>';
+  grid.innerHTML = html;
 }
 
 function generateHeatmap() {

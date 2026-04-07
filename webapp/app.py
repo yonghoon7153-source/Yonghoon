@@ -2145,6 +2145,28 @@ def predictor_heatmap():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/predictor/phase-diagram', methods=['POST'])
+def predictor_phase_diagram():
+    """Generate phase diagram with contour boundaries."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No input data'}), 400
+    try:
+        fixed = {}
+        for k in ['d_se', 'd_am', 'am_pct', 'ps_frac', 'loading', 'rve']:
+            if k in data.get('fixed', {}):
+                fixed[k] = float(data['fixed'][k])
+        result = predictor_engine.generate_phase_diagram(
+            x_param=data.get('x_param', 'd_se'),
+            y_param=data.get('y_param', 'am_pct'),
+            fixed_params=fixed,
+            n_points=int(data.get('n_points', 30)),
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/predictor/sensitivity', methods=['POST'])
 def predictor_sensitivity():
     """Sensitivity analysis: vary each param +/-30%."""

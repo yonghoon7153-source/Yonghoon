@@ -414,6 +414,24 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         warnings.append({'type': 'cn_critical', 'severity': 'critical',
                         'msg': f"SE-SE CN={cn['mean']:.1f} (<3.5): near percolation threshold, network may collapse"})
 
+    # 7. Electronic Active AM (from network solver, if available)
+    met_path = os.path.join(output_dir, 'full_metrics.json')
+    if os.path.exists(met_path):
+        with open(met_path) as _mf:
+            _met = json.load(_mf)
+        el_active = _met.get('electronic_active_fraction')
+        if el_active is not None:
+            el_pct = el_active * 100
+            if el_pct < 10:
+                warnings.append({'type': 'electronic_dead', 'severity': 'critical',
+                                'msg': f"Electronic Active AM={el_pct:.0f}% (<10%): 도전재 필수! AM-AM percolation 없음"})
+            elif el_pct < 50:
+                warnings.append({'type': 'electronic_low', 'severity': 'critical',
+                                'msg': f"Electronic Active AM={el_pct:.0f}% (<50%): 대량 dead AM, 도전재 강력 권장"})
+            elif el_pct < 80:
+                warnings.append({'type': 'electronic_marginal', 'severity': 'warning',
+                                'msg': f"Electronic Active AM={el_pct:.0f}% (<80%): 일부 dead AM, 도전재 권장"})
+
     if warnings:
         metrics['warnings'] = warnings
         metrics['warning_count'] = len(warnings)

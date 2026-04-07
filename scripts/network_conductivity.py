@@ -366,8 +366,12 @@ def run_decomposition(atoms_raw, contacts_raw, target_types, scale,
 
     # Active fraction: percolating nodes / total nodes
     # For electronic: "bottom-reachable AM" = AM that can receive electrons from CC
+    import networkx as nx
+    G_active = nx.Graph()
+    for e in net['edges']:
+        G_active.add_edge(e['id1'], e['id2'])
     bottom_reachable = set()
-    for comp in nx.connected_components(G_nx):
+    for comp in nx.connected_components(G_active):
         if len(comp & net['bottom']) > 0:
             bottom_reachable |= comp
     active_fraction = len(bottom_reachable) / n_nodes if n_nodes > 0 else 0

@@ -365,15 +365,23 @@ def run_decomposition(atoms_raw, contacts_raw, target_types, scale,
     phi_se = V_se / V_box if V_box > 0 else 0
 
     # Active fraction: percolating nodes / total nodes
-    # For electronic: "bottom-reachable AM" = AM that can receive electrons from CC
     import networkx as nx
     G_active = nx.Graph()
     for e in net['edges']:
         G_active.add_edge(e['id1'], e['id2'])
+
+    # Bottom-reachable (electronic active)
     bottom_reachable = set()
+    # Top+bottom percolating
+    perc_nodes = set()
     for comp in nx.connected_components(G_active):
-        if len(comp & net['bottom']) > 0:
+        has_bot = len(comp & net['bottom']) > 0
+        has_top = len(comp & net['top']) > 0
+        if has_bot:
             bottom_reachable |= comp
+        if has_bot and has_top:
+            perc_nodes |= comp
+
     active_fraction = len(bottom_reachable) / n_nodes if n_nodes > 0 else 0
     perc_fraction = len(perc_nodes) / n_nodes if n_nodes > 0 else 0
 

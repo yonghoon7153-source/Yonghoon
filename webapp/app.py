@@ -13,6 +13,9 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+# Network solver semaphore: only 1 at a time to prevent OOM
+_network_solver_lock = threading.Semaphore(1)
+
 # Load .env file if exists (for local development)
 _env_path = os.path.join(os.path.dirname(__file__), '.env')
 if os.path.exists(_env_path):
@@ -501,21 +504,27 @@ def analyze(case_id):
             generate_report(case_id, meta.get('name', ''))
 
             # Network conductivity solver (자동 실행)
-            # Update status to show solver is running
+            # Semaphore: only 1 network solver at a time to prevent OOM crash
             meta['status'] = 'network_solving'
-            meta['network_solver_status'] = 'running'
+            meta['network_solver_status'] = 'waiting'
             with open(meta_file, 'w') as f:
                 json.dump(meta, f, indent=2)
 
             net_status = 'not_run'
-            try:
-                atoms_csv = os.path.join(results_dir, 'atoms.csv')
-                contacts_csv = os.path.join(results_dir, 'contacts.csv')
-                if os.path.exists(atoms_csv) and os.path.exists(contacts_csv):
-                    net_cmd = ['python3', os.path.join(app.config['SCRIPTS_FOLDER'], 'network_conductivity.py'),
-                               atoms_csv, contacts_csv, '-o', results_dir,
-                               '-t', meta['type_map'], '-s', str(meta.get('scale', 1000))]
-                    net_result = subprocess.run(net_cmd, capture_output=True, text=True, timeout=3600)
+            print(f"  [Network] Waiting for lock ({case_id})...")
+            with _network_solver_lock:  # blocks until previous solver finishes
+                print(f"  [Network] Lock acquired, starting solver ({case_id})")
+                meta['network_solver_status'] = 'running'
+                with open(meta_file, 'w') as f:
+                    json.dump(meta, f, indent=2)
+                try:
+                    atoms_csv = os.path.join(results_dir, 'atoms.csv')
+                    contacts_csv = os.path.join(results_dir, 'contacts.csv')
+                    if os.path.exists(atoms_csv) and os.path.exists(contacts_csv):
+                        net_cmd = ['python3', os.path.join(app.config['SCRIPTS_FOLDER'], 'network_conductivity.py'),
+                                   atoms_csv, contacts_csv, '-o', results_dir,
+                                   '-t', meta['type_map'], '-s', str(meta.get('scale', 1000))]
+                        net_result = subprocess.run(net_cmd, capture_output=True, text=True, timeout=3600)
                     if net_result.returncode != 0:
                         net_status = 'failed'
                         print(f"  Network solver FAILED: {net_result.stderr[-300:]}")
@@ -541,14 +550,15 @@ def analyze(case_id):
                             json.dump(met_data, _mf, indent=2, default=str)
                     elif net_status == 'success':
                         net_status = 'no_output'
-            except Exception as e:
-                net_status = 'error'
-                print(f"  Network solver error: {e}")
-            # Save network status to meta and restore 'done'
-            meta['network_solver_status'] = net_status
-            meta['status'] = 'done'
-            with open(meta_file, 'w') as f:
-                json.dump(meta, f, indent=2)
+                except Exception as e:
+                    net_status = 'error'
+                    print(f"  Network solver error: {e}")
+                # Save network status to meta and restore 'done'
+                meta['network_solver_status'] = net_status
+                meta['status'] = 'done'
+                with open(meta_file, 'w') as f:
+                    json.dump(meta, f, indent=2)
+                print(f"  [Network] Lock released ({case_id})")
 
         # Sync results + updated meta to Supabase
         storage_sync.sync_dir_to_remote(case_dir, f'uploads/{case_id}')

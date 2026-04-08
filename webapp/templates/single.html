@@ -99,6 +99,12 @@
         </tbody>
       </table>
     </div>
+    {% if name == 'network_summary' %}
+    <div style="margin-top:10px">
+      <button class="btn btn-primary" id="btn-retry-net" onclick="retryNetwork()">Network Solver 재실행</button>
+      <span id="net-retry-status" style="margin-left:10px;color:#888"></span>
+    </div>
+    {% endif %}
   </div>
   {% endfor %}
 </div>
@@ -186,6 +192,39 @@ function copyReport() {
     btn.textContent = '복사됨!';
     setTimeout(() => btn.textContent = '복사', 1500);
   });
+}
+
+async function retryNetwork() {
+  const btn = document.getElementById('btn-retry-net');
+  const status = document.getElementById('net-retry-status');
+  btn.disabled = true;
+  btn.textContent = '실행중...';
+  status.textContent = '';
+  try {
+    const resp = await fetch('/retry-network/{{ case.id }}', {method: 'POST'});
+    const data = await resp.json();
+    if (data.success) {
+      status.textContent = '⏳ Network Solver 시작됨. 페이지를 새로고침하세요 (1~5분 소요)';
+      // Auto-poll for completion
+      const poll = setInterval(async () => {
+        const sr = await fetch('/analyze-status/{{ case.id }}');
+        const sd = await sr.json();
+        if (sd.status === 'done') {
+          clearInterval(poll);
+          status.textContent = '✅ 완료! 새로고침합니다...';
+          setTimeout(() => location.reload(), 1000);
+        }
+      }, 5000);
+    } else {
+      status.textContent = '❌ ' + (data.error || 'Failed');
+      btn.disabled = false;
+      btn.textContent = 'Network Solver 재실행';
+    }
+  } catch(e) {
+    status.textContent = '❌ ' + e.message;
+    btn.disabled = false;
+    btn.textContent = 'Network Solver 재실행';
+  }
 }
 
 function editName(el) {

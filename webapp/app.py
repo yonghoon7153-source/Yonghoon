@@ -511,6 +511,7 @@ def analyze(case_id):
                 json.dump(meta, f, indent=2)
 
             net_status = 'not_run'
+            net_error_msg = ''
             print(f"  [Network] Waiting for lock ({case_id})...")
             with _network_solver_lock:  # blocks until previous solver finishes
                 print(f"  [Network] Lock acquired, starting solver ({case_id})")
@@ -520,14 +521,137 @@ def analyze(case_id):
                 try:
                     atoms_csv = os.path.join(results_dir, 'atoms.csv')
                     contacts_csv = os.path.join(results_dir, 'contacts.csv')
-                    if os.path.exists(atoms_csv) and os.path.exists(contacts_csv):
+                    if not os.path.exists(atoms_csv) or not os.path.exists(contacts_csv):
+                        net_status = 'no_input'
+                        net_error_msg = f"Missing: atoms.csv={os.path.exists(atoms_csv)}, contacts.csv={os.path.exists(contacts_csv)}"
+                        print(f"  Network solver skipped: {net_error_msg}")
+                    else:
+                        import time as _time
+                        _t0 = _time.time()
                         net_cmd = ['python3', os.path.join(app.config['SCRIPTS_FOLDER'], 'network_conductivity.py'),
                                    atoms_csv, contacts_csv, '-o', results_dir,
                                    '-t', meta['type_map'], '-s', str(meta.get('scale', 1000))]
+                        print(f"  [Network] CMD: {' '.join(net_cmd)}")
                         net_result = subprocess.run(net_cmd, capture_output=True, text=True, timeout=3600)
+                        _elapsed = _time.time() - _t0
+                        print(f"  [Network] Finished in {_elapsed:.1f}s, returncode={net_result.returncode}")
+                        if net_result.stdout:
+                            print(f"  [Network] stdout (last 500):\n{net_result.stdout[-500:]}")
+                        if net_result.returncode != 0:
+                            net_status = 'failed'
+                            net_error_msg = net_result.stderr[-500:] if net_result.stderr else 'No stderr'
+                            print(f"  Network solver FAILED: {net_error_msg}")
+                        else:
+                            net_status = 'success'
+                            if net_result.stderr:
+                                print(f"  [Network] stderr: {net_result.stderr[-200:]}")
+                        # Merge into full_metrics.json
+                        net_json = os.path.join(results_dir, 'network_conductivity.json')
+                        met_json = os.path.join(results_dir, 'full_metrics.json')
+                        if os.path.exists(net_json) and os.path.exists(met_json):
+                            with open(net_json) as _nf:
+                                net_data = json.load(_nf)
+                            with open(met_json) as _mf:
+                                met_data = json.load(_mf)
+                            for k in ['sigma_full', 'sigma_full_mScm', 'sigma_bulk_net',
+                                      'sigma_bulk_net_mScm', 'R_brug_over_full', 'bulk_resistance_fraction',
+                                      'electronic_sigma_full_mScm', 'electronic_R_brug',
+                                      'electronic_active_fraction', 'electronic_percolating_fraction',
+                                      'thermal_sigma_full_mScm', 'thermal_R_brug']:
+                                if k in net_data and net_data[k] is not None:
+                                    met_data[k] = net_data[k]
+                            met_data['network_solver_status'] = net_status
+                            with open(met_json, 'w') as _mf:
+                                json.dump(met_data, _mf, indent=2, default=str)
+                            print(f"  [Network] Merged {len([k for k in net_data if net_data.get(k) is not None])} keys into full_metrics.json")
+                        elif net_status == 'success':
+                            net_status = 'no_output'
+                            net_error_msg = f"network_conductivity.json exists={os.path.exists(net_json)}, full_metrics.json exists={os.path.exists(met_json)}"
+                except subprocess.TimeoutExpired:
+                    net_status = 'timeout'
+                    net_error_msg = 'Network solver timed out after 3600s'
+                    print(f"  Network solver TIMEOUT (3600s)")
+                except Exception as e:
+                    net_status = 'error'
+                    net_error_msg = str(e)
+                    import traceback
+                    print(f"  Network solver error: {e}")
+                    traceback.print_exc()
+                # Save network status + error to meta and restore 'done'
+                meta['network_solver_status'] = net_status
+                if net_error_msg:
+                    meta['network_solver_error'] = net_error_msg
+                meta['status'] = 'done'
+                with open(meta_file, 'w') as f:
+                    json.dump(meta, f, indent=2)
+                print(f"  [Network] Lock released ({case_id}), status={net_status}")
+
+        # Sync results + updated meta to Supabase
+        storage_sync.sync_dir_to_remote(case_dir, f'uploads/{case_id}')
+        storage_sync.sync_dir_to_remote(results_dir, f'results/{case_id}')
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    return jsonify({'success': True, 'status': 'running'})
+
+@app.route('/analyze-status/<case_id>')
+def analyze_status(case_id):
+    """Check if analysis is still running."""
+    meta_file = os.path.join(get_case_dir(case_id), 'meta.json')
+    if os.path.exists(meta_file):
+        with open(meta_file) as f:
+            meta = json.load(f)
+        return jsonify({'status': meta.get('status', 'unknown')})
+    return jsonify({'status': 'unknown'})
+
+@app.route('/retry-network/<case_id>', methods=['POST'])
+def retry_network(case_id):
+    """Manually retry network solver for a case."""
+    case_dir = get_case_dir(case_id)
+    results_dir = get_results_dir(case_id)
+    meta_file = os.path.join(case_dir, 'meta.json')
+
+    if not os.path.exists(meta_file):
+        return jsonify({'success': False, 'error': 'Case not found'})
+
+    with open(meta_file) as f:
+        meta = json.load(f)
+
+    def _run_net():
+        import time as _time
+        net_status = 'not_run'
+        net_error_msg = ''
+        meta['status'] = 'network_solving'
+        meta['network_solver_status'] = 'waiting'
+        with open(meta_file, 'w') as f:
+            json.dump(meta, f, indent=2)
+
+        print(f"  [Network Retry] Waiting for lock ({case_id})...")
+        with _network_solver_lock:
+            print(f"  [Network Retry] Lock acquired ({case_id})")
+            meta['network_solver_status'] = 'running'
+            with open(meta_file, 'w') as f:
+                json.dump(meta, f, indent=2)
+            try:
+                atoms_csv = os.path.join(results_dir, 'atoms.csv')
+                contacts_csv = os.path.join(results_dir, 'contacts.csv')
+                if not os.path.exists(atoms_csv) or not os.path.exists(contacts_csv):
+                    net_status = 'no_input'
+                    net_error_msg = f"Missing CSV files"
+                else:
+                    _t0 = _time.time()
+                    net_cmd = ['python3', os.path.join(app.config['SCRIPTS_FOLDER'], 'network_conductivity.py'),
+                               atoms_csv, contacts_csv, '-o', results_dir,
+                               '-t', meta.get('type_map', '1:AM,2:SE'), '-s', str(meta.get('scale', 1000))]
+                    net_result = subprocess.run(net_cmd, capture_output=True, text=True, timeout=3600)
+                    _elapsed = _time.time() - _t0
+                    print(f"  [Network Retry] Finished in {_elapsed:.1f}s, rc={net_result.returncode}")
+                    if net_result.stdout:
+                        print(f"  [Network Retry] stdout:\n{net_result.stdout[-500:]}")
                     if net_result.returncode != 0:
                         net_status = 'failed'
-                        print(f"  Network solver FAILED: {net_result.stderr[-300:]}")
+                        net_error_msg = net_result.stderr[-500:] if net_result.stderr else 'No stderr'
+                        print(f"  [Network Retry] FAILED: {net_error_msg}")
                     else:
                         net_status = 'success'
                     # Merge into full_metrics.json
@@ -550,33 +674,23 @@ def analyze(case_id):
                             json.dump(met_data, _mf, indent=2, default=str)
                     elif net_status == 'success':
                         net_status = 'no_output'
-                except Exception as e:
-                    net_status = 'error'
-                    print(f"  Network solver error: {e}")
-                # Save network status to meta and restore 'done'
-                meta['network_solver_status'] = net_status
-                meta['status'] = 'done'
-                with open(meta_file, 'w') as f:
-                    json.dump(meta, f, indent=2)
-                print(f"  [Network] Lock released ({case_id})")
+            except subprocess.TimeoutExpired:
+                net_status = 'timeout'
+                net_error_msg = 'Timed out after 3600s'
+            except Exception as e:
+                net_status = 'error'
+                net_error_msg = str(e)
+            meta['network_solver_status'] = net_status
+            if net_error_msg:
+                meta['network_solver_error'] = net_error_msg
+            meta['status'] = 'done'
+            with open(meta_file, 'w') as f:
+                json.dump(meta, f, indent=2)
+            print(f"  [Network Retry] Done ({case_id}), status={net_status}")
 
-        # Sync results + updated meta to Supabase
-        storage_sync.sync_dir_to_remote(case_dir, f'uploads/{case_id}')
-        storage_sync.sync_dir_to_remote(results_dir, f'results/{case_id}')
-
-    thread = threading.Thread(target=_run, daemon=True)
+    thread = threading.Thread(target=_run_net, daemon=True)
     thread.start()
-    return jsonify({'success': True, 'status': 'running'})
-
-@app.route('/analyze-status/<case_id>')
-def analyze_status(case_id):
-    """Check if analysis is still running."""
-    meta_file = os.path.join(get_case_dir(case_id), 'meta.json')
-    if os.path.exists(meta_file):
-        with open(meta_file) as f:
-            meta = json.load(f)
-        return jsonify({'status': meta.get('status', 'unknown')})
-    return jsonify({'status': 'unknown'})
+    return jsonify({'success': True, 'status': 'started'})
 
 @app.route('/single/<case_id>')
 def single(case_id):
@@ -671,11 +785,11 @@ def single(case_id):
                     row[1] = val
 
     # Inject network solver results (no re-analysis needed)
-    if 'network_summary' in tables and metrics:
+    if 'network_summary' in tables:
         data = tables['network_summary']['data']
         # Check if already has Network Solver section
         has_net_section = any(str(row[0]).startswith('── Network Solver') for row in data)
-        if not has_net_section and metrics.get('sigma_full_mScm'):
+        if not has_net_section:
             # Find insert point: before "── 응력 ──" or at end
             insert_idx = len(data)
             for idx, row in enumerate(data):
@@ -683,19 +797,39 @@ def single(case_id):
                     insert_idx = idx
                     break
             net_rows = [['── Network Solver ──', '']]
-            net_rows.append(['σ_ionic (mS/cm)', round(metrics['sigma_full_mScm'], 4)])
-            if metrics.get('R_brug_over_full'):
-                net_rows.append(['R_brug (과대추정 배수)', f"{metrics['R_brug_over_full']:.1f}×"])
-            if metrics.get('bulk_resistance_fraction'):
-                net_rows.append(['Constriction 비율(%)', round((1 - metrics['bulk_resistance_fraction']) * 100, 1)])
-            if metrics.get('electronic_sigma_full_mScm'):
-                net_rows.append(['σ_electronic (mS/cm)', round(metrics['electronic_sigma_full_mScm'], 2)])
-            if metrics.get('electronic_active_fraction') is not None:
-                net_rows.append(['Electronic Active AM (%)', f"{metrics['electronic_active_fraction']*100:.1f}"])
-            if metrics.get('electronic_percolating_fraction') is not None:
-                net_rows.append(['AM Percolation (%)', f"{metrics['electronic_percolating_fraction']*100:.1f}"])
-            if metrics.get('thermal_sigma_full_mScm'):
-                net_rows.append(['σ_thermal (mS/cm equiv)', round(metrics['thermal_sigma_full_mScm'], 3)])
+            if metrics and metrics.get('sigma_full_mScm'):
+                net_rows.append(['σ_ionic (mS/cm)', round(metrics['sigma_full_mScm'], 4)])
+                if metrics.get('R_brug_over_full'):
+                    net_rows.append(['R_brug (과대추정 배수)', f"{metrics['R_brug_over_full']:.1f}×"])
+                if metrics.get('bulk_resistance_fraction'):
+                    net_rows.append(['Constriction 비율(%)', round((1 - metrics['bulk_resistance_fraction']) * 100, 1)])
+                if metrics.get('electronic_sigma_full_mScm'):
+                    net_rows.append(['σ_electronic (mS/cm)', round(metrics['electronic_sigma_full_mScm'], 2)])
+                if metrics.get('electronic_active_fraction') is not None:
+                    net_rows.append(['Electronic Active AM (%)', f"{metrics['electronic_active_fraction']*100:.1f}"])
+                if metrics.get('electronic_percolating_fraction') is not None:
+                    net_rows.append(['AM Percolation (%)', f"{metrics['electronic_percolating_fraction']*100:.1f}"])
+                if metrics.get('thermal_sigma_full_mScm'):
+                    net_rows.append(['σ_thermal (mS/cm equiv)', round(metrics['thermal_sigma_full_mScm'], 3)])
+            else:
+                # No results — show status/error from meta
+                ns = meta.get('network_solver_status', 'unknown')
+                ns_err = meta.get('network_solver_error', '')
+                if ns in ('failed', 'error', 'timeout', 'no_input', 'no_output'):
+                    net_rows.append(['상태', f"❌ {ns}"])
+                    if ns_err:
+                        # Truncate long error messages
+                        net_rows.append(['에러', ns_err[:200]])
+                elif ns == 'running':
+                    net_rows.append(['상태', '⏳ 실행중...'])
+                elif ns == 'waiting':
+                    net_rows.append(['상태', '⏳ 대기중 (다른 케이스 실행중)'])
+                elif ns == 'not_run':
+                    net_rows.append(['상태', '미실행'])
+                else:
+                    # Check if network_solver_status is in metrics instead
+                    ms = metrics.get('network_solver_status', '') if metrics else ''
+                    net_rows.append(['상태', f"{ms or ns or '결과 없음'}"])
             for i, r in enumerate(net_rows):
                 data.insert(insert_idx + i, r)
 

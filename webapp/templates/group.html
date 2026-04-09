@@ -742,7 +742,7 @@ async function generatePlots() {
       // Single plot group: original layout
       const r = allResults[0];
       r.plots.forEach(p => {
-        if (p.file === 'rgb_fitting.png') { grid.appendChild(createDerivationBox()); }
+        if (p.file === 'ionic_scaling_fit.png' || p.file === 'rgb_fitting.png') { grid.appendChild(createDerivationBox()); }
         grid.appendChild(createPlotItem(r.session, p));
       });
     } else {
@@ -772,7 +772,7 @@ async function generatePlots() {
         const globalOnlyPlots = ['rgb_fitting', 'gb_corrected', 'ionic_scaling_fit'];
         if (globalOnlyPlots.includes(pt)) {
           if (globalPlotMap[file]) {
-            if (pt === 'rgb_fitting') grid.appendChild(createDerivationBox());
+            if (pt === 'ionic_scaling_fit' || pt === 'rgb_fitting') grid.appendChild(createDerivationBox());
             grid.appendChild(createPlotItem(globalRgbPlots.session, globalPlotMap[file]));
           }
           // Skip per-group rendering (handled globally or unavailable)

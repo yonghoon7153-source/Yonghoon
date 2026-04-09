@@ -252,7 +252,8 @@ async function runAnalysis(caseId) {
     const data = await res.json();
     if (data.error) {
       log.innerHTML += `<p class="log-error">오류: ${data.error}</p>`;
-    } else {
+    } else if (data.log) {
+      // Synchronous response with log
       data.log.forEach(l => {
         const cls = l.rc === 0 ? 'log-ok' : 'log-error';
         log.innerHTML += `<p class="${cls}">[${l.step}] ${l.rc === 0 ? '완료' : '실패'}</p>`;
@@ -262,6 +263,29 @@ async function runAnalysis(caseId) {
       });
       log.innerHTML += '<p class="log-ok"><strong>분석 완료! 페이지를 새로고침합니다...</strong></p>';
       setTimeout(() => location.reload(), 1500);
+    } else {
+      // Async background execution — poll for completion
+      log.innerHTML += '<p>⏳ 분석 실행중... (백그라운드)</p>';
+      const poll = setInterval(async () => {
+        try {
+          const sr = await fetch(`/analyze-status/${caseId}`);
+          const sd = await sr.json();
+          if (sd.status === 'done') {
+            clearInterval(poll);
+            log.innerHTML += '<p class="log-ok"><strong>✅ 분석 완료! 새로고침합니다...</strong></p>';
+            setTimeout(() => location.reload(), 1000);
+          } else if (sd.status === 'error') {
+            clearInterval(poll);
+            log.innerHTML += '<p class="log-error">❌ 분석 실패</p>';
+          } else if (sd.status === 'network_solving') {
+            // Update status text once
+            if (!log.dataset.netShown) {
+              log.innerHTML += '<p>⏳ Network Solver 실행중...</p>';
+              log.dataset.netShown = '1';
+            }
+          }
+        } catch(e) {}
+      }, 3000);
     }
   } catch (err) {
     log.innerHTML += `<p class="log-error">네트워크 오류: ${err.message}</p>`;

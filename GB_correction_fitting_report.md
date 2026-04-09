@@ -720,6 +720,32 @@ $$\sigma = C \times \sigma_{grain} \times \sqrt[4]{(\phi-\phi_c)^3 \times CN^4 \
 | Free params | 1 (C only) |
 | Within 20% | 40/48 (83%) |
 
+#### Robustness Analysis: 왜 고정 지수가 자유 지수보다 나은가
+
+α=1/2 (⁴√)과 φ_c=0.18을 고정하지 않고 자유 파라미터로 풀면:
+
+| Model | Free params | α | φ_c | R² |
+|-------|-------------|---|-----|-----|
+| **FORM X (fixed)** | **1 (C)** | **0.50** | **0.18** | **0.9611** |
+| +φ_c free | 2 (C, φ_c) | 0.50 | 0.185 | 0.9624 |
+| +α free | 2 (C, α) | 0.515 | 0.18 | 0.9619 |
+| All free | 3 (C, α, φ_c) | 0.507 | 0.185 | 0.9626 |
+
+**ΔR² = 0.0014 (0.14%) — α와 φ_c를 동시에 풀어도 거의 개선 없음.**
+
+2D grid (α=0.40~0.65, φ_c=0.12~0.22)에서 R² > 0.95인 영역이 **broad plateau**를 형성:
+- φ_c = 0.17~0.19, α = 0.48~0.52 전체가 R² > 0.96
+- Sharp peak이 아닌 flat maximum → **robust, not overfitted**
+
+SE 크기별 φ_c 안정성:
+- SE 0.5μm (n=37): φ_c = 0.190
+- SE 1.5μm (n=7): φ_c = 0.175
+- 차이 0.015 → **φ_c ≈ 0.18은 SE 크기에 무관한 universal threshold**
+
+**결론: 자유도를 늘리면 overfitting 위험만 증가하고 R² 개선은 0.14%에 불과. 고정 지수(α=1/2, φ_c=0.18)가 parsimony와 robustness 면에서 우월하다.**
+
+> "Joint optimization of α and φ_c yields R²=0.963 (3 free params) vs FORM X R²=0.961 (1 free param). The ΔR²=0.001 confirms that α=1/2 and φ_c=0.18 are robust fixed values within a broad optimality plateau, not artifacts of discrete data fitting."
+
 ### 16.3 v3 공식 (thick only, legacy)
 
 $$\sigma_{eff} = \sigma_{brug} \times C \times (G_{path} \times GB_d^2)^{1/4} \times CN^2$$

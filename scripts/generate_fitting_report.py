@@ -465,7 +465,8 @@ def generate_report(data_list, names, outdir):
     L.append("σ_ion = C × σ_grain × (φ_SE - φ_c)^(3/4) × CN × √coverage / √τ")
     L.append(f"     = C × σ_grain × ⁴√[(φ-φc)³ × CN⁴ × cov² / τ²]")
     L.append(f"C = {ion_C:.4f} (data-fitted, n={len(ion_actual)})" if ion_C else "C ≈ 0.123 (default)")
-    L.append(f"φ_c = {PHI_C}, σ_grain = 3.0 mS/cm")
+    L.append(f"φ_c = {PHI_C} (SE percolation threshold: 이 값 이하에서 σ→0)")
+    L.append(f"σ_grain = 3.0 mS/cm (LPSCl grain interior conductivity)")
     L.append("```\n")
 
     # Electronic fit

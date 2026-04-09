@@ -1125,7 +1125,11 @@ async function generateFittingReport() {
         return '<tr>' + cells.map(c => `<td style="border:1px solid var(--border);padding:5px 10px">${c}</td>`).join('') + '</tr>';
       });
     modalHtml = modalHtml.replace(/(<tr>[\s\S]*?<\/tr>\s*)+/g, '<table style="border-collapse:collapse;width:100%;margin:8px 0;font-size:12px">$&</table>');
+    // Remove breaks between headers and tables
+    modalHtml = modalHtml.replace(/(<\/h[1-4]>)\s*(<br\s*\/?>)+\s*(<table)/g, '$1$3');
     modalHtml = modalHtml.replace(/\n\n+/g, '<br>').replace(/\n/g, ' ');
+    // Clean up any remaining breaks before tables
+    modalHtml = modalHtml.replace(/(<br\s*\/?>)+\s*(<table)/g, '$2');
     content.innerHTML = modalHtml;
     box.appendChild(closeBtn);
     box.appendChild(pdfBtn);

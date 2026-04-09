@@ -828,6 +828,9 @@ def single(case_id):
                 val = metrics.get(placeholder_map[label])
                 if val is not None:
                     row[1] = val
+            # Legacy label migration (pre-v2.0 cached results)
+            if label == 'σ_eff/σ_bulk':
+                row[0] = 'σ_brug/σ_grain (Bruggeman)'
 
     # Inject network solver results (no re-analysis needed)
     if 'network_summary' in tables:

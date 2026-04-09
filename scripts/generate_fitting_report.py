@@ -431,7 +431,7 @@ def generate_report(data_list, names, outdir):
     el_r2, el_C = None, None
     th_r2, th_C = None, None
 
-    # Ionic fit
+    # Ionic fit (log-space C fitting for robustness)
     ion_actual = []
     ion_pred_rhs = []
     for d in data_list:
@@ -441,7 +441,7 @@ def generate_report(data_list, names, outdir):
         gb_d = d.get('gb_density_mean', 0)
         cn = d.get('se_se_cn', 0)
         if sigma_net > 0.01 and sigma_ratio > 0 and g_path > 0 and gb_d > 0 and cn > 0:
-            sb = sigma_ratio * 3.0  # σ_brug in mS/cm
+            sb = sigma_ratio * 3.0
             rhs = sb * (g_path * gb_d**2)**0.25 * cn**2
             ion_actual.append(sigma_net)
             ion_pred_rhs.append(rhs)
@@ -449,10 +449,14 @@ def generate_report(data_list, names, outdir):
     if len(ion_actual) >= 3:
         ion_actual = np.array(ion_actual)
         ion_pred_rhs = np.array(ion_pred_rhs)
-        ion_C = float(np.mean(ion_actual / ion_pred_rhs))
+        # Log-space C: geometric mean (robust to outliers)
+        ion_C = float(np.exp(np.mean(np.log(ion_actual / ion_pred_rhs))))
         ion_pred = ion_C * ion_pred_rhs
-        ss_res = np.sum((ion_actual - ion_pred)**2)
-        ss_tot = np.sum((ion_actual - np.mean(ion_actual))**2)
+        # R² in log space (appropriate for data spanning orders of magnitude)
+        log_actual = np.log(ion_actual)
+        log_pred = np.log(ion_pred)
+        ss_res = np.sum((log_actual - log_pred)**2)
+        ss_tot = np.sum((log_actual - np.mean(log_actual))**2)
         ion_r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
     L.append(f"### Ionic (R²={ion_r2:.3f}, 1 free parameter)" if ion_r2 else "### Ionic")

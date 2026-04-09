@@ -1125,7 +1125,7 @@ async function generateFittingReport() {
         return '<tr>' + cells.map(c => `<td style="border:1px solid var(--border);padding:5px 10px">${c}</td>`).join('') + '</tr>';
       });
     modalHtml = modalHtml.replace(/(<tr>[\s\S]*?<\/tr>\s*)+/g, '<table style="border-collapse:collapse;width:100%;margin:8px 0;font-size:12px">$&</table>');
-    modalHtml = modalHtml.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
+    modalHtml = modalHtml.replace(/\n\n+/g, '<br>').replace(/\n/g, ' ');
     content.innerHTML = modalHtml;
     box.appendChild(closeBtn);
     box.appendChild(pdfBtn);

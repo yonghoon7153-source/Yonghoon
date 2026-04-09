@@ -481,30 +481,123 @@ def main():
     # PART 3: UNIVERSAL (thick+thin in one formula?)
     # ═══════════════════════════════════════════════════════════════
     print(f"\n{'='*80}")
-    print("UNIVERSAL: thick+thin 하나의 식?")
+    print("1-REGIME UNIVERSAL: thick+thin 하나의 식")
     print("="*80)
 
+    # 3a. Free regression (all 44 points)
+    print(f"\n  [3a] Free regression (n={n})")
     var_all = {
         'φ_AM': np.log(pa), 'CN': np.log(am_cn), 'por': np.log(por),
         'cov': np.log(cov), 'T/d': np.log(ratio), 'τ': np.log(tau),
         'φ_SE': np.log(ps), 'el_perc': np.log(el_perc),
         'σ_ion': np.log(sion),
-        'A_contact': np.log(am_area), 'r_contact': np.log(am_cr),
-        'am_perc': np.log(am_perc),
     }
     results_uni = []
-    for nv in [4, 5, 6]:
+    for nv in [3, 4, 5, 6]:
         for vn in combinations(var_all.keys(), nv):
-            res = fit_multivar(np.log(sel), var_all, vn, min_r2=0.90)
+            res = fit_multivar(np.log(sel), var_all, vn, min_r2=0.80)
             if res:
                 results_uni.append(res)
     results_uni.sort(key=lambda x: -x['r2'])
-    print(f"  Top 20 (n={n}):")
-    for i, r in enumerate(results_uni[:20]):
-        cv = loocv_C(sel, r['pred']) if i < 5 else 0
+    print(f"  Top 30:")
+    for i, r in enumerate(results_uni[:30]):
+        cv = loocv_C(sel, r['pred']) if i < 10 else 0
         cv_str = f" LOOCV={cv:.4f}" if cv else ""
         terms = ' × '.join(f"{v}^{r['coefs'][j]:.2f}" for j, v in enumerate(r['vnames']))
         print(f"    #{i+1} R²={r['r2']:.4f}{cv_str}  ({len(r['vnames'])}v) {terms}")
+
+    # 3b. (φ_AM - φ_c)^a × CN^b × f(T/d) universal
+    print(f"\n  [3b] (φ_AM-φ_c)^a × CN^b × ... universal")
+    for phi_c in [0.0, 0.15, 0.20, 0.25, 0.30]:
+        phi_ex = np.clip(pa - phi_c, 0.001, None)
+        for a in [2, 3, 3.5, 4, 4.5]:
+            for b in [1, 1.5, 2]:
+                for c in [0, 0.5, 1]:
+                    for d in [-0.5, -0.25, 0, 0.25, 0.5]:
+                        rhs = SAM * phi_ex**a * am_cn**b * cov**c * ratio**d
+                        C = fitC(sel, rhs)
+                        if C is None: continue
+                        r2 = r2l(sel, C * rhs)
+                        if r2 > 0.85:
+                            cv = loocv_C(sel, rhs)
+                            td_str = f"×(T/d)^{d}" if d != 0 else ""
+                            cv_str = f"×cov^{c}" if c != 0 else ""
+                            print(f"    φc={phi_c:.2f} (φ-φc)^{a}×CN^{b}{cv_str}{td_str}: R²={r2:.4f} LOOCV={cv:.4f}")
+
+    # 3c. φ_AM^a × CN^b × por^c × cov^d × (T/d)^e (5변수 power law universal)
+    print(f"\n  [3c] 5변수 power law universal")
+    results_5v = []
+    for a in [3, 3.5, 4, 4.5]:
+        for b in [1, 1.5, 2]:
+            for c in [-1, -0.5, 0, 0.5, 1, 1.5, 2]:
+                for d in [0, 0.5, 0.75, 1]:
+                    for e in [-0.5, -0.25, 0, 0.25]:
+                        rhs = SAM * pa**a * am_cn**b * por**c * cov**d * ratio**e
+                        C = fitC(sel, rhs)
+                        if C is None: continue
+                        r2 = r2l(sel, C * rhs)
+                        if r2 > 0.88:
+                            results_5v.append({
+                                'r2': r2, 'rhs': rhs,
+                                'label': f"φ^{a}×CN^{b}×por^{c}×cov^{d}×(T/d)^{e}"
+                            })
+    results_5v.sort(key=lambda x: -x['r2'])
+    for i, r in enumerate(results_5v[:15]):
+        cv = loocv_C(sel, r['rhs']) if i < 5 else 0
+        cv_str = f" LOOCV={cv:.4f}" if cv else ""
+        print(f"    #{i+1} R²={r['r2']:.4f}{cv_str}  {r['label']}")
+
+    # 3d. FORM X style for electronic: ⁴√ or ³√ with (φ-φc)
+    print(f"\n  [3d] FORM X 스타일 universal")
+    for phi_c in [0.0, 0.20, 0.25, 0.30]:
+        phi_ex = np.clip(pa - phi_c, 0.001, None)
+        elegant_uni = [
+            (f'φc={phi_c} ⁴√[(φ-φc)³×CN⁴×cov²/τ²]',
+             (phi_ex**3 * am_cn**4 * cov**2 / np.clip(tau,0.1,None)**2)**0.25),
+            (f'φc={phi_c} (φ-φc)^¾×CN×√cov/√τ',
+             phi_ex**0.75 * am_cn * cov**0.5 / np.clip(tau,0.1,None)**0.5),
+            (f'φc={phi_c} (φ-φc)^¾×CN×√cov',
+             phi_ex**0.75 * am_cn * cov**0.5),
+            (f'φc={phi_c} (φ-φc)×CN×cov',
+             phi_ex * am_cn * cov),
+            (f'φc={phi_c} (φ-φc)²×CN^(3/2)×cov',
+             phi_ex**2 * am_cn**1.5 * cov),
+            (f'φc={phi_c} (φ-φc)³×CN^(3/2)×cov',
+             phi_ex**3 * am_cn**1.5 * cov),
+            (f'φc={phi_c} (φ-φc)⁴×CN^(3/2)×cov',
+             phi_ex**4 * am_cn**1.5 * cov),
+            (f'φc={phi_c} ⁴√[(φ-φc)⁸×CN⁶×cov⁴/(T/d)]',
+             (phi_ex**8 * am_cn**6 * cov**4 / np.clip(ratio,0.1,None))**0.25),
+            (f'φc={phi_c} (φ-φc)²×CN^(3/2)×cov×√(T/d)',
+             phi_ex**2 * am_cn**1.5 * cov * ratio**0.5),
+            (f'φc={phi_c} (φ-φc)³×CN×por×cov',
+             phi_ex**3 * am_cn * por * cov),
+            (f'φc={phi_c} (φ-φc)⁴×CN^(3/2)×cov/√(T/d)',
+             phi_ex**4 * am_cn**1.5 * cov / ratio**0.5),
+        ]
+        for label, rhs in elegant_uni:
+            C = fitC(sel, rhs)
+            if C is None: continue
+            r2 = r2l(sel, C * rhs)
+            if r2 > 0.85:
+                cv = loocv_C(sel, rhs)
+                print(f"    R²={r2:.4f} LOOCV={cv:.4f}  {label}")
+
+    # 3e. el_perc × φ_AM^a × CN^b (universal with network solver data)
+    print(f"\n  [3e] el_perc 기반 universal")
+    for a in [2, 3, 3.5, 4]:
+        for b in [0.5, 1, 1.5, 2]:
+            for c in [0, 0.5, 1]:
+                for d in [-0.5, 0, 0.5]:
+                    rhs = SAM * el_perc * pa**a * am_cn**b * cov**c * ratio**d
+                    C = fitC(sel, rhs)
+                    if C is None: continue
+                    r2 = r2l(sel, C * rhs)
+                    if r2 > 0.88:
+                        cv = loocv_C(sel, rhs)
+                        td_s = f"×(T/d)^{d}" if d != 0 else ""
+                        cv_s = f"×cov^{c}" if c != 0 else ""
+                        print(f"    el_perc×φ^{a}×CN^{b}{cv_s}{td_s}: R²={r2:.4f} LOOCV={cv:.4f}")
 
     # ═══════════════════════════════════════════════════════════════
     # PART 4: Per-case diagnostics

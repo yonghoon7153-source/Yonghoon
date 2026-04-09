@@ -123,7 +123,7 @@
   <div class="card-header-row">
     <h3>비교 플롯</h3>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-secondary" onclick="document.querySelectorAll('.plot-checkbox input').forEach(c=>c.checked=true)">모두 선택</button>
+      <button class="btn btn-secondary" onclick="document.querySelectorAll('.plot-checkbox:not([style*=opacity]) input').forEach(c=>c.checked=true)">모두 선택</button>
       <button class="btn btn-primary" onclick="generatePlots()" id="plot-btn">선택 플롯 생성</button>
       <button class="btn btn-secondary" onclick="generateFittingReport()" id="fitting-btn" disabled title="플롯 생성 후 사용 가능" style="opacity:0.5">📊 Fitting Report</button>
     </div>
@@ -852,47 +852,36 @@ function createDerivationBox() {
   const box = document.createElement('div');
   box.className = 'derivation-box';
         box.innerHTML = `
-          <h4>📐 유효 이온전도도 유도 (BLM-inspired + Constriction)</h4>
-          <div class="deriv-desc" style="opacity:.7;margin-bottom:8px">접촉 모델: hooke/hysteresis (Luding) | n=41 | SE 0.5/1.0/1.5μm | T=18~184μm | RVE 30/50μm</div>
+          <h4>📐 유효 이온전도도 — FORM X (v4++)</h4>
+          <div class="deriv-desc" style="opacity:.7;margin-bottom:8px">n=48 | SE 0.5/1.0/1.5μm | T=17~184μm | thick+thin universal</div>
           <div class="deriv-section">
-            <div class="deriv-label">1. Bruggeman 추정 (접촉 저항 무시)</div>
-            <div class="deriv-formula">σ_brug = σ_bulk × φ_SE × f_perc / τ²</div>
-            <div class="deriv-desc">τ²: 경로 길이(×τ) × 유효 단면적(÷τ) = ÷τ²</div>
-            <div class="deriv-desc">⚠ inter-particle contact 저항 무시 → <b>과대평가 (R_brug = 3~10×)</b></div>
+            <div class="deriv-label">Champion Formula (FORM X)</div>
+            <div class="deriv-formula">σ_ion = C × σ_grain × ⁴√[(φ_SE−φ_c)³ × CN⁴ × cov² / τ²]</div>
+            <div class="deriv-formula">= C × σ_grain × (φ−φ_c)^¾ × CN × √cov / √τ</div>
+            <div class="deriv-desc">C ≈ 0.123 (data‑fitted) | φ_c = 0.18 (SE percolation threshold) | σ_grain = 3.0 mS/cm</div>
+            <div class="deriv-desc">R² ≈ 0.96, LOOCV ≈ 0.96, 1 free parameter | thick=0.97, thin=0.93</div>
           </div>
           <div class="deriv-section">
-            <div class="deriv-label">2. Inter-particle Contact Resistance 유도</div>
-            <div class="deriv-desc"><b>N_contact ∝ GB_d × T</b> (BLM-inspired: 경로당 접촉 수 = hop density × 두께)</div>
-            <div class="deriv-desc"><b>R_per_contact ∝ GB_d</b> (Maxwell constriction: R_c = ρ/2a, a ∝ 1/GB_d)</div>
-            <div class="deriv-formula">R_total = N_contact × R_per_contact ∝ <b>GB_d² × T</b></div>
-            <div class="deriv-desc">τ² ↔ GB_d²: 같은 물리 구조. τ²=(경로↑×단면↓), GB_d²=(접촉수↑×접촉저항↑)</div>
-            <div class="deriv-desc" style="font-size:.75rem;opacity:.7">BLM의 N_GB 스케일링만 차용. 소결 세라믹의 ρ_gb×w_gb는 사용하지 않음.</div>
+            <div class="deriv-label">각 항의 물리</div>
+            <div class="deriv-desc"><b>(φ−φ_c)^¾</b>: 3D percolation (t=3/2의 √). φ_c=0.18 이하에서 σ→0</div>
+            <div class="deriv-desc"><b>CN</b>: SE‑SE network connectivity (병렬 경로 수)</div>
+            <div class="deriv-desc"><b>√coverage</b>: AM‑SE 계면 품질 (이온이 AM에 도달하는 경로)</div>
+            <div class="deriv-desc"><b>1/√τ</b>: softened tortuosity (Bruggeman τ² → √τ, discrete network)</div>
           </div>
           <div class="deriv-section">
-            <div class="deriv-label">3. Proxy Fitting (Part I)</div>
-            <div class="deriv-formula">R = σ_brug / σ_proxy = C × (GB_d² × T)^α</div>
-            <div class="deriv-desc">σ_proxy = G_path × f_perc / τ | G_path = 1/Σ(1/A_i) [조화평균, bottleneck 지배]</div>
-            <div class="deriv-desc">α=1.82, R²=0.94 (n=41) | M6(free): GB_d^4.0×T^1.8 ≈ (GB_d²T)^1.82 → 독립 검증</div>
+            <div class="deriv-label">σ_brug와의 관계</div>
+            <div class="deriv-formula">FORM X = σ_brug × C × √(1−φ_c/φ) × τ^(3/2)/f_perc × CN × √cov</div>
+            <div class="deriv-desc">τ^(3/2) × τ^(−2) = τ^(−1/2) ← softened | f_perc 상쇄 ← threshold에 흡수</div>
           </div>
           <div class="deriv-section">
-            <div class="deriv-label">4. Network Solver 검증 (Part II)</div>
-            <div class="deriv-formula">σ_full = Kirchhoff solver (R_bulk + R_constriction per edge, 전체 병렬 경로)</div>
-            <div class="deriv-desc">σ_full = 0.01~0.28 mS/cm (Minnmann 실험 0.17과 same order)</div>
-            <div class="deriv-desc">R_brug = 3~10× (proxy의 15~1600이 아님) | Constriction 69~81% 지배</div>
-            <div class="deriv-desc">n_eff = n_geo(2.54) + n_contact(0.83) = 3.37 (문헌 n≈3 설명)</div>
+            <div class="deriv-label">Robustness</div>
+            <div class="deriv-desc">α, φ_c 동시 최적화: ΔR²=0.001 → 고정 지수 충분</div>
+            <div class="deriv-desc">Leave‑SE‑size‑out: R²>0.93 (외삽 검증)</div>
+            <div class="deriv-desc">φ_c=0.175~0.190 (SE 크기 무관, broad plateau)</div>
           </div>
           <div class="deriv-section">
-            <div class="deriv-label">5. Multi-Scale Model (Part III)</div>
-            <div class="deriv-formula">σ_eff = σ_brug × C × √A_hop × CN² × GB_d^(4/3)</div>
-            <div class="deriv-desc">√A_hop: Maxwell constriction (fit 0.525≈0.5) | CN²: redundant path factor (fit 1.98≈2)</div>
-            <div class="deriv-desc">GB_d^(4/3): mesh density(1) + Hertz residual(1/3) | R²=0.93 (1 free param), LOOCV R²=0.93</div>
-            <div class="deriv-desc">Ablation: 모든 항 필수 (GB_d 없으면 R²→음수)</div>
-          </div>
-          <div class="deriv-section">
-            <div class="deriv-label">6. 최종 공식</div>
-            <div class="deriv-formula">σ_eff = σ_bulk × φ_SE × f_perc / τ² × 0.026 × √A_hop × CN² × GB_d^(4/3)</div>
-            <div class="deriv-desc">σ_bulk=1.3 mS/cm (Li₆PS₅Cl) | 설계: AM:SE→φ_SE, P:S→τ, SE크기→A_hop/CN/GB_d</div>
-            <div class="deriv-desc">⚠ σ_full 기준 절대값. EIS 대비 2~3×이내 (κ correction으로 보정 가능)</div>
+            <div class="deriv-label">한계</div>
+            <div class="deriv-desc">φ_c, α 이론적 유도 부재 (empirical). n=48 중 thin=2. Coverage 정의(mean P,S). CN^1 vs 1.33 gap.</div>
           </div>`;
   return box;
 }

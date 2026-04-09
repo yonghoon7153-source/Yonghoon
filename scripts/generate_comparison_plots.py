@@ -1218,36 +1218,39 @@ def plot_network_sigma(data_list, names, outdir):
 
 
 def plot_multiscale_sigma(data_list, names, outdir):
-    """Part III: Multi-scale model σ_eff = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²."""
-    SIGMA_BULK = 3.0  # σ_grain (grain interior), NOT σ_pellet(1.3)
+    """FORM X: σ = C × σ_grain × (φ-φc)^¾ × CN × √cov / √τ."""
+    SIGMA_BULK = 3.0
+    PHI_C = 0.18
 
-    sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
-    gb_dens = [_get(d, "gb_density_mean") for d in data_list]
-    g_path = [_get(d, "path_conductance_mean", 0) for d in data_list]
+    phi_se = [_get(d, "phi_se") for d in data_list]
     cn = [_get(d, "se_se_cn", 0) for d in data_list]
+    tau = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)) for d in data_list]
+    coverage = [(lambda vs: sum(vs)/len(vs)/100 if vs else 0.20)([v for v in [_get(d,"coverage_AM_P_mean",0), _get(d,"coverage_AM_S_mean",0), _get(d,"coverage_AM_mean",0)] if v>0]) for d in data_list]
     sigma_net = _load_network_sigma(data_list)
 
-    # Auto-fit C from data (like ionic_scaling_fit)
+    # Fit C from data
     valid_fit = []
     for i in range(len(data_list)):
-        if g_path[i] > 0 and cn[i] > 0 and gb_dens[i] > 0 and sigma_brug[i] > 0 and sigma_net[i] > 0.01:
+        phi_ex = max(phi_se[i] - PHI_C, 0.001)
+        if phi_ex > 0 and cn[i] > 0 and tau[i] > 0 and coverage[i] > 0 and sigma_net[i] > 0.01:
             valid_fit.append(i)
 
-    # Use global C from ionic_scaling_fit if available (consistent across groups)
     if _GLOBAL_C_ION is not None:
         C_ms = _GLOBAL_C_ION
     elif len(valid_fit) < 3:
-        C_ms = 0.073  # fallback
+        C_ms = 0.123
     else:
-        log_rhs = np.array([np.log(sigma_brug[i] * SIGMA_BULK) + 0.25*np.log(g_path[i]*gb_dens[i]**2) + 2*np.log(cn[i])
-                           for i in valid_fit])
+        log_rhs = np.array([np.log(SIGMA_BULK) + 0.75*np.log(max(phi_se[i]-PHI_C, 0.001))
+                            + np.log(cn[i]) + 0.5*np.log(coverage[i]) - 0.5*np.log(tau[i])
+                            for i in valid_fit])
         log_actual = np.array([np.log(sigma_net[i]) for i in valid_fit])
         C_ms = np.exp(np.mean(log_actual - log_rhs))
 
     sigma_ms = []
     for i in range(len(data_list)):
-        if g_path[i] > 0 and cn[i] > 0 and gb_dens[i] > 0:
-            s = sigma_brug[i] * C_ms * (g_path[i] * gb_dens[i]**2)**0.25 * cn[i]**2 * SIGMA_BULK
+        phi_ex = max(phi_se[i] - PHI_C, 0.001)
+        if cn[i] > 0 and tau[i] > 0 and coverage[i] > 0:
+            s = C_ms * SIGMA_BULK * phi_ex**0.75 * cn[i] * np.sqrt(coverage[i]) / np.sqrt(tau[i])
             sigma_ms.append(s)
         else:
             sigma_ms.append(0)
@@ -1260,19 +1263,19 @@ def plot_multiscale_sigma(data_list, names, outdir):
     lw = _line_width(len(names))
 
     ax.plot(x, sigma_ms, 's-', color=RED, markersize=ms, linewidth=lw,
-            label="Multi-scale (mS/cm)")
+            label="FORM X (mS/cm)")
     if has_net:
         ax.plot(x, sigma_net, 'D--', color='#2ecc71', markersize=ms-2, linewidth=lw-0.5,
                 alpha=0.7, label="Network solver (mS/cm)")
 
     _apply_style(ax, "σ_ionic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
-    ax.set_title(f"Part III: σ_brug × {C_ms:.4f} × (G_path × GB_d²)^(1/4) × CN²",
+    ax.set_title(f"FORM X: {C_ms:.4f} × σ_grain × (φ−φc)^¾ × CN × √cov / √τ",
                  fontsize=9, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',
-               ['GB_d', 'G_path', 'CN', 'σ_multiscale(mS/cm)', 'σ_network(mS/cm)'],
-               names, gb_dens, g_path, cn, sigma_ms, sigma_net)
+               ['φ_SE', 'CN', 'τ', 'coverage', 'σ_FORMX(mS/cm)', 'σ_network(mS/cm)'],
+               names, phi_se, cn, tau, sigma_ms, sigma_net)
     return _save(fig, outdir, "multiscale_sigma.png")
 
 
@@ -1914,9 +1917,9 @@ PLOT_REGISTRY = {
     "multiscale_sigma": {
         "func": plot_multiscale_sigma,
         "file": "multiscale_sigma.png",
-        "title": "Ionic: Multi-scale Scaling Law (Part III)",
-        "description": "σ_ion = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²\nC: 데이터에서 자동 fit (free param)\n(G_path×GB_d²)^(1/4): 접촉 품질+mesh 밀도\nCN²: redundant path factor",
-        "origin_tip": "Red: Scaling law, Green dashed: Network solver.",
+        "title": "Ionic: FORM X Scaling Law",
+        "description": "FORM X (v4++ champion):\nσ = C × σ_grain × (φ\u2011φc)^¾ × CN × √cov / √τ\nφc=0.18 (percolation threshold)\nR²≈0.96, thick+thin universal",
+        "origin_tip": "Red: FORM X prediction.\nGreen dashed: Network solver (ground truth).",
     },
 }
 

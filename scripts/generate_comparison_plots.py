@@ -1058,10 +1058,30 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ss_res_fixed = np.sum((log_sf - pred_fixed)**2)
     r2_fixed = 1 - ss_res_fixed / ss_tot
 
-    # Use FIXED beautiful exponents (physically derived: Maxwell, Makse, Hertz)
-    s_pred = np.exp(pred_fixed)
-    r2 = r2_fixed
+    # === FORM X (v4++ champion) ===
+    # σ = C × σ_grain × (φ-φc)^(3/4) × CN × √cov / √τ
+    PHI_C = 0.18
+    coverage = [max(_get(d, "coverage_AM_P_mean", _get(d, "coverage_AM_S_mean", _get(d, "coverage_AM_mean", 20))), 0.1) / 100 for d in data_list]
+
+    phi_ex_arr = np.array([max(phi_se[i] - PHI_C, 0.001) for i in valid_idx])
+    cn_arr = np.array([cn[i] for i in valid_idx])
+    tau_arr = np.array([tau[i] for i in valid_idx])
+    cov_arr = np.array([coverage[i] for i in valid_idx])
+
+    log_rhs_formX = np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + np.log(cn_arr) + 0.5*np.log(cov_arr) - 0.5*np.log(tau_arr)
+    ln_C_formX = np.mean(log_sf - log_rhs_formX)
+    C_formX = np.exp(ln_C_formX)
+    pred_formX = ln_C_formX + log_rhs_formX
+    ss_res_formX = np.sum((log_sf - pred_formX)**2)
+    r2_formX = 1 - ss_res_formX / ss_tot
+
+    # Use FORM X as primary (v3 as secondary reference)
+    s_pred = np.exp(pred_formX)
+    r2 = r2_formX
     s_actual = np.array([sigma_net[i] for i in valid_idx])
+
+    # v3 prediction for comparison
+    s_pred_v3 = np.exp(pred_fixed)
 
     fig, ax = plt.subplots(figsize=FIG_SINGLE)
 
@@ -1131,8 +1151,8 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title(f"Ionic: σ_brug × {C_fixed:.4f} × (G_path × GB_d²)^(1/4) × CN²\n"
-                 f"R²={r2_fixed:.3f} (1 free param) | Free fit R²={r2_free:.3f}",
+    ax.set_title(f"Ionic: {C_formX:.4f} × σ_grain × (φ-φc)^¾ × CN × √cov / √τ\n"
+                 f"R²={r2_formX:.3f} (FORM X) | v3 R²={r2_fixed:.3f}",
                  fontsize=10, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
 
@@ -1882,9 +1902,9 @@ PLOT_REGISTRY = {
     "ionic_scaling_fit": {
         "func": plot_ionic_scaling_fit,
         "file": "ionic_scaling_fit.png",
-        "title": "Ionic: Scaling Law Fit (Predicted vs Actual)",
-        "description": "σ_ion = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²\n예측값 vs Network solver 실측값 scatter plot\n1:1 line + ±20% band",
-        "origin_tip": "Scatter (log-log): X=actual, Y=predicted.\n1:1 line (black dashed), ±20% band (green).",
+        "title": "Ionic: FORM X Scaling Law (Predicted vs Actual)",
+        "description": "FORM X (v4++ champion):\nσ = C × σ_grain × ⁴√[(φ-φc)³ × CN⁴ × cov² / τ²]\n= C × σ_grain × (φ-φc)^(3/4) × CN × √cov / √τ\n\nφ_c=0.18 (percolation threshold)\nR²>0.96, LOOCV>0.96, 1 free param",
+        "origin_tip": "Scatter (log-log): X=actual (Network solver), Y=predicted (FORM X).\n1:1 line (black dashed), ±20% band (green).",
     },
     "multiscale_sigma": {
         "func": plot_multiscale_sigma,

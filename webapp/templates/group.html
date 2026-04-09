@@ -1091,9 +1091,10 @@ async function generateFittingReport() {
         .replace(/`(.+?)`/g, '<code>$1</code>')
         .replace(/^\|(.+)$/gm, (m) => {
           const cells = m.split('|').filter(c=>c.trim()).map(c=>c.trim());
-          if (cells.every(c => /^[-:]+$/.test(c))) return '';
+          if (cells.every(c => /^[-:]+$/.test(c))) return '<!--sep-->';
           return '<tr>' + cells.map(c => `<td>${c}</td>`).join('') + '</tr>';
-        });
+        })
+        .replace(/<!--sep-->\n?/g, '');
       // Line breaks first
       html = html.replace(/\n\n+/g, '<br>').replace(/\n/g, ' ');
       // Wrap table rows + make first row header
@@ -1130,9 +1131,10 @@ async function generateFittingReport() {
       .replace(/`(.+?)`/g, '<code style="background:rgba(0,0,0,0.2);padding:1px 5px;border-radius:3px;font-size:12px">$1</code>')
       .replace(/^\|(.+)$/gm, (m) => {
         const cells = m.split('|').filter(c=>c.trim()).map(c=>c.trim());
-        if (cells.every(c => /^[-:]+$/.test(c))) return '';
+        if (cells.every(c => /^[-:]+$/.test(c))) return '<!--sep-->';
         return '<tr>' + cells.map(c => `<td style="border:1px solid var(--border);padding:5px 10px">${c}</td>`).join('') + '</tr>';
-      });
+      })
+      .replace(/<!--sep-->\n?/g, '');
     // Convert newlines first
     modalHtml = modalHtml.replace(/\n\n+/g, '<br>').replace(/\n/g, ' ');
     // Wrap table rows + first row as header

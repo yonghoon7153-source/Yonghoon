@@ -1682,6 +1682,18 @@ def rename_case(case_id):
     storage_sync.upload_file(f'uploads/{case_id}/meta.json', meta_file)
     return jsonify({'success': True})
 
+@app.route('/favorite/<case_id>', methods=['POST'])
+def toggle_favorite(case_id):
+    meta_file = os.path.join(get_case_dir(case_id), 'meta.json')
+    if not os.path.exists(meta_file):
+        return jsonify({'success': False}), 404
+    with open(meta_file) as f:
+        meta = json.load(f)
+    meta['favorite'] = not meta.get('favorite', False)
+    with open(meta_file, 'w') as f:
+        json.dump(meta, f, indent=2)
+    return jsonify({'success': True, 'favorite': meta['favorite']})
+
 @app.route('/delete/<case_id>', methods=['POST'])
 def delete_case(case_id):
     case_dir = get_case_dir(case_id)

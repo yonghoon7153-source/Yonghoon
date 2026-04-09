@@ -61,7 +61,10 @@
 <div class="card">
   <div class="card-header-row">
     <h3>분석 케이스 목록</h3>
-    <div style="display:flex;gap:6px">
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="btn btn-sm btn-secondary sort-btn" onclick="filterCases('all')" id="filter-all" style="background:rgba(108,140,255,.2);color:var(--accent)">전체</button>
+      <button class="btn btn-sm btn-secondary sort-btn" onclick="filterCases('fav')" id="filter-fav">★ 즐겨찾기</button>
+      <span style="width:1px;height:20px;background:var(--border);margin:0 4px"></span>
       <button class="btn btn-sm btn-secondary sort-btn" onclick="sortCases('name')" id="sort-name">이름순</button>
       <button class="btn btn-sm btn-secondary sort-btn active" onclick="sortCases('date')" id="sort-date">최신순</button>
       <button class="btn btn-sm btn-run" onclick="reanalyzeAll(this)">전체 재분석</button>
@@ -82,8 +85,8 @@
     </thead>
     <tbody>
       {% for case in cases %}
-      <tr>
-        <td><strong class="case-name" ondblclick="editName(this, '{{ case.id }}')" title="더블클릭으로 이름 변경">{{ case.name }}</strong>{% if case.warning_count %} <span class="badge badge-warning" title="{{ case.warning_msgs | join('&#10;') }}">⚠ {{ case.warning_count }}</span>{% endif %}{% if case.network_solver_status in ('failed', 'error', 'timeout', 'no_input', 'no_output') %} <span class="badge badge-error" title="Network Solver: {{ case.network_solver_status }}{% if case.network_solver_error %} - {{ case.network_solver_error[:100] }}{% endif %}">NET ✗</span>{% elif case.network_solver_status == 'success' %} <span class="badge badge-success" title="Network Solver 완료">NET ✓</span>{% endif %}</td>
+      <tr data-fav="{{ 'true' if case.favorite else 'false' }}" data-case-id="{{ case.id }}">
+        <td><span class="fav-star" onclick="toggleFav(event, '{{ case.id }}')" title="즐겨찾기" style="cursor:pointer;margin-right:4px;font-size:1.1em;color:{{ '#f59e0b' if case.favorite else 'var(--dim)' }}">{{ '★' if case.favorite else '☆' }}</span><strong class="case-name" ondblclick="editName(this, '{{ case.id }}')" title="더블클릭으로 이름 변경">{{ case.name }}</strong>{% if case.warning_count %} <span class="badge badge-warning" title="{{ case.warning_msgs | join('&#10;') }}">⚠ {{ case.warning_count }}</span>{% endif %}{% if case.network_solver_status in ('failed', 'error', 'timeout', 'no_input', 'no_output') %} <span class="badge badge-error" title="Network Solver: {{ case.network_solver_status }}{% if case.network_solver_error %} - {{ case.network_solver_error[:100] }}{% endif %}">NET ✗</span>{% elif case.network_solver_status == 'success' %} <span class="badge badge-success" title="Network Solver 완료">NET ✓</span>{% endif %}</td>
         <td><span class="badge badge-{{ case.mode }}">{{ case.mode }}</span></td>
         <td>
           <span class="status status-{{ case.status }}">
@@ -166,6 +169,45 @@ function sortCases(mode) {
   rows.forEach(r => tbody.appendChild(r));
   document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('sort-' + mode).classList.add('active');
+}
+
+// Favorite toggle
+async function toggleFav(e, caseId) {
+  e.stopPropagation();
+  const res = await fetch(`/favorite/${caseId}`, {method: 'POST'});
+  const data = await res.json();
+  if (data.success) {
+    const star = e.target;
+    const tr = star.closest('tr');
+    if (data.favorite) {
+      star.textContent = '★';
+      star.style.color = '#f59e0b';
+      tr.dataset.fav = 'true';
+    } else {
+      star.textContent = '☆';
+      star.style.color = 'var(--dim)';
+      tr.dataset.fav = 'false';
+    }
+  }
+}
+
+// Filter: all / favorites
+let currentFilter = 'all';
+function filterCases(mode) {
+  currentFilter = mode;
+  const tbody = document.querySelector('.data-table tbody');
+  if (!tbody) return;
+  tbody.querySelectorAll('tr').forEach(tr => {
+    if (mode === 'fav') {
+      tr.style.display = tr.dataset.fav === 'true' ? '' : 'none';
+    } else {
+      tr.style.display = '';
+    }
+  });
+  document.getElementById('filter-all').style.background = mode === 'all' ? 'rgba(108,140,255,.2)' : '';
+  document.getElementById('filter-all').style.color = mode === 'all' ? 'var(--accent)' : '';
+  document.getElementById('filter-fav').style.background = mode === 'fav' ? 'rgba(245,158,11,.2)' : '';
+  document.getElementById('filter-fav').style.color = mode === 'fav' ? '#f59e0b' : '';
 }
 
 // Drag & Drop

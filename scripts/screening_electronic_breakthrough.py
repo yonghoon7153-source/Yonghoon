@@ -57,6 +57,16 @@ def load_data():
             gd = m.get('gb_density_mean', 0)
             gp = max(m.get('path_conductance_mean', 0), 1e-6)
 
+            # AM-AM contact mechanics (constriction resistance 직접 관련)
+            am_area = max(m.get('am_am_mean_area', 0), 0.01)  # µm²
+            am_cr = max(m.get('am_am_mean_contact_radius', 0), 0.01)  # µm
+            am_delta = max(m.get('am_am_mean_delta', 0), 0.001)  # µm penetration
+            am_force = max(m.get('am_am_mean_force', 0), 0.001)  # µN
+            am_pres = max(m.get('am_am_mean_pressure', 0), 0.01)  # MPa
+            am_hop = max(m.get('am_am_mean_hop', 0), 0.1)  # µm
+            am_area_cv = m.get('am_am_area_cv', 0.5)
+            am_perc_pct = max(m.get('am_percolation_pct', 0), 0.1)  # 0-100%
+
             if pa <= 0 or am_cn <= 0 or T <= 0: continue
 
             rows.append({
@@ -66,6 +76,10 @@ def load_data():
                 'el_act': el_act, 'el_perc': el_perc,
                 'el_bulk_frac': max(el_bulk_frac, 0.01),
                 'sion': max(sion, 0.001), 'gd': gd, 'gp': gp,
+                'am_area': am_area, 'am_cr': am_cr, 'am_delta': am_delta,
+                'am_force': am_force, 'am_pres': am_pres, 'am_hop': am_hop,
+                'am_area_cv': max(am_area_cv, 0.01),
+                'am_perc': am_perc_pct / 100,  # → 0~1 fraction
                 'name': mp.parent.name
             })
 
@@ -128,6 +142,15 @@ def main():
     el_perc = np.array([r['el_perc'] for r in rows])
     el_bulk_frac = np.array([r['el_bulk_frac'] for r in rows])
     sion = np.array([r['sion'] for r in rows])
+    # AM-AM contact mechanics
+    am_area = np.array([r['am_area'] for r in rows])
+    am_cr = np.array([r['am_cr'] for r in rows])
+    am_delta = np.array([r['am_delta'] for r in rows])
+    am_force = np.array([r['am_force'] for r in rows])
+    am_pres = np.array([r['am_pres'] for r in rows])
+    am_hop = np.array([r['am_hop'] for r in rows])
+    am_area_cv = np.array([r['am_area_cv'] for r in rows])
+    am_perc = np.array([r['am_perc'] for r in rows])
     names = [r['name'] for r in rows]
 
     thick = ratio >= 10; thin = ratio < 10
@@ -137,6 +160,9 @@ def main():
     print(f"el_perc range: {el_perc.min():.3f} ~ {el_perc.max():.3f}")
     print(f"σ_ion range: {sion.min():.4f} ~ {sion.max():.4f}")
     print(f"bulk_frac range: {el_bulk_frac.min():.3f} ~ {el_bulk_frac.max():.3f}")
+    print(f"am_area range: {am_area.min():.3f} ~ {am_area.max():.3f} µm²")
+    print(f"am_cr range: {am_cr.min():.3f} ~ {am_cr.max():.3f} µm")
+    print(f"am_perc range: {am_perc.min():.3f} ~ {am_perc.max():.3f}")
 
     # ═══════════════════════════════════════════════════════════════
     # PART 1: THICK — percolation approach (φ_AM - φ_c)
@@ -161,7 +187,7 @@ def main():
                     C = fitC(st, rhs)
                     if C is None: continue
                     r2 = r2l(st, C * rhs)
-                    if r2 > 0.97:
+                    if r2 > 0.95:
                         cv = loocv_C(st, rhs)
                         print(f"    φ_c={phi_c:.2f} (φ-φc)^{a}×CN^{b}×cov^{c}: R²={r2:.4f} LOOCV={cv:.4f}")
 
@@ -214,6 +240,11 @@ def main():
     cvn = cov[thin]; tn = tau[thin]; cn_se_n = cn[thin]
     el_act_n = el_act[thin]; el_perc_n = el_perc[thin]
     sion_n = sion[thin]; bf_n = el_bulk_frac[thin]
+    # AM contact mechanics (thin)
+    am_area_n = am_area[thin]; am_cr_n = am_cr[thin]
+    am_delta_n = am_delta[thin]; am_force_n = am_force[thin]
+    am_pres_n = am_pres[thin]; am_hop_n = am_hop[thin]
+    am_perc_n = am_perc[thin]
     n_thin = thin.sum()
     names_thin = [names[i] for i in np.where(thin)[0]]
 
@@ -230,7 +261,7 @@ def main():
                     C = fitC(sn, rhs)
                     if C is None: continue
                     r2 = r2l(sn, C * rhs)
-                    if r2 > 0.92:
+                    if r2 > 0.88:
                         cv = loocv_C(sn, rhs)
                         print(f"    el_perc^{a}×CN^{b}×por^{c}×cov^{d}: R²={r2:.4f} LOOCV={cv:.4f}")
 
@@ -247,7 +278,7 @@ def main():
                     C = fitC(sn, rhs)
                     if C is None: continue
                     r2 = r2l(sn, C * rhs)
-                    if r2 > 0.92:
+                    if r2 > 0.88:
                         cv = loocv_C(sn, rhs)
                         print(f"    σ_ion^{a}×CN^{b}×por^{c}×(T/d)^{d}: R²={r2:.4f} LOOCV={cv:.4f}")
 
@@ -265,7 +296,7 @@ def main():
                         C = fitC(sn, rhs)
                         if C is None: continue
                         r2 = r2l(sn, C * rhs)
-                        if r2 > 0.92:
+                        if r2 > 0.88:
                             cv = loocv_C(sn, rhs)
                             print(f"    φc={phi_c:.2f} (φ-φc)^{a}×CN^{b}×por^{c}×(T/d)^{d}: R²={r2:.4f} LOOCV={cv:.4f}")
 
@@ -277,13 +308,18 @@ def main():
         'φ_AM': np.log(pn), 'φ_SE': np.log(psn), 'CN': np.log(cn_n),
         'T/d': np.log(rn), 'por': np.log(porn), 'cov': np.log(cvn),
         'τ': np.log(tn), 'el_perc': np.log(el_perc_n),
-        'σ_ion': np.log(sion_n), 'bulk_frac': np.log(bf_n),
+        'σ_ion': np.log(sion_n),
+        # AM-AM contact mechanics
+        'A_contact': np.log(am_area_n), 'r_contact': np.log(am_cr_n),
+        'δ_pen': np.log(am_delta_n), 'F_n': np.log(am_force_n),
+        'P_contact': np.log(am_pres_n), 'hop': np.log(am_hop_n),
+        'am_perc': np.log(am_perc_n),
     }
 
     results_thin = []
     for nv in [3, 4, 5]:
         for vn in combinations(var_thin.keys(), nv):
-            res = fit_multivar(np.log(sn), var_thin, vn, min_r2=0.92)
+            res = fit_multivar(np.log(sn), var_thin, vn, min_r2=0.88)
             if res:
                 results_thin.append(res)
 
@@ -341,7 +377,7 @@ def main():
                     C = fitC(sn, rhs)
                     if C is None: continue
                     r2 = r2l(sn, C * rhs)
-                    if r2 > 0.93:
+                    if r2 > 0.88:
                         cv = loocv_C(sn, rhs)
                         label = f"⁴√[{A_name}×{B_name}×{C_name}/{D_name}]"
                         print(f"    R²={r2:.4f} LOOCV={cv:.4f}  {label}")
@@ -376,7 +412,7 @@ def main():
                 C = fitC(sn, rhs)
                 if C is None: continue
                 r2 = r2l(sn, C * rhs)
-                if r2 > 0.92:
+                if r2 > 0.88:
                     cv = loocv_C(sn, rhs)
                     label = f"√[{A_name}×{B_name}/{D_name}]"
                     print(f"    R²={r2:.4f} LOOCV={cv:.4f}  {label}")
@@ -396,7 +432,7 @@ def main():
                         C = fitC(sn, rhs)
                         if C is None: continue
                         r2 = r2l(sn, C * rhs)
-                        if r2 > 0.92:
+                        if r2 > 0.88:
                             cv = loocv_C(sn, rhs)
                             print(f"    tc={tc} (T/d-{tc})^{a}×CN^{b}×por^{c}×φ_SE^{d}: R²={r2:.4f} LOOCV={cv:.4f}")
 
@@ -437,7 +473,7 @@ def main():
                 C = fitC(sn, rhs)
                 if C is None: continue
                 r2 = r2l(sn, C * rhs)
-                if r2 > 0.90:
+                if r2 > 0.85:
                     cv = loocv_C(sn, rhs)
                     print(f"    el_perc×CN^{a}×por^{b}×cov^{c}: R²={r2:.4f} LOOCV={cv:.4f}")
 
@@ -453,6 +489,8 @@ def main():
         'cov': np.log(cov), 'T/d': np.log(ratio), 'τ': np.log(tau),
         'φ_SE': np.log(ps), 'el_perc': np.log(el_perc),
         'σ_ion': np.log(sion),
+        'A_contact': np.log(am_area), 'r_contact': np.log(am_cr),
+        'am_perc': np.log(am_perc),
     }
     results_uni = []
     for nv in [4, 5, 6]:
@@ -474,14 +512,14 @@ def main():
     print(f"\n{'='*80}")
     print("DATA INSPECTION")
     print("="*80)
-    print(f"\n  {'Name':35s} {'σ_el':>8s} {'φ_AM':>6s} {'CN':>5s} {'T/d':>5s} {'por':>5s} {'cov':>5s} {'φ_SE':>5s} {'el_p':>5s} {'σ_ion':>7s} {'regime':>6s}")
-    print("  " + "-" * 105)
+    print(f"\n  {'Name':35s} {'σ_el':>8s} {'φ_AM':>6s} {'CN':>5s} {'T/d':>5s} {'por':>5s} {'cov':>5s} {'φ_SE':>5s} {'el_p':>5s} {'σ_ion':>7s} {'A_c':>6s} {'r_c':>5s} {'regime':>6s}")
+    print("  " + "-" * 125)
     for i in np.argsort(-sel):
         r = rows[i]
         regime = 'THICK' if ratio[i] >= 10 else 'thin'
         print(f"  {r['name']:35s} {r['sel']:8.3f} {r['pa']:6.3f} {r['am_cn']:5.2f} "
               f"{r['ratio']:5.1f} {r['por']:5.3f} {r['cov']:5.3f} {r['ps']:5.3f} "
-              f"{r['el_perc']:5.3f} {r['sion']:7.4f} {regime:>6s}")
+              f"{r['el_perc']:5.3f} {r['sion']:7.4f} {r['am_area']:6.3f} {r['am_cr']:5.3f} {regime:>6s}")
 
 
 if __name__ == '__main__':

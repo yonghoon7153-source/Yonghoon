@@ -815,7 +815,7 @@ async function generatePlots() {
           <h4>${firstPlot.title}</h4>
           <p class="plot-desc">${firstPlot.description}</p>
           <details class="plot-origin"><summary>Origin 설정</summary><pre>${firstPlot.origin_tip}</pre></details>
-          ${firstPlot.csv ? `<a href="/group/plot-image/${entries[0].session}/${firstPlot.csv}" class="btn btn-sm btn-dl" style="margin-top:10px" download>CSV 다운로드</a>` : ''}`;
+          ${firstPlot.csv ? entries.map((e,idx) => `<a href="/group/plot-image/${e.session}/${firstPlot.csv}" class="btn btn-sm btn-dl" style="margin-top:10px" download>${entries.length>1 ? e.pgName+' ' : ''}CSV</a>`).join(' ') : ''}`;
         row.appendChild(desc);
 
         grid.appendChild(row);

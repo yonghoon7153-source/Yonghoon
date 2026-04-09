@@ -488,8 +488,22 @@ def analyze(case_id):
         json.dump(meta, f, indent=2)
 
     def _run():
-        # Clear previous results for clean re-analysis
         results_dir = get_results_dir(case_id)
+
+        # Check if network solver already succeeded (skip if so)
+        net_already_done = False
+        net_json_path = os.path.join(results_dir, 'network_conductivity.json')
+        if os.path.exists(net_json_path):
+            net_already_done = True
+            # Backup network solver results before clearing
+            import tempfile
+            _net_backup = tempfile.mktemp(suffix='.json')
+            shutil.copy2(net_json_path, _net_backup)
+            print(f"  [Reanalysis] Network solver results backed up ({case_id})")
+        else:
+            _net_backup = None
+
+        # Clear previous results for clean re-analysis
         if os.path.exists(results_dir):
             shutil.rmtree(results_dir)
         os.makedirs(results_dir, exist_ok=True)
@@ -504,88 +518,115 @@ def analyze(case_id):
         if result.get('success'):
             generate_report(case_id, meta.get('name', ''))
 
-            # Network conductivity solver (자동 실행)
-            # Semaphore: only 1 network solver at a time to prevent OOM crash
-            meta['status'] = 'network_solving'
-            meta['network_solver_status'] = 'waiting'
-            with open(meta_file, 'w') as f:
-                json.dump(meta, f, indent=2)
-
-            net_status = 'not_run'
-            net_error_msg = ''
-            print(f"  [Network] Waiting for lock ({case_id})...")
-            with _network_solver_lock:  # blocks until previous solver finishes
-                print(f"  [Network] Lock acquired, starting solver ({case_id})")
-                meta['network_solver_status'] = 'running'
-                with open(meta_file, 'w') as f:
-                    json.dump(meta, f, indent=2)
-                try:
-                    atoms_csv = os.path.join(results_dir, 'atoms.csv')
-                    contacts_csv = os.path.join(results_dir, 'contacts.csv')
-                    if not os.path.exists(atoms_csv) or not os.path.exists(contacts_csv):
-                        net_status = 'no_input'
-                        net_error_msg = f"Missing: atoms.csv={os.path.exists(atoms_csv)}, contacts.csv={os.path.exists(contacts_csv)}"
-                        print(f"  Network solver skipped: {net_error_msg}")
-                    else:
-                        import time as _time
-                        _t0 = _time.time()
-                        net_cmd = ['python3', os.path.join(app.config['SCRIPTS_FOLDER'], 'network_conductivity.py'),
-                                   atoms_csv, contacts_csv, '-o', results_dir,
-                                   '-t', meta['type_map'], '-s', str(meta.get('scale', 1000))]
-                        print(f"  [Network] CMD: {' '.join(net_cmd)}")
-                        net_result = subprocess.run(net_cmd, capture_output=True, text=True, timeout=None)
-                        _elapsed = _time.time() - _t0
-                        print(f"  [Network] Finished in {_elapsed:.1f}s, returncode={net_result.returncode}")
-                        if net_result.stdout:
-                            print(f"  [Network] stdout (last 500):\n{net_result.stdout[-500:]}")
-                        if net_result.returncode != 0:
-                            net_status = 'failed'
-                            net_error_msg = net_result.stderr[-500:] if net_result.stderr else 'No stderr'
-                            print(f"  Network solver FAILED: {net_error_msg}")
-                        else:
-                            net_status = 'success'
-                            if net_result.stderr:
-                                print(f"  [Network] stderr: {net_result.stderr[-200:]}")
-                        # Merge into full_metrics.json
-                        net_json = os.path.join(results_dir, 'network_conductivity.json')
-                        met_json = os.path.join(results_dir, 'full_metrics.json')
-                        if os.path.exists(net_json) and os.path.exists(met_json):
-                            with open(net_json) as _nf:
-                                net_data = json.load(_nf)
-                            with open(met_json) as _mf:
-                                met_data = json.load(_mf)
-                            for k in ['sigma_full', 'sigma_full_mScm', 'sigma_bulk_net',
-                                      'sigma_bulk_net_mScm', 'R_brug_over_full', 'bulk_resistance_fraction',
-                                      'electronic_sigma_full_mScm', 'electronic_R_brug',
-                                      'electronic_active_fraction', 'electronic_percolating_fraction',
-                                      'thermal_sigma_full_mScm', 'thermal_R_brug']:
-                                if k in net_data and net_data[k] is not None:
-                                    met_data[k] = net_data[k]
-                            met_data['network_solver_status'] = net_status
-                            with open(met_json, 'w') as _mf:
-                                json.dump(met_data, _mf, indent=2, default=str)
-                            print(f"  [Network] Merged {len([k for k in net_data if net_data.get(k) is not None])} keys into full_metrics.json")
-                        elif net_status == 'success':
-                            net_status = 'no_output'
-                            net_error_msg = f"network_conductivity.json exists={os.path.exists(net_json)}, full_metrics.json exists={os.path.exists(met_json)}"
-                except subprocess.TimeoutExpired:
-                    net_status = 'timeout'
-                    net_error_msg = 'Network solver timed out after 3600s'
-                    print(f"  Network solver TIMEOUT (3600s)")
-                except Exception as e:
-                    net_status = 'error'
-                    net_error_msg = str(e)
-                    import traceback
-                    print(f"  Network solver error: {e}")
-                    traceback.print_exc()
-                # Save network status + error to meta and restore 'done'
-                meta['network_solver_status'] = net_status
-                if net_error_msg:
-                    meta['network_solver_error'] = net_error_msg
+            # If network solver already done, restore backup and merge into new metrics
+            if net_already_done and _net_backup and os.path.exists(_net_backup):
+                shutil.copy2(_net_backup, net_json_path)
+                os.unlink(_net_backup)
+                # Merge into new full_metrics.json
+                met_json = os.path.join(results_dir, 'full_metrics.json')
+                if os.path.exists(met_json):
+                    with open(net_json_path) as _nf:
+                        net_data = json.load(_nf)
+                    with open(met_json) as _mf:
+                        met_data = json.load(_mf)
+                    for k in ['sigma_full', 'sigma_full_mScm', 'sigma_bulk_net',
+                              'sigma_bulk_net_mScm', 'R_brug_over_full', 'bulk_resistance_fraction',
+                              'electronic_sigma_full_mScm', 'electronic_R_brug',
+                              'electronic_active_fraction', 'electronic_percolating_fraction',
+                              'thermal_sigma_full_mScm', 'thermal_R_brug']:
+                        if k in net_data and net_data[k] is not None:
+                            met_data[k] = net_data[k]
+                    met_data['network_solver_status'] = 'success'
+                    with open(met_json, 'w') as _mf:
+                        json.dump(met_data, _mf, indent=2, default=str)
+                meta['network_solver_status'] = 'success'
                 meta['status'] = 'done'
                 with open(meta_file, 'w') as f:
                     json.dump(meta, f, indent=2)
-                print(f"  [Network] Lock released ({case_id}), status={net_status}")
+                print(f"  [Reanalysis] Network solver SKIPPED — restored previous results ({case_id})")
+            else:
+                # No previous network solver results — run it
+                # Clean up backup if exists
+                if _net_backup and os.path.exists(_net_backup):
+                    os.unlink(_net_backup)
+
+                # Network conductivity solver (자동 실행)
+                # Semaphore: only 1 network solver at a time to prevent OOM crash
+                meta['status'] = 'network_solving'
+                meta['network_solver_status'] = 'waiting'
+                with open(meta_file, 'w') as f:
+                    json.dump(meta, f, indent=2)
+
+                net_status = 'not_run'
+                net_error_msg = ''
+                print(f"  [Network] Waiting for lock ({case_id})...")
+                with _network_solver_lock:
+                    print(f"  [Network] Lock acquired, starting solver ({case_id})")
+                    meta['network_solver_status'] = 'running'
+                    with open(meta_file, 'w') as f:
+                        json.dump(meta, f, indent=2)
+                    try:
+                        atoms_csv = os.path.join(results_dir, 'atoms.csv')
+                        contacts_csv = os.path.join(results_dir, 'contacts.csv')
+                        if not os.path.exists(atoms_csv) or not os.path.exists(contacts_csv):
+                            net_status = 'no_input'
+                            net_error_msg = f"Missing: atoms.csv={os.path.exists(atoms_csv)}, contacts.csv={os.path.exists(contacts_csv)}"
+                            print(f"  Network solver skipped: {net_error_msg}")
+                        else:
+                            import time as _time
+                            _t0 = _time.time()
+                            net_cmd = ['python3', os.path.join(app.config['SCRIPTS_FOLDER'], 'network_conductivity.py'),
+                                       atoms_csv, contacts_csv, '-o', results_dir,
+                                       '-t', meta['type_map'], '-s', str(meta.get('scale', 1000))]
+                            print(f"  [Network] CMD: {' '.join(net_cmd)}")
+                            net_result = subprocess.run(net_cmd, capture_output=True, text=True, timeout=None)
+                            _elapsed = _time.time() - _t0
+                            print(f"  [Network] Finished in {_elapsed:.1f}s, returncode={net_result.returncode}")
+                            if net_result.stdout:
+                                print(f"  [Network] stdout (last 500):\n{net_result.stdout[-500:]}")
+                            if net_result.returncode != 0:
+                                net_status = 'failed'
+                                net_error_msg = net_result.stderr[-500:] if net_result.stderr else 'No stderr'
+                                print(f"  Network solver FAILED: {net_error_msg}")
+                            else:
+                                net_status = 'success'
+                                if net_result.stderr:
+                                    print(f"  [Network] stderr: {net_result.stderr[-200:]}")
+                            # Merge into full_metrics.json
+                            net_json = os.path.join(results_dir, 'network_conductivity.json')
+                            met_json = os.path.join(results_dir, 'full_metrics.json')
+                            if os.path.exists(net_json) and os.path.exists(met_json):
+                                with open(net_json) as _nf:
+                                    net_data = json.load(_nf)
+                                with open(met_json) as _mf:
+                                    met_data = json.load(_mf)
+                                for k in ['sigma_full', 'sigma_full_mScm', 'sigma_bulk_net',
+                                          'sigma_bulk_net_mScm', 'R_brug_over_full', 'bulk_resistance_fraction',
+                                          'electronic_sigma_full_mScm', 'electronic_R_brug',
+                                          'electronic_active_fraction', 'electronic_percolating_fraction',
+                                          'thermal_sigma_full_mScm', 'thermal_R_brug']:
+                                    if k in net_data and net_data[k] is not None:
+                                        met_data[k] = net_data[k]
+                                met_data['network_solver_status'] = net_status
+                                with open(met_json, 'w') as _mf:
+                                    json.dump(met_data, _mf, indent=2, default=str)
+                                print(f"  [Network] Merged keys into full_metrics.json")
+                            elif net_status == 'success':
+                                net_status = 'no_output'
+                                net_error_msg = f"network_conductivity.json exists={os.path.exists(net_json)}, full_metrics.json exists={os.path.exists(met_json)}"
+                    except Exception as e:
+                        net_status = 'error'
+                        net_error_msg = str(e)
+                        import traceback
+                        print(f"  Network solver error: {e}")
+                        traceback.print_exc()
+                    meta['network_solver_status'] = net_status
+                    if net_error_msg:
+                        meta['network_solver_error'] = net_error_msg
+                    meta['status'] = 'done'
+                    with open(meta_file, 'w') as f:
+                        json.dump(meta, f, indent=2)
+                    print(f"  [Network] Lock released ({case_id}), status={net_status}")
 
         # Sync results + updated meta to Supabase
         storage_sync.sync_dir_to_remote(case_dir, f'uploads/{case_id}')

@@ -262,7 +262,7 @@ def calc_tortuosity(atoms, perc_result, n_samples=200, box_xy=0.05, box_x=None, 
     """tortuosity = path length / z distance.
     Uses distance-weighted shortest path (physical shortest distance)
     with periodic boundary correction.
-    Includes all top-reachable SE (not just percolating) as sources."""
+    Sources = bottom boundary SE, Targets = top boundary SE (both percolating)."""
     if box_x is None:
         box_x = box_xy
     if box_y is None:
@@ -279,24 +279,37 @@ def calc_tortuosity(atoms, perc_result, n_samples=200, box_xy=0.05, box_x=None, 
     if not reach_top:
         return {'mean': None, 'std': None, 'n_samples': 0}
 
-    # Sources: lowest-z SE in each top-reachable component (not just bottom_se)
-    components = list(nx.connected_components(G))
-    src_candidates = []
-    for comp in components:
-        comp_top_reach = comp & top_reachable_se
-        if not comp_top_reach:
-            continue
-        # Pick the lowest-z SE in this component as source
-        lowest = min(comp_top_reach, key=lambda sid: atoms[sid]['z'])
-        src_candidates.append(lowest)
+    # Sources: bottom boundary SE that are in percolating components (connected to top)
+    # This ensures z_dist ≈ electrode thickness → physically meaningful τ
+    percolating_se = set()
+    for comp in nx.connected_components(G):
+        if (comp & bottom_se) and (comp & top_se):
+            percolating_se |= comp
+    src_candidates = list(bottom_se & percolating_se)
+
+    # Fallback: if no bottom SE in percolating components, use lowest-z in each component
+    if not src_candidates:
+        for comp in nx.connected_components(G):
+            comp_top_reach = comp & top_reachable_se
+            if not comp_top_reach:
+                continue
+            lowest = min(comp_top_reach, key=lambda sid: atoms[sid]['z'])
+            src_candidates.append(lowest)
 
     if not src_candidates:
         return {'mean': None, 'std': None, 'n_samples': 0}
 
+    # Diversify sampling: pair each source with multiple targets
+    import random
+    random.seed(42)
+    random.shuffle(src_candidates)
+
     taus = []
-    for i in range(min(n_samples, max(len(src_candidates), len(reach_top)))):
+    for i in range(min(n_samples, len(src_candidates) * len(reach_top))):
         src = src_candidates[i % len(src_candidates)]
         tgt = reach_top[i % len(reach_top)]
+        if src == tgt:
+            continue
         try:
             path = nx.shortest_path(G, src, tgt, weight='distance')
             path_len = sum(
@@ -304,7 +317,11 @@ def calc_tortuosity(atoms, perc_result, n_samples=200, box_xy=0.05, box_x=None, 
                 for k in range(len(path) - 1))
             z_dist = abs(atoms[tgt]['z'] - atoms[src]['z'])
             if z_dist > 0:
-                taus.append(path_len / z_dist)
+                tau_val = path_len / z_dist
+                # Guard: τ must be >= 1.0 (path can't be shorter than z-distance)
+                # and < 20 (physically unreasonable — likely bad src/tgt pair)
+                if 1.0 <= tau_val < 20.0:
+                    taus.append(tau_val)
         except nx.NetworkXNoPath:
             pass
 
@@ -313,7 +330,7 @@ def calc_tortuosity(atoms, perc_result, n_samples=200, box_xy=0.05, box_x=None, 
 
     t_mean = float(np.mean(taus))
     t_median = float(np.median(taus))
-    t_std = float(np.std(taus))
+    t_std = float(np.std(taus)) if len(taus) > 1 else 0.0
 
     # Auto-select: use median if std/mean > 0.5 (high dispersion, outlier-dominated)
     use_median = t_std / t_mean > 0.5 if t_mean > 0 else False

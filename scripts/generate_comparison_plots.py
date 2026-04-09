@@ -983,14 +983,14 @@ def plot_gb_corrected(data_list, names, outdir):
     ax.tick_params(axis='y', labelcolor=RED)
 
     ax2 = ax.twinx()
-    ax2.plot(x, sigma_abs, 'D--', color=ORANGE, markersize=ms-2, linewidth=lw-0.5, label="σ_eff (mS/cm)")
-    ax2.set_ylabel("σ_eff (mS/cm)", fontsize=11, color=ORANGE)
+    ax2.plot(x, sigma_abs, 'D--', color=ORANGE, markersize=ms-2, linewidth=lw-0.5, label="σ_ionic (mS/cm)")
+    ax2.set_ylabel("σ_ionic (mS/cm)", fontsize=11, color=ORANGE)
     ax2.tick_params(axis='y', labelcolor=ORANGE)
     ax2.spines["top"].set_visible(False)
 
     lines1, labels1 = ax.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
-    ax.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='best')
+    ax.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper left')
     gb_src = "global" if _GLOBAL_RGB is not None else "local"
     ax.set_title(f"Part I: Proxy σ_eff = σ_brug / C·(GB_d²·T)^α\nα={alpha:.2f}, R²={r2_check:.3f} [{gb_src}]",
                  fontsize=10, fontweight='bold')
@@ -1198,8 +1198,8 @@ def plot_network_sigma(data_list, names, outdir):
             label="σ_full (network)")
     ax.plot(x, sigma_brug_abs, 'o--', color=BLUE, markersize=ms-2, linewidth=lw-0.5,
             alpha=0.5, label="σ_brug (Bruggeman)")
-    _apply_style(ax, "σ_eff (mS/cm)", names)
-    ax.legend(fontsize=9, loc='best')
+    _apply_style(ax, "σ_ionic (mS/cm)", names)
+    ax.legend(fontsize=9, loc='upper left')
     ax.set_title("Part II: Network Solver σ_full vs Bruggeman σ_brug",
                  fontsize=10, fontweight='bold')
 
@@ -1265,8 +1265,8 @@ def plot_multiscale_sigma(data_list, names, outdir):
         ax.plot(x, sigma_net, 'D--', color='#2ecc71', markersize=ms-2, linewidth=lw-0.5,
                 alpha=0.7, label="Network solver (mS/cm)")
 
-    _apply_style(ax, "σ_eff (mS/cm)", names)
-    ax.legend(fontsize=9, loc='best')
+    _apply_style(ax, "σ_ionic (mS/cm)", names)
+    ax.legend(fontsize=9, loc='upper left')
     ax.set_title(f"Part III: σ_brug × {C_ms:.4f} × (G_path × GB_d²)^(1/4) × CN²",
                  fontsize=9, fontweight='bold')
 
@@ -1340,7 +1340,7 @@ def plot_electronic_sigma(data_list, names, outdir):
                 label="No AM percolation")
 
     _apply_style(ax, "σ_electronic (mS/cm)", names)
-    ax.legend(fontsize=9, loc='best')
+    ax.legend(fontsize=9, loc='upper left')
     ax.set_title("Electronic Conductivity (AM-AM Network)\nσ_AM = 0.05 S/cm",
                  fontsize=10, fontweight='bold')
 
@@ -1371,7 +1371,7 @@ def plot_thermal_sigma(data_list, names, outdir):
             label="k_eff (mS/cm equiv.)")
 
     _apply_style(ax, "k_eff (thermal, mS/cm equiv.)", names)
-    ax.legend(fontsize=9, loc='best')
+    ax.legend(fontsize=9, loc='upper left')
     ax.set_title("Thermal Conductivity (ALL Contact Network)\nk_AM=4.0e-2, k_SE=0.7e-2 W/(cm·K)",
                  fontsize=10, fontweight='bold')
 
@@ -1433,7 +1433,7 @@ def plot_electronic_scaling(data_list, names, outdir):
                 label="No AM percolation")
 
     _apply_style(ax, "\u03c3_el (mS/cm)", names)
-    ax.legend(fontsize=9, loc='best')
+    ax.legend(fontsize=9, loc='upper left')
     ax.set_title("Electronic: \u03c3_el = 0.015 \u00d7 \u03c3_AM \u00d7 \u03c6^(3/2) \u00d7 CN\u00b2 \u00d7 exp(\u03c0/(T/d))\n"
                  "R\u00b2=0.89, 1 free param",
                  fontsize=9, fontweight='bold')
@@ -1489,7 +1489,7 @@ def plot_thermal_scaling(data_list, names, outdir):
                 alpha=0.7, label="Network solver (mS/cm)")
 
     _apply_style(ax, "\u03c3_th (mS/cm equiv.)", names)
-    ax.legend(fontsize=9, loc='best')
+    ax.legend(fontsize=9, loc='upper left')
     ax.set_title("Thermal: \u03c3_th = 286 \u00d7 \u03c3_ion^(3/4) \u00d7 \u03c6_AM\u00b2 / CN_SE\n"
                  "R\u00b2=0.90, 1 free param",
                  fontsize=9, fontweight='bold')
@@ -1547,7 +1547,7 @@ def plot_transport_tradeoff(data_list, names, outdir):
     # Combined legend
     lines1, labels1 = ax1.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
-    ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='best')
+    ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper left')
 
     _write_csv(outdir, 'transport_tradeoff.csv',
                ['σ_ionic(mS/cm)', 'σ_electronic(mS/cm)'],
@@ -1590,7 +1590,7 @@ def plot_transport_normalized(data_list, names, outdir):
         ax.bar(x + w, norm_th, w, color='#ff922b', alpha=0.8, label=f"Thermal (max={max(sigma_th):.2f})")
 
     _apply_style(ax, "Normalized σ (ratio to max)", names)
-    ax.legend(fontsize=8, loc='best')
+    ax.legend(fontsize=8, loc='upper left')
     ax.set_ylim(0, 1.15)
     ax.set_title("3-Mode Transport Comparison (Normalized)\nIonic (SE-SE) | Electronic (AM-AM) | Thermal (ALL)",
                  fontsize=10, fontweight='bold')
@@ -1631,8 +1631,8 @@ def plot_transport_absolute(data_list, names, outdir):
                 label="Thermal (ALL)")
 
     ax.set_yscale('log')
-    _apply_style(ax, "σ_eff (mS/cm, log scale)", names)
-    ax.legend(fontsize=9, loc='best')
+    _apply_style(ax, "σ_ionic (mS/cm, log scale)", names)
+    ax.legend(fontsize=9, loc='upper left')
     ax.set_title("3-Mode Transport: Absolute Values\nIonic ≪ Thermal < Electronic (typical)",
                  fontsize=10, fontweight='bold')
 
@@ -1722,7 +1722,7 @@ def plot_r_brug_comparison(data_list, names, outdir):
     ax.text(len(names)-0.5, 1.05, "Bruggeman = exact", fontsize=7, color='gray', ha='right')
 
     _apply_style(ax, "R_brug (σ_brug / σ_network)", names)
-    ax.legend(fontsize=8, loc='best')
+    ax.legend(fontsize=8, loc='upper left')
     ax.set_title("Bruggeman Overestimation by Transport Mode\nR_brug > 1 = Bruggeman overestimates",
                  fontsize=10, fontweight='bold')
 
@@ -1982,7 +1982,7 @@ def plot_sigma_decomposition(data_list, names, outdir):
     ax.axhline(0, color='gray', linewidth=0.5)
     ax.set_ylabel('Δlog(σ_brug) from reference', fontsize=11)
     ax.set_title(f'σ_eff Factor Decomposition (ref: {names[ref]})', fontsize=12, fontweight='bold')
-    ax.legend(fontsize=8, loc='best', ncol=3)
+    ax.legend(fontsize=8, loc='upper left', ncol=3)
     ax.set_xticks(x)
     ax.set_xticklabels(names, rotation=45, ha='right', fontsize=8)
     ax.yaxis.grid(True, linestyle='--', alpha=0.5)
@@ -2095,7 +2095,7 @@ def plot_electronic_decomposition(data_list, names, outdir):
     ax.axhline(0, color='gray', linewidth=0.5)
     ax.set_ylabel('Δlog(σ_el) from reference', fontsize=11)
     ax.set_title(f'Electronic σ_el Factor Decomposition (ref: {names[ref]})', fontsize=12, fontweight='bold')
-    ax.legend(fontsize=9, loc='best', ncol=3)
+    ax.legend(fontsize=9, loc='upper left', ncol=3)
     ax.set_xticks(x)
     ax.set_xticklabels(names, rotation=45, ha='right', fontsize=8)
     ax.yaxis.grid(True, linestyle='--', alpha=0.5)
@@ -2197,7 +2197,7 @@ def plot_thermal_decomposition(data_list, names, outdir):
     ax.axhline(0, color='gray', linewidth=0.5)
     ax.set_ylabel('Δlog(σ_th) from reference', fontsize=11)
     ax.set_title(f'Thermal σ_th Factor Decomposition (ref: {names[ref]})', fontsize=12, fontweight='bold')
-    ax.legend(fontsize=9, loc='best', ncol=3)
+    ax.legend(fontsize=9, loc='upper left', ncol=3)
     ax.set_xticks(x)
     ax.set_xticklabels(names, rotation=45, ha='right', fontsize=8)
     ax.yaxis.grid(True, linestyle='--', alpha=0.5)

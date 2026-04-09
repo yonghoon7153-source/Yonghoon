@@ -41,6 +41,7 @@ GROUP_COLORS = ['#6c8cff', '#ff6b6b', '#51cf66', '#ffd43b', '#cc5de8', '#ff922b'
 _GROUP_INFO = None  # Set by main()
 _GLOBAL_RGB = None  # (b, ln_k) from global fit across all plot groups
 _GLOBAL_C_ION = None  # Fitted C for ionic scaling law (from global/ionic_scaling_fit)
+_GLOBAL_FORMX_R2 = None  # (r2, loocv) from FORM X fit
 _ALL_DATA = None  # all_data for _apply_style auto-detect
 
 def _apply_style(ax, ylabel, names, data_list=None):
@@ -1077,8 +1078,19 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ss_res_formX = np.sum((log_sf - pred_formX)**2)
     r2_formX = 1 - ss_res_formX / ss_tot
 
-    # Save FORM X C to global for multiscale_sigma
+    # LOOCV for FORM X
+    n_pts = len(log_sf)
+    loocv_errs = []
+    for ii in range(n_pts):
+        mask = np.ones(n_pts, bool); mask[ii] = False
+        C_loo = float(np.exp(np.mean(log_sf[mask] - log_rhs_formX[mask])))
+        loocv_errs.append((log_sf[ii] - np.log(C_loo) - log_rhs_formX[ii])**2)
+    loocv_formX = 1 - np.sum(loocv_errs) / np.sum((log_sf - np.mean(log_sf))**2)
+
+    # Save FORM X C and R² to global for multiscale_sigma and description
     _GLOBAL_C_ION = C_formX
+    global _GLOBAL_FORMX_R2
+    _GLOBAL_FORMX_R2 = (r2_formX, loocv_formX)
 
     # Use FORM X as primary (v3 as secondary reference)
     s_pred = np.exp(pred_formX)
@@ -2020,14 +2032,14 @@ PLOT_REGISTRY = {
         "func": plot_ionic_scaling_fit,
         "file": "ionic_scaling_fit.png",
         "title": "Ionic: FORM X Scaling Law (Predicted vs Actual)",
-        "description": "FORM X (v4++ champion):\nσ = C × σ_grain × ⁴√[(φ-φc)³ × CN⁴ × cov² / τ²]\n= C × σ_grain × (φ-φc)^(3/4) × CN × √cov / √τ\n\nφ_c=0.18 (percolation threshold)\nR²>0.96, LOOCV>0.96, 1 free param",
+        "description": "FORM X (v4++ champion):\nσ = C × σ_grain × ⁴√[(φ-φc)³ × CN⁴ × cov² / τ²]\n= C × σ_grain × (φ-φc)^(3/4) × CN × √cov / √τ\n\nφ_c=0.18 (percolation threshold)\nR²={formx_r2}, LOOCV={formx_loocv}, 1 free param",
         "origin_tip": "Scatter (log-log): X=actual (Network solver), Y=predicted (FORM X).\n1:1 line (black dashed), ±20% band (green).",
     },
     "multiscale_sigma": {
         "func": plot_multiscale_sigma,
         "file": "multiscale_sigma.png",
         "title": "Ionic: FORM X Scaling Law",
-        "description": "FORM X (v4++ champion):\nσ = C × σ_grain × (φ\u2011φc)^¾ × CN × √cov / √τ\nφc=0.18 (percolation threshold)\nR²≈0.96, thick+thin universal",
+        "description": "FORM X (v4++ champion):\nσ = C × σ_grain × (φ\u2011φc)^¾ × CN × √cov / √τ\nφc=0.18 (percolation threshold)\nR²={formx_r2}, thick+thin universal",
         "origin_tip": "Red: FORM X prediction.\nGreen dashed: Network solver (ground truth).",
     },
     "formx_decomposition": {
@@ -2693,11 +2705,20 @@ def main():
             standalone_csv = os.path.join(args.output, f"{plot_name}.csv")
             if os.path.exists(standalone_csv):
                 csv_file = f"{plot_name}.csv"
+        # Dynamic description: replace {formx_r2}, {formx_loocv} with actual values
+        desc = entry["description"]
+        if _GLOBAL_FORMX_R2 is not None:
+            r2_val, loocv_val = _GLOBAL_FORMX_R2
+            desc = desc.replace("{formx_r2}", f"{r2_val:.3f}")
+            desc = desc.replace("{formx_loocv}", f"{loocv_val:.3f}")
+        else:
+            desc = desc.replace("{formx_r2}", "N/A")
+            desc = desc.replace("{formx_loocv}", "N/A")
         info_entry = {
             "file": entry["file"],
             "csv": csv_file,
             "title": entry["title"],
-            "description": entry["description"],
+            "description": desc,
             "origin_tip": entry["origin_tip"],
         }
         # Add R_gb values to plot_info for downstream use

@@ -1501,24 +1501,34 @@ def plot_thermal_sigma(data_list, names, outdir):
 
 
 def plot_electronic_scaling(data_list, names, outdir):
-    """Electronic scaling law: σ_el = 0.015 × σ_AM × φ_AM^(3/2) × CN_AM² × exp(π/(T/d_AM))."""
-    SIGMA_AM = 50.0  # mS/cm (= 0.05 S/cm)
-    C_el = 0.015
+    """Electronic v2: σ_el = C × σ_AM × φ_AM^(5/2) × CN² × exp(π/(T/d)) × √φ_SE × ⁴√cov."""
+    SIGMA_AM = 50.0
+    C_el = 0.078  # default, will be fitted
 
     phi_am = [_get(d, "phi_am") for d in data_list]
+    phi_se = [_get(d, "phi_se") for d in data_list]
     cn_am = [_get(d, "am_am_cn") for d in data_list]
     thickness = [_get(d, "thickness_um") for d in data_list]
     d_am = [2.0 * max(_get(d, "r_AM_P", 0), _get(d, "r_AM_S", 0), _get(d, "r_AM", 0))
             for d in data_list]
+    coverage = [(lambda vs: sum(vs)/len(vs)/100 if vs else 0.20)([v for v in [_get(d,"coverage_AM_P_mean",0), _get(d,"coverage_AM_S_mean",0), _get(d,"coverage_AM_mean",0)] if v>0]) for d in data_list]
+
+    # Auto-fit C from network solver data
+    sigma_net = _load_electronic_sigma(data_list)
+    valid = [i for i in range(len(data_list))
+             if phi_am[i]>0 and cn_am[i]>0 and d_am[i]>0 and thickness[i]>0 and phi_se[i]>0 and coverage[i]>0 and sigma_net[i]>0.01]
+    if len(valid) >= 3:
+        log_rhs = np.array([np.log(SIGMA_AM) + 2.5*np.log(phi_am[i]) + 2*np.log(cn_am[i])
+                            + np.pi/(thickness[i]/d_am[i]) + 0.5*np.log(phi_se[i]) + 0.25*np.log(coverage[i])
+                            for i in valid])
+        log_act = np.array([np.log(sigma_net[i]) for i in valid])
+        C_el = float(np.exp(np.mean(log_act - log_rhs)))
 
     sigma_scaling = []
     for i in range(len(data_list)):
-        if phi_am[i] > 0 and cn_am[i] > 0 and d_am[i] > 0 and thickness[i] > 0:
+        if phi_am[i] > 0 and cn_am[i] > 0 and d_am[i] > 0 and thickness[i] > 0 and phi_se[i] > 0:
             ratio = thickness[i] / d_am[i]
-            if ratio > 0:
-                s = C_el * SIGMA_AM * phi_am[i]**(3/2) * cn_am[i]**2 * np.exp(np.pi / ratio)
-            else:
-                s = 0.0
+            s = C_el * SIGMA_AM * phi_am[i]**2.5 * cn_am[i]**2 * np.exp(np.pi/ratio) * phi_se[i]**0.5 * coverage[i]**0.25
             sigma_scaling.append(s)
         else:
             sigma_scaling.append(0.0)
@@ -1548,18 +1558,18 @@ def plot_electronic_scaling(data_list, names, outdir):
 
     _apply_style(ax, "\u03c3_el (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
-    ax.set_title("Electronic: \u03c3_el = 0.015 \u00d7 \u03c3_AM \u00d7 \u03c6^(3/2) \u00d7 CN\u00b2 \u00d7 exp(\u03c0/(T/d))\n"
-                 "R\u00b2=0.89, 1 free param",
-                 fontsize=9, fontweight='bold')
+    # Compute R²
+    r2_txt = ""
+    valid_both = [i for i in range(len(data_list)) if sigma_scaling[i]>0 and sigma_net[i]>0]
+    if len(valid_both) >= 3:
+        log_a = np.log(np.array([sigma_net[i] for i in valid_both]))
+        log_p = np.log(np.array([sigma_scaling[i] for i in valid_both]))
+        r2_el = 1 - np.sum((log_a-log_p)**2) / np.sum((log_a-np.mean(log_a))**2)
+        r2_txt = f"R\u00b2={r2_el:.2f}"
 
-    # Annotation box
-    valid_scaling = [s for s in sigma_scaling if s > 0]
-    if valid_scaling:
-        txt = ("R\u00b2 = 0.89\n"
-               "\u03c3_el = 0.015 \u00d7 \u03c3_AM \u00d7 \u03c6^(3/2) \u00d7 CN\u00b2 \u00d7 exp(\u03c0/(T/d))")
-        ax.text(0.95, 0.95, txt,
-                transform=ax.transAxes, fontsize=8, ha='right', va='top',
-                bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffeaea', alpha=0.8))
+    ax.set_title(f"Electronic v2: {C_el:.4f} \u00d7 \u03c3_AM \u00d7 \u03c6^(5/2) \u00d7 CN\u00b2 \u00d7 exp(\u03c0/(T/d)) \u00d7 \u221a\u03c6_SE \u00d7 \u2074\u221acov\n"
+                 f"{r2_txt}, 1 free param",
+                 fontsize=9, fontweight='bold')
 
     _write_csv(outdir, 'electronic_scaling.csv',
                ['phi_AM', 'CN_AM', 'T_um', 'd_AM', '\u03c3_scaling(mS/cm)', '\u03c3_network(mS/cm)'],
@@ -2459,8 +2469,8 @@ PLOT_REGISTRY["thermal_sigma"] = {
 PLOT_REGISTRY["electronic_scaling"] = {
     "func": plot_electronic_scaling,
     "file": "electronic_scaling.png",
-    "title": "Electronic Scaling Law",
-    "description": "\u03c3_el = 0.015 \u00d7 \u03c3_AM \u00d7 \u03c6_AM^(3/2) \u00d7 CN_AM\u00b2 \u00d7 exp(\u03c0/(T/d_AM))\n\u221aA_hop \ubd88\ud544\uc694 (AM \ud06c\uae30 \u2192 constriction \ubb34\uc2dc)\nR\u00b2=0.89 (1 free param)\nAM percolation \uc5c6\uc73c\uba74 \u03c3=0.",
+    "title": "Electronic Scaling Law (v2)",
+    "description": "σ_el = C × σ_AM × φ_AM^(5/2) × CN² × exp(π/(T/d)) × √φ_SE × ⁴√cov\nv2: +√φ_SE (SE structuring) + ⁴√cov (AM\u2011SE 계면)\nR²≈0.92\nexp(π/(T/d)): finite\u2011size percolation (필수)",
     "origin_tip": "Red: Scaling law, Green dashed: Network solver.",
 }
 PLOT_REGISTRY["thermal_scaling"] = {

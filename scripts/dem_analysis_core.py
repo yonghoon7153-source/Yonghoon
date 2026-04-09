@@ -262,8 +262,8 @@ def calc_percolation(atoms, contacts, se_types, plate_z, boundary_factor=2.0, bo
 
 def _periodic_dist(a1, a2, box_x=0.05, box_y=0.05):
     """Distance between two atoms with periodic boundary in x,y (NOT z)."""
-    dx = abs(a1['x'] - a2['x'])
-    dy = abs(a1['y'] - a2['y'])
+    dx = abs(a1['x'] - a2['x']) % box_x  # wrap into primary cell first
+    dy = abs(a1['y'] - a2['y']) % box_y
     dz = a1['z'] - a2['z']
     # Minimum image convention for periodic x,y
     dx = min(dx, box_x - dx)
@@ -312,17 +312,15 @@ def calc_tortuosity(atoms, perc_result, n_samples=200, box_xy=0.05, box_x=None, 
     if not src_candidates:
         return {'mean': None, 'std': None, 'n_samples': 0}
 
-    # Diversify sampling: pair each source with multiple targets
+    # Generate unique (src, tgt) pairs, shuffle for diverse sampling
     import random
     random.seed(42)
-    random.shuffle(src_candidates)
+    pairs = [(s, t) for s in src_candidates for t in reach_top if s != t]
+    random.shuffle(pairs)
+    pairs = pairs[:n_samples]  # cap at n_samples
 
     taus = []
-    for i in range(min(n_samples, len(src_candidates) * len(reach_top))):
-        src = src_candidates[i % len(src_candidates)]
-        tgt = reach_top[i % len(reach_top)]
-        if src == tgt:
-            continue
+    for src, tgt in pairs:
         try:
             path = nx.shortest_path(G, src, tgt, weight='distance')
             path_len = sum(

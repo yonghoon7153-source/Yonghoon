@@ -423,26 +423,119 @@ def generate_report(data_list, names, outdir):
     else:
         L.append("*Network solver 결과 없음 (Network Solver 재실행 필요)*\n")
 
-    # ─── Part III: Champion Scaling Laws ───
+    # ─── Part III: Champion Scaling Laws (computed from data) ───
     L.append("## 9. Champion Scaling Laws (Part III)\n")
-    L.append("### Ionic (R²=0.947, 1 free parameter)")
+
+    # Fit ionic champion: σ_ion = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²
+    ion_r2, ion_C = None, None
+    el_r2, el_C = None, None
+    th_r2, th_C = None, None
+
+    # Ionic fit
+    ion_actual = []
+    ion_pred_rhs = []
+    for d in data_list:
+        sigma_net = d.get('sigma_full_mScm', 0)
+        sigma_ratio = d.get('sigma_ratio', 0)
+        g_path = d.get('path_conductance_mean', 0)
+        gb_d = d.get('gb_density_mean', 0)
+        cn = d.get('se_se_cn', 0)
+        if sigma_net > 0.01 and sigma_ratio > 0 and g_path > 0 and gb_d > 0 and cn > 0:
+            sb = sigma_ratio * 3.0  # σ_brug in mS/cm
+            rhs = sb * (g_path * gb_d**2)**0.25 * cn**2
+            ion_actual.append(sigma_net)
+            ion_pred_rhs.append(rhs)
+
+    if len(ion_actual) >= 3:
+        ion_actual = np.array(ion_actual)
+        ion_pred_rhs = np.array(ion_pred_rhs)
+        ion_C = float(np.mean(ion_actual / ion_pred_rhs))
+        ion_pred = ion_C * ion_pred_rhs
+        ss_res = np.sum((ion_actual - ion_pred)**2)
+        ss_tot = np.sum((ion_actual - np.mean(ion_actual))**2)
+        ion_r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
+
+    L.append(f"### Ionic (R²={ion_r2:.3f}, 1 free parameter)" if ion_r2 else "### Ionic")
     L.append("```")
     L.append("σ_ion = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²")
-    L.append("C ≈ 0.073 (data-fitted)")
+    L.append(f"C = {ion_C:.4f} (data-fitted, n={len(ion_actual)})" if ion_C else "C ≈ 0.073 (default)")
     L.append("σ_brug = σ_grain × φ_SE × f_perc / τ²  (σ_grain = 3.0 mS/cm)")
     L.append("```\n")
-    L.append("### Electronic (R²=0.89, 1 free parameter)")
+
+    # Electronic fit
+    el_actual = []
+    el_pred_rhs = []
+    SIGMA_AM = 50.0
+    for d in data_list:
+        sigma_el = d.get('electronic_sigma_full_mScm', 0)
+        phi_am = d.get('phi_am', 0)
+        cn_am = d.get('am_am_cn', 0)
+        T_um = d.get('thickness_um', 0)
+        # Estimate d_AM from input_params or typical
+        d_am = 5.0  # default
+        if sigma_el and sigma_el > 0 and phi_am > 0 and cn_am > 0 and T_um > 0 and d_am > 0:
+            ratio = T_um / d_am
+            if ratio > 0:
+                rhs = SIGMA_AM * phi_am**1.5 * cn_am**2 * np.exp(np.pi / ratio)
+                el_actual.append(sigma_el)
+                el_pred_rhs.append(rhs)
+
+    if len(el_actual) >= 3:
+        el_actual = np.array(el_actual)
+        el_pred_rhs = np.array(el_pred_rhs)
+        el_C = float(np.mean(el_actual / el_pred_rhs))
+        el_pred = el_C * el_pred_rhs
+        ss_res = np.sum((el_actual - el_pred)**2)
+        ss_tot = np.sum((el_actual - np.mean(el_actual))**2)
+        el_r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
+
+    L.append(f"### Electronic (R²={el_r2:.2f}, 1 free parameter)" if el_r2 else "### Electronic")
     L.append("```")
-    L.append("σ_el = 0.015 × σ_AM × φ_AM^(3/2) × CN_AM² × exp(π/(T/d_AM))")
+    L.append("σ_el = C × σ_AM × φ_AM^(3/2) × CN_AM² × exp(π/(T/d_AM))")
+    L.append(f"C = {el_C:.4f} (data-fitted)" if el_C else "C ≈ 0.015 (default)")
     L.append("σ_AM = 50 mS/cm (NCM811)")
     L.append("```\n")
-    L.append("### Thermal (R²=0.90, 1 free parameter)")
+
+    # Thermal fit
+    th_actual = []
+    th_pred_rhs = []
+    for d in data_list:
+        sigma_th = d.get('thermal_sigma_full_mScm', 0)
+        sigma_ion = d.get('sigma_full_mScm', 0)
+        phi_am = d.get('phi_am', 0)
+        cn = d.get('se_se_cn', 0)
+        if sigma_th and sigma_th > 0 and sigma_ion > 0 and phi_am > 0 and cn > 0:
+            rhs = sigma_ion**0.75 * phi_am**2 / cn
+            th_actual.append(sigma_th)
+            th_pred_rhs.append(rhs)
+
+    if len(th_actual) >= 3:
+        th_actual = np.array(th_actual)
+        th_pred_rhs = np.array(th_pred_rhs)
+        th_C = float(np.mean(th_actual / th_pred_rhs))
+        th_pred = th_C * th_pred_rhs
+        ss_res = np.sum((th_actual - th_pred)**2)
+        ss_tot = np.sum((th_actual - np.mean(th_actual))**2)
+        th_r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
+
+    L.append(f"### Thermal (R²={th_r2:.2f}, 1 free parameter)" if th_r2 else "### Thermal")
     L.append("```")
-    L.append("σ_th = 286 × σ_ion^(3/4) × φ_AM² / CN_SE")
+    L.append("σ_th = C × σ_ion^(3/4) × φ_AM² / CN_SE")
+    L.append(f"C = {th_C:.1f} (data-fitted)" if th_C else "C ≈ 286 (default)")
     L.append("```\n")
+
+    # Summary table
+    L.append("### Summary\n")
+    L.append("| Transport | R² | C | n |")
+    L.append("|-----------|-----|---|---|")
+    L.append(f"| Ionic | {ion_r2:.3f} | {ion_C:.4f} | {len(ion_actual)} |" if ion_r2 else "| Ionic | - | - | 0 |")
+    L.append(f"| Electronic | {el_r2:.2f} | {el_C:.4f} | {len(el_actual)} |" if el_r2 else "| Electronic | - | - | 0 |")
+    L.append(f"| Thermal | {th_r2:.2f} | {th_C:.1f} | {len(th_actual)} |" if th_r2 else "| Thermal | - | - | 0 |")
+    L.append("")
+
     L.append("### Bruggeman Exponent Decomposition")
     L.append("```")
-    L.append("n_eff = n_geo(2.54) + n_contact(0.83) = 3.37")
+    L.append("n_eff = n_geo + n_contact ≈ 3.37")
     L.append("→ 문헌 n≈3의 물리적 기원: 기하학(tortuosity) + 접촉 저항(constriction)")
     L.append("```\n")
 

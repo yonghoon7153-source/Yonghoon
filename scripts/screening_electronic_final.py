@@ -47,6 +47,13 @@ def load_data():
             am_force = m.get('am_am_mean_force', 0)
             am_pres = m.get('am_am_mean_pressure', 0)
             am_hop = m.get('am_am_mean_hop', 0)
+            # AM-AM path metrics
+            am_gd = m.get('am_gb_density_mean', 0)
+            am_gc = m.get('am_path_conductance_mean', 0)
+            am_bn = m.get('am_path_bottleneck_mean', 0)
+            # Ionic path metrics (SE-SE, proxy for AM structure)
+            ion_gd = m.get('gb_density_mean', 0)
+            ion_gc = m.get('path_conductance_mean', 0)
             if pa <= 0 or am_cn <= 0 or T <= 0: continue
             P_contact = am_force / am_area if am_area > 0 and am_force > 0 else max(am_pres, 0.01)
             rows.append({
@@ -57,6 +64,9 @@ def load_data():
                 'am_area': max(am_area, 0.01), 'am_cr': max(am_cr, 0.01),
                 'am_delta': max(am_delta, 0.001), 'am_force': max(am_force, 0.01),
                 'P_contact': max(P_contact, 0.01), 'am_hop': max(am_hop, 0.1),
+                'am_gd': max(am_gd, 0.01), 'am_gc': max(am_gc, 0.001),
+                'am_bn': max(am_bn, 0.001),
+                'ion_gd': max(ion_gd, 0.01), 'ion_gc': max(ion_gc, 1e-6),
                 'name': mp.parent.name
             })
     seen = set(); u = []
@@ -98,6 +108,12 @@ def main():
     am_cr = np.array([r['am_cr'] for r in rows])
     am_hop = np.array([r['am_hop'] for r in rows])
     am_area = np.array([r['am_area'] for r in rows])
+    # AM-AM path metrics
+    am_gd = np.array([r['am_gd'] for r in rows])
+    am_gc = np.array([r['am_gc'] for r in rows])
+    am_bn = np.array([r['am_bn'] for r in rows])
+    ion_gd = np.array([r['ion_gd'] for r in rows])
+    ion_gc = np.array([r['ion_gc'] for r in rows])
 
     thick = ratio >= 10; thin = ratio < 10
     n = len(rows)
@@ -111,7 +127,47 @@ def main():
     cvn = cov[thin]; tn = tau[thin]; eln = el_perc[thin]
     P_n = P_c[thin]; dn = am_delta[thin]; cr_n = am_cr[thin]
     hop_n = am_hop[thin]; area_n = am_area[thin]
+    gd_n = am_gd[thin]; gc_n = am_gc[thin]; bn_n = am_bn[thin]
+    igc_n = ion_gc[thin]
     n_thin = thin.sum()
+    print(f"AM Gc: {gc_n.min():.4f}~{gc_n.max():.4f}, BN: {bn_n.min():.4f}~{bn_n.max():.4f}")
+
+    # A0. AM path conductance (NEW!)
+    print(f"\n{'='*80}")
+    print(f"A0. THIN: AM path conductance Gc, bottleneck BN (n={n_thin})")
+    print("="*80)
+    cA0 = []
+    for var_name, var_arr in [('Gc', gc_n), ('BN', bn_n), ('√Gc', gc_n**0.5), ('√BN', bn_n**0.5)]:
+        for v_e in [0.25, 0.5, 0.75, 1, 1.5, 2]:
+            for cn_e in [0, 0.5, 1]:
+                for td_e in [-0.5, -0.25, 0]:
+                    rhs = SAM * var_arr**v_e * cn_n**cn_e * rn**td_e
+                    C = fitC(sn, rhs)
+                    if C is None: continue
+                    r2 = r2l(sn, C * rhs)
+                    if r2 > 0.85:
+                        cn_s = f'×CN^{cn_e}' if cn_e else ''
+                        td_s = f'×(T/d)^{td_e}' if td_e else ''
+                        cv = loocv_C(sn, rhs)
+                        cA0.append({'r2': r2, 'rhs': rhs,
+                                    'label': f'{var_name}^{v_e}{cn_s}{td_s}', 'cv': cv})
+    # Also try Gc × P combinations
+    for gc_e in [0.25, 0.5, 1]:
+        for p_e in [0.5, 1, 2]:
+            for td_e in [-0.5, -0.25, 0]:
+                rhs = SAM * gc_n**gc_e * P_n**p_e * rn**td_e
+                C = fitC(sn, rhs)
+                if C is None: continue
+                r2 = r2l(sn, C * rhs)
+                if r2 > 0.85:
+                    td_s = f'×(T/d)^{td_e}' if td_e else ''
+                    cv = loocv_C(sn, rhs)
+                    cA0.append({'r2': r2, 'rhs': rhs,
+                                'label': f'Gc^{gc_e}×P^{p_e}{td_s}', 'cv': cv})
+    cA0.sort(key=lambda x: -x['r2'])
+    for i, r in enumerate(cA0[:20]):
+        cs = f" LOOCV={r['cv']:.4f}" if r.get('cv') else ""
+        print(f"  #{i+1} R²={r['r2']:.4f}{cs}  {r['label']}")
 
     # A. Contact pressure
     print(f"\n{'='*80}")
@@ -196,7 +252,9 @@ def main():
         for b in [1, 1.5, 2]:
             for cn, ca in [('', np.ones(n)), ('×cov', cov), ('×√cov', cov**0.5),
                            ('×P^0.5', P_c**0.5), ('×δ^0.5', am_delta**0.5),
-                           ('×√a_c', am_cr**0.5), ('×√(δ/hop)', np.sqrt(am_delta/am_hop))]:
+                           ('×√a_c', am_cr**0.5), ('×√(δ/hop)', np.sqrt(am_delta/am_hop)),
+                           ('×Gc^0.5', am_gc**0.5), ('×Gc', am_gc),
+                           ('×BN^0.5', am_bn**0.5)]:
                 for fn, fa in [('×exp(π/ξ)', exp_td),
                                ('×(T/d)^-0.5', ratio**-0.5),
                                ('', np.ones(n))]:
@@ -238,6 +296,16 @@ def main():
         ('√[CN²×por⁶×φ_SE²×cov²/(T/d)]', np.sqrt(cn_n**2 * porn**6 * psn**2 * cvn**2 / rn)),
         ('δ^½×CN×(T/d)^(-¼)', dn**0.5 * cn_n * rn**(-0.25)),
         ('a_c×CN/(T/d)^¼', cr_n * cn_n / rn**0.25),
+        # AM path conductance
+        ('Gc×CN/(T/d)^½', gc_n * cn_n / rn**0.5),
+        ('√[Gc²×CN²/(T/d)]', np.sqrt(gc_n**2 * cn_n**2 / rn)),
+        ('Gc^½×CN/(T/d)^¼', gc_n**0.5 * cn_n / rn**0.25),
+        ('⁴√[Gc⁴×CN⁴/(T/d)]', (gc_n**4 * cn_n**4 / rn)**0.25),
+        ('Gc^¾×CN/(T/d)^¼', gc_n**0.75 * cn_n / rn**0.25),
+        ('BN^½×CN/(T/d)^¼', bn_n**0.5 * cn_n / rn**0.25),
+        ('√[BN×CN²/(T/d)]', np.sqrt(bn_n * cn_n**2 / rn)),
+        ('Gc×P/(T/d)^½', gc_n * P_n / rn**0.5),
+        ('√[Gc×P²/(T/d)]', np.sqrt(gc_n * P_n**2 / rn)),
     ]
     print(f"  {'Formula':50s} {'R²':>7s} {'LOOCV':>7s}")
     print("  " + "-" * 66)

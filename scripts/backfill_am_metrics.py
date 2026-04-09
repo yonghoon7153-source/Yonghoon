@@ -148,6 +148,121 @@ def calc_am_am_stats(atoms_path, contacts_path, type_map_str, scale=1000):
     }
 
 
+def calc_am_am_paths(atoms_path, contacts_path, type_map_str, scale=1000):
+    """Calculate AM-AM percolating path metrics (GB density, conductance, bottleneck).
+    Same logic as SE-SE path analysis in analyze_contacts.py."""
+    import networkx as nx
+
+    type_map = {}
+    if type_map_str:
+        for part in type_map_str.split(','):
+            if ':' in part:
+                k, v = part.split(':', 1)
+                type_map[int(k)] = v
+    am_types = {t for t, name in type_map.items() if name.startswith('AM')}
+
+    atoms = {}
+    with open(atoms_path) as f:
+        for row in csv.DictReader(f):
+            aid = int(row['id'])
+            atoms[aid] = {
+                'type': int(row['type']),
+                'x': float(row['x']), 'y': float(row['y']), 'z': float(row['z']),
+                'radius': float(row['radius']),
+            }
+
+    # Build AM-AM graph
+    G = nx.Graph()
+    am_ids = [aid for aid, a in atoms.items() if a['type'] in am_types]
+    if len(am_ids) < 3:
+        return None
+    for aid in am_ids:
+        G.add_node(aid)
+
+    contact_area_map = {}
+    area_conv = 1.0 / (scale ** 2) * 1e12  # sim m² → real µm²
+
+    with open(contacts_path) as f:
+        for row in csv.DictReader(f):
+            i1, i2 = int(row['id1']), int(row['id2'])
+            if i1 in atoms and i2 in atoms:
+                if atoms[i1]['type'] in am_types and atoms[i2]['type'] in am_types:
+                    ca = float(row.get('contact_area', 0))
+                    ca_real = ca * area_conv
+                    p1x, p1y, p1z = float(row.get('p1_x', 0)), float(row.get('p1_y', 0)), float(row.get('p1_z', 0))
+                    p2x, p2y, p2z = float(row.get('p2_x', 0)), float(row.get('p2_y', 0)), float(row.get('p2_z', 0))
+                    dist = np.sqrt((p1x-p2x)**2 + (p1y-p2y)**2 + (p1z-p2z)**2)
+                    G.add_edge(i1, i2, weight=dist, distance=dist)
+                    contact_area_map[(min(i1,i2), max(i1,i2))] = ca_real
+
+    if G.number_of_edges() < 3:
+        return None
+
+    # Find bottom/top AM particles
+    z_vals = [atoms[aid]['z'] for aid in am_ids]
+    z_min, z_max = min(z_vals), max(z_vals)
+    z_range = z_max - z_min
+    if z_range <= 0:
+        return None
+
+    bottom_am = [aid for aid in am_ids if atoms[aid]['z'] < z_min + 0.15 * z_range]
+    top_am = [aid for aid in am_ids if atoms[aid]['z'] > z_max - 0.15 * z_range]
+    if not bottom_am or not top_am:
+        return None
+
+    # Shortest paths bottom → top
+    all_paths = []
+    seen = set()
+    for src in sorted(bottom_am, key=lambda a: atoms[a]['z'])[:15]:
+        for tgt in sorted(top_am, key=lambda a: -atoms[a]['z'])[:15]:
+            if len(all_paths) >= 30:
+                break
+            pair = (src, tgt)
+            if pair in seen:
+                continue
+            seen.add(pair)
+            try:
+                path = nx.shortest_path(G, src, tgt, weight='distance')
+                hop_areas = []
+                sum_inv_a = 0
+                for ki in range(len(path) - 1):
+                    pk = (min(path[ki], path[ki+1]), max(path[ki], path[ki+1]))
+                    ca = contact_area_map.get(pk, 0)
+                    hop_areas.append(ca)
+                    if ca > 0:
+                        sum_inv_a += 1.0 / ca
+
+                z_dist = abs(atoms[tgt]['z'] - atoms[src]['z']) * scale  # µm
+                n_hop = len(path) - 1
+                if z_dist > 0 and n_hop > 0:
+                    all_paths.append({
+                        'gb_density': round(n_hop / z_dist, 3),
+                        'path_conductance': round(1.0 / sum_inv_a, 6) if sum_inv_a > 0 else 0,
+                        'hop_area_mean': round(np.mean(hop_areas), 4) if hop_areas else 0,
+                        'hop_area_min': round(min(hop_areas), 4) if hop_areas else 0,
+                    })
+            except nx.NetworkXNoPath:
+                pass
+        if len(all_paths) >= 30:
+            break
+
+    if not all_paths:
+        return None
+
+    gbd = [p['gb_density'] for p in all_paths]
+    gc = [p['path_conductance'] for p in all_paths if p['path_conductance'] > 0]
+    ha = [p['hop_area_mean'] for p in all_paths if p['hop_area_mean'] > 0]
+    bn = [p['hop_area_min'] for p in all_paths if p['hop_area_min'] > 0]
+
+    return {
+        'am_gb_density_mean': round(float(np.mean(gbd)), 3) if gbd else 0,
+        'am_path_conductance_mean': round(float(np.mean(gc)), 6) if gc else 0,
+        'am_path_hop_area_mean': round(float(np.mean(ha)), 4) if ha else 0,
+        'am_path_bottleneck_mean': round(float(np.mean(bn)), 4) if bn else 0,
+        'am_n_paths': len(all_paths),
+    }
+
+
 def backfill_all():
     """Add AM-AM metrics to all existing full_metrics.json files."""
     count = 0
@@ -199,14 +314,25 @@ def backfill_all():
                         met['am_percolation_pct'] = am_perc.get('percolation_pct', 0)
                         met['am_n_components'] = am_perc.get('n_components', 0)
 
+                    # AM-AM percolating path analysis
+                    try:
+                        path_stats = calc_am_am_paths(atoms_path, contacts_path, type_map_str, scale=scale)
+                        if path_stats:
+                            for k, v in path_stats.items():
+                                met[k] = v
+                    except Exception as _pe:
+                        print(f"    [AM path] failed: {_pe}")
+
                     with open(met_path, 'w') as f:
                         json.dump(met, f, indent=2, default=str)
                     count += 1
                     name = os.path.basename(root)
-                    am_perc_pct = met.get('am_percolation_pct', 0)
+                    gbd = met.get('am_gb_density_mean', 0)
+                    gpc = met.get('am_path_conductance_mean', 0)
+                    bn = met.get('am_path_bottleneck_mean', 0)
                     print(f"  {name}: CN={stats['am_am_cn']:.2f}, area={stats['am_am_mean_area']:.3f}μm², "
                           f"a={stats['am_am_mean_contact_radius']:.3f}μm, δ={stats['am_am_mean_delta']:.4f}μm, "
-                          f"F={stats['am_am_mean_force']:.2f}μN, hop={stats['am_am_mean_hop']:.2f}μm")
+                          f"Gd={gbd:.2f}, Gc={gpc:.4f}, BN={bn:.4f}")
 
     print(f"\nBackfilled {count} cases")
     return count

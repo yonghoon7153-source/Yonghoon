@@ -544,13 +544,22 @@ def analyze(case_id):
                     if os.path.exists(atoms_csv) and os.path.exists(contacts_csv):
                         try:
                             sys.path.insert(0, app.config['SCRIPTS_FOLDER'])
-                            from backfill_am_metrics import calc_am_am_stats
+                            from backfill_am_metrics import calc_am_am_stats, calc_am_am_paths
                             am_stats = calc_am_am_stats(atoms_csv, contacts_csv,
                                                         meta['type_map'], scale=meta.get('scale', 1000))
                             if am_stats:
                                 for k, v in am_stats.items():
                                     met_data[k] = v
-                                print(f"  [AM-AM] Backfilled (reanalysis): CN={am_stats.get('am_am_cn',0):.2f}")
+                                print(f"  [AM-AM] Backfilled: CN={am_stats.get('am_am_cn',0):.2f}")
+                            try:
+                                path_stats = calc_am_am_paths(atoms_csv, contacts_csv,
+                                                              meta['type_map'], scale=meta.get('scale', 1000))
+                                if path_stats:
+                                    for k, v in path_stats.items():
+                                        met_data[k] = v
+                                    print(f"  [AM-AM] Paths: Gd={path_stats.get('am_gb_density_mean',0):.2f}")
+                            except Exception as _pe:
+                                print(f"  [AM-AM] Path analysis failed: {_pe}")
                         except Exception as _e:
                             print(f"  [AM-AM] Backfill failed: {_e}")
                     with open(met_json, 'w') as _mf:
@@ -628,14 +637,22 @@ def analyze(case_id):
                                 # AM-AM contact mechanics backfill
                                 try:
                                     sys.path.insert(0, app.config['SCRIPTS_FOLDER'])
-                                    from backfill_am_metrics import calc_am_am_stats
+                                    from backfill_am_metrics import calc_am_am_stats, calc_am_am_paths
                                     am_stats = calc_am_am_stats(atoms_csv, contacts_csv,
                                                                 meta['type_map'], scale=meta.get('scale', 1000))
                                     if am_stats:
                                         for k, v in am_stats.items():
                                             met_data[k] = v
-                                        print(f"  [AM-AM] Backfilled: CN={am_stats.get('am_am_cn',0):.2f}, "
-                                              f"area={am_stats.get('am_am_mean_area',0):.3f}µm²")
+                                        print(f"  [AM-AM] Backfilled: CN={am_stats.get('am_am_cn',0):.2f}")
+                                    try:
+                                        path_stats = calc_am_am_paths(atoms_csv, contacts_csv,
+                                                                      meta['type_map'], scale=meta.get('scale', 1000))
+                                        if path_stats:
+                                            for k, v in path_stats.items():
+                                                met_data[k] = v
+                                            print(f"  [AM-AM] Paths: Gd={path_stats.get('am_gb_density_mean',0):.2f}")
+                                    except Exception as _pe:
+                                        print(f"  [AM-AM] Path analysis failed: {_pe}")
                                 except Exception as _e:
                                     print(f"  [AM-AM] Backfill failed: {_e}")
                                 with open(met_json, 'w') as _mf:
@@ -746,7 +763,7 @@ def retry_network(case_id):
                         # AM-AM contact mechanics backfill (retry path)
                         try:
                             sys.path.insert(0, app.config['SCRIPTS_FOLDER'])
-                            from backfill_am_metrics import calc_am_am_stats
+                            from backfill_am_metrics import calc_am_am_stats, calc_am_am_paths
                             am_stats = calc_am_am_stats(atoms_csv, contacts_csv,
                                                         meta.get('type_map', '1:AM,2:SE'),
                                                         scale=meta.get('scale', 1000))
@@ -754,6 +771,16 @@ def retry_network(case_id):
                                 for k, v in am_stats.items():
                                     met_data[k] = v
                                 print(f"  [AM-AM] Backfilled (retry): CN={am_stats.get('am_am_cn',0):.2f}")
+                            try:
+                                path_stats = calc_am_am_paths(atoms_csv, contacts_csv,
+                                                              meta.get('type_map', '1:AM,2:SE'),
+                                                              scale=meta.get('scale', 1000))
+                                if path_stats:
+                                    for k, v in path_stats.items():
+                                        met_data[k] = v
+                                    print(f"  [AM-AM] Paths (retry): Gd={path_stats.get('am_gb_density_mean',0):.2f}")
+                            except Exception as _pe:
+                                print(f"  [AM-AM] Path analysis failed: {_pe}")
                         except Exception as _e:
                             print(f"  [AM-AM] Backfill failed: {_e}")
                         with open(met_json, 'w') as _mf:

@@ -426,23 +426,24 @@ def generate_report(data_list, names, outdir):
     # ─── Part III: Champion Scaling Laws (computed from data) ───
     L.append("## 9. Champion Scaling Laws (Part III)\n")
 
-    # Fit ionic champion: σ_ion = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²
+    # Fit ionic champion — FORM X: σ = C × σ_grain × (φ-φc)^(3/4) × CN × √cov / √τ
     ion_r2, ion_C = None, None
     el_r2, el_C = None, None
     th_r2, th_C = None, None
 
-    # Ionic fit (log-space C fitting for robustness)
+    # Ionic fit — FORM X: σ = C × σ_grain × (φ-φc)^(3/4) × CN × √cov / √τ
+    PHI_C = 0.18
     ion_actual = []
     ion_pred_rhs = []
     for d in data_list:
         sigma_net = d.get('sigma_full_mScm', 0)
-        sigma_ratio = d.get('sigma_ratio', 0)
-        g_path = d.get('path_conductance_mean', 0)
-        gb_d = d.get('gb_density_mean', 0)
+        phi_se = d.get('phi_se', 0)
         cn = d.get('se_se_cn', 0)
-        if sigma_net > 0.01 and sigma_ratio > 0 and g_path > 0 and gb_d > 0 and cn > 0:
-            sb = sigma_ratio * 3.0
-            rhs = sb * (g_path * gb_d**2)**0.25 * cn**2
+        tau = d.get('tortuosity_recommended', d.get('tortuosity_mean', 0))
+        cov = max(d.get('coverage_AM_P_mean', d.get('coverage_AM_S_mean', d.get('coverage_AM_mean', 20))), 0.1) / 100
+        phi_ex = max(phi_se - PHI_C, 0.001)
+        if sigma_net > 0.01 and phi_ex > 0 and cn > 0 and tau > 0:
+            rhs = 3.0 * phi_ex**0.75 * cn * np.sqrt(cov) / np.sqrt(tau)
             ion_actual.append(sigma_net)
             ion_pred_rhs.append(rhs)
 
@@ -459,11 +460,12 @@ def generate_report(data_list, names, outdir):
         ss_tot = np.sum((log_actual - np.mean(log_actual))**2)
         ion_r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
-    L.append(f"### Ionic (R²={ion_r2:.3f}, 1 free parameter)" if ion_r2 else "### Ionic")
+    L.append(f"### Ionic — FORM X (R²={ion_r2:.3f}, 1 free parameter)" if ion_r2 else "### Ionic")
     L.append("```")
-    L.append("σ_ion = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²")
-    L.append(f"C = {ion_C:.4f} (data-fitted, n={len(ion_actual)})" if ion_C else "C ≈ 0.073 (default)")
-    L.append("σ_brug = σ_grain × φ_SE × f_perc / τ²  (σ_grain = 3.0 mS/cm)")
+    L.append("σ_ion = C × σ_grain × (φ_SE - φ_c)^(3/4) × CN × √coverage / √τ")
+    L.append(f"     = C × σ_grain × ⁴√[(φ-φc)³ × CN⁴ × cov² / τ²]")
+    L.append(f"C = {ion_C:.4f} (data-fitted, n={len(ion_actual)})" if ion_C else "C ≈ 0.123 (default)")
+    L.append(f"φ_c = {PHI_C}, σ_grain = 3.0 mS/cm")
     L.append("```\n")
 
     # Electronic fit
@@ -475,8 +477,9 @@ def generate_report(data_list, names, outdir):
         phi_am = d.get('phi_am', 0)
         cn_am = d.get('am_am_cn', 0)
         T_um = d.get('thickness_um', 0)
-        # Estimate d_AM from input_params or typical
-        d_am = 5.0  # default
+        # d_AM from r_AM_P or r_AM_S (μm diameter)
+        r_am = max(d.get('r_AM_P', 0), d.get('r_AM_S', 0))
+        d_am = r_am * 2 if r_am > 0.1 else 5.0  # fallback 5μm
         if sigma_el and sigma_el > 0 and phi_am > 0 and cn_am > 0 and T_um > 0 and d_am > 0:
             ratio = T_um / d_am
             if ratio > 0:
@@ -487,10 +490,12 @@ def generate_report(data_list, names, outdir):
     if len(el_actual) >= 3:
         el_actual = np.array(el_actual)
         el_pred_rhs = np.array(el_pred_rhs)
-        el_C = float(np.mean(el_actual / el_pred_rhs))
+        el_C = float(np.exp(np.mean(np.log(el_actual / el_pred_rhs))))
         el_pred = el_C * el_pred_rhs
-        ss_res = np.sum((el_actual - el_pred)**2)
-        ss_tot = np.sum((el_actual - np.mean(el_actual))**2)
+        # R² in log space
+        log_a, log_p = np.log(el_actual), np.log(el_pred)
+        ss_res = np.sum((log_a - log_p)**2)
+        ss_tot = np.sum((log_a - np.mean(log_a))**2)
         el_r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
     L.append(f"### Electronic (R²={el_r2:.2f}, 1 free parameter)" if el_r2 else "### Electronic")
@@ -516,10 +521,11 @@ def generate_report(data_list, names, outdir):
     if len(th_actual) >= 3:
         th_actual = np.array(th_actual)
         th_pred_rhs = np.array(th_pred_rhs)
-        th_C = float(np.mean(th_actual / th_pred_rhs))
+        th_C = float(np.exp(np.mean(np.log(th_actual / th_pred_rhs))))
         th_pred = th_C * th_pred_rhs
-        ss_res = np.sum((th_actual - th_pred)**2)
-        ss_tot = np.sum((th_actual - np.mean(th_actual))**2)
+        log_a, log_p = np.log(th_actual), np.log(th_pred)
+        ss_res = np.sum((log_a - log_p)**2)
+        ss_tot = np.sum((log_a - np.mean(log_a))**2)
         th_r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
     L.append(f"### Thermal (R²={th_r2:.2f}, 1 free parameter)" if th_r2 else "### Thermal")

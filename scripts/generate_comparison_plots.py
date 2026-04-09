@@ -1383,15 +1383,6 @@ def plot_formx_decomposition(data_list, names, outdir):
     return _save(fig, outdir, "formx_decomposition.png")
 
 
-PLOT_REGISTRY["formx_decomposition"] = {
-    "func": plot_formx_decomposition,
-    "file": "formx_decomposition.png",
-    "title": "FORM X Factor Decomposition",
-    "description": "FORM X 각 항의 상대 기여도:\n(φ−φc)^¾: percolation\nCN: network connectivity\n√cov: AM‑SE 계면\n1/√τ: softened tortuosity\nref: 최고 σ case 기준",
-    "origin_tip": "Stacked bar (top): factor contributions.\nHorizontal bar (bottom): dominant factor per case.",
-}
-
-
 def _load_electronic_sigma(data_list):
     """Load electronic σ_full from full_metrics or network_conductivity.json."""
     vals = [0.0] * len(data_list)
@@ -2031,6 +2022,13 @@ PLOT_REGISTRY = {
         "title": "Ionic: FORM X Scaling Law",
         "description": "FORM X (v4++ champion):\nσ = C × σ_grain × (φ\u2011φc)^¾ × CN × √cov / √τ\nφc=0.18 (percolation threshold)\nR²≈0.96, thick+thin universal",
         "origin_tip": "Red: FORM X prediction.\nGreen dashed: Network solver (ground truth).",
+    },
+    "formx_decomposition": {
+        "func": plot_formx_decomposition,
+        "file": "formx_decomposition.png",
+        "title": "FORM X Factor Decomposition",
+        "description": "FORM X 각 항의 상대 기여도:\n(φ\u2011φc)^¾: percolation\nCN: network connectivity\n√cov: AM\u2011SE 계면\n1/√τ: softened tortuosity\nref: 최고 σ case 기준",
+        "origin_tip": "Stacked bar (top): factor contributions.\nHorizontal bar (bottom): dominant factor per case.",
     },
 }
 

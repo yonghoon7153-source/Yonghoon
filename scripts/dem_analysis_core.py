@@ -198,10 +198,16 @@ def calc_percolation(atoms, contacts, se_types, plate_z, boundary_factor=2.0, bo
                 'n_components': 0, 'largest_pct': 0,
                 'top_reachable_se': set(), 'bottom_se': set(), 'top_se': set(), 'graph': nx.Graph()}
 
-    r_se = atoms[se_ids[0]]['radius']
+    # Use minimum SE radius for boundary definition (robust for polydisperse)
+    r_se = min(atoms[aid]['radius'] for aid in se_ids)
     z_bottom = 0.0 + r_se * boundary_factor
     z_top = plate_z - r_se * boundary_factor
 
+    # Safety for thin electrodes: ensure z_bottom < z_top
+    if z_bottom >= z_top:
+        z_bottom = plate_z * 0.10
+        z_top = plate_z * 0.90
+    # If still too narrow or too few particles, use percentage-based boundaries
     G = nx.Graph()
     G.add_nodes_from(se_ids)
     # box_x, box_y passed as parameters (no longer hardcoded)
@@ -214,6 +220,13 @@ def calc_percolation(atoms, contacts, se_types, plate_z, boundary_factor=2.0, bo
 
     bottom_se = {aid for aid in se_ids if atoms[aid]['z'] <= z_bottom}
     top_se = {aid for aid in se_ids if atoms[aid]['z'] >= z_top}
+
+    # Fallback: if boundary too strict, widen to 15% / 85%
+    if len(bottom_se) < 3 or len(top_se) < 3:
+        z_bottom = plate_z * 0.15
+        z_top = plate_z * 0.85
+        bottom_se = {aid for aid in se_ids if atoms[aid]['z'] <= z_bottom}
+        top_se = {aid for aid in se_ids if atoms[aid]['z'] >= z_top}
 
     components = list(nx.connected_components(G))
     largest = max(len(c) for c in components) if components else 0

@@ -69,9 +69,12 @@ def build_network(atoms_raw, contacts_raw, target_types, scale,
         bottom_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] <= z_bottom}
         top_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] >= z_top}
 
-        # Note: AM percolation analysis and dead-end extension removed
-        # z-coordinate boundaries are sufficient and avoid short-circuit issues
-        pass
+        # Fallback for thin electrodes: widen boundaries if too few particles
+        if len(bottom_ids) < 3 or len(top_ids) < 3:
+            z_bottom = plate_z * 0.15
+            z_top = plate_z * 0.85
+            bottom_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] <= z_bottom}
+            top_ids = {aid for aid in target_ids if atoms_raw[aid]['z'] >= z_top}
 
     # Determine SE types for thermal mode
     se_type_set = set()

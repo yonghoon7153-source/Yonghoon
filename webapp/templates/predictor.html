@@ -98,8 +98,14 @@
           <option value="vgcf">VGCF 1wt% (sub-perc, σ_el ~0.4)</option>
           <option value="c65">C65 1wt% (sub-perc, 미미한 효과)</option>
           <option value="c65_4wt">C65 4wt% (percolation! σ_el ~70, but σ_ion -15%)</option>
-          <option value="ptfe">PTFE 0.5wt% (dry binder, σ_el ×0.7)</option>
         </select>
+      </div>
+
+      <div class="input-group">
+        <label style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="ptfe_on" style="width:18px;height:18px;accent-color:var(--accent)">
+          PTFE 0.5wt% Binder <span style="color:var(--dim);font-size:0.8rem">(dry process, σ_el ×0.7)</span>
+        </label>
       </div>
 
     </div>
@@ -513,6 +519,7 @@ function getParams() {
     rve: parseFloat(document.getElementById('rve').value),
     temperature: parseFloat(document.getElementById('temperature').value),
     additive: document.getElementById('additive').value,
+    ptfe: document.getElementById('ptfe_on').checked,
   };
 }
 

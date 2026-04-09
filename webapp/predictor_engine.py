@@ -314,7 +314,7 @@ def get_data_count(results_folder, archive_folder):
     return _training_data_count
 
 
-def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive='none'):
+def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive='none', ptfe=False):
     """Run prediction using cached models."""
     if _cached_models is None:
         return {'error': 'Models not trained. Click "Train Models" first.'}
@@ -418,8 +418,8 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
     else:
         electronic_active_pct = max(10, phi_am / 0.18 * 50)
 
-    # ── Conductive Additive / Binder Effect ──
-    # Ref: Bielefeld 2023, Minnmann 2021, Kang 2024, Rosner 2026
+    # ── Conductive Additive Effect ──
+    # Ref: Bielefeld 2023, Minnmann 2021, Kang 2024
     # KEY: C65 percolation threshold ~4wt%! Below that, NO electronic network!
     if additive == 'vgcf':
         # VGCF 1wt%: fiber morphology, poor percolation even at 10vol%
@@ -427,28 +427,26 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
         # But bridges isolated AM → dead AM reduced by ~10% (Minnmann 2021: +13% capacity)
         sigma_electronic = max(sigma_electronic, 0.4)
         sigma_ionic_final *= 0.99
-        electronic_active_pct = min(100, electronic_active_pct + 10)  # VGCF bridges dead AM
+        electronic_active_pct = min(100, electronic_active_pct + 10)
     elif additive == 'c65':
         # C65 1wt%: BELOW percolation threshold (~4wt%!)
-        # At 1wt%: sub-percolation, no e- network. σ_el barely improves.
-        # At ≥4wt%: σ_el ≈ 70 mS/cm (Bielefeld 2023)
-        # 1wt% → maybe 0.5~1 mS/cm boost (isolated clusters, not network)
-        sigma_electronic += 1.0  # sub-percolation boost
+        sigma_electronic += 1.0
         sigma_ionic_final *= 0.97
-        electronic_active_pct = min(100, electronic_active_pct + 5)  # C65 1wt% sub-perc, minor
+        electronic_active_pct = min(100, electronic_active_pct + 5)
     elif additive == 'c65_4wt':
         # C65 4wt%: AT percolation threshold — full electronic network!
         # σ_el ≈ 70 mS/cm (Bielefeld 2023, directly measured)
-        # But significant ionic penalty + SE decomposition at C/SE interface
         sigma_electronic = max(sigma_electronic, 70)
         sigma_ionic_final *= 0.85
-        electronic_active_pct = 100.0  # Full percolation! All AM electronically active
-    elif additive == 'ptfe':
-        # PTFE 0.5wt%: dry process binder (fibrillization)
-        # Insulator but at 0.1-0.5wt% minimal content
-        # Ref: Rosner 2026, Mun 2025 — 209.7 mAh/g, 97.4% retention
-        # Effect: slight σ_el reduction (AM surface coating), σ_ion nearly unchanged
-        sigma_electronic *= 0.7  # ~30% e- reduction from surface coating
+        electronic_active_pct = 100.0
+
+    # ── PTFE Binder Effect (independent, stackable with additive) ──
+    # Ref: Rosner 2026, Mun 2025 — 209.7 mAh/g, 97.4% retention
+    # PTFE 0.5wt%: dry process binder (fibrillization)
+    # Insulator but at 0.1-0.5wt% minimal content
+    # Effect: slight σ_el reduction (AM surface coating), σ_ion nearly unchanged
+    if ptfe:
+        sigma_electronic *= 0.7   # ~30% e- reduction from surface coating
         sigma_ionic_final *= 0.99  # ~1% ionic (dry process, no solvent damage)
 
     # Thermal conductivity (use 298K σ_ion — formula was fitted at 298K)

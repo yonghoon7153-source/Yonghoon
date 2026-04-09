@@ -2033,9 +2033,10 @@ def plot_sigma_decomposition(data_list, names, outdir):
 PLOT_REGISTRY["sigma_decomposition"] = {
     "func": plot_sigma_decomposition,
     "file": "sigma_decomposition.png",
-    "title": "Ionic: Factor Decomposition (R²=0.947)",
-    "description": "σ_ion = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²\nC ≈ 0.073 (data-fitted), R²=0.947\n\n각 항의 상대 기여도 (ref: 최고 σ case)\nφ_SE: 부피분율 | τ²: 경로 꼬임 | f_perc: percolation\n(G_path×GB_d²)^¼: constriction+mesh | CN²: 연결성",
+    "title": "[Legacy] v3 Factor Decomposition",
+    "description": "⚠ Legacy (v3): FORM X로 대체됨\nσ_ion = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²\nthick only (thin에서 실패)",
     "origin_tip": "Stacked bar (top) + Horizontal bar (bottom).",
+    "hidden": True,
 }
 
 

@@ -508,6 +508,54 @@ const METRIC_TIPS = {
     desc: 'Bottom-to-top으로 완전 관통하는 AM 네트워크 비율.',
     meaning: '100%: 전극 전체를 관통하는 전자 경로 형성.\n0%: AM 네트워크가 끊김 → σ_electronic ≈ 0.\nActive AM ≥ Percolation 항상 성립 (bottom-reachable ⊇ percolating).'
   },
+  'AM-AM CN mean': {
+    title: 'AM-AM Coordination Number (평균)',
+    formula: 'CN = AM 입자 하나가 접촉하는 다른 AM 입자의 수 (평균)',
+    desc: 'AM-AM 접촉 네트워크에서 각 AM의 평균 배위수.',
+    meaning: 'CN이 높을수록 전자 전도 경로가 다양. CN < 1이면 AM 네트워크가 거의 형성되지 않음.'
+  },
+  'AM-AM 접촉 수': {
+    title: 'AM-AM Total Contact Count',
+    formula: 'N_contacts = Σ (AM-AM 접촉 쌍)',
+    desc: '전체 AM-AM 접촉의 총 개수.',
+    meaning: '접촉 수가 많을수록 전자 전도 네트워크가 밀집. AM 부피분율에 비례하여 증가.'
+  },
+  '평균 접촉 면적(µm²)': {
+    title: 'AM-AM Mean Contact Area',
+    formula: 'A = π × a² (Hertz contact, a = contact radius)',
+    desc: 'AM-AM 접촉 면의 평균 면적 (µm²).',
+    meaning: '접촉 면적이 클수록 전자 전도 저항이 낮아짐. 압축 압력 증가 시 증가.'
+  },
+  '접촉 반경(µm)': {
+    title: 'AM-AM Mean Contact Radius',
+    formula: 'a = √(R* × δ) (Hertz), R* = R₁R₂/(R₁+R₂)',
+    desc: 'AM-AM 접촉원의 평균 반경 (µm).',
+    meaning: '접촉 반경이 constriction 저항을 결정. a가 클수록 전류 흐름이 원활.'
+  },
+  '침투 깊이 δ(µm)': {
+    title: 'AM-AM Mean Penetration Depth (δ)',
+    formula: 'δ = overlap between particles (DEM)',
+    desc: 'AM-AM 접촉에서 입자 간 평균 침투(겹침) 깊이 (µm).',
+    meaning: '압축 압력에 비례. δ가 클수록 접촉 면적과 법선력 증가.'
+  },
+  '법선력(µN)': {
+    title: 'AM-AM Mean Normal Force',
+    formula: 'F = (4/3) × E* × √R* × δ^(3/2) (Hertz)',
+    desc: 'AM-AM 접촉에서의 평균 법선력 (µN).',
+    meaning: '법선력이 클수록 접촉이 안정적. 과도한 힘은 입자 파괴 위험.'
+  },
+  '접촉 압력(MPa)': {
+    title: 'AM-AM Mean Contact Pressure',
+    formula: 'P_mean = F / A',
+    desc: 'AM-AM 접촉면의 평균 압력 (MPa).',
+    meaning: '접촉 압력이 AM 재료의 항복 강도를 초과하면 소성 변형 발생 가능.'
+  },
+  'Hop 거리(µm)': {
+    title: 'AM-AM Mean Hop Distance',
+    formula: 'Hop = center-to-center distance - (R₁ + R₂) + 2×contact_radius',
+    desc: 'AM-AM 접촉 쌍 간의 평균 hop 거리 (µm).',
+    meaning: '전자가 한 AM에서 다음 AM으로 이동하는 경로 길이. 짧을수록 유리.'
+  },
   'σ_Bruggeman (mS/cm)': {
     title: 'Bruggeman EMT Prediction',
     formula: {% if metrics and metrics.phi_se is defined and metrics.sigma_ratio is defined %}

@@ -939,6 +939,37 @@ def single(case_id):
             for i, r in enumerate(net_rows):
                 data.insert(insert_idx + i, r)
 
+        # Inject AM-AM contact mechanics section
+        has_am_am_section = any(str(row[0]).startswith('── AM-AM 접촉 역학') for row in data)
+        if not has_am_am_section and metrics:
+            # Insert before "── 응력 ──" or at end
+            am_insert_idx = len(data)
+            for idx, row in enumerate(data):
+                if str(row[0]).startswith('── 응력'):
+                    am_insert_idx = idx
+                    break
+            am_rows = [['── AM-AM 접촉 역학 ──', '']]
+            if metrics.get('am_am_cn') is not None:
+                am_rows.append(['AM-AM CN mean', round(metrics['am_am_cn'], 2)])
+            if metrics.get('am_am_n_contacts') is not None:
+                am_rows.append(['AM-AM 접촉 수', metrics['am_am_n_contacts']])
+            if metrics.get('am_am_mean_area') is not None:
+                am_rows.append(['평균 접촉 면적(µm²)', round(metrics['am_am_mean_area'], 4)])
+            if metrics.get('am_am_mean_contact_radius') is not None:
+                am_rows.append(['접촉 반경(µm)', round(metrics['am_am_mean_contact_radius'], 4)])
+            if metrics.get('am_am_mean_delta') is not None:
+                am_rows.append(['침투 깊이 δ(µm)', round(metrics['am_am_mean_delta'], 4)])
+            if metrics.get('am_am_mean_force') is not None:
+                am_rows.append(['법선력(µN)', round(metrics['am_am_mean_force'], 2)])
+            if metrics.get('am_am_mean_pressure') is not None:
+                am_rows.append(['접촉 압력(MPa)', round(metrics['am_am_mean_pressure'], 1)])
+            if metrics.get('am_am_mean_hop') is not None:
+                am_rows.append(['Hop 거리(µm)', round(metrics['am_am_mean_hop'], 2)])
+            # Only add if there's at least one data row beyond the header
+            if len(am_rows) > 1:
+                for i, r in enumerate(am_rows):
+                    data.insert(am_insert_idx + i, r)
+
     # Load input_params.json
     input_params = {}
     params_path = os.path.join(results_dir, 'input_params.json')
@@ -2214,6 +2245,37 @@ def archive_view(folder):
                 val = metrics.get(placeholder_map[label])
                 if val is not None:
                     row[1] = val
+
+    # Inject AM-AM contact mechanics section (archive route)
+    if 'network_summary' in tables and metrics:
+        data = tables['network_summary']['data']
+        has_am_am_section = any(str(row[0]).startswith('── AM-AM 접촉 역학') for row in data)
+        if not has_am_am_section:
+            am_insert_idx = len(data)
+            for idx, row in enumerate(data):
+                if str(row[0]).startswith('── 응력'):
+                    am_insert_idx = idx
+                    break
+            am_rows = [['── AM-AM 접촉 역학 ──', '']]
+            if metrics.get('am_am_cn') is not None:
+                am_rows.append(['AM-AM CN mean', round(metrics['am_am_cn'], 2)])
+            if metrics.get('am_am_n_contacts') is not None:
+                am_rows.append(['AM-AM 접촉 수', metrics['am_am_n_contacts']])
+            if metrics.get('am_am_mean_area') is not None:
+                am_rows.append(['평균 접촉 면적(µm²)', round(metrics['am_am_mean_area'], 4)])
+            if metrics.get('am_am_mean_contact_radius') is not None:
+                am_rows.append(['접촉 반경(µm)', round(metrics['am_am_mean_contact_radius'], 4)])
+            if metrics.get('am_am_mean_delta') is not None:
+                am_rows.append(['침투 깊이 δ(µm)', round(metrics['am_am_mean_delta'], 4)])
+            if metrics.get('am_am_mean_force') is not None:
+                am_rows.append(['법선력(µN)', round(metrics['am_am_mean_force'], 2)])
+            if metrics.get('am_am_mean_pressure') is not None:
+                am_rows.append(['접촉 압력(MPa)', round(metrics['am_am_mean_pressure'], 1)])
+            if metrics.get('am_am_mean_hop') is not None:
+                am_rows.append(['Hop 거리(µm)', round(metrics['am_am_mean_hop'], 2)])
+            if len(am_rows) > 1:
+                for i, r in enumerate(am_rows):
+                    data.insert(am_insert_idx + i, r)
 
     input_params = {}
     params_path = os.path.join(results_dir, 'input_params.json')

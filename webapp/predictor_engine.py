@@ -319,6 +319,15 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
     if _cached_models is None:
         return {'error': 'Models not trained. Click "Train Models" first.'}
 
+    # Input validation
+    d_se = max(0.1, float(d_se))
+    d_am = max(0.5, float(d_am))
+    am_pct = max(10, min(95, float(am_pct)))
+    ps_frac = max(0, min(1, float(ps_frac)))
+    loading = max(0.1, float(loading))
+    rve = max(10, float(rve))
+    temperature = max(200, min(500, float(temperature)))
+
     models = _cached_models['models']
     C_ionic = _cached_models['C_ionic']
 
@@ -375,6 +384,7 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
     Ea_SE_eV = 0.30
     Ea_AM_eV = 0.50
     k_B = 8.617e-5  # eV/K
+    sigma_ionic_298 = sigma_ionic_final  # save 298K value for thermal formula
     if temperature != 298 and temperature > 0:
         arrhenius_SE = np.exp(-Ea_SE_eV / k_B * (1/temperature - 1/298))
         arrhenius_AM = np.exp(-Ea_AM_eV / k_B * (1/temperature - 1/298))
@@ -423,7 +433,7 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
         # At 1wt%: sub-percolation, no e- network. σ_el barely improves.
         # At ≥4wt%: σ_el ≈ 70 mS/cm (Bielefeld 2023)
         # 1wt% → maybe 0.5~1 mS/cm boost (isolated clusters, not network)
-        sigma_electronic = max(sigma_electronic, sigma_electronic + 1.0)
+        sigma_electronic += 1.0  # sub-percolation boost
         sigma_ionic_final *= 0.97
         electronic_active_pct = min(100, electronic_active_pct + 5)  # C65 1wt% sub-perc, minor
     elif additive == 'c65_4wt':
@@ -441,10 +451,10 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
         sigma_electronic *= 0.7  # ~30% e- reduction from surface coating
         sigma_ionic_final *= 0.99  # ~1% ionic (dry process, no solvent damage)
 
-    # Thermal conductivity
+    # Thermal conductivity (use 298K σ_ion — formula was fitted at 298K)
     sigma_thermal = 0
-    if sigma_ionic_final > 0 and phi_am > 0 and cn > 0:
-        sigma_thermal = 286 * sigma_ionic_final ** 0.75 * phi_am ** 2 / cn
+    if sigma_ionic_298 > 0 and phi_am > 0 and cn > 0:
+        sigma_thermal = 286 * sigma_ionic_298 ** 0.75 * phi_am ** 2 / cn
 
     # Uncertainty from GPR std
     sigma_ion_std = micro.get('sigma_ion', {}).get('std', 0)

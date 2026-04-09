@@ -43,21 +43,25 @@ def load_atoms_raw(csv_path):
 
 
 def load_contacts_raw(csv_path):
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(csv_path, low_memory=False)
     for col in df.columns:
         df[col] = pd.to_numeric(df[col], errors='coerce')
     df['id1'] = df['id1'].astype(int)
     df['id2'] = df['id2'].astype(int)
+    # Vectorized contact list construction (much faster than iterrows for large files)
+    fn = np.sqrt(df['fn_x'].values**2 + df['fn_y'].values**2 + df['fn_z'].values**2)
+    ft = np.sqrt(df['ft_x'].values**2 + df['ft_y'].values**2 + df['ft_z'].values**2)
     contacts = []
-    for _, row in df.iterrows():
+    for i in range(len(df)):
         contacts.append({
-            'id1': int(row['id1']), 'id2': int(row['id2']),
-            'fn': np.sqrt(row['fn_x']**2 + row['fn_y']**2 + row['fn_z']**2),
-            'fn_x': row.get('fn_x', 0), 'fn_y': row.get('fn_y', 0), 'fn_z': row.get('fn_z', 0),
-            'ft': np.sqrt(row['ft_x']**2 + row['ft_y']**2 + row['ft_z']**2),
-            'contact_area': row['contact_area'],
-            'delta': row['delta'],
+            'id1': int(df['id1'].iloc[i]), 'id2': int(df['id2'].iloc[i]),
+            'fn': float(fn[i]),
+            'fn_x': float(df['fn_x'].iloc[i]), 'fn_y': float(df['fn_y'].iloc[i]), 'fn_z': float(df['fn_z'].iloc[i]),
+            'ft': float(ft[i]),
+            'contact_area': float(df['contact_area'].iloc[i]),
+            'delta': float(df['delta'].iloc[i]),
         })
+    print(f"  Loaded {len(contacts)} contacts from {os.path.basename(csv_path)}")
     return contacts, df
 
 

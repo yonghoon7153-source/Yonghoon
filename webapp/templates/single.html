@@ -446,10 +446,17 @@ const METRIC_TIPS = {
     meaning: 'AM-SE CN이 높을수록 이온 공급 경로가 다양하여 안정적입니다. CN ≥ 3이면 한두 개 접촉이 끊겨도 활성 상태를 유지할 수 있습니다.'
   },
   'σ_brug/σ_grain (Bruggeman)': {
-    title: 'Bruggeman 추정 이온전도 비율',
-    formula: 'σ_brug/σ_grain = φ_SE × f_perc / τ²\n⚠ 접촉 저항(constriction) 무시 → 3~10× 과대추정!\n실제 σ_ionic은 Network Solver 참조',
-    desc: 'Bruggeman 관계식 기반 추정값. 입계(GB) 저항을 무시하여 실제보다 과대평가.',
-    meaning: 'Network Solver의 σ_ionic(mS/cm)이 실제 값. 이 값은 참고용 상한.'
+    title: 'Bruggeman 추정 비율 (σ_brug/σ_grain)',
+    formula: {% if metrics and metrics.phi_se is defined %}
+      'σ_brug/σ_grain = φ_SE × f_perc / τ²\n'
+      + '= {{ "%.3f"|format(metrics.phi_se) }} × {{ "%.3f"|format(metrics.percolation_pct / 100 if metrics.percolation_pct is defined else 1.0) }} / {{ "%.2f"|format(metrics.tortuosity_recommended if metrics.tortuosity_recommended is defined else (metrics.tortuosity_mean if metrics.tortuosity_mean is defined else 1.0)) }}²\n'
+      + '= {{ "%.4f"|format(metrics.sigma_ratio if metrics.sigma_ratio is defined else 0) }}\n\n'
+      + '⚠ 접촉 저항(constriction) 무시 → 3~10× 과대추정'
+    {% else %}
+      'σ_brug/σ_grain = φ_SE × f_perc / τ²\n⚠ 접촉 저항 무시 → 3~10× 과대추정'
+    {% endif %},
+    desc: 'Bruggeman 관계식 기반 무차원 비율. σ_grain(3.0 mS/cm) 곱하면 σ_Bruggeman.',
+    meaning: 'Network Solver σ_ionic이 ground truth. 이 값은 참고용 상한.'
   },
   'σ_ionic (mS/cm)': {
     title: 'Ionic Conductivity (Kirchhoff Network Solver)',
@@ -489,9 +496,18 @@ const METRIC_TIPS = {
   },
   'σ_Bruggeman (mS/cm)': {
     title: 'Bruggeman EMT Prediction',
-    formula: 'σ_Bruggeman = σ_grain × φ_SE^1.5\nσ_grain = 3.0 mS/cm (LPSCl)\nφ_SE = SE volume fraction\n1.5 = Bruggeman exponent (spheres)',
-    desc: '해석적 Bruggeman 유효매질이론(EMT) 예측값. 접촉 저항 무시.',
-    meaning: 'Network Solver σ_ionic과 비교하면 Bruggeman이 얼마나 과대추정하는지 확인 가능.\n통상 2~5× 과대추정.'
+    formula: {% if metrics and metrics.phi_se is defined and metrics.sigma_ratio is defined %}
+      'σ_Bruggeman = σ_grain × φ_SE × f_perc / τ²\n'
+      + '= 3.0 × {{ "%.3f"|format(metrics.phi_se) }} × {{ "%.3f"|format(metrics.percolation_pct / 100 if metrics.percolation_pct is defined else 1.0) }} / {{ "%.2f"|format(metrics.tortuosity_recommended if metrics.tortuosity_recommended is defined else (metrics.tortuosity_mean if metrics.tortuosity_mean is defined else 1.0)) }}²\n'
+      + '= {{ "%.4f"|format(metrics.sigma_ratio * 3.0) }} mS/cm\n\n'
+      + 'φ_SE = {{ "%.3f"|format(metrics.phi_se) }}\n'
+      + 'f_perc = {{ "%.1f"|format(metrics.percolation_pct if metrics.percolation_pct is defined else 100) }}%\n'
+      + 'τ = {{ "%.2f"|format(metrics.tortuosity_recommended if metrics.tortuosity_recommended is defined else (metrics.tortuosity_mean if metrics.tortuosity_mean is defined else 0)) }}'
+    {% else %}
+      'σ_Bruggeman = σ_grain × φ_SE × f_perc / τ²\nσ_grain = 3.0 mS/cm (LPSCl)'
+    {% endif %},
+    desc: 'Bruggeman 유효매질이론(EMT) 예측값. 접촉 저항(constriction) 무시.',
+    meaning: 'Network Solver σ_ionic과 비교하면 Bruggeman이 얼마나 과대추정하는지 확인.\n통상 3~10× 과대추정 (접촉 저항이 핵심 원인).'
   },
   'σ_thermal (mS/cm equiv)': {
     title: 'Thermal Conductivity (ALL Contact Network)',

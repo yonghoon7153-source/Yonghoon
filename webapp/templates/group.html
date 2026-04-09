@@ -1078,6 +1078,7 @@ async function generateFittingReport() {
 </style></head><body>`);
       // Simple markdown→HTML conversion
       let html = data.content
+        .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
         .replace(/^### (.+)$/gm, '<h3>$1</h3>')
         .replace(/^## (.+)$/gm, '<h2>$1</h2>')
         .replace(/^# (.+)$/gm, '<h1>$1</h1>')
@@ -1086,6 +1087,7 @@ async function generateFittingReport() {
         .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
         .replace(/^---$/gm, '<hr>')
         .replace(/```([\s\S]*?)```/g, '<pre>$1</pre>')
+        .replace(/\n{3,}/g, '\n\n')
         .replace(/`(.+?)`/g, '<code>$1</code>')
         .replace(/^\|(.+)$/gm, (m) => {
           const cells = m.split('|').filter(c=>c.trim()).map(c=>c.trim());
@@ -1106,7 +1108,9 @@ async function generateFittingReport() {
     content.style.cssText = 'font-family:sans-serif;font-size:13px;line-height:1.7';
     // Render markdown in modal too
     let modalHtml = data.content
-      .replace(/^### (.+)$/gm, '<h3 style="color:#888;font-size:14px;margin:16px 0 6px">$1</h3>')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/^#### (.+)$/gm, '<h4 style="color:#999;font-size:13px;margin:12px 0 4px">$1</h4>')
+      .replace(/^### (.+)$/gm, '<h3 style="color:#aaa;font-size:14px;margin:16px 0 6px">$1</h3>')
       .replace(/^## (.+)$/gm, '<h2 style="color:var(--accent);font-size:16px;margin:20px 0 8px;border-bottom:1px solid var(--border);padding-bottom:4px">$1</h2>')
       .replace(/^# (.+)$/gm, '<h1 style="font-size:20px;margin:20px 0 10px">$1</h1>')
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')

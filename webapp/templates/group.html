@@ -813,7 +813,7 @@ async function generatePlots() {
         desc.className = 'plot-info';
         desc.innerHTML = `
           <h4>${firstPlot.title}</h4>
-          <p class="plot-desc">${firstPlot.description}</p>
+          <p class="plot-desc">${firstPlot.description.replace(/\\n/g,'<br>').replace(/\n/g,'<br>')}</p>
           <details class="plot-origin"><summary>Origin 설정</summary><pre>${firstPlot.origin_tip}</pre></details>
           ${firstPlot.csv ? entries.map((e,idx) => `<a href="/group/plot-image/${e.session}/${firstPlot.csv}" class="btn btn-sm btn-dl" style="margin-top:10px" download>${entries.length>1 ? e.pgName+' ' : ''}CSV</a>`).join(' ') : ''}`;
         row.appendChild(desc);
@@ -841,7 +841,7 @@ function createPlotItem(session, p) {
          onclick="openPlotModal(this.src, '${p.title}')">
     <div class="plot-info">
       <h4>${p.title}</h4>
-      <p class="plot-desc">${p.description}</p>
+      <p class="plot-desc">${p.description.replace(/\\n/g,'<br>').replace(/\n/g,'<br>')}</p>
       <details class="plot-origin"><summary>Origin 설정</summary><pre>${p.origin_tip}</pre></details>
       ${p.csv ? `<a href="/group/plot-image/${session}/${p.csv}" class="btn btn-sm btn-dl" style="margin-top:10px" download>CSV 다운로드</a>` : ''}
     </div>`;

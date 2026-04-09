@@ -67,7 +67,7 @@ def _apply_style(ax, ylabel, names, data_list=None):
                     # Mass ratio (density-weighted): NCM=4800, LPSCl=2000 kg/m³
                     am_mass = phi_am * 4800
                     se_mass = phi_se * 2000
-                    am_pct = round(am_mass / (am_mass + se_mass) * 100 / 5) * 5  # nearest 5%
+                    am_pct = round(am_mass / (am_mass + se_mass) * 100)  # nearest 1%
                     am_se = f"{am_pct:.0f}:{100-am_pct:.0f}"
             am_se_labels.append(str(am_se) if am_se else '?')
         if any(l != '?' for l in am_se_labels):

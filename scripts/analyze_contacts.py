@@ -285,7 +285,7 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     se_mass = sum(se_density * 4/3 * np.pi * a['radius']**3 for a in se_atoms)
     if total_am_mass_all > 0 and se_mass > 0:
         total_mass = total_am_mass_all + se_mass
-        am_pct = round(total_am_mass_all / total_mass * 100 / 5) * 5  # nearest 5%
+        am_pct = round(total_am_mass_all / total_mass * 100)  # nearest 1%
         se_pct = 100 - am_pct
         am_se_ratio = f"{am_pct}:{se_pct}"
     else:

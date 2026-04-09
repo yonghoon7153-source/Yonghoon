@@ -132,6 +132,7 @@ def list_cases():
                 m = json.load(f)
             meta['warning_count'] = m.get('warning_count', 0)
             meta['warning_msgs'] = [w['msg'] for w in m.get('warnings', [])]
+            meta['network_solver_status'] = m.get('network_solver_status', meta.get('network_solver_status', ''))
         cases.append(meta)
     return cases
 

@@ -83,7 +83,7 @@
     <tbody>
       {% for case in cases %}
       <tr>
-        <td><strong class="case-name" ondblclick="editName(this, '{{ case.id }}')" title="더블클릭으로 이름 변경">{{ case.name }}</strong>{% if case.warning_count %} <span class="badge badge-warning" title="{{ case.warning_msgs | join('&#10;') }}">⚠ {{ case.warning_count }}</span>{% endif %}</td>
+        <td><strong class="case-name" ondblclick="editName(this, '{{ case.id }}')" title="더블클릭으로 이름 변경">{{ case.name }}</strong>{% if case.warning_count %} <span class="badge badge-warning" title="{{ case.warning_msgs | join('&#10;') }}">⚠ {{ case.warning_count }}</span>{% endif %}{% if case.network_solver_status in ('failed', 'error', 'timeout', 'no_input', 'no_output') %} <span class="badge badge-error" title="Network Solver: {{ case.network_solver_status }}{% if case.network_solver_error %} - {{ case.network_solver_error[:100] }}{% endif %}">NET ✗</span>{% elif case.network_solver_status == 'success' %} <span class="badge badge-success" title="Network Solver 완료">NET ✓</span>{% endif %}</td>
         <td><span class="badge badge-{{ case.mode }}">{{ case.mode }}</span></td>
         <td>
           <span class="status status-{{ case.status }}">

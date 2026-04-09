@@ -1544,29 +1544,82 @@ def plot_electronic_scaling(data_list, names, outdir):
     P_arr = np.array([max(P_list[i], 1) for i in valid])
     ratio = np.array([thickness[i] / d_am_list[i] for i in valid])
 
-    # --- Universal: φ² × CN² × √cov × exp(π/(T/d)) ---
+    # --- Fit C globally on ALL electronic data (not just this group) ---
+    # Load all electronic data for global C fitting
+    all_el_data = []
+    import glob as _glob
+    _webapp = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'webapp')
+    for _base in [os.path.join(_webapp, 'results'), os.path.join(_webapp, 'archive')]:
+        if not os.path.isdir(_base): continue
+        for _mp in sorted(_glob.glob(os.path.join(_base, '**', 'full_metrics.json'), recursive=True)):
+            try:
+                with open(_mp) as _f: _m = json.load(_f)
+            except: continue
+            _sel = _m.get('electronic_sigma_full_mScm', 0)
+            if not _sel or _sel < 0.001: continue
+            _pa = max(_m.get('phi_am', 0), 0.01)
+            _cn = max(_m.get('am_am_cn', 0.01), 0.01)
+            _tau = max(_m.get('tortuosity_recommended', _m.get('tortuosity_mean', 1)), 0.1)
+            _cov = max(_m.get('coverage_AM_P_mean', _m.get('coverage_AM_S_mean', _m.get('coverage_AM_mean', 20))), 0.1) / 100
+            _P = max(_m.get('am_am_mean_pressure', 0), 1)
+            _ram = max(_m.get('r_AM_P', 0), _m.get('r_AM_S', 0))
+            _dam = _ram * 2 if _ram > 0.1 else 5.0
+            _T = _m.get('thickness_um', 0)
+            if _pa <= 0 or _cn <= 0 or _T <= 0 or _dam <= 0: continue
+            _ratio = _T / _dam
+            _k = f"{_pa:.4f}_{_ratio:.1f}"
+            all_el_data.append({'s': _sel, 'pa': _pa, 'cn': _cn, 'tau': _tau,
+                                'cov': _cov, 'P': _P, 'ratio': _ratio, 'k': _k})
+    # Deduplicate
+    _seen = set(); _unique = []
+    for _r in all_el_data:
+        if _r['k'] not in _seen: _seen.add(_r['k']); _unique.append(_r)
+
+    # Fit C_uni, C_thick, C_thin on ALL data
+    if len(_unique) >= 5:
+        _s_all = np.array([r['s'] for r in _unique])
+        _pa_all = np.array([r['pa'] for r in _unique])
+        _cn_all = np.array([r['cn'] for r in _unique])
+        _tau_all = np.array([r['tau'] for r in _unique])
+        _cov_all = np.array([r['cov'] for r in _unique])
+        _P_all = np.array([r['P'] for r in _unique])
+        _ratio_all = np.array([r['ratio'] for r in _unique])
+
+        # Universal C
+        _rhs_u = SIGMA_AM * _pa_all**2 * _cn_all**2 * _cov_all**0.5 * np.exp(np.pi / _ratio_all)
+        C_uni = float(np.exp(np.mean(np.log(_s_all) - np.log(_rhs_u))))
+
+        # 2-regime C
+        _tk = _ratio_all >= 10; _tn = _ratio_all < 10
+        C_tk = 1.0; C_tn = 1.0
+        if _tk.sum() >= 3:
+            _rhs_tk = SIGMA_AM * _pa_all[_tk]**4 * _cn_all[_tk]**1.5 * _cov_all[_tk] * _tau_all[_tk]**0.5
+            C_tk = float(np.exp(np.mean(np.log(_s_all[_tk]) - np.log(_rhs_tk))))
+        if _tn.sum() >= 3:
+            _rhs_tn = SIGMA_AM * _P_all[_tn]**3 * _cn_all[_tn] / _ratio_all[_tn]**0.5
+            C_tn = float(np.exp(np.mean(np.log(_s_all[_tn]) - np.log(_rhs_tn))))
+    else:
+        # Fallback: fit on current group
+        C_uni = 1.0; C_tk = 1.0; C_tn = 1.0
+
+    # --- Universal prediction (fixed C) ---
     rhs_uni = SIGMA_AM * pa**2 * cn**2 * cv**0.5 * np.exp(np.pi / ratio)
-    log_a = np.log(s_actual); log_u = np.log(rhs_uni)
-    C_uni = float(np.exp(np.mean(log_a - log_u)))
     s_uni = C_uni * rhs_uni
+    log_a = np.log(s_actual)
     ss_tot = np.sum((log_a - np.mean(log_a))**2)
     r2_uni = 1 - np.sum((log_a - np.log(s_uni))**2) / ss_tot
 
-    # --- 2-regime ---
+    # --- 2-regime prediction (fixed C) ---
     thick_mask = ratio >= 10
     thin_mask = ratio < 10
     s_2reg = np.zeros(len(valid))
 
-    # Thick: φ⁴ × CN^1.5 × cov × √τ
-    if thick_mask.sum() >= 3:
+    if thick_mask.any():
         rhs_tk = SIGMA_AM * pa[thick_mask]**4 * cn[thick_mask]**1.5 * cv[thick_mask] * np.clip(t_arr[thick_mask], 0.1, None)**0.5
-        C_tk = float(np.exp(np.mean(np.log(s_actual[thick_mask]) - np.log(rhs_tk))))
         s_2reg[thick_mask] = C_tk * rhs_tk
 
-    # Thin: P³ × CN / √(T/d)
-    if thin_mask.sum() >= 3:
+    if thin_mask.any():
         rhs_tn = SIGMA_AM * P_arr[thin_mask]**3 * cn[thin_mask] / ratio[thin_mask]**0.5
-        C_tn = float(np.exp(np.mean(np.log(s_actual[thin_mask]) - np.log(rhs_tn))))
         s_2reg[thin_mask] = C_tn * rhs_tn
 
     r2_2reg = 1 - np.sum((log_a - np.log(np.clip(s_2reg, 1e-6, None)))**2) / ss_tot

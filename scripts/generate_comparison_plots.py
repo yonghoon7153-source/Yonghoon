@@ -1356,25 +1356,12 @@ def plot_formx_decomposition(data_list, names, outdir):
         bottom_pos += pos; bottom_neg += neg
 
     ax.axhline(0, color='gray', linewidth=0.5)
-    ax.set_xticks(x)
-    # X labels: use AM:SE if monomodal (all same P:S)
-    x_labels = list(names)
-    if len(set(names)) == 1:
-        am_se_labels = []
-        for d in data_list:
-            am_se = _get(d, 'am_se_ratio', '')
-            if not am_se:
-                pa = _get(d, 'phi_am', 0); ps_ = _get(d, 'phi_se', 0)
-                if pa > 0 and ps_ > 0:
-                    am_m = pa * 4800; se_m = ps_ * 2000
-                    am_pct = round(am_m / (am_m + se_m) * 100)
-                    am_se = f"{am_pct}:{100-am_pct}"
-            am_se_labels.append(str(am_se) if am_se else '?')
-        if any(l != '?' for l in am_se_labels):
-            x_labels = am_se_labels
-    ax.set_xticklabels(x_labels, rotation=45, ha='right', fontsize=8)
-    ax.set_ylabel('Δlog(factor) from ref', fontsize=10)
-    ax.set_title(f'FORM X Factor Decomposition (ref: {x_labels[ref]})', fontsize=12, fontweight='bold')
+    _apply_style(ax, 'Δlog(factor) from ref', names, data_list)
+    # Get x_labels from ax (after _apply_style monomodal detection)
+    x_labels = [t.get_text() for t in ax.get_xticklabels()]
+    if not any(x_labels) or all(t == '' for t in x_labels):
+        x_labels = list(names)
+    ax.set_title(f'FORM X Factor Decomposition (ref: {x_labels[ref] if ref < len(x_labels) else names[ref]})', fontsize=12, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left', ncol=4)
     ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False)
 

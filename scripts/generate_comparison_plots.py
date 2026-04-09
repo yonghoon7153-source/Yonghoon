@@ -1890,7 +1890,6 @@ PLOT_REGISTRY = {
         "title": "[Legacy] BLM+Constriction Fitting (Part I proxy)",
         "description": "⚠ Legacy: FORM X로 대체됨\nProxy: R = σ_brug/σ_proxy = C×(GB_d²×T)^α\nSingle\u2011path 근사 → R=15~1600 (실제 3~10)\nBruggeman exponent 분해: n_eff = n_geo(2.54) + n_contact(0.83) = 3.37",
         "origin_tip": "Scatter + Fit line (log\u2011log).",
-        "min_groups": 2,
         "hidden": True,
     },
     "gb_corrected": {
@@ -1899,7 +1898,6 @@ PLOT_REGISTRY = {
         "title": "[Legacy] Proxy σ_eff (Part I)",
         "description": "⚠ Legacy: FORM X로 대체됨\nProxy 기반 보정 (single\u2011path 근사)\n절대값 과장 → Network solver가 ground truth",
         "origin_tip": "Line (Red, ratio) + Dashed (Orange, mS/cm).",
-        "min_groups": 2,
         "hidden": True,
     },
     "network_sigma": {

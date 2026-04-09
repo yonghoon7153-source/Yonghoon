@@ -54,6 +54,7 @@ def derive_features(d_se, d_am, am_pct, ps_frac, rve, loading):
 def load_training_data(results_folder, archive_folder):
     """Load all cases with DEM input + output from results and archive."""
     rows = []
+    _skip_reasons = {}  # name → reason (for logging)
     for base in [Path(results_folder), Path(archive_folder)]:
         if not base.is_dir():
             continue
@@ -70,7 +71,9 @@ def load_training_data(results_folder, archive_folder):
             except Exception:
                 continue
 
+            _case_name = case_dir.name
             if not m.get('phi_se'):
+                _skip_reasons[_case_name] = 'no phi_se'
                 continue
 
             scale = ip.get('scale', 1000)
@@ -112,29 +115,37 @@ def load_training_data(results_folder, archive_folder):
                 if phi_am > 0 and phi_se > 0:
                     am_pct = phi_am / (phi_am + phi_se) * 100
             if d_se <= 0 or am_pct <= 0:
+                _skip_reasons[_case_name] = f'd_se={d_se:.2f}, am_pct={am_pct:.1f}'
                 continue
 
             tau = m.get('tortuosity_mean', m.get('tortuosity_recommended', 0))
             sigma_ion = m.get('sigma_full_mScm', 0)
 
-            if tau > 10 or m.get('porosity', 0) > 30:
+            # Quality filters: skip bad/incomplete cases
+            if not tau or tau <= 0 or tau > 8:
+                _skip_reasons[_case_name] = f'tau={tau}'
                 continue
-            if 0 < sigma_ion < 0.01:
+            if m.get('porosity', 0) > 30:
+                _skip_reasons[_case_name] = f"porosity={m.get('porosity')}"
+                continue
+            # Skip network solver failures (σ=0) and near-percolation (σ<0.01)
+            if sigma_ion < 0.01:
+                _skip_reasons[_case_name] = f'sigma_ion={sigma_ion}'
                 continue
 
-            # Loading
+            # Loading: prefer input_params, then folder name hints, then thickness estimate
             loading = 0
-            folder_path = str(met_path.parent)
-            if '1mAh' in folder_path or 'thin' in folder_path.lower():
-                loading = 1
-            elif '8mAh' in folder_path:
-                loading = 8
-            elif '6mAh' in folder_path or 'real' in folder_path.lower() or 'Real' in folder_path:
-                loading = 6
-            elif 'particulate' in folder_path.lower():
-                t = m.get('thickness_um', 0)
-                if t > 0:
-                    loading = round(t * 0.05, 1)
+            if ip.get('loading'):
+                loading = float(ip['loading'])
+            if loading <= 0:
+                folder_path = str(met_path.parent).lower()
+                if '1mah' in folder_path or 'thin' in folder_path:
+                    loading = 1
+                elif '8mah' in folder_path:
+                    loading = 8
+                elif '6mah' in folder_path or 'real' in folder_path:
+                    loading = 6
+            # Fallback: estimate from thickness (0.05 mAh/cm² per μm, typical NCM811)
             if loading <= 0 and m.get('thickness_um', 0) > 0:
                 loading = round(m['thickness_um'] * 0.05, 1)
 
@@ -184,11 +195,21 @@ def load_training_data(results_folder, archive_folder):
     # Deduplicate
     seen = set()
     unique = []
+    n_dup = 0
     for r in rows:
         key = f"{r['phi_se']:.4f}_{r.get('thickness',0):.1f}_{r['tau']:.3f}"
         if key not in seen:
             seen.add(key)
             unique.append(r)
+        else:
+            n_dup += 1
+
+    # Log summary
+    print(f"  [ML Data] Loaded: {len(rows)} → Dedup: {len(unique)} (removed {n_dup})")
+    if _skip_reasons:
+        print(f"  [ML Data] Skipped {len(_skip_reasons)} cases:")
+        for name, reason in sorted(_skip_reasons.items()):
+            print(f"    - {name}: {reason}")
     return unique
 
 

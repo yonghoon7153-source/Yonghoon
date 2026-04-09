@@ -610,19 +610,24 @@ n_eff = n_geo + n_contact = 2.54 + 0.83 = **3.37** (항등식으로 성립)
 
 ### 16.1 모델 진화
 
-| Version | 공식 | R² | thick | thin | 비고 |
-|---------|------|-----|-------|------|------|
-| v1 | σ_brug × C × √A_hop × CN² × GB_d^(4/3) | 0.894 | - | - | 초기 모델 |
-| v2 | σ_brug × C × (A_hop × GB_d²)^(3/5) × CN² | 0.923 | - | - | 결합 변수 |
-| v3 | σ_brug × C × (G_path × GB_d²)^(1/4) × CN² | 0.836 | **0.961** | -1.03 | thick only |
-| **v4** | **σ_brug × C × √(1-φ_c/φ_SE) × τ^(3/2) / f_perc × CN^(3/2)** | **0.946** | **0.982** | **0.917** | **UNIVERSAL** |
+| Version | 공식 | R² | thick | thin | avg3 | 비고 |
+|---------|------|-----|-------|------|------|------|
+| v1 | σ_brug × C × √A_hop × CN² × GB_d^(4/3) | 0.894 | - | - | - | 초기 모델 |
+| v2 | σ_brug × C × (A_hop × GB_d²)^(3/5) × CN² | 0.923 | - | - | - | 결합 변수 |
+| v3 | σ_brug × C × (G_path × GB_d²)^(1/4) × CN² | 0.836 | 0.961 | -1.03 | 0.27 | thick only |
+| v4 | σ_brug × C × √(1-φ_c/φ) × τ^(3/2)/f × CN^(3/2) | 0.946 | 0.982 | 0.917 | 0.910 | universal (no cov) |
+| **v4++ FORM X** | **C × σ_grain × (φ-φ_c)^(3/4) × CN × √cov / √τ** | **0.961** | **0.967** | **0.934** | **0.932** | **CHAMPION** |
 
-v3→v4 진화의 핵심:
-- **(G_path × GB_d²)^(1/4)** → **√(1-φ_c/φ_SE)**: contact quality 대신 percolation threshold
-- **CN²** → **CN^(3/2)**: 지수 약간 축소
-- **τ^(3/2) / f_perc**: σ_brug의 τ² 과잉 penalty를 부분 상쇄 (effective τ^(-1/2))
-- φ_c = 0.18: SE percolation threshold (문헌 0.15~0.20)
-- **thick도 v3보다 좋고 (0.982 > 0.961), thin도 커버 (0.917)**
+v4++ FORM X = C × σ_grain × ⁴√[(φ_SE-φ_c)³ × CN⁴ × cov² / τ²]
+
+진화의 핵심:
+- v3→v4: contact quality(G_path×GB_d²) → percolation threshold(φ_c) + τ² 상쇄
+- v4→v4++: coverage 추가 + φ_SE 제거((φ-φc)만으로 충분)
+- FORM A(√[φ(φ-φc)×CN²×cov/τ]) stress test에서 α=0.574≠0.5, φ_SE 지수≈0 발견 → FORM X로 정제
+- (φ-φc)^(3/4): 3D percolation exponent t=3/2의 √
+- CN^1: v3의 CN²에서 축소 (√ 안에서 CN⁴ = effective CN^1)
+- LOOCV=0.960, leave-SE-size-out R²>0.93 (외삽 능력 검증)
+- φ_c=0.18, C=0.123, 1 free parameter
 
 v1→v3 진화의 핵심: 3개 독립 항 → 1개 결합 변수 + CN². 변수 수를 줄이면서 R² 향상.
 

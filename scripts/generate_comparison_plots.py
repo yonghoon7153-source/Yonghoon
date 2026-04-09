@@ -1281,6 +1281,43 @@ def plot_multiscale_sigma(data_list, names, outdir):
     return _save(fig, outdir, "multiscale_sigma.png")
 
 
+def plot_v3_fitting(data_list, names, outdir):
+    """[Legacy] v3: σ_brug × C × (G_path × GB_d²)^(1/4) × CN²."""
+    SIGMA_BULK = 3.0
+    sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
+    gb_dens = [_get(d, "gb_density_mean") for d in data_list]
+    g_path = [_get(d, "path_conductance_mean", 0) for d in data_list]
+    cn = [_get(d, "se_se_cn", 0) for d in data_list]
+    sigma_net = _load_network_sigma(data_list)
+
+    valid = [i for i in range(len(data_list))
+             if g_path[i]>0 and cn[i]>0 and gb_dens[i]>0 and sigma_brug[i]>0 and sigma_net[i]>0.01]
+    if len(valid) < 3:
+        C_v3 = 0.073
+    else:
+        log_rhs = np.array([np.log(sigma_brug[i]*SIGMA_BULK) + 0.25*np.log(g_path[i]*gb_dens[i]**2) + 2*np.log(cn[i]) for i in valid])
+        log_act = np.array([np.log(sigma_net[i]) for i in valid])
+        C_v3 = np.exp(np.mean(log_act - log_rhs))
+
+    sigma_v3 = []
+    for i in range(len(data_list)):
+        if g_path[i]>0 and cn[i]>0 and gb_dens[i]>0:
+            sigma_v3.append(sigma_brug[i]*C_v3*(g_path[i]*gb_dens[i]**2)**0.25*cn[i]**2*SIGMA_BULK)
+        else:
+            sigma_v3.append(0)
+
+    fig, ax = plt.subplots(figsize=FIG_SINGLE)
+    x = np.arange(len(names))
+    ms = _marker_size(len(names)); lw = _line_width(len(names))
+    ax.plot(x, sigma_v3, 's-', color=RED, markersize=ms, linewidth=lw, label="v3 (mS/cm)")
+    if any(s>0 for s in sigma_net):
+        ax.plot(x, sigma_net, 'D--', color='#2ecc71', markersize=ms-2, linewidth=lw-0.5, alpha=0.7, label="Network solver (mS/cm)")
+    _apply_style(ax, "σ_ionic (mS/cm)", names)
+    ax.legend(fontsize=9, loc='upper left')
+    ax.set_title(f"[Legacy v3] σ_brug × {C_v3:.4f} × (G_path×GB_d²)^¼ × CN²", fontsize=9, fontweight='bold')
+    return _save(fig, outdir, "v3_fitting.png")
+
+
 def _load_electronic_sigma(data_list):
     """Load electronic σ_full from full_metrics or network_conductivity.json."""
     vals = [0.0] * len(data_list)
@@ -1984,7 +2021,7 @@ def plot_sigma_decomposition(data_list, names, outdir):
 
     ax.axhline(0, color='gray', linewidth=0.5)
     ax.set_ylabel('Δlog(σ_brug) from reference', fontsize=11)
-    ax.set_title(f'σ_eff Factor Decomposition (ref: {names[ref]})', fontsize=12, fontweight='bold')
+    ax.set_title(f'[Legacy v3] σ_ionic Factor Decomposition (ref: {names[ref]})', fontsize=12, fontweight='bold')
     ax.legend(fontsize=8, loc='upper left', ncol=3)
     ax.set_xticks(x)
     ax.set_xticklabels(names, rotation=45, ha='right', fontsize=8)
@@ -2029,6 +2066,15 @@ def plot_sigma_decomposition(data_list, names, outdir):
                names, list(d_phi), list(d_tau), list(d_fperc), list(d_gpath_gbd), list(d_cn))
     return _save(fig, outdir, "sigma_decomposition.png")
 
+
+PLOT_REGISTRY["v3_fitting"] = {
+    "func": plot_v3_fitting,
+    "file": "v3_fitting.png",
+    "title": "[Legacy] v3 Fitting (thick only)",
+    "description": "⚠ Legacy: FORM X로 대체됨\nv3: σ_brug × C × (G_path × GB_d²)^(1/4) × CN²\nthick R²=0.96, thin R²=-1.0",
+    "origin_tip": "Red: v3 prediction. Green dashed: Network solver.",
+    "hidden": True,
+}
 
 PLOT_REGISTRY["sigma_decomposition"] = {
     "func": plot_sigma_decomposition,

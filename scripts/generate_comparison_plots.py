@@ -1852,15 +1852,15 @@ PLOT_REGISTRY = {
     "effective_conductivity": {
         "func": plot_effective_conductivity,
         "file": "effective_conductivity.png",
-        "title": "Effective Conductivity (Bruggeman)",
-        "description": "σ_eff/σ_bulk = φ_SE × f_perc / τ²\n\nSE 부피 분율(φ_SE), percolation(f_perc), tortuosity(τ) 기반 추정.\n입계(GB) 저항을 무시한 이론값 → 실제보다 과대평가 가능.",
+        "title": "σ_brug/σ_grain (Bruggeman Estimate)",
+        "description": "σ_brug/σ_grain = φ_SE × f_perc / τ²  (σ_grain = 3.0 mS/cm)\n\n접촉 저항(constriction) 무시 → 실제 Network Solver 대비 3~10× 과대추정.\nNetwork Solver σ_ionic이 ground truth.",
         "origin_tip": "Line+Symbol (Green) + Bar (φ_SE, Blue).",
     },
     "rgb_fitting": {
         "func": plot_rgb_fitting,
         "file": "rgb_fitting.png",
-        "title": "Ionic: Inter-particle Contact Resistance Scaling",
-        "description": "최종 Ionic Conductivity 공식:\nσ_ion = σ_brug × 0.073 × (G_path × GB_d²)^(1/4) × CN²\n\n이 플롯: Contact resistance scaling 발견 과정\n  R = C × (GB_d²×T)^α,  α=1.82, R²=0.94\n  GB_d²: BLM(hop 수) × Maxwell(접촉 크기)\n  T: 총 경로 길이\n\nBruggeman exponent 분해:\n  n_eff = n_geo(2.54) + n_contact(0.83) = 3.37\n  → 문헌 n≈3의 물리적 기원 설명",
+        "title": "Ionic: Contact Resistance Scaling (R²=0.947)",
+        "description": "Champion Ionic Formula:\nσ_ion = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²\nC ≈ 0.073 (data-fitted), R²=0.947, 1 free parameter\n\nContact resistance scaling:\n  R = C × (GB_d²×T)^α,  α=1.82, R²=0.94 (proxy)\n  GB_d²: grain boundary density × Maxwell contact area\n\nBruggeman exponent 분해:\n  n_eff = n_geo(2.54) + n_contact(0.83) = 3.37\n  → 문헌 n≈3의 물리적 기원 설명",
         "origin_tip": "Scatter + Fit line (log-log).\n색상별 SE 크기: 0.5μm(warm), 1.0μm(green), 1.5μm(cool)\n숫자: P:S ratio",
         "min_groups": 2,
     },
@@ -2005,8 +2005,8 @@ def plot_sigma_decomposition(data_list, names, outdir):
 PLOT_REGISTRY["sigma_decomposition"] = {
     "func": plot_sigma_decomposition,
     "file": "sigma_decomposition.png",
-    "title": "Ionic: Factor Decomposition",
-    "description": "σ_ion = σ_brug × 0.073 × (G_path × GB_d²)^(1/4) × CN²\n각 항의 상대 기여도 (ref: 최고 σ case)\nφ_SE: 부피분율 | τ²: 경로 꼬임 | f_perc: percolation\n(G_path×GB_d²)^¼: 전도+mesh | CN²: 연결성",
+    "title": "Ionic: Factor Decomposition (R²=0.947)",
+    "description": "σ_ion = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²\nC ≈ 0.073 (data-fitted), R²=0.947\n\n각 항의 상대 기여도 (ref: 최고 σ case)\nφ_SE: 부피분율 | τ²: 경로 꼬임 | f_perc: percolation\n(G_path×GB_d²)^¼: constriction+mesh | CN²: 연결성",
     "origin_tip": "Stacked bar (top) + Horizontal bar (bottom).",
 }
 
@@ -2112,8 +2112,8 @@ def plot_electronic_decomposition(data_list, names, outdir):
 PLOT_REGISTRY["electronic_decomposition"] = {
     "func": plot_electronic_decomposition,
     "file": "electronic_decomposition.png",
-    "title": "Electronic σ_el Factor Decomposition",
-    "description": "σ_el = 0.015 × σ_AM × φ^(3/2) × CN² × exp(π/(T/d)) 각 항 기여도 분해.\nφ_AM^(3/2): Bruggeman volume fraction\nCN_AM²: network connectivity\nexp(π/(T/d)): thin electrode finite-size effect",
+    "title": "Electronic: Factor Decomposition (R²=0.89)",
+    "description": "σ_el = 0.015 × σ_AM × φ_AM^(3/2) × CN_AM² × exp(π/(T/d_AM))\nR²=0.89\n\nφ_AM^(3/2): volume fraction (percolation)\nCN_AM²: AM network connectivity\nexp(π/(T/d)): finite-size effect (thin → higher σ_el)",
     "origin_tip": "Stacked bar (top) + Horizontal bar (bottom).",
 }
 
@@ -2214,8 +2214,8 @@ def plot_thermal_decomposition(data_list, names, outdir):
 PLOT_REGISTRY["thermal_decomposition"] = {
     "func": plot_thermal_decomposition,
     "file": "thermal_decomposition.png",
-    "title": "Thermal σ_th Factor Decomposition",
-    "description": "σ_th = 286 × σ_ion^(3/4) × φ_AM² / CN_SE 각 항 기여도 분해.\nσ_ion^(3/4): SE backbone geometry (ionic에서 계승)\nφ_AM²: AM thermal enhancement\nCN_SE⁻¹: SE clustering penalty (부호 역전!)",
+    "title": "Thermal: Factor Decomposition (R²=0.90)",
+    "description": "σ_th = 286 × σ_ion^(3/4) × φ_AM² / CN_SE\nR²=0.90\n\nσ_ion^(3/4): SE backbone (ionic에서 계승)\nφ_AM²: AM thermal enhancement\nCN_SE⁻¹: SE 과밀집 페널티 (ionic과 부호 역전!)",
     "origin_tip": "Stacked bar (top) + Horizontal bar (bottom).",
 }
 def plot_electronic_active_am(data_list, names, outdir):

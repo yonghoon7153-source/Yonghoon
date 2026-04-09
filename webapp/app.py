@@ -935,7 +935,7 @@ def group():
             ('AM-SE CN', '', 'am_se_cn_mean', '활성도'),
             ('Vulnerable', '(%)', 'am_vulnerable_pct', '활성도'),
             ('φ_SE', '', 'phi_se', '활성도'),
-            ('σ_eff/σ_bulk', '', 'sigma_ratio', '활성도'),
+            ('σ_brug/σ_grain', '', 'sigma_ratio', '이온전도'),
             # ── Network Solver ──
             ('σ_ionic', '(mS/cm)', 'sigma_full_mScm', 'Network Solver'),
             ('R_brug', '(×)', 'R_brug_over_full', 'Network Solver'),

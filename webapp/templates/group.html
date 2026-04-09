@@ -162,7 +162,7 @@
       </div>
       <div class="plot-row">
         <label class="plot-checkbox"><input type="checkbox" value="ionic_active"> Ionic Active AM</label>
-        <label class="plot-checkbox"><input type="checkbox" value="effective_conductivity"> σ_eff/σ_bulk</label>
+        <label class="plot-checkbox"><input type="checkbox" value="effective_conductivity"> σ_brug/σ_grain</label>
       </div>
       <div class="plot-row">
         <label class="plot-checkbox"><input type="checkbox" value="ion_path_quality"> 경로 품질</label>
@@ -985,7 +985,7 @@ const COL_TIPS = {
   'AM-SE CN': '수식: AM당 접촉하는 SE 수의 평균\n\nAM이 평균 몇 개의 SE와 연결되어 있는지.\n높을수록 이온 공급 경로가 다양 → 안정적.\nCN≥3이면 접촉 1~2개 끊겨도 활성 유지.',
   'Vulnerable': '수식: (SE 0개 + SE 1개 접촉 AM) / 전체 AM × 100\n\nSE와 접촉이 없거나 1개뿐인 취약 AM 비율.\n이 AM들은 접촉 하나 끊기면 즉시 dead.\n낮을수록 안정적.',
   'φ_SE': '수식: φ_SE = V_SE / V_electrode\n\n전극 내 SE 부피 분율.\nAM:SE 비율에 의해 결정.\nφ_SE↑ → 이온 전도 유리, but AM↓ → 에너지 밀도↓.',
-  'σ_eff/σ_bulk': '수식: σ_eff/σ_bulk = φ_SE × f_perc / τ²\n\nBruggeman 관계식 기반 유효 전도도 비율.\nSE 벌크 전도도 대비 전극 내 실제 전도도.\n입계 저항을 무시한 이론값.',
+  'σ_brug/σ_grain': '수식: σ_brug/σ_grain = φ_SE × f_perc / τ²\n(σ_grain = 3.0 mS/cm, LPSCl grain interior)\n\n접촉 저항(constriction) 무시 → Network Solver 대비 3~10× 과대추정.\n실제 σ_ionic은 Network Solver 결과 참조.',
   'Fn AM-AM': '수식: Fn = √(fn_x² + fn_y² + fn_z²)\n\nAM-AM 접촉의 법선 접촉력 평균(μN).\n대립자끼리 하중을 직접 전달 → 가장 큰 값.\nforce chain의 주 경로.',
   'Fn AM-SE': 'AM-SE 접촉의 법선 접촉력 평균(μN).\nAM에서 SE로 전달되는 하중.',
   'Fn SE-SE': 'SE-SE 접촉의 법선 접촉력 평균(μN).\nSE 간 하중. 보통 가장 작은 값.',

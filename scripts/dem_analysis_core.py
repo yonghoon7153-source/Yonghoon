@@ -546,8 +546,9 @@ def calc_am_isolation_risk(atoms, contacts, type_map):
 # ─── Effective Ionic Conductivity ─────────────────────────────────────────
 
 def calc_effective_conductivity(atoms, perc_result, porosity, tortuosity_result, type_map, plate_z, box_xy=0.05, box_x=None, box_y=None):
-    """Estimate σ_eff / σ_bulk using Bruggeman-like relation.
-    σ_eff/σ_bulk = ε_SE^α / τ²  where α ≈ 1 (connected fraction)."""
+    """Estimate σ_brug/σ_grain (Bruggeman approximation, ignoring contact resistance).
+    σ_brug/σ_grain = φ_SE × f_perc / τ²
+    Note: overestimates by 3-10× vs network solver (no constriction resistance)."""
     se_types = [k for k, v in type_map.items() if v == 'SE']
     se_ids = [aid for aid, a in atoms.items() if a['type'] in se_types]
 

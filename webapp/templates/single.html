@@ -452,16 +452,16 @@ const METRIC_TIPS = {
     meaning: 'Network Solver의 σ_ionic(mS/cm)이 실제 값. 이 값은 참고용 상한.'
   },
   'σ_ionic (mS/cm)': {
-    title: 'Ionic Conductivity (Network Solver)',
-    formula: 'σ_full = Kirchhoff solver (R_bulk + R_constriction per edge)\nσ_grain = 3.0 mS/cm (grain interior)',
-    desc: 'DEM-native resistor network solver로 계산한 유효 이온 전도도 (mS/cm).',
-    meaning: 'Bruggeman 추정(σ_eff/σ_bulk)보다 정확한 ground truth. Minnmann(2021) 0.17 mS/cm과 비교 가능.'
+    title: 'Ionic Conductivity (Kirchhoff Network Solver)',
+    formula: 'Kirchhoff solver: R = R_bulk + R_constriction (Holm 1967) per edge\nσ_grain = 3.0 mS/cm (LPSCl grain interior)',
+    desc: 'DEM-native resistor network solver로 계산한 유효 이온 전도도. Ground truth.',
+    meaning: 'Bruggeman 추정 대비 3~10× 낮은 실측값. 접촉 저항(constriction)이 핵심 원인.'
   },
-  'R_brug (과대추정 배수)': {
-    title: 'Bruggeman Overestimation Ratio',
-    formula: 'R_brug = σ_bulk_net / σ_full\nσ_bulk_net: bulk resistance만 고려한 network\nσ_full: bulk + constriction',
-    desc: 'Bruggeman이 실제 전도도를 몇 배 과대추정하는지. R_brug=3~10이면 접촉 저항이 유의미.',
-    meaning: 'R_brug가 클수록 inter-particle contact resistance가 지배적. SE 0.5μm에서 ~4~10×, SE 1.5μm에서 ~2~3×.'
+  'Contact-free / Full': {
+    title: 'Contact-free Overestimation Ratio',
+    formula: 'Ratio = σ_contact_free / σ_full\nσ_contact_free: R_constriction=0 (ideal contacts, upper bound)\nσ_full: R_bulk + R_constriction (ground truth)',
+    desc: '접촉 저항이 없다고 가정한 상한값이 실제보다 몇 배 과대추정하는지.',
+    meaning: 'Ratio가 클수록 constriction 저항이 지배적. SE 0.5μm: ~4~10×, SE 1.5μm: ~2~3×.'
   },
   'Constriction 비율(%)': {
     title: 'Constriction Resistance Fraction',

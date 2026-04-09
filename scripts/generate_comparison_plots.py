@@ -1318,6 +1318,80 @@ def plot_v3_fitting(data_list, names, outdir):
     return _save(fig, outdir, "v3_fitting.png")
 
 
+def plot_formx_decomposition(data_list, names, outdir):
+    """FORM X factor decomposition: (φ-φc)^¾, CN, √cov, 1/√τ."""
+    PHI_C = 0.18
+    phi_se = [_get(d, "phi_se") for d in data_list]
+    cn = [_get(d, "se_se_cn", 0) for d in data_list]
+    tau = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)) for d in data_list]
+    coverage = [(lambda vs: sum(vs)/len(vs)/100 if vs else 0.20)([v for v in [_get(d,"coverage_AM_P_mean",0), _get(d,"coverage_AM_S_mean",0), _get(d,"coverage_AM_mean",0)] if v>0]) for d in data_list]
+
+    n = len(data_list)
+    log_phiex = np.array([0.75*np.log(max(phi_se[i]-PHI_C, 0.001)) for i in range(n)])
+    log_cn = np.array([np.log(cn[i]) if cn[i]>0 else 0 for i in range(n)])
+    log_cov = np.array([0.5*np.log(coverage[i]) if coverage[i]>0 else 0 for i in range(n)])
+    log_tau = np.array([-0.5*np.log(tau[i]) if tau[i]>0 else 0 for i in range(n)])
+
+    # Ref: best case
+    sigma_net = _load_network_sigma(data_list)
+    ref = np.argmax(sigma_net) if any(s>0 for s in sigma_net) else 0
+
+    factors = [
+        ('(φ−φc)^¾', log_phiex, '#4472C4'),
+        ('CN', log_cn, '#ED7D31'),
+        ('√cov', log_cov, '#A5A5A5'),
+        ('1/√τ', log_tau, '#FFC000'),
+    ]
+
+    fig, (ax, ax2) = plt.subplots(2, 1, figsize=(max(8, n*0.8), 10), gridspec_kw={'height_ratios': [3, 2]})
+
+    # Top: stacked bar (relative to ref)
+    x = np.arange(n)
+    bottom_pos = np.zeros(n); bottom_neg = np.zeros(n)
+    for label, vals, color in factors:
+        delta = vals - vals[ref]
+        pos = np.clip(delta, 0, None); neg = np.clip(delta, None, 0)
+        ax.bar(x, pos, bottom=bottom_pos, color=color, label=label, width=0.7, edgecolor='white', linewidth=0.5)
+        ax.bar(x, neg, bottom=bottom_neg, color=color, width=0.7, edgecolor='white', linewidth=0.5)
+        bottom_pos += pos; bottom_neg += neg
+
+    ax.axhline(0, color='gray', linewidth=0.5)
+    ax.set_xticks(x)
+    ax.set_xticklabels([names[i] for i in range(n)], rotation=45, ha='right', fontsize=8)
+    ax.set_ylabel('Δlog(factor) from ref', fontsize=10)
+    ax.set_title(f'FORM X Factor Decomposition (ref: {names[ref]})', fontsize=12, fontweight='bold')
+    ax.legend(fontsize=9, loc='upper left', ncol=4)
+    ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False)
+
+    # Bottom: horizontal bar per case (dominant factor)
+    for i in range(n):
+        deltas = [(label, vals[i]-vals[ref]) for label, vals, _ in factors]
+        deltas.sort(key=lambda x: abs(x[1]), reverse=True)
+        dominant = deltas[0][0]
+        colors = [c for l,_,c in factors if l==dominant][0]
+        ax2.barh(i, deltas[0][1], color=colors, height=0.6, edgecolor='white', linewidth=0.5)
+        ax2.text(deltas[0][1], i, f' {dominant}', va='center', fontsize=7)
+
+    ax2.set_yticks(range(n))
+    ax2.set_yticklabels([names[i][:20] for i in range(n)], fontsize=7)
+    ax2.set_xlabel('Dominant factor Δlog', fontsize=10)
+    ax2.set_title('Dominant factor per case', fontsize=11, fontweight='bold')
+    ax2.axvline(0, color='gray', linewidth=0.5)
+    ax2.spines['top'].set_visible(False); ax2.spines['right'].set_visible(False)
+
+    fig.tight_layout()
+    return _save(fig, outdir, "formx_decomposition.png")
+
+
+PLOT_REGISTRY["formx_decomposition"] = {
+    "func": plot_formx_decomposition,
+    "file": "formx_decomposition.png",
+    "title": "FORM X Factor Decomposition",
+    "description": "FORM X 각 항의 상대 기여도:\n(φ−φc)^¾: percolation\nCN: network connectivity\n√cov: AM‑SE 계면\n1/√τ: softened tortuosity\nref: 최고 σ case 기준",
+    "origin_tip": "Stacked bar (top): factor contributions.\nHorizontal bar (bottom): dominant factor per case.",
+}
+
+
 def _load_electronic_sigma(data_list):
     """Load electronic σ_full from full_metrics or network_conductivity.json."""
     vals = [0.0] * len(data_list)

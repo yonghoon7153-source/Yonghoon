@@ -476,6 +476,19 @@ const METRIC_TIPS = {
     desc: '전체 이온 전도 저항 중 접촉 목(constriction)이 차지하는 비율.',
     meaning: '69~81%: SE 0.5μm에서 constriction이 지배. 큰 SE에서는 감소. 이 비율이 높을수록 접촉 품질이 중요.'
   },
+  'σ_brug / σ_ionic': {
+    title: 'Bruggeman Overestimation vs Network Solver',
+    formula: {% if metrics and metrics.sigma_ratio is defined and metrics.sigma_full_mScm is defined and metrics.sigma_full_mScm %}
+      'σ_brug / σ_ionic = {{ "%.4f"|format(metrics.sigma_ratio * 3.0) }} / {{ "%.4f"|format(metrics.sigma_full_mScm) }}\n'
+      + '= {{ "%.1f"|format(metrics.sigma_ratio * 3.0 / metrics.sigma_full_mScm) }}×\n\n'
+      + 'σ_brug: Bruggeman 추정 (φ×f_perc/τ², constriction 무시)\n'
+      + 'σ_ionic: Network Solver ground truth (R_bulk + R_constriction)'
+    {% else %}
+      'σ_brug / σ_ionic\nBruggeman 추정 / Network Solver 실측'
+    {% endif %},
+    desc: 'Bruggeman이 Network Solver 대비 몇 배 과대추정하는지.',
+    meaning: '3~10×: 접촉 저항이 유효 전도도를 크게 낮춤.\n이 값이 클수록 접촉 품질(contact area) 개선이 중요.'
+  },
   'σ_electronic (mS/cm)': {
     title: 'Electronic Conductivity (AM-AM Network)',
     formula: 'AM-AM 접촉 네트워크의 Kirchhoff solver\nσ_AM = 50 mS/cm (NCM811, discharged)',

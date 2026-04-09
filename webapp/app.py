@@ -863,6 +863,11 @@ def single(case_id):
                     net_rows.append(['Contact-free / Full', f"{metrics['R_brug_over_full']:.1f}×"])
                 if metrics.get('bulk_resistance_fraction'):
                     net_rows.append(['Constriction 비율(%)', round((1 - metrics['bulk_resistance_fraction']) * 100, 1)])
+                # σ_brug / σ_ionic ratio
+                if metrics.get('sigma_ratio') and metrics.get('sigma_full_mScm'):
+                    sigma_brug_ms = 3.0 * metrics['sigma_ratio']
+                    brug_over_ionic = sigma_brug_ms / metrics['sigma_full_mScm'] if metrics['sigma_full_mScm'] > 0 else 0
+                    net_rows.append(['σ_brug / σ_ionic', f"{brug_over_ionic:.1f}×"])
                 if metrics.get('electronic_sigma_full_mScm'):
                     net_rows.append(['σ_electronic (mS/cm)', round(metrics['electronic_sigma_full_mScm'], 2)])
                 if metrics.get('electronic_percolating_fraction') is not None:

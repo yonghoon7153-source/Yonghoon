@@ -471,9 +471,27 @@ const METRIC_TIPS = {
   },
   'σ_electronic (mS/cm)': {
     title: 'Electronic Conductivity (AM-AM Network)',
-    formula: 'AM-AM 접촉 네트워크의 Kirchhoff solver\nσ_AM = 0.05 S/cm (NCM811)',
+    formula: 'AM-AM 접촉 네트워크의 Kirchhoff solver\nσ_AM = 50 mS/cm (NCM811, discharged)',
     desc: 'AM-AM 접촉만을 통한 전자 전도도. AM percolation이 없으면 0.',
-    meaning: 'σ_electronic >> σ_ionic이면 이온 전도가 rate-limiting. 도전재 없이도 AM percolation이 형성되는지 확인.'
+    meaning: 'σ_electronic >> σ_ionic이면 이온 전도가 rate-limiting.\n도전재 없이도 AM percolation이 형성되는지 확인.'
+  },
+  'Electronic Active AM (%)': {
+    title: 'Electronic Active AM (Bottom-reachable)',
+    formula: 'Active = (bottom에서 도달 가능한 AM 수) / (전체 AM 수) × 100\n그래프 기반: AM-AM 접촉 네트워크에서 bottom boundary 연결 확인',
+    desc: '전자가 current collector(bottom)에서 도달할 수 있는 AM 비율. 나머지는 Dead AM.',
+    meaning: '100%: 모든 AM이 전자적으로 활성.\n< 80%: Dead AM 존재 → 도전재(VGCF, C65) 추가 필요.\nφ_AM < 30vol%에서 급격히 감소 (percolation threshold).'
+  },
+  'AM Percolation (%)': {
+    title: 'AM Percolation (Top+Bottom Connected)',
+    formula: 'Percolation = (bottom AND top 모두 연결된 AM 수) / (전체 AM 수) × 100',
+    desc: 'Bottom-to-top으로 완전 관통하는 AM 네트워크 비율.',
+    meaning: '100%: 전극 전체를 관통하는 전자 경로 형성.\n0%: AM 네트워크가 끊김 → σ_electronic ≈ 0.\nActive AM ≥ Percolation 항상 성립 (bottom-reachable ⊇ percolating).'
+  },
+  'σ_Bruggeman (mS/cm)': {
+    title: 'Bruggeman EMT Prediction',
+    formula: 'σ_Bruggeman = σ_grain × φ_SE^1.5\nσ_grain = 3.0 mS/cm (LPSCl)\nφ_SE = SE volume fraction\n1.5 = Bruggeman exponent (spheres)',
+    desc: '해석적 Bruggeman 유효매질이론(EMT) 예측값. 접촉 저항 무시.',
+    meaning: 'Network Solver σ_ionic과 비교하면 Bruggeman이 얼마나 과대추정하는지 확인 가능.\n통상 2~5× 과대추정.'
   },
   'σ_thermal (mS/cm equiv)': {
     title: 'Thermal Conductivity (ALL Contact Network)',

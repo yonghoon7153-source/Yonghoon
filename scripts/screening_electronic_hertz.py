@@ -98,6 +98,7 @@ def main():
     cov = np.array([r['cov'] for r in rows])
     ratio = np.array([r['ratio'] for r in rows])
     por = np.array([r['por'] for r in rows])
+    el_perc = np.array([r['el_perc'] for r in rows])
     dR = np.array([r['dR'] for r in rows])
     d2A = np.array([r['d2A'] for r in rows])
     aR = np.array([r['aR'] for r in rows])

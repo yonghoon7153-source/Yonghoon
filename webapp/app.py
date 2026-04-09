@@ -538,6 +538,21 @@ def analyze(case_id):
                         if k in net_data and net_data[k] is not None:
                             met_data[k] = net_data[k]
                     met_data['network_solver_status'] = 'success'
+                    # AM-AM contact mechanics backfill (reanalysis path)
+                    atoms_csv = os.path.join(results_dir, 'atoms.csv')
+                    contacts_csv = os.path.join(results_dir, 'contacts.csv')
+                    if os.path.exists(atoms_csv) and os.path.exists(contacts_csv):
+                        try:
+                            sys.path.insert(0, app.config['SCRIPTS_FOLDER'])
+                            from backfill_am_metrics import calc_am_am_stats
+                            am_stats = calc_am_am_stats(atoms_csv, contacts_csv,
+                                                        meta['type_map'], scale=meta.get('scale', 1000))
+                            if am_stats:
+                                for k, v in am_stats.items():
+                                    met_data[k] = v
+                                print(f"  [AM-AM] Backfilled (reanalysis): CN={am_stats.get('am_am_cn',0):.2f}")
+                        except Exception as _e:
+                            print(f"  [AM-AM] Backfill failed: {_e}")
                     with open(met_json, 'w') as _mf:
                         json.dump(met_data, _mf, indent=2, default=str)
                 meta['network_solver_status'] = 'success'
@@ -610,6 +625,19 @@ def analyze(case_id):
                                     if k in net_data and net_data[k] is not None:
                                         met_data[k] = net_data[k]
                                 met_data['network_solver_status'] = net_status
+                                # AM-AM contact mechanics backfill
+                                try:
+                                    sys.path.insert(0, app.config['SCRIPTS_FOLDER'])
+                                    from backfill_am_metrics import calc_am_am_stats
+                                    am_stats = calc_am_am_stats(atoms_csv, contacts_csv,
+                                                                meta['type_map'], scale=meta.get('scale', 1000))
+                                    if am_stats:
+                                        for k, v in am_stats.items():
+                                            met_data[k] = v
+                                        print(f"  [AM-AM] Backfilled: CN={am_stats.get('am_am_cn',0):.2f}, "
+                                              f"area={am_stats.get('am_am_mean_area',0):.3f}µm²")
+                                except Exception as _e:
+                                    print(f"  [AM-AM] Backfill failed: {_e}")
                                 with open(met_json, 'w') as _mf:
                                     json.dump(met_data, _mf, indent=2, default=str)
                                 print(f"  [Network] Merged keys into full_metrics.json")
@@ -715,6 +743,19 @@ def retry_network(case_id):
                             if k in net_data and net_data[k] is not None:
                                 met_data[k] = net_data[k]
                         met_data['network_solver_status'] = net_status
+                        # AM-AM contact mechanics backfill (retry path)
+                        try:
+                            sys.path.insert(0, app.config['SCRIPTS_FOLDER'])
+                            from backfill_am_metrics import calc_am_am_stats
+                            am_stats = calc_am_am_stats(atoms_csv, contacts_csv,
+                                                        meta.get('type_map', '1:AM,2:SE'),
+                                                        scale=meta.get('scale', 1000))
+                            if am_stats:
+                                for k, v in am_stats.items():
+                                    met_data[k] = v
+                                print(f"  [AM-AM] Backfilled (retry): CN={am_stats.get('am_am_cn',0):.2f}")
+                        except Exception as _e:
+                            print(f"  [AM-AM] Backfill failed: {_e}")
                         with open(met_json, 'w') as _mf:
                             json.dump(met_data, _mf, indent=2, default=str)
                     elif net_status == 'success':

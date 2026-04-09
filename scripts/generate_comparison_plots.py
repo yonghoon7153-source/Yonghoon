@@ -1395,6 +1395,11 @@ def plot_formx_decomposition(data_list, names, outdir):
     ax2.spines['top'].set_visible(False); ax2.spines['right'].set_visible(False)
 
     fig.tight_layout()
+    _write_csv(outdir, 'formx_decomposition.csv',
+               ['(φ-φc)^¾', 'CN', '√cov', '1/√τ', 'dominant'],
+               x_labels,
+               list(log_phiex), list(log_cn), list(log_cov), list(log_tau),
+               [sorted([(l, v[i]-v[ref]) for l,v,_ in factors], key=lambda x:-abs(x[1]))[0][0] for i in range(n)])
     return _save(fig, outdir, "formx_decomposition.png")
 
 
@@ -2041,6 +2046,7 @@ PLOT_REGISTRY = {
     "formx_decomposition": {
         "func": plot_formx_decomposition,
         "file": "formx_decomposition.png",
+        "csv": "formx_decomposition.csv",
         "title": "FORM X Factor Decomposition",
         "description": "FORM X 각 항의 상대 기여도:\n(φ\u2011φc)^¾: percolation\nCN: network connectivity\n√cov: AM\u2011SE 계면\n1/√τ: softened tortuosity\nref: 최고 σ case 기준",
         "origin_tip": "Stacked bar (top): factor contributions.\nHorizontal bar (bottom): dominant factor per case.",

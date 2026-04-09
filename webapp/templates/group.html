@@ -1053,10 +1053,10 @@ async function generateFittingReport() {
     const dlBtn = document.createElement('a');
     dlBtn.href = data.download_url;
     dlBtn.textContent = '📥 MD';
-    dlBtn.style.cssText = 'position:absolute;top:12px;right:60px;background:var(--accent);color:white;padding:4px 12px;border-radius:6px;text-decoration:none;font-size:14px';
+    dlBtn.style.cssText = 'position:absolute;top:12px;right:60px;background:var(--accent);color:white;padding:6px 16px;border-radius:6px;text-decoration:none;font-size:14px';
     const pdfBtn = document.createElement('button');
     pdfBtn.textContent = '📄 PDF 저장';
-    pdfBtn.style.cssText = 'position:absolute;top:12px;right:130px;background:#e74c3c;color:white;padding:4px 12px;border-radius:6px;border:none;font-size:14px;cursor:pointer';
+    pdfBtn.style.cssText = 'position:absolute;top:12px;right:150px;background:#e74c3c;color:white;padding:6px 16px;border-radius:6px;border:none;font-size:14px;cursor:pointer';
     pdfBtn.onclick = () => {
       const w = window.open('','','width=900,height=700');
       w.document.write(`<html><head><title>Fitting Report</title>
@@ -1087,12 +1087,10 @@ async function generateFittingReport() {
         .replace(/^---$/gm, '<hr>')
         .replace(/```([\s\S]*?)```/g, '<pre>$1</pre>')
         .replace(/`(.+?)`/g, '<code>$1</code>')
-        .replace(/^\| (.+)$/gm, (m) => {
+        .replace(/^\|(.+)$/gm, (m) => {
           const cells = m.split('|').filter(c=>c.trim()).map(c=>c.trim());
           if (cells.every(c => /^[-:]+$/.test(c))) return '';
-          const isHeader = m.includes('---');
-          const tag = 'td';
-          return '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
+          return '<tr>' + cells.map(c => `<td>${c}</td>`).join('') + '</tr>';
         });
       // Wrap table rows
       html = html.replace(/(<tr>[\s\S]*?<\/tr>\s*)+/g, '<table>$&</table>');
@@ -1117,10 +1115,10 @@ async function generateFittingReport() {
       .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:16px 0">')
       .replace(/```([\s\S]*?)```/g, '<pre style="background:rgba(0,0,0,0.3);padding:12px;border-radius:6px;overflow-x:auto;font-size:12px">$1</pre>')
       .replace(/`(.+?)`/g, '<code style="background:rgba(0,0,0,0.2);padding:1px 5px;border-radius:3px;font-size:12px">$1</code>')
-      .replace(/^\| (.+)$/gm, (m) => {
+      .replace(/^\|(.+)$/gm, (m) => {
         const cells = m.split('|').filter(c=>c.trim()).map(c=>c.trim());
         if (cells.every(c => /^[-:]+$/.test(c))) return '';
-        return '<tr>' + cells.map(c => `<td style="border:1px solid var(--border);padding:4px 8px">${c}</td>`).join('') + '</tr>';
+        return '<tr>' + cells.map(c => `<td style="border:1px solid var(--border);padding:5px 10px">${c}</td>`).join('') + '</tr>';
       });
     modalHtml = modalHtml.replace(/(<tr>[\s\S]*?<\/tr>\s*)+/g, '<table style="border-collapse:collapse;width:100%;margin:8px 0;font-size:12px">$&</table>');
     modalHtml = modalHtml.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');

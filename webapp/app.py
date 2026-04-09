@@ -533,7 +533,7 @@ def analyze(case_id):
                                    atoms_csv, contacts_csv, '-o', results_dir,
                                    '-t', meta['type_map'], '-s', str(meta.get('scale', 1000))]
                         print(f"  [Network] CMD: {' '.join(net_cmd)}")
-                        net_result = subprocess.run(net_cmd, capture_output=True, text=True, timeout=3600)
+                        net_result = subprocess.run(net_cmd, capture_output=True, text=True, timeout=None)
                         _elapsed = _time.time() - _t0
                         print(f"  [Network] Finished in {_elapsed:.1f}s, returncode={net_result.returncode}")
                         if net_result.stdout:
@@ -644,7 +644,7 @@ def retry_network(case_id):
                     net_cmd = ['python3', os.path.join(app.config['SCRIPTS_FOLDER'], 'network_conductivity.py'),
                                atoms_csv, contacts_csv, '-o', results_dir,
                                '-t', meta.get('type_map', '1:AM,2:SE'), '-s', str(meta.get('scale', 1000))]
-                    net_result = subprocess.run(net_cmd, capture_output=True, text=True, timeout=3600)
+                    net_result = subprocess.run(net_cmd, capture_output=True, text=True, timeout=None)
                     _elapsed = _time.time() - _t0
                     print(f"  [Network Retry] Finished in {_elapsed:.1f}s, rc={net_result.returncode}")
                     if net_result.stdout:

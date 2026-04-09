@@ -1130,7 +1130,7 @@ async function generateFittingReport() {
     // Convert newlines first
     modalHtml = modalHtml.replace(/\n\n+/g, '<br>').replace(/\n/g, ' ');
     // Wrap table rows
-    modalHtml = modalHtml.replace(/(<tr>[\s\S]*?<\/tr>\s*)+/g, '<table style="border-collapse:collapse;width:100%;margin:4px 0;font-size:12px">$&</table>');
+    modalHtml = modalHtml.replace(/(<tr>[\s\S]*?<\/tr>\s*)+/g, '<table style="border-collapse:collapse;width:auto;margin:2px 0;font-size:12px">$&</table>');
     // Remove ALL whitespace/breaks between any element and table
     modalHtml = modalHtml.replace(/(<\/h[1-4]>)(\s|<br\s*\/?>|&nbsp;)*(<table)/g, '$1$3');
     modalHtml = modalHtml.replace(/(<br\s*\/?>)(\s|<br\s*\/?>|&nbsp;)*(<table)/g, '$3');

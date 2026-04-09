@@ -580,7 +580,7 @@ function renderResults(data) {
       <div>
         <div class="cond-label">\u03c3<sub>ionic</sub> (ensemble)</div>
         <div style="font-size:0.7rem;color:var(--dim);margin-top:2px">
-          Hybrid: ${cond.sigma_ionic_hybrid.toFixed(4)} | GPR: ${cond.sigma_ionic_gpr.toFixed(4)}
+          FORM X: ${(cond.sigma_ionic_formX||0).toFixed(4)} | v3: ${(cond.sigma_ionic_v3||0).toFixed(4)} | GPR: ${(cond.sigma_ionic_gpr||0).toFixed(4)}
         </div>
       </div>
       <div>

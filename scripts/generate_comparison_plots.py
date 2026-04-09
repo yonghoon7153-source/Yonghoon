@@ -1054,9 +1054,8 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     log_rhs_fixed = log_sb + 0.25 * log_combo + 2 * log_cn
     ln_C_fixed = np.mean(log_sf - log_rhs_fixed)
     C_fixed = np.exp(ln_C_fixed)
-    # Save to global for multiscale_sigma to use
+    # Save v3 C (legacy, for reference only)
     global _GLOBAL_C_ION
-    _GLOBAL_C_ION = C_fixed
     pred_fixed = ln_C_fixed + log_rhs_fixed
     ss_res_fixed = np.sum((log_sf - pred_fixed)**2)
     r2_fixed = 1 - ss_res_fixed / ss_tot
@@ -1077,6 +1076,9 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     pred_formX = ln_C_formX + log_rhs_formX
     ss_res_formX = np.sum((log_sf - pred_formX)**2)
     r2_formX = 1 - ss_res_formX / ss_tot
+
+    # Save FORM X C to global for multiscale_sigma
+    _GLOBAL_C_ION = C_formX
 
     # Use FORM X as primary (v3 as secondary reference)
     s_pred = np.exp(pred_formX)

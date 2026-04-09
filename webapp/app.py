@@ -533,7 +533,8 @@ def analyze(case_id):
                               'sigma_bulk_net_mScm', 'R_brug_over_full', 'bulk_resistance_fraction',
                               'electronic_sigma_full_mScm', 'electronic_R_brug',
                               'electronic_active_fraction', 'electronic_percolating_fraction',
-                              'thermal_sigma_full_mScm', 'thermal_R_brug']:
+                              'thermal_sigma_full_mScm', 'thermal_R_brug',
+                              'sigma_bruggeman', 'sigma_bruggeman_mScm', 'R_bruggeman_over_full']:
                         if k in net_data and net_data[k] is not None:
                             met_data[k] = net_data[k]
                     met_data['network_solver_status'] = 'success'
@@ -604,7 +605,8 @@ def analyze(case_id):
                                           'sigma_bulk_net_mScm', 'R_brug_over_full', 'bulk_resistance_fraction',
                                           'electronic_sigma_full_mScm', 'electronic_R_brug',
                                           'electronic_active_fraction', 'electronic_percolating_fraction',
-                                          'thermal_sigma_full_mScm', 'thermal_R_brug']:
+                                          'thermal_sigma_full_mScm', 'thermal_R_brug',
+                              'sigma_bruggeman', 'sigma_bruggeman_mScm', 'R_bruggeman_over_full']:
                                     if k in net_data and net_data[k] is not None:
                                         met_data[k] = net_data[k]
                                 met_data['network_solver_status'] = net_status
@@ -708,7 +710,8 @@ def retry_network(case_id):
                                   'sigma_bulk_net_mScm', 'R_brug_over_full', 'bulk_resistance_fraction',
                                   'electronic_sigma_full_mScm', 'electronic_R_brug',
                                   'electronic_active_fraction', 'electronic_percolating_fraction',
-                                  'thermal_sigma_full_mScm', 'thermal_R_brug']:
+                                  'thermal_sigma_full_mScm', 'thermal_R_brug',
+                              'sigma_bruggeman', 'sigma_bruggeman_mScm', 'R_bruggeman_over_full']:
                             if k in net_data and net_data[k] is not None:
                                 met_data[k] = net_data[k]
                         met_data['network_solver_status'] = net_status
@@ -841,8 +844,10 @@ def single(case_id):
             net_rows = [['── Network Solver ──', '']]
             if metrics and metrics.get('sigma_full_mScm'):
                 net_rows.append(['σ_ionic (mS/cm)', round(metrics['sigma_full_mScm'], 4)])
+                if metrics.get('sigma_bruggeman_mScm'):
+                    net_rows.append(['σ_Bruggeman (mS/cm)', round(metrics['sigma_bruggeman_mScm'], 4)])
                 if metrics.get('R_brug_over_full'):
-                    net_rows.append(['R_brug (과대추정 배수)', f"{metrics['R_brug_over_full']:.1f}×"])
+                    net_rows.append(['Contact-free / Full', f"{metrics['R_brug_over_full']:.1f}×"])
                 if metrics.get('bulk_resistance_fraction'):
                     net_rows.append(['Constriction 비율(%)', round((1 - metrics['bulk_resistance_fraction']) * 100, 1)])
                 if metrics.get('electronic_sigma_full_mScm'):

@@ -1,19 +1,25 @@
 """
-DEM-Native Ionic Transport Framework
-=====================================
-Resistor network solver for effective ionic conductivity in ASSB composite cathodes.
+DEM-Native Transport Framework v2.0
+====================================
+Kirchhoff resistor network solver for effective conductivity in ASSB composite cathodes.
+
+Each SE-SE (or AM-AM) contact → edge with R = R_bulk + R_constriction (series).
+  R_bulk: geometric normalization for particle bulk resistance
+  R_constriction: Maxwell spreading resistance R = 1/(2σa), Holm (1967)
 
 Three decomposition runs:
-  1. FULL: R_bulk + R_constriction per edge → σ_full (ground truth)
-  2. BULK_ONLY: R_bulk per edge (R_constriction=0) → σ_bulk_net (≈Bruggeman?)
-  3. CONSTRICTION_ONLY: R_constriction per edge (R_bulk=0) → σ_constr_net (≈current proxy?)
+  1. FULL: R_bulk + R_constriction → σ_full (physical ground truth)
+  2. CONTACT_FREE: R_constriction=0 → σ_cf (upper bound, ideal contact limit)
+  3. CONSTRICTION_ONLY: R_bulk=0 → σ_constr (spreading resistance limit)
 
-Comparison with Bruggeman and BLM+Constriction scaling validates/refines existing models.
+σ_eff/σ_bulk = G_eff × L / A  (Ohm's law, dimensionless)
+
+Networks: ionic (SE-SE), electronic (AM-AM), thermal (all contacts)
 
 References:
-  - Nature Comm 2025: Resistor network for SSB composites (Münster)
-  - Holm 1967: Maxwell constriction resistance
-  - De Levie: Transmission line model for porous electrodes
+  - Holm 1967: Electric Contacts — Maxwell constriction resistance
+  - Bruggeman 1935: σ_eff = σ_0 × φ^n (EMT, for comparison)
+  - Minnmann et al. 2021: Electronic percolation in SSB cathodes
 """
 
 import numpy as np
@@ -320,11 +326,11 @@ def run_decomposition(atoms_raw, contacts_raw, target_types, scale,
                       type_map=None):
     """
     Run full decomposition analysis:
-    1. FULL (bulk + constriction)
-    2. BULK_ONLY (Bruggeman-like)
-    3. CONSTRICTION_ONLY (current proxy-like)
+    1. FULL (R_bulk + R_constriction): physical ground truth
+    2. CONTACT_FREE (R_constriction=0): ideal contact upper bound
+    3. CONSTRICTION_ONLY (R_bulk=0): spreading resistance limit
 
-    Also computes Bruggeman prediction for comparison.
+    Also computes analytical Bruggeman prediction (σ = σ₀ × φ^1.5) for comparison.
     """
     print(f"  Building resistor network ({len(target_types)} target types)...")
     net = build_network(atoms_raw, contacts_raw, target_types, scale,
@@ -353,19 +359,21 @@ def run_decomposition(atoms_raw, contacts_raw, target_types, scale,
     print("  Solving FULL network (bulk + constriction)...")
     G_full, sigma_full = solve_network(net, mode='full')
 
-    # === Run 2: BULK ONLY ===
-    print("  Solving BULK_ONLY network...")
-    G_bulk, sigma_bulk_net = solve_network(net, mode='bulk_only')
+    # === Run 2: CONTACT-FREE (ideal contacts, upper bound) ===
+    print("  Solving CONTACT_FREE network (R_constriction=0)...")
+    G_bulk, sigma_cf = solve_network(net, mode='bulk_only')
 
-    # === Run 3: CONSTRICTION ONLY ===
-    print("  Solving CONSTRICTION_ONLY network...")
+    # === Run 3: CONSTRICTION ONLY (spreading resistance limit) ===
+    print("  Solving CONSTRICTION_ONLY network (R_bulk=0)...")
     G_constr, sigma_constr_net = solve_network(net, mode='constriction_only')
 
-    # === Bruggeman prediction ===
+    # === Volume fraction & Bruggeman analytical prediction ===
     V_se = sum(4/3 * np.pi * atoms_raw[aid]['radius']**3
                for aid in net['nodes'])
     V_box = box_x * box_y * plate_z
     phi_se = V_se / V_box if V_box > 0 else 0
+    # Analytical Bruggeman EMT: σ_eff/σ_bulk = φ^1.5 (spheres, n=3/2)
+    sigma_bruggeman = phi_se ** 1.5 if phi_se > 0 else 0
 
     # Active fraction: percolating nodes / total nodes
     import networkx as nx
@@ -396,39 +404,43 @@ def run_decomposition(atoms_raw, contacts_raw, target_types, scale,
         'n_top': n_top,
         'phi_se': round(phi_se, 4),
         'bulk_resistance_fraction': round(bulk_frac, 4),
-        'active_fraction': round(active_fraction, 4),  # bottom-reachable (electronic active)
-        'percolating_fraction': round(perc_fraction, 4),  # top+bottom connected
+        'active_fraction': round(active_fraction, 4),
+        'percolating_fraction': round(perc_fraction, 4),
         'sigma_full': round(sigma_full, 8) if sigma_full else None,
-        'sigma_bulk_net': round(sigma_bulk_net, 8) if sigma_bulk_net else None,
+        'sigma_bulk_net': round(sigma_cf, 8) if sigma_cf else None,  # contact-free (legacy key kept for compat)
         'sigma_constr_net': round(sigma_constr_net, 8) if sigma_constr_net else None,
         'sigma_full_mScm': round(sigma_full * sigma_bulk * 1000, 6) if sigma_full else None,
-        'sigma_bulk_net_mScm': round(sigma_bulk_net * sigma_bulk * 1000, 6) if sigma_bulk_net else None,
+        'sigma_bulk_net_mScm': round(sigma_cf * sigma_bulk * 1000, 6) if sigma_cf else None,
         'sigma_constr_net_mScm': round(sigma_constr_net * sigma_bulk * 1000, 6) if sigma_constr_net else None,
+        'sigma_bruggeman': round(sigma_bruggeman, 8),
+        'sigma_bruggeman_mScm': round(sigma_bruggeman * sigma_bulk * 1000, 6),
     }
 
-    # Bruggeman comparison
-    if sigma_bulk_net and sigma_full:
-        results['R_brug_over_full'] = round(sigma_bulk_net / sigma_full, 4)
-        results['R_brug_over_constr'] = round(sigma_bulk_net / sigma_constr_net, 4) if sigma_constr_net else None
+    # Overestimation ratios
+    if sigma_cf and sigma_full:
+        results['R_brug_over_full'] = round(sigma_cf / sigma_full, 4)  # contact-free / full
+    if sigma_bruggeman > 0 and sigma_full:
+        results['R_bruggeman_over_full'] = round(sigma_bruggeman * sigma_bulk * 1000 / (sigma_full * sigma_bulk * 1000), 4)
 
     # Print summary
     print(f"\n  ═══ Decomposition Results ═══")
-    print(f"  φ_SE = {phi_se:.4f}")
-    print(f"  R_bulk fraction per edge: {bulk_frac:.1%}")
+    print(f"  φ = {phi_se:.4f}")
+    print(f"  R_bulk fraction: {bulk_frac:.1%} | R_constriction: {1-bulk_frac:.1%}")
     print(f"")
-    print(f"  {'Mode':<20s} {'σ/σ_bulk':>12s} {'σ (mS/cm)':>12s}")
+    print(f"  {'Mode':<22s} {'σ/σ_bulk':>10s} {'σ (mS/cm)':>10s}")
     print(f"  {'─'*44}")
     if sigma_full:
-        print(f"  {'FULL (truth)':20s} {sigma_full:12.6f} {sigma_full*sigma_bulk*1000:12.6f}")
-    if sigma_bulk_net:
-        print(f"  {'BULK_ONLY':20s} {sigma_bulk_net:12.6f} {sigma_bulk_net*sigma_bulk*1000:12.6f}")
+        print(f"  {'FULL (ground truth)':22s} {sigma_full:10.6f} {sigma_full*sigma_bulk*1000:10.4f}")
+    if sigma_cf:
+        print(f"  {'CONTACT_FREE (upper)':22s} {sigma_cf:10.6f} {sigma_cf*sigma_bulk*1000:10.4f}")
     if sigma_constr_net:
-        print(f"  {'CONSTRICTION_ONLY':20s} {sigma_constr_net:12.6f} {sigma_constr_net*sigma_bulk*1000:12.6f}")
+        print(f"  {'CONSTRICTION_ONLY':22s} {sigma_constr_net:10.6f} {sigma_constr_net*sigma_bulk*1000:10.4f}")
+    print(f"  {'Bruggeman (φ^1.5)':22s} {sigma_bruggeman:10.6f} {sigma_bruggeman*sigma_bulk*1000:10.4f}")
     print(f"")
-    if sigma_bulk_net and sigma_full:
-        print(f"  Bruggeman overestimation (σ_bulk_net/σ_full): {sigma_bulk_net/sigma_full:.2f}×")
-    if sigma_constr_net and sigma_full:
-        print(f"  Constriction underestimation (σ_constr/σ_full): {sigma_constr_net/sigma_full:.4f}×")
+    if sigma_cf and sigma_full:
+        print(f"  Contact-free overestimation: {sigma_cf/sigma_full:.2f}×")
+    if sigma_bruggeman > 0 and sigma_full:
+        print(f"  Bruggeman EMT overestimation: {sigma_bruggeman/sigma_full:.2f}×")
 
     return results
 

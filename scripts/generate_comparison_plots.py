@@ -771,8 +771,8 @@ def plot_effective_conductivity(data_list, names, outdir):
     sigma_brug = [_get(d, "sigma_ratio") for d in data_list]
     phi = [_get(d, "phi_se") for d in data_list]
 
-    ax1.plot(x, sigma_brug, 's-', color=GREEN, markersize=10, linewidth=2.5, label="σ_eff/σ_bulk")
-    _apply_style(ax1, "σ_eff / σ_bulk", names)
+    ax1.plot(x, sigma_brug, 's-', color=GREEN, markersize=10, linewidth=2.5, label="σ_brug/σ_grain")
+    _apply_style(ax1, "σ_brug / σ_grain", names)
     ax1.tick_params(axis='y', labelcolor=GREEN)
 
     ax1b = ax1.twinx()
@@ -785,10 +785,10 @@ def plot_effective_conductivity(data_list, names, outdir):
     lines1, labels1 = ax1.get_legend_handles_labels()
     lines2, labels2 = ax1b.get_legend_handles_labels()
     ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper right')
-    ax1.set_title("Bruggeman: σ_eff/σ_bulk = φ_SE × f_perc / τ²", fontsize=12, fontweight='bold')
+    ax1.set_title("Bruggeman: σ_brug/σ_grain = φ_SE × f_perc / τ²", fontsize=12, fontweight='bold')
 
     _write_csv(outdir, 'effective_conductivity.csv',
-               ['φ_SE', 'σ_eff/σ_bulk'], names, phi, sigma_brug)
+               ['φ_SE', 'σ_brug/σ_grain'], names, phi, sigma_brug)
     return _save(fig, outdir, "effective_conductivity.png")
 
 
@@ -978,8 +978,8 @@ def plot_gb_corrected(data_list, names, outdir):
     ms = _marker_size(len(names))
     lw = _line_width(len(names))
 
-    ax.plot(x, sigma_corr, 's-', color=RED, markersize=ms, linewidth=lw, label="σ_eff/σ_bulk")
-    _apply_style(ax, "σ_eff / σ_bulk (proxy)", names)
+    ax.plot(x, sigma_corr, 's-', color=RED, markersize=ms, linewidth=lw, label="σ_brug/σ_grain")
+    _apply_style(ax, "σ_brug / σ_grain (proxy)", names)
     ax.tick_params(axis='y', labelcolor=RED)
 
     ax2 = ax.twinx()
@@ -996,7 +996,7 @@ def plot_gb_corrected(data_list, names, outdir):
                  fontsize=10, fontweight='bold')
 
     _write_csv(outdir, 'gb_corrected.csv',
-               ['GB_d', 'T(μm)', 'GB_d²×T', 'σ_brug/σ_bulk', 'σ_eff/σ_bulk', 'σ_eff(mS/cm)'],
+               ['GB_d', 'T(μm)', 'GB_d²×T', 'σ_brug/σ_grain', 'σ_brug/σ_grain', 'σ_eff(mS/cm)'],
                names, gb_dens, thickness,
                [gb_dens[i]**2*thickness[i] for i in range(len(names))],
                sigma_brug, sigma_corr, sigma_abs)
@@ -1891,7 +1891,7 @@ PLOT_REGISTRY = {
         "func": plot_gb_corrected,
         "file": "gb_corrected.png",
         "title": "Ionic: Proxy σ_eff (Part I)",
-        "description": "σ_eff = σ_brug / [C × (GB_d²×T)^α]\nProxy 기반 보정 (single-path 근사)\n빨간: σ_eff/σ_bulk | 오렌지: σ_eff (mS/cm)\n⚠ 절대값은 과장 (R=15~1600, 실제 3~10)\nNetwork solver(Part II)로 검증 완료",
+        "description": "σ_eff = σ_brug / [C × (GB_d²×T)^α]\nProxy 기반 보정 (single-path 근사)\n빨간: σ_brug/σ_grain | 오렌지: σ_eff (mS/cm)\n⚠ 절대값은 과장 (R=15~1600, 실제 3~10)\nNetwork solver(Part II)로 검증 완료",
         "origin_tip": "Line (Red, ratio) + Dashed (Orange, mS/cm).",
         "min_groups": 2,
     },
@@ -1933,7 +1933,7 @@ def plot_sigma_decomposition(data_list, names, outdir):
     f_perc = [_get(d, "percolation_pct") / 100 for d in data_list]
 
     n = len(data_list)
-    # Decompose log(σ_eff) = log(σ_bulk) + log(φ_SE) + log(f_perc) - 2log(τ) + log(C) + 0.25*log(G_path*GB_d²) + 2log(CN)
+    # Decompose log(σ_brug) = log(σ_grain) + log(φ_SE) + log(f_perc) - 2log(τ) + log(C) + 0.25*log(G_path*GB_d²) + 2log(CN)
     log_phi = np.array([np.log(phi[i]) if phi[i] > 0 else 0 for i in range(n)])
     log_fperc = np.array([np.log(f_perc[i]) if f_perc[i] > 0 else 0 for i in range(n)])
     log_tau2 = np.array([-2 * np.log(tau[i]) if tau[i] > 0 else 0 for i in range(n)])
@@ -1978,7 +1978,7 @@ def plot_sigma_decomposition(data_list, names, outdir):
         neg_bottom += neg
 
     ax.axhline(0, color='gray', linewidth=0.5)
-    ax.set_ylabel('Δlog(σ_eff) from reference', fontsize=11)
+    ax.set_ylabel('Δlog(σ_brug) from reference', fontsize=11)
     ax.set_title(f'σ_eff Factor Decomposition (ref: {names[ref]})', fontsize=12, fontweight='bold')
     ax.legend(fontsize=8, loc='best', ncol=3)
     ax.set_xticks(x)

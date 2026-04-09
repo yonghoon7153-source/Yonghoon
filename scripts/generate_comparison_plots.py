@@ -1513,69 +1513,133 @@ def plot_thermal_sigma(data_list, names, outdir):
 
 
 def plot_electronic_scaling(data_list, names, outdir):
-    """Electronic scaling law: σ_el = 0.015 × σ_AM × φ_AM^(3/2) × CN_AM² × exp(π/(T/d_AM))."""
-    SIGMA_AM = 50.0  # mS/cm (= 0.05 S/cm)
-    C_el = 0.015
-
+    """Electronic scaling: 2-regime vs Universal comparison (predicted vs actual scatter)."""
+    SIGMA_AM = 50.0
     phi_am = [_get(d, "phi_am") for d in data_list]
     cn_am = [_get(d, "am_am_cn") for d in data_list]
     thickness = [_get(d, "thickness_um") for d in data_list]
-    d_am = [2.0 * max(_get(d, "r_AM_P", 0), _get(d, "r_AM_S", 0), _get(d, "r_AM", 0))
-            for d in data_list]
-
-    sigma_scaling = []
-    for i in range(len(data_list)):
-        if phi_am[i] > 0 and cn_am[i] > 0 and d_am[i] > 0 and thickness[i] > 0:
-            ratio = thickness[i] / d_am[i]
-            if ratio > 0:
-                s = C_el * SIGMA_AM * phi_am[i]**(3/2) * cn_am[i]**2 * np.exp(np.pi / ratio)
-            else:
-                s = 0.0
-            sigma_scaling.append(s)
-        else:
-            sigma_scaling.append(0.0)
-
-    # Network solver for comparison
+    d_am_list = [2.0 * max(_get(d, "r_AM_P", 0), _get(d, "r_AM_S", 0), _get(d, "r_AM", 0))
+                 for d in data_list]
+    tau = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)) for d in data_list]
+    cov_list = [(lambda vs: sum(vs)/len(vs)/100 if vs else 0.20)(
+        [v for v in [_get(d,"coverage_AM_P_mean",0), _get(d,"coverage_AM_S_mean",0),
+                     _get(d,"coverage_AM_mean",0)] if v > 0]) for d in data_list]
+    P_list = [_get(d, "am_am_mean_pressure", 0) for d in data_list]
     sigma_net = _load_electronic_sigma(data_list)
-    has_net = any(s > 0 for s in sigma_net)
 
-    fig, ax = plt.subplots(figsize=FIG_SINGLE)
-    x = np.arange(len(names))
-    ms = _marker_size(len(names))
-    lw = _line_width(len(names))
+    # Filter valid
+    valid = []
+    for i in range(len(data_list)):
+        if (sigma_net[i] > 0 and phi_am[i] > 0 and cn_am[i] > 0
+                and d_am_list[i] > 0 and thickness[i] > 0):
+            valid.append(i)
+    if len(valid) < 3:
+        return None
 
-    # Use NaN to break line at σ=0 cases
-    y_scaling = np.array([s if s > 0 else np.nan for s in sigma_scaling])
-    y_net = np.array([s if s > 0 else np.nan for s in sigma_net]) if has_net else None
-    x_none = [x[i] for i in range(len(names)) if sigma_scaling[i] <= 0 and sigma_net[i] <= 0]
+    s_actual = np.array([sigma_net[i] for i in valid])
+    pa = np.array([phi_am[i] for i in valid])
+    cn = np.array([cn_am[i] for i in valid])
+    t_arr = np.array([tau[i] for i in valid])
+    cv = np.array([cov_list[i] for i in valid])
+    P_arr = np.array([max(P_list[i], 1) for i in valid])
+    ratio = np.array([thickness[i] / d_am_list[i] for i in valid])
 
-    ax.plot(x, y_scaling, 's-', color=RED, markersize=ms, linewidth=lw,
-            label="Scaling law (mS/cm)")
-    if has_net and y_net is not None:
-        ax.plot(x, y_net, 'D--', color='#2ecc71', markersize=ms-2, linewidth=lw-0.5,
-                alpha=0.7, label="Network solver (mS/cm)")
-    if x_none:
-        ax.plot(x_none, [0]*len(x_none), 'x', color='gray', markersize=ms+2,
-                label="No AM percolation")
+    # --- Universal: φ² × CN² × √cov × exp(π/(T/d)) ---
+    rhs_uni = SIGMA_AM * pa**2 * cn**2 * cv**0.5 * np.exp(np.pi / ratio)
+    log_a = np.log(s_actual); log_u = np.log(rhs_uni)
+    C_uni = float(np.exp(np.mean(log_a - log_u)))
+    s_uni = C_uni * rhs_uni
+    ss_tot = np.sum((log_a - np.mean(log_a))**2)
+    r2_uni = 1 - np.sum((log_a - np.log(s_uni))**2) / ss_tot
 
-    _apply_style(ax, "\u03c3_el (mS/cm)", names)
-    ax.legend(fontsize=9, loc='upper left')
-    ax.set_title("Electronic: \u03c3_el = 0.015 \u00d7 \u03c3_AM \u00d7 \u03c6^(3/2) \u00d7 CN\u00b2 \u00d7 exp(\u03c0/(T/d))\n"
-                 "R\u00b2=0.89, 1 free param",
-                 fontsize=9, fontweight='bold')
+    # --- 2-regime ---
+    thick_mask = ratio >= 10
+    thin_mask = ratio < 10
+    s_2reg = np.zeros(len(valid))
 
-    # Annotation box
-    valid_scaling = [s for s in sigma_scaling if s > 0]
-    if valid_scaling:
-        txt = ("R\u00b2 = 0.89\n"
-               "\u03c3_el = 0.015 \u00d7 \u03c3_AM \u00d7 \u03c6^(3/2) \u00d7 CN\u00b2 \u00d7 exp(\u03c0/(T/d))")
-        ax.text(0.95, 0.95, txt,
-                transform=ax.transAxes, fontsize=8, ha='right', va='top',
-                bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffeaea', alpha=0.8))
+    # Thick: φ⁴ × CN^1.5 × cov × √τ
+    if thick_mask.sum() >= 3:
+        rhs_tk = SIGMA_AM * pa[thick_mask]**4 * cn[thick_mask]**1.5 * cv[thick_mask] * np.clip(t_arr[thick_mask], 0.1, None)**0.5
+        C_tk = float(np.exp(np.mean(np.log(s_actual[thick_mask]) - np.log(rhs_tk))))
+        s_2reg[thick_mask] = C_tk * rhs_tk
+
+    # Thin: P³ × CN / √(T/d)
+    if thin_mask.sum() >= 3:
+        rhs_tn = SIGMA_AM * P_arr[thin_mask]**3 * cn[thin_mask] / ratio[thin_mask]**0.5
+        C_tn = float(np.exp(np.mean(np.log(s_actual[thin_mask]) - np.log(rhs_tn))))
+        s_2reg[thin_mask] = C_tn * rhs_tn
+
+    r2_2reg = 1 - np.sum((log_a - np.log(np.clip(s_2reg, 1e-6, None)))**2) / ss_tot
+
+    # --- Plot: 2-panel scatter ---
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+
+    for ax, s_pred, title, r2_val in [
+        (ax1, s_2reg, f"2-Regime (R²={r2_2reg:.3f})", r2_2reg),
+        (ax2, s_uni, f"Universal (R²={r2_uni:.3f})", r2_uni),
+    ]:
+        all_vals = np.concatenate([s_pred[s_pred > 0], s_actual])
+        vmin = all_vals[all_vals > 0].min() * 0.5
+        vmax = all_vals.max() * 2
+        ax.fill_between([vmin, vmax], [vmin*0.8, vmax*0.8], [vmin*1.2, vmax*1.2],
+                        alpha=0.1, color='green', label='±20%')
+        ax.plot([vmin, vmax], [vmin, vmax], 'k--', lw=1.5, alpha=0.5, label='1:1')
+
+        # Color by regime
+        if _GROUP_INFO:
+            sizes, gnames = _GROUP_INFO
+            pos = 0; boundaries = []
+            for sz in sizes:
+                boundaries.append((pos, pos + sz)); pos += sz
+            for j, idx in enumerate(valid):
+                gi = 0
+                for g_idx, (start, end) in enumerate(boundaries):
+                    if start <= idx < end: gi = g_idx; break
+                ax.scatter(s_actual[j], s_pred[j], s=80,
+                          c=GROUP_COLORS[gi % len(GROUP_COLORS)],
+                          marker='o' if ratio[j] >= 10 else 's',
+                          zorder=5, edgecolors='white', linewidth=1)
+        else:
+            for j in range(len(valid)):
+                color = BLUE if ratio[j] >= 10 else RED
+                marker = 'o' if ratio[j] >= 10 else 's'
+                ax.scatter(s_actual[j], s_pred[j], s=80, c=color, marker=marker,
+                          zorder=5, edgecolors='white', linewidth=1)
+
+        # Error stats
+        errs = np.abs(s_pred - s_actual) / s_actual * 100
+        w20 = np.sum(errs < 20)
+        ax.text(0.95, 0.05, f"R²={r2_val:.3f} (n={len(valid)})\n|err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid)}",
+                transform=ax.transAxes, fontsize=9, ha='right', va='bottom',
+                bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+
+        ax.set_xscale('log'); ax.set_yscale('log')
+        ax.set_xlim(vmin, vmax); ax.set_ylim(vmin, vmax)
+        ax.set_aspect('equal')
+        ax.set_xlabel("σ_actual (Network solver)", fontsize=10)
+        ax.set_ylabel("σ_predicted (Scaling law)", fontsize=10)
+        ax.set_title(title, fontsize=11, fontweight='bold')
+        ax.legend(fontsize=8, loc='upper left')
+        ax.grid(True, alpha=0.3, linestyle='--')
+
+    # Add formula text
+    ax1.text(0.05, 0.95,
+             "Thick: φ⁴×CN^(3/2)×cov×√τ\nThin: P³×CN/√(T/d)",
+             transform=ax1.transAxes, fontsize=8, va='top',
+             bbox=dict(boxstyle='round', facecolor='#ffeaea', alpha=0.8))
+    ax2.text(0.05, 0.95,
+             "φ²×CN²×√cov×exp(π/(T/d))",
+             transform=ax2.transAxes, fontsize=8, va='top',
+             bbox=dict(boxstyle='round', facecolor='#e8f4fd', alpha=0.8))
+
+    fig.suptitle("Electronic σ: 2-Regime vs Universal", fontsize=13, fontweight='bold', y=1.02)
+    fig.tight_layout()
 
     _write_csv(outdir, 'electronic_scaling.csv',
-               ['phi_AM', 'CN_AM', 'T_um', 'd_AM', '\u03c3_scaling(mS/cm)', '\u03c3_network(mS/cm)'],
-               names, phi_am, cn_am, thickness, d_am, sigma_scaling, sigma_net)
+               ['σ_actual', 'σ_2regime', 'σ_universal', 'T/d', 'regime'],
+               [names[i] for i in valid],
+               list(s_actual), list(s_2reg), list(s_uni),
+               list(ratio), ['thick' if r >= 10 else 'thin' for r in ratio])
     return _save(fig, outdir, "electronic_scaling.png")
 
 
@@ -2471,9 +2535,9 @@ PLOT_REGISTRY["thermal_sigma"] = {
 PLOT_REGISTRY["electronic_scaling"] = {
     "func": plot_electronic_scaling,
     "file": "electronic_scaling.png",
-    "title": "Electronic Scaling Law",
-    "description": "\u03c3_el = 0.015 \u00d7 \u03c3_AM \u00d7 \u03c6_AM^(3/2) \u00d7 CN_AM\u00b2 \u00d7 exp(\u03c0/(T/d_AM))\n\u221aA_hop \ubd88\ud544\uc694 (AM \ud06c\uae30 \u2192 constriction \ubb34\uc2dc)\nR\u00b2=0.89 (1 free param)\nAM percolation \uc5c6\uc73c\uba74 \u03c3=0.",
-    "origin_tip": "Red: Scaling law, Green dashed: Network solver.",
+    "title": "Electronic: 2-Regime vs Universal",
+    "description": "2-Regime (T/d≥10 vs <10):\n  Thick: φ⁴×CN^(3/2)×cov×√τ\n  Thin: P³×CN/√(T/d)\nUniversal:\n  φ²×CN²×√cov×exp(π/(T/d))\n○=thick, □=thin",
+    "origin_tip": "Left: 2-regime scatter, Right: Universal scatter.\n○=thick (T/d≥10), □=thin (T/d<10).\nGreen band: ±20%.",
 }
 PLOT_REGISTRY["thermal_scaling"] = {
     "func": plot_thermal_scaling,

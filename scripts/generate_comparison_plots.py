@@ -1064,7 +1064,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     # === FORM X (v4++ champion) ===
     # σ = C × σ_grain × (φ-φc)^(3/4) × CN × √cov / √τ
     PHI_C = 0.18
-    coverage = [max(_get(d, "coverage_AM_P_mean", _get(d, "coverage_AM_S_mean", _get(d, "coverage_AM_mean", 20))), 0.1) / 100 for d in data_list]
+    coverage = [(lambda vs: sum(vs)/len(vs)/100 if vs else 0.20)([v for v in [_get(d,"coverage_AM_P_mean",0), _get(d,"coverage_AM_S_mean",0), _get(d,"coverage_AM_mean",0)] if v>0]) for d in data_list]
 
     phi_ex_arr = np.array([max(phi_se[i] - PHI_C, 0.001) for i in valid_idx])
     cn_arr = np.array([cn[i] for i in valid_idx])

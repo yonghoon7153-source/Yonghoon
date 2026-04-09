@@ -171,7 +171,7 @@ def load_training_data(results_folder, archive_folder):
                 'thickness': m.get('thickness_um', 0),
                 'am_cn': m.get('am_am_cn', 0),
                 # Coverage: fraction of AM surface in contact with SE
-                'coverage': max(m.get('coverage_AM_P_mean', 0), m.get('coverage_AM_S_mean', 0), m.get('coverage_AM_mean', 0)) / 100 if max(m.get('coverage_AM_P_mean', 0), m.get('coverage_AM_S_mean', 0), m.get('coverage_AM_mean', 0)) > 0 else 0.20,
+                'coverage': (lambda vs: sum(vs)/len(vs)/100 if vs else 0.20)([v for v in [m.get('coverage_AM_P_mean',0), m.get('coverage_AM_S_mean',0), m.get('coverage_AM_mean',0)] if v>0]),
                 'sigma_ion': sigma_ion,
                 'sigma_el': m.get('electronic_sigma_full_mScm', 0),
                 'sigma_th': m.get('thermal_sigma_full_mScm', 0),

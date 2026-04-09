@@ -440,7 +440,8 @@ def generate_report(data_list, names, outdir):
         phi_se = d.get('phi_se', 0)
         cn = d.get('se_se_cn', 0)
         tau = d.get('tortuosity_recommended', d.get('tortuosity_mean', 0))
-        cov = max(d.get('coverage_AM_P_mean', d.get('coverage_AM_S_mean', d.get('coverage_AM_mean', 20))), 0.1) / 100
+        _cvs = [v for v in [d.get('coverage_AM_P_mean',0), d.get('coverage_AM_S_mean',0), d.get('coverage_AM_mean',0)] if v>0]
+        cov = (sum(_cvs)/len(_cvs))/100 if _cvs else 0.20
         phi_ex = max(phi_se - PHI_C, 0.001)
         if sigma_net > 0.01 and phi_ex > 0 and cn > 0 and tau > 0:
             rhs = 3.0 * phi_ex**0.75 * cn * np.sqrt(cov) / np.sqrt(tau)

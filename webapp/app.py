@@ -1693,6 +1693,9 @@ def archive():
             files.append({'name': name, 'path': rel, 'size': size,
                          'ext': os.path.splitext(name)[1].lower()})
 
+    # Sort: 0-file folders first, then by name
+    folders.sort(key=lambda f: (0 if f['file_count'] == 0 and f['subfolder_count'] == 0 else 1, f['name']))
+
     # Breadcrumb
     breadcrumb = []
     if current:

@@ -281,27 +281,46 @@ def train_models(results_folder, archive_folder):
         }
         scores[target] = round(r2, 3)
 
-    # Fit C constant from data
-    C_ionic = 0.073
-    log_rhs = []
-    log_act = []
+    # Fit C constants from data
+    # FORM X (v4++ champion): σ = C × σ_grain × (φ-φc)^(3/4) × CN × √cov / √τ
+    PHI_C = 0.18  # percolation threshold
+    C_formX = 0.123  # default
+    log_rhs_X = []
+    log_act_X = []
+    for r in rows:
+        phi_ex = max(r['phi_se'] - PHI_C, 0.001)
+        cov_frac = max(r.get('coverage', 0.20), 0.01)
+        if phi_ex > 0 and r['cn'] > 0 and r['tau'] > 0 and r['sigma_ion'] > 0.01:
+            rhs = SIGMA_GRAIN * phi_ex**0.75 * r['cn'] * np.sqrt(cov_frac) / np.sqrt(r['tau'])
+            log_rhs_X.append(np.log(rhs))
+            log_act_X.append(np.log(r['sigma_ion']))
+    if log_rhs_X:
+        C_formX = float(np.exp(np.mean(np.array(log_act_X) - np.array(log_rhs_X))))
+
+    # v3 legacy: σ = σ_brug × C × (G_path × GB_d²)^(1/4) × CN²
+    C_v3 = 0.073
+    log_rhs_v3 = []
+    log_act_v3 = []
     for r in rows:
         if r['g_path'] > 0 and r['gb_d'] > 0 and r['cn'] > 0 and r['sigma_ion'] > 0.01 and r['sigma_brug'] > 0:
             sb = r['sigma_brug'] * SIGMA_GRAIN
             rhs = np.log(sb) + 0.25 * np.log(r['g_path'] * r['gb_d'] ** 2) + 2 * np.log(r['cn'])
-            log_rhs.append(rhs)
-            log_act.append(np.log(r['sigma_ion']))
-    if log_rhs:
-        C_ionic = float(np.exp(np.mean(np.array(log_act) - np.array(log_rhs))))
+            log_rhs_v3.append(rhs)
+            log_act_v3.append(np.log(r['sigma_ion']))
+    if log_rhs_v3:
+        C_v3 = float(np.exp(np.mean(np.array(log_act_v3) - np.array(log_rhs_v3))))
 
     _cached_models = {
         'models': models,
-        'C_ionic': C_ionic,
+        'C_ionic': C_formX,  # FORM X as primary
+        'C_v3': C_v3,        # v3 for comparison
+        'PHI_C': PHI_C,
         'count': len(rows),
         'scores': scores,
     }
 
-    return {'success': True, 'count': len(rows), 'scores': scores, 'C_ionic': round(C_ionic, 4)}
+    return {'success': True, 'count': len(rows), 'scores': scores,
+            'C_formX': round(C_formX, 4), 'C_v3': round(C_v3, 4)}
 
 
 def get_data_count(results_folder, archive_folder):
@@ -360,11 +379,23 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
     hop_area = micro.get('hop_area', {}).get('value', 0)
     sigma_brug_ratio = micro.get('sigma_brug', {}).get('value', 0)
 
-    # Ionic conductivity
+    # Ionic conductivity — FORM X (v4++ champion)
+    # σ = C × σ_grain × (φ-φc)^(3/4) × CN × √coverage / √τ
+    PHI_C = _cached_models.get('PHI_C', 0.18)
     sigma_brug = SIGMA_GRAIN * sigma_brug_ratio
+    coverage_pred = micro.get('coverage', {}).get('value', 0.20) if isinstance(micro.get('coverage'), dict) else 0.20
+    coverage_frac = max(0.01, min(1.0, coverage_pred))
+    phi_excess = max(phi_se - PHI_C, 0.001)
+
     sigma_ionic = 0
+    if phi_excess > 0 and cn > 0 and tau > 0:
+        sigma_ionic = C_ionic * SIGMA_GRAIN * phi_excess**0.75 * cn * np.sqrt(coverage_frac) / np.sqrt(tau)
+
+    # v3 legacy (for comparison)
+    sigma_ionic_v3 = 0
+    C_v3 = _cached_models.get('C_v3', 0.073)
     if sigma_brug > 0 and g_path > 0 and gb_d > 0 and cn > 0:
-        sigma_ionic = sigma_brug * C_ionic * (g_path * gb_d ** 2) ** 0.25 * cn ** 2
+        sigma_ionic_v3 = sigma_brug * C_v3 * (g_path * gb_d ** 2) ** 0.25 * cn ** 2
 
     # Direct GPR prediction for ensemble
     sigma_gpr = micro.get('sigma_ion', {}).get('value', 0)
@@ -550,7 +581,8 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
         },
         'conductivity': {
             'sigma_ionic': round(sigma_ionic_final, 4),
-            'sigma_ionic_hybrid': round(sigma_ionic, 4),
+            'sigma_ionic_formX': round(sigma_ionic, 4),
+            'sigma_ionic_v3': round(sigma_ionic_v3, 4),
             'sigma_ionic_gpr': round(sigma_gpr, 4),
             'sigma_ionic_std': round(sigma_ion_std, 4),
             'sigma_electronic': round(sigma_electronic, 4),

@@ -832,6 +832,16 @@ def single(case_id):
             if label == 'σ_eff/σ_bulk':
                 row[0] = 'σ_brug/σ_grain (Bruggeman)'
 
+        # Inject σ_Bruggeman if missing (for pre-v2.0 cached results)
+        has_brug_abs = any(str(row[0]) == 'σ_Bruggeman (mS/cm)' for row in tables['network_summary']['data'])
+        if not has_brug_abs and metrics and metrics.get('sigma_ratio'):
+            sigma_brug_mScm = round(3.0 * metrics['sigma_ratio'], 4)
+            # Insert after σ_brug/σ_grain row
+            for idx, row in enumerate(tables['network_summary']['data']):
+                if 'σ_brug/σ_grain' in str(row[0]):
+                    tables['network_summary']['data'].insert(idx + 1, ['σ_Bruggeman (mS/cm)', sigma_brug_mScm])
+                    break
+
     # Inject network solver results (no re-analysis needed)
     if 'network_summary' in tables:
         data = tables['network_summary']['data']

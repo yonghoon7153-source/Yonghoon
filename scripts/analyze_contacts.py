@@ -214,6 +214,9 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         rows.append({'지표': '── 이온전도 ──', '값': ''})
         rows.append({'지표': 'SE Volume Fraction', '값': round(eff_cond['phi_se'], 3)})
         rows.append({'지표': 'σ_brug/σ_grain (Bruggeman)', '값': round(eff_cond['sigma_ratio'], 4)})
+        # Bruggeman EMT absolute value: σ_Bruggeman = σ_grain × φ^1.5
+        sigma_brug_mScm = round(3.0 * eff_cond['sigma_ratio'], 4)
+        rows.append({'지표': 'σ_Bruggeman (mS/cm)', '값': sigma_brug_mScm})
     # ── Network Solver (자동 추가) ──
     # These values come from network_conductivity.py merge → full_metrics.json
     # Read from full_metrics if already computed

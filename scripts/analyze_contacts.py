@@ -279,7 +279,7 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         ps_ratio = ""
 
     # Auto-detect AM:SE mass ratio
-    se_density = 1640  # kg/m³ (Li₆PS₅Cl argyrodite, literature: 1.64 g/cm³)
+    se_density = 2000  # kg/m³ (DEM 시뮬레이션에서 사용한 SE 밀도)
     se_atoms = [a for a in atoms_raw.values() if type_map.get(a['type']) == 'SE']
     total_am_mass_all = am_p_mass + am_s_mass
     se_mass = sum(se_density * 4/3 * np.pi * a['radius']**3 for a in se_atoms)

@@ -836,10 +836,10 @@ def single(case_id):
         has_brug_abs = any(str(row[0]) == 'σ_Bruggeman (mS/cm)' for row in tables['network_summary']['data'])
         if not has_brug_abs and metrics and metrics.get('sigma_ratio'):
             sigma_brug_mScm = round(3.0 * metrics['sigma_ratio'], 4)
-            # Insert after σ_brug/σ_grain row
+            # Insert BEFORE σ_brug/σ_grain row
             for idx, row in enumerate(tables['network_summary']['data']):
                 if 'σ_brug/σ_grain' in str(row[0]):
-                    tables['network_summary']['data'].insert(idx + 1, ['σ_Bruggeman (mS/cm)', sigma_brug_mScm])
+                    tables['network_summary']['data'].insert(idx, ['σ_Bruggeman (mS/cm)', sigma_brug_mScm])
                     break
 
     # Inject network solver results (no re-analysis needed)
@@ -865,10 +865,10 @@ def single(case_id):
                     net_rows.append(['Constriction 비율(%)', round((1 - metrics['bulk_resistance_fraction']) * 100, 1)])
                 if metrics.get('electronic_sigma_full_mScm'):
                     net_rows.append(['σ_electronic (mS/cm)', round(metrics['electronic_sigma_full_mScm'], 2)])
-                if metrics.get('electronic_active_fraction') is not None:
-                    net_rows.append(['Electronic Active AM (%)', f"{metrics['electronic_active_fraction']*100:.1f}"])
                 if metrics.get('electronic_percolating_fraction') is not None:
                     net_rows.append(['AM Percolation (%)', f"{metrics['electronic_percolating_fraction']*100:.1f}"])
+                if metrics.get('electronic_active_fraction') is not None:
+                    net_rows.append(['Electronic Active AM (%)', f"{metrics['electronic_active_fraction']*100:.1f}"])
                 if metrics.get('thermal_sigma_full_mScm'):
                     net_rows.append(['σ_thermal (mS/cm equiv)', round(metrics['thermal_sigma_full_mScm'], 3)])
             else:

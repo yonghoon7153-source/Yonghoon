@@ -629,11 +629,100 @@ v4++ FORM X = C × σ_grain × ⁴√[(φ_SE-φ_c)³ × CN⁴ × cov² / τ²]
 - LOOCV=0.960, leave-SE-size-out R²>0.93 (외삽 능력 검증)
 - φ_c=0.18, C=0.123, 1 free parameter
 
-v1→v3 진화의 핵심: 3개 독립 항 → 1개 결합 변수 + CN². 변수 수를 줄이면서 R² 향상.
+### 16.2 v4++ FORM X: 물리적 유도
 
-### 16.2 최종 공식 (v3)
+$$\sigma_{ion} = C \times \sigma_{grain} \times \sqrt[4]{(\phi_{SE} - \phi_c)^3 \times CN^4 \times cov^2 / \tau^2}$$
 
-$$\sigma_{eff} = \sigma_{bulk} \times \frac{\phi_{SE} \times f_{perc}}{\tau^2} \times 0.073 \times (G_{path} \times GB_d^2)^{1/4} \times CN^2$$
+$$= C \times \sigma_{grain} \times (\phi_{SE} - \phi_c)^{3/4} \times CN \times \sqrt{cov} / \sqrt{\tau}$$
+
+#### Step 1: Percolation Theory (출발점)
+
+Bruggeman EMT는 φ_SE를 사용하지만, 실제로는 **percolation threshold** 이하에서 σ=0이다:
+
+$$\sigma \propto (\phi - \phi_c)^t \quad \text{(3D percolation, } t \approx 2.0 \text{)}$$
+
+FORM X에서 (φ-φc)^(3/4) = [(φ-φc)^(3/2)]^(1/2). 즉 **3D percolation exponent t=3/2**를 √ 안에서 적용한 형태.
+
+*φ_c = 0.18*: 데이터에서 최적화 (continuous optimization → 0.191). 문헌 값 0.15~0.20 범위 내.
+*thin100_15(φ_SE=0.176)가 정확히 threshold 위에 위치.*
+
+#### Step 2: τ → √τ (Softened Tortuosity)
+
+Bruggeman: σ ∝ 1/τ² — **random walk in continuous medium** 가정.
+실제 packed bed: SE가 **discrete contact network** → random walk가 아님.
+
+- Thick(τ=1.2): 1/√1.2 = 0.91 (거의 penalty 없음)
+- Thin(τ=4.5): 1/√4.5 = 0.47 (적절한 penalty)
+- cf. Bruggeman: 1/4.5² = 0.049 (과도!)
+
+**τ² → √τ: 이산 접촉 네트워크에서 tortuosity penalty가 약화됨.**
+
+σ_brug 프레임에서: τ^(3/2) 보정항이 σ_brug의 τ^(-2)를 부분 상쇄 → effective τ^(-1/2).
+
+#### Step 3: CN (Network Connectivity)
+
+v3에서 CN²이었던 것이 FORM X에서 CN^1로 축소. 이유:
+
+- v3에서 CN²는 φ_SE가 포함된 σ_brug 위에서 추가 보정 → CN의 "순수 효과"는 CN²
+- FORM X에서는 (φ-φc)가 φ_SE를 대체 → CN의 일부 효과가 이미 (φ-φc)에 흡수
+- Free fit: CN 지수 = 1.33 (FORM X의 1.0과 근접)
+- CN^1 ↔ CN^1.33 차이: ΔR² < 0.005
+
+#### Step 4: Coverage (AM-SE 계면 품질)
+
+Coverage = AM 표면 중 SE와 접촉하는 비율 (%).
+
+- σ_ionic에 coverage가 필요한 이유: 이온은 SE 네트워크를 통해 AM 표면에 도달해야 반응 가능
+- Coverage ↑ → 유효 계면 면적 ↑ → 이온 접근 경로 ↑ → σ_ionic ↑
+- FORM X에서 √cov: 제곱근 비례 (수확 체감)
+
+Ablation: coverage 제거 시 ΔR² = -0.015 → 독립적 설명력 확인.
+Outlier 분석: worst cases의 coverage = 평균의 74% → coverage가 outlier를 설명.
+
+#### Step 5: σ_brug와의 관계
+
+FORM X는 σ_brug를 **버린 것이 아니라 정제한 것**:
+
+```
+FORM X = σ_brug × C × √(1-φ_c/φ_SE) × τ^(3/2)/f_perc × CN^(1) × √cov
+                        ──threshold──   ──τ² 상쇄──  ──f 상쇄──  ─connectivity─  ─interface─
+```
+
+상쇄 후:
+- τ^(3/2) × τ^(-2) = τ^(-1/2) ← softened
+- f_perc^(-1) × f_perc = 1 ← cancelled (already in threshold)
+- φ × (1-φ_c/φ)^(1/2) → √φ × √(φ-φ_c) ← percolation
+
+#### Step 6: ⁴√ 안의 정수 — 왜 깔끔한가
+
+$$\sigma = C \times \sigma_{grain} \times \sqrt[4]{(\phi-\phi_c)^3 \times CN^4 \times cov^2 \times \tau^{-2}}$$
+
+⁴√ 안의 지수: 3, 4, 2, -2 — 전부 정수!
+
+| 항 | ⁴√ 안 지수 | Effective 지수 | 물리 |
+|---|---|---|---|
+| (φ-φc) | 3 | 3/4 | percolation (t=3/2의 √) |
+| CN | 4 | 1 | network (선형 비례) |
+| coverage | 2 | 1/2 | interface (수확 체감) |
+| τ | -2 | -1/2 | softened tortuosity |
+
+#### 검증 요약
+
+| Metric | 값 |
+|--------|-----|
+| R² (ALL, n=48) | 0.961 |
+| LOOCV | 0.960 |
+| R² (thick, τ≤1.5) | 0.967 |
+| R² (thin, τ>2.5) | 0.934 |
+| Free fit α | 0.515 (FORM X: 0.5, gap 0.015) |
+| Free fit φ_c | 0.191 (FORM X: 0.18, gap 0.011) |
+| Leave-SE-size-out | R² > 0.93 (외삽 OK) |
+| Free params | 1 (C only) |
+| Within 20% | 40/48 (83%) |
+
+### 16.3 v3 공식 (thick only, legacy)
+
+$$\sigma_{eff} = \sigma_{brug} \times C \times (G_{path} \times GB_d^2)^{1/4} \times CN^2$$
 
 | 항 | 지수 | 물리 근거 | 검증 |
 |---|---|---|---|

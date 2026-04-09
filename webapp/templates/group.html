@@ -125,7 +125,7 @@
     <div style="display:flex;gap:8px">
       <button class="btn btn-secondary" onclick="document.querySelectorAll('.plot-checkbox input').forEach(c=>c.checked=true)">모두 선택</button>
       <button class="btn btn-primary" onclick="generatePlots()" id="plot-btn">선택 플롯 생성</button>
-      <button class="btn btn-secondary" onclick="generateFittingReport()" id="fitting-btn" title="GB Correction Fitting 분석 리포트">📊 Fitting Report</button>
+      <button class="btn btn-secondary" onclick="generateFittingReport()" id="fitting-btn" disabled title="플롯 생성 후 사용 가능" style="opacity:0.5">📊 Fitting Report</button>
     </div>
   </div>
   <!-- Plot Groups: group Case Groups into separate plot sets -->
@@ -827,6 +827,9 @@ async function generatePlots() {
   finally {
     btn.disabled = false; btn.textContent = '선택 플롯 생성';
     loading.style.display = 'none';
+    // Enable fitting report button after plots generated
+    const fBtn = document.getElementById('fitting-btn');
+    fBtn.disabled = false; fBtn.style.opacity = '1'; fBtn.title = 'GB Correction Fitting 분석 리포트';
   }
 }
 

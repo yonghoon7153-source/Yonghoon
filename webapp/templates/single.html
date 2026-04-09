@@ -500,6 +500,7 @@ const METRIC_TIPS = {
       'σ_Bruggeman = σ_grain × φ_SE × f_perc / τ²\n'
       + '= 3.0 × {{ "%.3f"|format(metrics.phi_se) }} × {{ "%.3f"|format(metrics.percolation_pct / 100 if metrics.percolation_pct is defined else 1.0) }} / {{ "%.2f"|format(metrics.tortuosity_recommended if metrics.tortuosity_recommended is defined else (metrics.tortuosity_mean if metrics.tortuosity_mean is defined else 1.0)) }}²\n'
       + '= {{ "%.4f"|format(metrics.sigma_ratio * 3.0) }} mS/cm\n\n'
+      + 'σ_grain = 3.0 mS/cm (LPSCl grain interior)\n'
       + 'φ_SE = {{ "%.3f"|format(metrics.phi_se) }}\n'
       + 'f_perc = {{ "%.1f"|format(metrics.percolation_pct if metrics.percolation_pct is defined else 100) }}%\n'
       + 'τ = {{ "%.2f"|format(metrics.tortuosity_recommended if metrics.tortuosity_recommended is defined else (metrics.tortuosity_mean if metrics.tortuosity_mean is defined else 0)) }}'

@@ -1571,7 +1571,7 @@ def serve_force_chains(case_id):
 
 @app.route('/results/<case_id>/report')
 def serve_report(case_id):
-    """Generate MD report on-the-fly from analysis CSVs."""
+    """Generate comprehensive MD report v2.0 from analysis results."""
     import pandas as pd
     results_dir = get_results_dir(case_id)
     case_dir = get_case_dir(case_id)
@@ -1599,64 +1599,198 @@ def serve_report(case_id):
     L = []
 
     # Header
-    L.append(f'# {now}_{name}_DEM_Analysis\n')
-    L.append(f'> **날짜**: {datetime.now().strftime("%Y-%m-%d")}')
-    L.append(f'> **케이스**: {name}')
-    L.append(f'> **모드**: {meta.get("mode", "-")}')
+    L.append(f'# DEM Analysis Report: {name}')
+    L.append(f'> DEM Analyzer v2.0 | {datetime.now().strftime("%Y-%m-%d")}')
+    L.append('')
+    L.append('| Parameter | Value |')
+    L.append('|-----------|-------|')
+    L.append(f'| Mode | {meta.get("mode", "-")} |')
     if metrics.get('ps_ratio'):
-        L.append(f'> **P:S**: {metrics["ps_ratio"]}')
+        L.append(f'| P:S ratio | {metrics["ps_ratio"]} |')
     if input_params.get('am_se_ratio'):
-        L.append(f'> **AM:SE**: {input_params["am_se_ratio"]}')
+        L.append(f'| AM:SE ratio | {input_params["am_se_ratio"]} |')
+    if metrics.get('thickness_um'):
+        L.append(f'| Thickness | {metrics["thickness_um"]:.1f} μm |')
+    if metrics.get('porosity'):
+        L.append(f'| Porosity | {metrics["porosity"]:.1f}% |')
     if input_params.get('target_press_sim'):
-        L.append(f'> **Target Pressure**: {input_params["target_press_sim"] * 1000:.1f} MPa')
+        L.append(f'| Target Pressure | {input_params["target_press_sim"] * 1000:.1f} MPa |')
     L.append('')
     L.append('---\n')
 
-    # Load and append each CSV as table
-    csv_names = {
-        'atom_statistics': '입자 정보',
-        'contact_summary': '접촉 요약',
-        'coordination_summary': '배위수',
-        'network_summary': '네트워크 지표',
-    }
-    section_num = 1
-    for csv_name, title in csv_names.items():
-        csv_path = os.path.join(results_dir, f'{csv_name}.csv')
-        if os.path.exists(csv_path):
-            df = pd.read_csv(csv_path)
-            L.append(f'## {section_num}. {title}\n')
-            L.append(df.to_markdown(index=False))
-            L.append('')
-            section_num += 1
+    section = 1
 
-    # Key metrics summary
-    if metrics:
-        L.append(f'\n## {section_num}. 핵심 지표 요약\n')
-        summary_items = [
-            ('Porosity', f"{metrics.get('porosity', '-')}%"),
-            ('전극 두께', f"{metrics.get('thickness_um', '-')} μm"),
-            ('SE-SE CN', f"{metrics.get('se_se_cn', '-')}"),
-            ('SE Percolation', f"{metrics.get('percolation_pct', '-')}%"),
-            ('Top Reachable', f"{metrics.get('top_reachable_pct', '-')}%"),
-            ('Tortuosity', f"{metrics.get('tortuosity_mean', '-')}"),
-            ('Ionic Active AM', f"{metrics.get('ionic_active_pct', '-')}%"),
-        ]
-        if metrics.get('stress_cv'):
-            summary_items.append(('Stress CV', f"{metrics.get('stress_cv', '-')}%"))
-        for label, val in summary_items:
-            L.append(f'- **{label}**: {val}')
+    # ── 구조/접촉 ──
+    L.append(f'## {section}. Structure & Contact\n')
+    struct_items = [
+        ('SE-SE CN', metrics.get('se_se_cn')),
+        ('AM-SE CN', metrics.get('am_se_cn_mean')),
+        ('AM-AM CN', metrics.get('am_am_cn')),
+        ('SE Volume Fraction', metrics.get('phi_se')),
+        ('AM Volume Fraction', metrics.get('phi_am')),
+    ]
+    for label, val in struct_items:
+        if val is not None:
+            L.append(f'- **{label}**: {val:.3f}' if isinstance(val, float) else f'- **{label}**: {val}')
+    L.append('')
+    section += 1
+
+    # ── Percolation & Tortuosity ──
+    L.append(f'## {section}. Percolation & Tortuosity\n')
+    perc_items = [
+        ('SE Percolation', metrics.get('percolation_pct'), '%'),
+        ('Top Reachable', metrics.get('top_reachable_pct'), '%'),
+        ('Ionic Active AM', metrics.get('ionic_active_pct'), '%'),
+        ('Tortuosity (mean)', metrics.get('tortuosity_mean'), ''),
+        ('Tortuosity (median)', metrics.get('tortuosity_median'), ''),
+        ('Tortuosity (std)', metrics.get('tortuosity_std'), ''),
+        ('GB Density', metrics.get('gb_density_mean'), ' hops/μm'),
+    ]
+    for label, val, unit in perc_items:
+        if val is not None:
+            L.append(f'- **{label}**: {val:.2f}{unit}' if isinstance(val, float) else f'- **{label}**: {val}{unit}')
+    L.append('')
+    section += 1
+
+    # ── Ionic Conductivity ──
+    L.append(f'## {section}. Ionic Conductivity\n')
+    sigma_ratio = metrics.get('sigma_ratio')
+    sigma_brug = sigma_ratio * 3.0 if sigma_ratio else None
+    sigma_net = metrics.get('sigma_full_mScm')
+
+    L.append('### Bruggeman Estimate (접촉 저항 무시)')
+    L.append('```')
+    L.append('σ_Bruggeman = σ_grain × φ_SE × f_perc / τ²')
+    if sigma_ratio and metrics.get('phi_se') and metrics.get('tortuosity_mean'):
+        tau = metrics.get('tortuosity_recommended', metrics.get('tortuosity_mean', 1))
+        f_perc = metrics.get('percolation_pct', 100) / 100
+        L.append(f'           = 3.0 × {metrics["phi_se"]:.3f} × {f_perc:.3f} / {tau:.2f}²')
+        L.append(f'           = {sigma_brug:.4f} mS/cm')
+    L.append('```')
+    L.append('')
+
+    if sigma_net:
+        L.append('### Network Solver (Ground Truth)')
+        L.append('```')
+        L.append(f'σ_ionic = {sigma_net:.4f} mS/cm  (Kirchhoff solver, Holm 1967)')
+        L.append(f'σ_brug / σ_ionic = {sigma_brug/sigma_net:.1f}×  (Bruggeman overestimation)' if sigma_brug else '')
+        if metrics.get('bulk_resistance_fraction'):
+            L.append(f'Constriction fraction = {(1-metrics["bulk_resistance_fraction"])*100:.1f}%')
+        L.append('```')
         L.append('')
+    section += 1
+
+    # ── Electronic Conductivity ──
+    sigma_el = metrics.get('electronic_sigma_full_mScm')
+    if sigma_el is not None:
+        L.append(f'## {section}. Electronic Conductivity\n')
+        L.append(f'- **σ_electronic**: {sigma_el:.2f} mS/cm')
+        if metrics.get('electronic_percolating_fraction') is not None:
+            L.append(f'- **AM Percolation**: {metrics["electronic_percolating_fraction"]*100:.1f}%')
+        if metrics.get('electronic_active_fraction') is not None:
+            L.append(f'- **Electronic Active AM**: {metrics["electronic_active_fraction"]*100:.1f}%')
+            dead = (1 - metrics['electronic_active_fraction']) * 100
+            if dead > 10:
+                L.append(f'- **Dead AM**: {dead:.1f}% → 도전재 추가 검토 필요')
+        L.append('')
+        section += 1
+
+    # ── Thermal Conductivity ──
+    sigma_th = metrics.get('thermal_sigma_full_mScm')
+    if sigma_th is not None:
+        L.append(f'## {section}. Thermal Conductivity\n')
+        L.append(f'- **σ_thermal**: {sigma_th:.3f} mS/cm equiv')
+        L.append('')
+        section += 1
+
+    # ── Stress ──
+    if metrics.get('stress_cv'):
+        L.append(f'## {section}. Mechanical Stress\n')
+        L.append(f'- **Stress CV**: {metrics["stress_cv"]:.1f}%')
+        for key in ['sigma_AM_P_ratio', 'sigma_AM_S_ratio', 'sigma_SE_ratio']:
+            val = metrics.get(key)
+            if val:
+                label = key.replace('sigma_', 'σ_').replace('_ratio', '/σ_mean')
+                L.append(f'- **{label}**: {val:.3f}')
+        L.append('')
+        section += 1
+
+    # ── Warnings ──
+    warnings = metrics.get('warnings', [])
+    if warnings:
+        L.append(f'## {section}. Warnings\n')
+        for w in warnings:
+            icon = '🔴' if w.get('severity') == 'critical' else '🟡'
+            L.append(f'- {icon} {w.get("msg", "")}')
+        L.append('')
+        section += 1
+
+    # ── Scaling Law Predictions ──
+    L.append(f'## {section}. Scaling Law Reference\n')
+    L.append('| Formula | R² |')
+    L.append('|---------|-----|')
+    L.append('| σ_ion = σ_brug × C × (G_path × GB_d²)^(1/4) × CN² | 0.947 |')
+    L.append('| σ_el = 0.015 × σ_AM × φ_AM^(3/2) × CN_AM² × exp(π/(T/d)) | 0.89 |')
+    L.append('| σ_th = 286 × σ_ion^(3/4) × φ_AM² / CN_SE | 0.90 |')
+    L.append('')
 
     L.append('---\n')
-    L.append('#DEM #analysis #ASSB #composite-cathode\n')
+    L.append('*Generated by DEM Analyzer v2.0 — Kirchhoff Network Solver + Physics Scaling Laws*\n')
 
     report = '\n'.join(L)
 
     # Return as downloadable MD
     from io import BytesIO
+    fmt = request.args.get('format', 'md')
+    if fmt == 'pdf':
+        return _generate_pdf_report(report, name)
+
     buf = BytesIO(report.encode('utf-8'))
     return send_file(buf, mimetype='text/markdown', as_attachment=True,
                     download_name=f'{name}_report.md')
+
+
+def _generate_pdf_report(md_text, name):
+    """Convert markdown report to PDF."""
+    from io import BytesIO
+    try:
+        import markdown
+        html_body = markdown.markdown(md_text, extensions=['tables', 'fenced_code'])
+    except ImportError:
+        html_body = md_text.replace('\n', '<br>')
+
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+  body {{ font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11pt; line-height: 1.6; margin: 40px; color: #222; }}
+  h1 {{ font-size: 18pt; border-bottom: 2px solid #333; padding-bottom: 6px; }}
+  h2 {{ font-size: 14pt; color: #1a56db; margin-top: 24px; }}
+  h3 {{ font-size: 12pt; color: #444; }}
+  table {{ border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 10pt; }}
+  th, td {{ border: 1px solid #ccc; padding: 6px 10px; text-align: left; }}
+  th {{ background: #f0f4ff; font-weight: 600; }}
+  code, pre {{ background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-size: 10pt; }}
+  pre {{ padding: 12px; overflow-x: auto; }}
+  blockquote {{ border-left: 3px solid #1a56db; padding-left: 12px; color: #555; margin: 8px 0; }}
+  hr {{ border: none; border-top: 1px solid #ddd; margin: 20px 0; }}
+  ul {{ padding-left: 20px; }}
+  li {{ margin: 3px 0; }}
+</style>
+</head><body>{html_body}</body></html>"""
+
+    # Try weasyprint first, fallback to HTML download
+    try:
+        from weasyprint import HTML
+        pdf_buf = BytesIO()
+        HTML(string=html).write_pdf(pdf_buf)
+        pdf_buf.seek(0)
+        return send_file(pdf_buf, mimetype='application/pdf', as_attachment=True,
+                        download_name=f'{name}_report.pdf')
+    except ImportError:
+        # Fallback: return HTML (browser can print to PDF)
+        buf = BytesIO(html.encode('utf-8'))
+        return send_file(buf, mimetype='text/html', as_attachment=True,
+                        download_name=f'{name}_report.html')
 
 @app.route('/download-file/<case_id>/<filename>')
 def download_case_file(case_id, filename):

@@ -38,7 +38,8 @@
     </div>
     <div class="header-actions">
       <button class="btn btn-archive" onclick="saveToArchive()">보관함에 저장</button>
-      <a href="/results/{{ case.id }}/report" class="btn btn-primary">MD Report 다운로드</a>
+      <a href="/results/{{ case.id }}/report?format=pdf" class="btn btn-primary">PDF Report</a>
+      <a href="/results/{{ case.id }}/report" class="btn btn-secondary">MD Report</a>
       {% if archive_path %}
       <a href="/archive?folder={{ archive_path|replace('/' ~ archive_path.split('/')[-1], '') }}" class="btn btn-secondary">보관함으로</a>
       {% else %}

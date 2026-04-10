@@ -1529,6 +1529,7 @@ def plot_electronic_scaling(data_list, names, outdir):
     am_hop = [max(_get(d, "am_am_mean_hop", 0), 0.1) for d in data_list]
     porosity = [max(_get(d, "porosity", 10), 0.1) for d in data_list]
     phi_se = [max(_get(d, "phi_se", 0.2), 0.01) for d in data_list]
+    el_perc = [max(_get(d, "electronic_percolating_fraction", 0), 0.01) for d in data_list]
     sigma_net = _load_electronic_sigma(data_list)
 
     # --- Fit C globally on ALL electronic data (thick/thin separate) ---
@@ -1558,9 +1559,10 @@ def plot_electronic_scaling(data_list, names, outdir):
             _k = f"{_pa:.4f}_{_ratio:.1f}"
             _por = max(_m.get('porosity', 10), 0.1)
             _ps = max(_m.get('phi_se', 0.2), 0.01)
+            _ep = max(_m.get('electronic_percolating_fraction', 0), 0.01)
             _all.append({'s': _sel, 'pa': _pa, 'cn': _cn, 'tau': _tau, 'cov': _cov,
                          'delta': _delta, 'area': _area, 'hop': _hop, 'ratio': _ratio,
-                         'por': _por, 'ps': _ps, 'k': _k})
+                         'por': _por, 'ps': _ps, 'ep': _ep, 'k': _k})
     _seen = set(); _unique = []
     for _r in _all:
         if _r['k'] not in _seen: _seen.add(_r['k']); _unique.append(_r)
@@ -1585,9 +1587,11 @@ def plot_electronic_scaling(data_list, names, outdir):
             _rhs_tk = SIGMA_AM * _pa[_tk]**4 * _cn[_tk]**1.5 * _cov[_tk] * _tau[_tk]**0.5
             C_thick = float(np.exp(np.mean(np.log(_s[_tk]) - np.log(_rhs_tk))))
         if _tn.sum() >= 3:
-            _d2a = _delta[_tn]**2 / _area[_tn]
-            # Hybrid: CN × por × φ_SE × √(δ²/A) / √(T/d)
-            _rhs_tn = SIGMA_AM * _cn[_tn] * _por[_tn] * _ps[_tn] * np.sqrt(_d2a) / _ratio[_tn]**0.5
+            _ep = np.array([r['ep'] for r in _unique])[_tn]
+            _por_tn = np.array([r['por'] for r in _unique])[_tn]
+            _cov_tn = np.array([r['cov'] for r in _unique])[_tn]
+            # el_perc × CN^(5/4) × por × √cov / √(T/d)
+            _rhs_tn = SIGMA_AM * _ep * _cn[_tn]**1.25 * _por_tn * _cov_tn**0.5 / _ratio[_tn]**0.5
             C_thin = float(np.exp(np.mean(np.log(_s[_tn]) - np.log(_rhs_tn))))
 
     # Compute predictions per case
@@ -1599,9 +1603,8 @@ def plot_electronic_scaling(data_list, names, outdir):
                 # THICK: φ⁴ × CN^(3/2) × cov × √τ
                 s = C_thick * SIGMA_AM * phi_am[i]**4 * cn_am[i]**1.5 * cov_list[i] * tau[i]**0.5
             else:
-                # THIN: CN × por × φ_SE × √(δ²/A) / √(T/d)
-                d2a = am_delta[i]**2 / am_area[i]
-                s = C_thin * SIGMA_AM * cn_am[i] * porosity[i] * phi_se[i] * np.sqrt(d2a) / ratio_i**0.5
+                # THIN: el_perc × CN^(5/4) × por × √cov / √(T/d)
+                s = C_thin * SIGMA_AM * el_perc[i] * cn_am[i]**1.25 * porosity[i] * cov_list[i]**0.5 / ratio_i**0.5
             sigma_scaling.append(s)
         else:
             sigma_scaling.append(0.0)
@@ -1652,7 +1655,7 @@ def plot_electronic_scaling(data_list, names, outdir):
     tk_str = f"R²={r2_tk:.3f}(n={tk_v.sum()})" if hasattr(tk_v, 'sum') and tk_v.sum() >= 3 else ""
     tn_str = f"R²={r2_tn:.3f}(n={tn_v.sum()})" if hasattr(tn_v, 'sum') and tn_v.sum() >= 3 else ""
     txt = (f"Thick: φ⁴×CN^(3/2)×cov×√τ {tk_str}\n"
-           f"Thin: CN×por×φ_SE×√(δ²/A)/√ξ {tn_str}\n"
+           f"Thin: f_p×CN^(5/4)×por×√cov/√ξ {tn_str}\n"
            f"ALL R²={r2:.3f}, |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
     ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',
             bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffeaea', alpha=0.8))
@@ -2556,7 +2559,7 @@ PLOT_REGISTRY["electronic_scaling"] = {
     "func": plot_electronic_scaling,
     "file": "electronic_scaling.png",
     "title": "Electronic: 2-Regime Scaling Law",
-    "description": "Thick (T/d≥10): σ = C × σ_AM × φ⁴ × CN^(3/2) × cov × √τ\n  R²≈0.97, topology 지배\n\nThin (T/d<10): σ = C × σ_AM × CN × √(δ²×hop/(A×ξ))\n  R²≈0.92, contact mechanics 지배\n\nC: thick/thin 별도 global fit",
+    "description": "Thick (T/d≥10): σ = C × σ_AM × φ⁴ × CN^(3/2) × cov × √τ\n  R²≈0.97, topology 지배\n\nThin (T/d<10): σ = C × σ_AM × f_p × CN^(5/4) × por × √cov / √ξ\n  f_p = electronic percolating fraction\n  R²≈0.94 (percolating), topology+percolation\n\nC: thick/thin 별도 global fit",
     "origin_tip": "Red: Scaling law, Green dashed: Network solver (ground truth).",
 }
 PLOT_REGISTRY["thermal_scaling"] = {

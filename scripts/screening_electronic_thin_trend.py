@@ -43,7 +43,7 @@ def load_data():
                 'xi': T/d_am, 'por': max(por, 0.1), 'ep': max(ep, 0.01),
                 'ps': max(ps, 0.01), 'd2a': d**2/A if A > 0 and d > 0 else 0.001,
                 'hop': hop, 'cn_std': max(cn_std, 0.01),
-                'n_c': max(n_contacts, 1), 'd': max(d, 0.001), 'A': max(A, 0.01),
+                'n_c': max(int(float(str(n_contacts))), 1) if n_contacts else 1, 'd': max(d if isinstance(d,(int,float)) else 0.001, 0.001), 'A': max(A if isinstance(A,(int,float)) else 0.01, 0.01),
                 'cn_x_ep': cn * max(ep, 0.01),
                 'cn_x_por': cn * max(por, 0.1),
                 'group': group, 'name': mp.parent.name

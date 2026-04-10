@@ -1527,6 +1527,8 @@ def plot_electronic_scaling(data_list, names, outdir):
     am_delta = [max(_get(d, "am_am_mean_delta", 0), 0.001) for d in data_list]
     am_area = [max(_get(d, "am_am_mean_area", 0), 0.01) for d in data_list]
     am_hop = [max(_get(d, "am_am_mean_hop", 0), 0.1) for d in data_list]
+    porosity = [max(_get(d, "porosity", 10), 0.1) for d in data_list]
+    phi_se = [max(_get(d, "phi_se", 0.2), 0.01) for d in data_list]
     sigma_net = _load_electronic_sigma(data_list)
 
     # --- Fit C globally on ALL electronic data (thick/thin separate) ---
@@ -1554,8 +1556,11 @@ def plot_electronic_scaling(data_list, names, outdir):
             if _pa <= 0 or _cn <= 0 or _T <= 0 or _dam <= 0: continue
             _ratio = _T / _dam
             _k = f"{_pa:.4f}_{_ratio:.1f}"
+            _por = max(_m.get('porosity', 10), 0.1)
+            _ps = max(_m.get('phi_se', 0.2), 0.01)
             _all.append({'s': _sel, 'pa': _pa, 'cn': _cn, 'tau': _tau, 'cov': _cov,
-                         'delta': _delta, 'area': _area, 'hop': _hop, 'ratio': _ratio, 'k': _k})
+                         'delta': _delta, 'area': _area, 'hop': _hop, 'ratio': _ratio,
+                         'por': _por, 'ps': _ps, 'k': _k})
     _seen = set(); _unique = []
     for _r in _all:
         if _r['k'] not in _seen: _seen.add(_r['k']); _unique.append(_r)
@@ -1572,6 +1577,8 @@ def plot_electronic_scaling(data_list, names, outdir):
         _area = np.array([r['area'] for r in _unique])
         _hop = np.array([r['hop'] for r in _unique])
         _ratio = np.array([r['ratio'] for r in _unique])
+        _por = np.array([r['por'] for r in _unique])
+        _ps = np.array([r['ps'] for r in _unique])
 
         _tk = _ratio >= 10; _tn = _ratio < 10
         if _tk.sum() >= 3:
@@ -1579,7 +1586,8 @@ def plot_electronic_scaling(data_list, names, outdir):
             C_thick = float(np.exp(np.mean(np.log(_s[_tk]) - np.log(_rhs_tk))))
         if _tn.sum() >= 3:
             _d2a = _delta[_tn]**2 / _area[_tn]
-            _rhs_tn = SIGMA_AM * _cn[_tn] * np.sqrt(_d2a * _hop[_tn]) / _ratio[_tn]**0.5
+            # Hybrid: CN × por × φ_SE × √(δ²/A) / √(T/d)
+            _rhs_tn = SIGMA_AM * _cn[_tn] * _por[_tn] * _ps[_tn] * np.sqrt(_d2a) / _ratio[_tn]**0.5
             C_thin = float(np.exp(np.mean(np.log(_s[_tn]) - np.log(_rhs_tn))))
 
     # Compute predictions per case
@@ -1591,9 +1599,9 @@ def plot_electronic_scaling(data_list, names, outdir):
                 # THICK: φ⁴ × CN^(3/2) × cov × √τ
                 s = C_thick * SIGMA_AM * phi_am[i]**4 * cn_am[i]**1.5 * cov_list[i] * tau[i]**0.5
             else:
-                # THIN: CN × √(δ²×hop / (A×T/d))
+                # THIN: CN × por × φ_SE × √(δ²/A) / √(T/d)
                 d2a = am_delta[i]**2 / am_area[i]
-                s = C_thin * SIGMA_AM * cn_am[i] * np.sqrt(d2a * am_hop[i]) / ratio_i**0.5
+                s = C_thin * SIGMA_AM * cn_am[i] * porosity[i] * phi_se[i] * np.sqrt(d2a) / ratio_i**0.5
             sigma_scaling.append(s)
         else:
             sigma_scaling.append(0.0)
@@ -1619,26 +1627,34 @@ def plot_electronic_scaling(data_list, names, outdir):
     _apply_style(ax, "σ_electronic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
 
-    # R² (log-space)
+    # R² (log-space) — overall + thick/thin split
     valid_both = [i for i in range(len(names)) if sigma_net[i] > 0 and sigma_scaling[i] > 0]
     if len(valid_both) >= 3:
-        log_a = np.log([sigma_net[i] for i in valid_both])
-        log_p = np.log([sigma_scaling[i] for i in valid_both])
+        sa = np.array([sigma_net[i] for i in valid_both])
+        sp = np.array([sigma_scaling[i] for i in valid_both])
+        log_a = np.log(sa); log_p = np.log(sp)
         r2 = 1 - np.sum((log_a - log_p)**2) / np.sum((log_a - np.mean(log_a))**2)
-        errs = np.abs(np.array([sigma_scaling[i] for i in valid_both]) - np.array([sigma_net[i] for i in valid_both])) / np.array([sigma_net[i] for i in valid_both]) * 100
+        errs = np.abs(sp - sa) / sa * 100
         w20 = np.sum(errs < 20)
+        # thick/thin split R²
+        ratios_v = np.array([thickness[i] / d_am_list[i] for i in valid_both])
+        tk_v = ratios_v >= 10; tn_v = ratios_v < 10
+        r2_tk = 1 - np.sum((log_a[tk_v]-log_p[tk_v])**2)/np.sum((log_a[tk_v]-np.mean(log_a[tk_v]))**2) if tk_v.sum() >= 3 else 0
+        r2_tn = 1 - np.sum((log_a[tn_v]-log_p[tn_v])**2)/np.sum((log_a[tn_v]-np.mean(log_a[tn_v]))**2) if tn_v.sum() >= 3 else 0
     else:
-        r2 = 0; errs = np.array([0]); w20 = 0
+        r2 = 0; errs = np.array([0]); w20 = 0; r2_tk = 0; r2_tn = 0; tk_v = np.array([]); tn_v = np.array([])
 
     ax.set_title(f"Electronic 2-Regime Scaling Law\n"
                  f"R²={r2:.3f} (n={len(valid_both)}), |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}",
                  fontsize=9, fontweight='bold')
 
-    # Formula box
-    txt = (f"Thick (T/d≥10): C×σ_AM×φ⁴×CN^(3/2)×cov×√τ\n"
-           f"Thin (T/d<10): C×σ_AM×CN×√(δ²×hop/(A×T/d))\n"
-           f"R²={r2:.3f}, |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
-    ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7.5, ha='right', va='top',
+    # Formula box with thick/thin R²
+    tk_str = f"R²={r2_tk:.3f}(n={tk_v.sum()})" if hasattr(tk_v, 'sum') and tk_v.sum() >= 3 else ""
+    tn_str = f"R²={r2_tn:.3f}(n={tn_v.sum()})" if hasattr(tn_v, 'sum') and tn_v.sum() >= 3 else ""
+    txt = (f"Thick: φ⁴×CN^(3/2)×cov×√τ {tk_str}\n"
+           f"Thin: CN×por×φ_SE×√(δ²/A)/√ξ {tn_str}\n"
+           f"ALL R²={r2:.3f}, |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
+    ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',
             bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffeaea', alpha=0.8))
 
     _write_csv(outdir, 'electronic_scaling.csv',

@@ -1594,8 +1594,8 @@ def plot_electronic_scaling(data_list, names, outdir):
             _ep = np.array([r['ep'] for r in _unique])[_tn]
             _por_tn = np.array([r['por'] for r in _unique])[_tn]
             _cov_tn = np.array([r['cov'] for r in _unique])[_tn]
-            # por × cov / √ξ (f_p, CN 제거 — 순수 개형)
-            _rhs_tn = SIGMA_AM * _por_tn * _cov_tn / _ratio[_tn]**0.5
+            # φ² × por × cov / √ξ (φ는 inter-group level만)
+            _rhs_tn = SIGMA_AM * _pa[_tn]**2 * _por_tn * _cov_tn / _ratio[_tn]**0.5
             # C fitting: el_perc ≥ 0.85만 사용
             _perc_ok = _ep >= 0.85
             if _perc_ok.sum() >= 3:
@@ -1614,8 +1614,8 @@ def plot_electronic_scaling(data_list, names, outdir):
             else:
                 # THIN: √f_p × CN × por × √cov / √(T/d)
                 if el_perc[i] >= 0.65:
-                    # por × cov / √ξ (el_perc < 0.65만 제외)
-                    s = C_thin * SIGMA_AM * porosity[i] * cov_list[i] / ratio_i**0.5
+                    # φ² × por × cov / √ξ
+                    s = C_thin * SIGMA_AM * phi_am[i]**2 * porosity[i] * cov_list[i] / ratio_i**0.5
                 else:
                     s = 0.0  # percolation 미달 → 예측 불가
             sigma_scaling.append(s)
@@ -1668,7 +1668,7 @@ def plot_electronic_scaling(data_list, names, outdir):
     tk_str = f"R²={r2_tk:.3f}(n={tk_v.sum()})" if hasattr(tk_v, 'sum') and tk_v.sum() >= 3 else ""
     tn_str = f"R²={r2_tn:.3f}(n={tn_v.sum()})" if hasattr(tn_v, 'sum') and tn_v.sum() >= 3 else ""
     txt = (f"Thick: φ⁴×CN^(3/2)×cov×√τ {tk_str}\n"
-           f"Thin: por×cov/√ξ {tn_str}\n"
+           f"Thin: φ²×por×cov/√ξ {tn_str}\n"
            f"ALL R²={r2:.3f}, |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
     ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',
             bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffeaea', alpha=0.8))

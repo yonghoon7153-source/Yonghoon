@@ -1527,6 +1527,7 @@ def plot_electronic_scaling(data_list, names, outdir):
     am_delta = [max(_get(d, "am_am_mean_delta", 0), 0.001) for d in data_list]
     am_area = [max(_get(d, "am_am_mean_area", 0), 0.01) for d in data_list]
     am_hop = [max(_get(d, "am_am_mean_hop", 0), 0.1) for d in data_list]
+    am_gc = [max(_get(d, "am_path_conductance_mean", 0), 0.001) for d in data_list]
     porosity = [max(_get(d, "porosity", 10), 0.1) for d in data_list]
     phi_se = [max(_get(d, "phi_se", 0.2), 0.01) for d in data_list]
     el_perc = [max(_get(d, "electronic_percolating_fraction", 0), 0.01) for d in data_list]
@@ -1560,9 +1561,10 @@ def plot_electronic_scaling(data_list, names, outdir):
             _por = max(_m.get('porosity', 10), 0.1)
             _ps = max(_m.get('phi_se', 0.2), 0.01)
             _ep = max(_m.get('electronic_percolating_fraction', 0), 0.01)
+            _gc = max(_m.get('am_path_conductance_mean', 0), 0.001)
             _all.append({'s': _sel, 'pa': _pa, 'cn': _cn, 'tau': _tau, 'cov': _cov,
                          'delta': _delta, 'area': _area, 'hop': _hop, 'ratio': _ratio,
-                         'por': _por, 'ps': _ps, 'ep': _ep, 'k': _k})
+                         'por': _por, 'ps': _ps, 'ep': _ep, 'gc': _gc, 'k': _k})
     _seen = set(); _unique = []
     for _r in _all:
         if _r['k'] not in _seen: _seen.add(_r['k']); _unique.append(_r)
@@ -1591,8 +1593,9 @@ def plot_electronic_scaling(data_list, names, outdir):
             _por_tn = np.array([r['por'] for r in _unique])[_tn]
             _cov_tn = np.array([r['cov'] for r in _unique])[_tn]
             _area_tn = np.array([r['area'] for r in _unique])[_tn]
-            # √f_p × CN × A × √cov / √ξ  (total contact area)
-            _rhs_tn = SIGMA_AM * np.sqrt(_ep) * _cn[_tn] * _area_tn * _cov_tn**0.5 / _ratio[_tn]**0.5
+            _gc_tn = np.array([r.get('gc', 0.001) for r in _unique])[_tn]
+            # √f_p × Gc^½ × CN / √ξ  (path conductance 직접 사용)
+            _rhs_tn = SIGMA_AM * np.sqrt(_ep) * np.sqrt(_gc_tn) * _cn[_tn] / _ratio[_tn]**0.5
             # C fitting: el_perc ≥ 0.85만 사용
             _perc_ok = _ep >= 0.85
             if _perc_ok.sum() >= 3:
@@ -1611,8 +1614,8 @@ def plot_electronic_scaling(data_list, names, outdir):
             else:
                 # THIN: √f_p × CN × por × √cov / √(T/d)
                 if el_perc[i] >= 0.65:
-                    # √f_p × CN × A × √cov / √ξ
-                    s = C_thin * SIGMA_AM * np.sqrt(el_perc[i]) * cn_am[i] * am_area[i] * cov_list[i]**0.5 / ratio_i**0.5
+                    # √f_p × √Gc × CN / √ξ
+                    s = C_thin * SIGMA_AM * np.sqrt(el_perc[i]) * np.sqrt(am_gc[i]) * cn_am[i] / ratio_i**0.5
                 else:
                     s = 0.0  # percolation 미달 → 예측 불가
             sigma_scaling.append(s)
@@ -1665,7 +1668,7 @@ def plot_electronic_scaling(data_list, names, outdir):
     tk_str = f"R²={r2_tk:.3f}(n={tk_v.sum()})" if hasattr(tk_v, 'sum') and tk_v.sum() >= 3 else ""
     tn_str = f"R²={r2_tn:.3f}(n={tn_v.sum()})" if hasattr(tn_v, 'sum') and tn_v.sum() >= 3 else ""
     txt = (f"Thick: φ⁴×CN^(3/2)×cov×√τ {tk_str}\n"
-           f"Thin: √f_p×CN×A×√cov/√ξ {tn_str}\n"
+           f"Thin: √f_p×√Gc×CN/√ξ {tn_str}\n"
            f"ALL R²={r2:.3f}, |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
     ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',
             bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffeaea', alpha=0.8))

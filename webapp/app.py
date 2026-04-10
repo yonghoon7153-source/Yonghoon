@@ -2072,6 +2072,17 @@ def archive_move():
     shutil.move(src_full, os.path.join(dst_full, name))
     return jsonify({'success': True})
 
+@app.route('/archive/folders-list')
+def archive_folders_list():
+    """Return list of archive folder names for save dialog."""
+    root = _archive_root()
+    folders = []
+    if os.path.isdir(root):
+        for name in sorted(os.listdir(root)):
+            if os.path.isdir(os.path.join(root, name)):
+                folders.append(name)
+    return jsonify({'folders': folders})
+
 @app.route('/archive/save-case', methods=['POST'])
 def archive_save_case():
     """Save a case's results to archive folder."""

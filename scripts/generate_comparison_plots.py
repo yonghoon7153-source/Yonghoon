@@ -1592,7 +1592,12 @@ def plot_electronic_scaling(data_list, names, outdir):
             _cov_tn = np.array([r['cov'] for r in _unique])[_tn]
             # el_perc × CN^(5/4) × por × √cov / √(T/d)
             _rhs_tn = SIGMA_AM * _ep * _cn[_tn]**1.25 * _por_tn * _cov_tn**0.5 / _ratio[_tn]**0.5
-            C_thin = float(np.exp(np.mean(np.log(_s[_tn]) - np.log(_rhs_tn))))
+            # C fitting: el_perc ≥ 0.85만 사용 (percolation 안 되는 케이스 제외)
+            _perc_ok = _ep >= 0.85
+            if _perc_ok.sum() >= 3:
+                C_thin = float(np.exp(np.mean(np.log(_s[_tn][_perc_ok]) - np.log(_rhs_tn[_perc_ok]))))
+            else:
+                C_thin = float(np.exp(np.mean(np.log(_s[_tn]) - np.log(_rhs_tn))))
 
     # Compute predictions per case
     sigma_scaling = []

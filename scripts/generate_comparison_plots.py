@@ -1513,19 +1513,23 @@ def plot_thermal_sigma(data_list, names, outdir):
 
 
 def plot_electronic_scaling(data_list, names, outdir):
-    """Electronic scaling: Universal formula line plot (scaling law vs network solver)."""
+    """Electronic 2-regime scaling: thick (topology) + thin (contact mechanics)."""
     SIGMA_AM = 50.0
     phi_am = [_get(d, "phi_am") for d in data_list]
     cn_am = [_get(d, "am_am_cn") for d in data_list]
     thickness = [_get(d, "thickness_um") for d in data_list]
     d_am_list = [2.0 * max(_get(d, "r_AM_P", 0), _get(d, "r_AM_S", 0), _get(d, "r_AM", 0))
                  for d in data_list]
+    tau = [max(_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)), 0.1) for d in data_list]
     cov_list = [(lambda vs: sum(vs)/len(vs)/100 if vs else 0.20)(
         [v for v in [_get(d,"coverage_AM_P_mean",0), _get(d,"coverage_AM_S_mean",0),
                      _get(d,"coverage_AM_mean",0)] if v > 0]) for d in data_list]
+    am_delta = [max(_get(d, "am_am_mean_delta", 0), 0.001) for d in data_list]
+    am_area = [max(_get(d, "am_am_mean_area", 0), 0.01) for d in data_list]
+    am_hop = [max(_get(d, "am_am_mean_hop", 0), 0.1) for d in data_list]
     sigma_net = _load_electronic_sigma(data_list)
 
-    # --- Fit C globally on ALL electronic data ---
+    # --- Fit C globally on ALL electronic data (thick/thin separate) ---
     import glob as _glob
     _webapp = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'webapp')
     _all = []
@@ -1539,31 +1543,57 @@ def plot_electronic_scaling(data_list, names, outdir):
             if not _sel or _sel < 0.001: continue
             _pa = max(_m.get('phi_am', 0), 0.01)
             _cn = max(_m.get('am_am_cn', 0.01), 0.01)
+            _tau = max(_m.get('tortuosity_recommended', _m.get('tortuosity_mean', 1)), 0.1)
             _cov = max(_m.get('coverage_AM_P_mean', _m.get('coverage_AM_S_mean', _m.get('coverage_AM_mean', 20))), 0.1) / 100
+            _delta = max(_m.get('am_am_mean_delta', 0), 0.001)
+            _area = max(_m.get('am_am_mean_area', 0), 0.01)
+            _hop = max(_m.get('am_am_mean_hop', 0), 0.1)
             _ram = max(_m.get('r_AM_P', 0), _m.get('r_AM_S', 0))
             _dam = _ram * 2 if _ram > 0.1 else 5.0
             _T = _m.get('thickness_um', 0)
             if _pa <= 0 or _cn <= 0 or _T <= 0 or _dam <= 0: continue
             _ratio = _T / _dam
             _k = f"{_pa:.4f}_{_ratio:.1f}"
-            _all.append({'s': _sel, 'pa': _pa, 'cn': _cn, 'cov': _cov, 'ratio': _ratio, 'k': _k})
+            _all.append({'s': _sel, 'pa': _pa, 'cn': _cn, 'tau': _tau, 'cov': _cov,
+                         'delta': _delta, 'area': _area, 'hop': _hop, 'ratio': _ratio, 'k': _k})
     _seen = set(); _unique = []
     for _r in _all:
         if _r['k'] not in _seen: _seen.add(_r['k']); _unique.append(_r)
 
-    C_el = 1.0
+    # Fit C_thick and C_thin separately
+    C_thick = 1.0; C_thin = 1.0
     if len(_unique) >= 5:
         _s = np.array([r['s'] for r in _unique])
-        _rhs = SIGMA_AM * np.array([r['pa'] for r in _unique])**2 * np.array([r['cn'] for r in _unique])**2 * np.array([r['cov'] for r in _unique])**0.5 * np.exp(np.pi / np.array([r['ratio'] for r in _unique]))
-        C_el = float(np.exp(np.mean(np.log(_s) - np.log(_rhs))))
+        _pa = np.array([r['pa'] for r in _unique])
+        _cn = np.array([r['cn'] for r in _unique])
+        _tau = np.array([r['tau'] for r in _unique])
+        _cov = np.array([r['cov'] for r in _unique])
+        _delta = np.array([r['delta'] for r in _unique])
+        _area = np.array([r['area'] for r in _unique])
+        _hop = np.array([r['hop'] for r in _unique])
+        _ratio = np.array([r['ratio'] for r in _unique])
 
-    # Compute predictions
+        _tk = _ratio >= 10; _tn = _ratio < 10
+        if _tk.sum() >= 3:
+            _rhs_tk = SIGMA_AM * _pa[_tk]**4 * _cn[_tk]**1.5 * _cov[_tk] * _tau[_tk]**0.5
+            C_thick = float(np.exp(np.mean(np.log(_s[_tk]) - np.log(_rhs_tk))))
+        if _tn.sum() >= 3:
+            _d2a = _delta[_tn]**2 / _area[_tn]
+            _rhs_tn = SIGMA_AM * _cn[_tn] * np.sqrt(_d2a * _hop[_tn]) / _ratio[_tn]**0.5
+            C_thin = float(np.exp(np.mean(np.log(_s[_tn]) - np.log(_rhs_tn))))
+
+    # Compute predictions per case
     sigma_scaling = []
     for i in range(len(data_list)):
         if phi_am[i] > 0 and cn_am[i] > 0 and d_am_list[i] > 0 and thickness[i] > 0:
             ratio_i = thickness[i] / d_am_list[i]
-            cov_i = cov_list[i]
-            s = C_el * SIGMA_AM * phi_am[i]**2 * cn_am[i]**2 * cov_i**0.5 * np.exp(np.pi / ratio_i)
+            if ratio_i >= 10:
+                # THICK: φ⁴ × CN^(3/2) × cov × √τ
+                s = C_thick * SIGMA_AM * phi_am[i]**4 * cn_am[i]**1.5 * cov_list[i] * tau[i]**0.5
+            else:
+                # THIN: CN × √(δ²×hop / (A×T/d))
+                d2a = am_delta[i]**2 / am_area[i]
+                s = C_thin * SIGMA_AM * cn_am[i] * np.sqrt(d2a * am_hop[i]) / ratio_i**0.5
             sigma_scaling.append(s)
         else:
             sigma_scaling.append(0.0)
@@ -1600,12 +1630,15 @@ def plot_electronic_scaling(data_list, names, outdir):
     else:
         r2 = 0; errs = np.array([0]); w20 = 0
 
-    ax.set_title(f"Electronic: σ = {C_el:.4f} × σ_AM × φ² × CN² × √cov × exp(π/(T/d))\n"
-                 f"R²={r2:.3f} (n={len(valid_both)}), |err|={np.mean(errs):.0f}%",
+    ax.set_title(f"Electronic 2-Regime Scaling Law\n"
+                 f"R²={r2:.3f} (n={len(valid_both)}), |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}",
                  fontsize=9, fontweight='bold')
 
-    txt = f"R²={r2:.3f} (n={len(valid_both)})\n|err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}"
-    ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=9, ha='right', va='top',
+    # Formula box
+    txt = (f"Thick (T/d≥10): C×σ_AM×φ⁴×CN^(3/2)×cov×√τ\n"
+           f"Thin (T/d<10): C×σ_AM×CN×√(δ²×hop/(A×T/d))\n"
+           f"R²={r2:.3f}, |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
+    ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7.5, ha='right', va='top',
             bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffeaea', alpha=0.8))
 
     _write_csv(outdir, 'electronic_scaling.csv',
@@ -2506,8 +2539,8 @@ PLOT_REGISTRY["thermal_sigma"] = {
 PLOT_REGISTRY["electronic_scaling"] = {
     "func": plot_electronic_scaling,
     "file": "electronic_scaling.png",
-    "title": "Electronic: Universal Scaling Law",
-    "description": "σ_el = C × σ_AM × φ² × CN² × √cov × exp(π/(T/d))\n\nφ: AM volume fraction\nCN: AM-AM coordination number\ncov: AM-SE coverage\nexp(π/(T/d)): thin electrode correction\nC: 전체 데이터에서 global fit",
+    "title": "Electronic: 2-Regime Scaling Law",
+    "description": "Thick (T/d≥10): σ = C × σ_AM × φ⁴ × CN^(3/2) × cov × √τ\n  R²≈0.97, topology 지배\n\nThin (T/d<10): σ = C × σ_AM × CN × √(δ²×hop/(A×ξ))\n  R²≈0.92, contact mechanics 지배\n\nC: thick/thin 별도 global fit",
     "origin_tip": "Red: Scaling law, Green dashed: Network solver (ground truth).",
 }
 PLOT_REGISTRY["thermal_scaling"] = {

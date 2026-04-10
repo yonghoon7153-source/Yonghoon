@@ -1597,8 +1597,8 @@ def plot_electronic_scaling(data_list, names, outdir):
             _ps_tn = np.array([r['ps'] for r in _unique])[_tn]
             _delta_tn = np.array([r['delta'] for r in _unique])[_tn]
             _hop_tn = np.array([r['hop'] for r in _unique])[_tn]
-            # hop^0.35 × CN^0.4 × f_p^0.1 / (φ_SE^0.85 × √ξ)
-            _rhs_tn = SIGMA_AM * _hop_tn**0.35 * _cn[_tn]**0.4 * _ep**0.1 / (_ps_tn**0.85 * _ratio[_tn]**0.5)
+            # hop^0.25 × CN^0.4 × δ^0.2 × f_p^0.15 / (φ_SE^0.85 × √ξ)
+            _rhs_tn = SIGMA_AM * _hop_tn**0.25 * _cn[_tn]**0.4 * _delta_tn**0.2 * _ep**0.15 / (_ps_tn**0.85 * _ratio[_tn]**0.5)
             C_thin = float(np.exp(np.mean(np.log(_s[_tn]) - np.log(_rhs_tn))))
 
     # Compute predictions per case
@@ -1612,8 +1612,8 @@ def plot_electronic_scaling(data_list, names, outdir):
             else:
                 # THIN: √f_p × CN × por × √cov / √(T/d)
                 if el_perc[i] >= 0.65:
-                    # hop^0.35 × CN^0.4 × f_p^0.1 / (φ_SE^0.85 × √ξ)
-                    s = C_thin * SIGMA_AM * am_hop[i]**0.35 * cn_am[i]**0.4 * el_perc[i]**0.1 / (phi_se[i]**0.85 * ratio_i**0.5)
+                    # hop^0.25 × CN^0.4 × δ^0.2 × f_p^0.15 / (φ_SE^0.85 × √ξ)
+                    s = C_thin * SIGMA_AM * am_hop[i]**0.25 * cn_am[i]**0.4 * am_delta[i]**0.2 * el_perc[i]**0.15 / (phi_se[i]**0.85 * ratio_i**0.5)
                 else:
                     s = 0.0  # percolation 미달 → 예측 불가
             sigma_scaling.append(s)
@@ -1666,7 +1666,7 @@ def plot_electronic_scaling(data_list, names, outdir):
     tk_str = f"R²={r2_tk:.3f}(n={tk_v.sum()})" if hasattr(tk_v, 'sum') and tk_v.sum() >= 3 else ""
     tn_str = f"R²={r2_tn:.3f}(n={tn_v.sum()})" if hasattr(tn_v, 'sum') and tn_v.sum() >= 3 else ""
     txt = (f"Thick: φ⁴×CN^(3/2)×cov×√τ {tk_str}\n"
-           f"Thin: hop^0.35×CN^0.4×f_p^0.1/(φ_SE^0.85×√ξ) {tn_str}\n"
+           f"Thin: hop^0.25×CN^0.4×δ^0.2×f_p^0.15/(φ_SE^0.85×√ξ) {tn_str}\n"
            f"ALL R²={r2:.3f}, |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
     ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',
             bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffeaea', alpha=0.8))

@@ -1590,8 +1590,9 @@ def plot_electronic_scaling(data_list, names, outdir):
             _ep = np.array([r['ep'] for r in _unique])[_tn]
             _por_tn = np.array([r['por'] for r in _unique])[_tn]
             _cov_tn = np.array([r['cov'] for r in _unique])[_tn]
-            # √f_p × CN × por × √cov / √ξ  (φ 없이 — 개형 우선)
-            _rhs_tn = SIGMA_AM * np.sqrt(_ep) * _cn[_tn] * _por_tn * _cov_tn**0.5 / _ratio[_tn]**0.5
+            _area_tn = np.array([r['area'] for r in _unique])[_tn]
+            # √f_p × CN × √A × por × √cov / √ξ  (CN weighted by contact area)
+            _rhs_tn = SIGMA_AM * np.sqrt(_ep) * _cn[_tn] * np.sqrt(_area_tn) * _por_tn * _cov_tn**0.5 / _ratio[_tn]**0.5
             # C fitting: el_perc ≥ 0.85만 사용
             _perc_ok = _ep >= 0.85
             if _perc_ok.sum() >= 3:
@@ -1610,8 +1611,8 @@ def plot_electronic_scaling(data_list, names, outdir):
             else:
                 # THIN: √f_p × CN × por × √cov / √(T/d)
                 if el_perc[i] >= 0.65:
-                    # √f_p × CN × por × √cov / √ξ
-                    s = C_thin * SIGMA_AM * np.sqrt(el_perc[i]) * cn_am[i] * porosity[i] * cov_list[i]**0.5 / ratio_i**0.5
+                    # √f_p × CN × √A × por × √cov / √ξ
+                    s = C_thin * SIGMA_AM * np.sqrt(el_perc[i]) * cn_am[i] * np.sqrt(am_area[i]) * porosity[i] * cov_list[i]**0.5 / ratio_i**0.5
                 else:
                     s = 0.0  # percolation 미달 → 예측 불가
             sigma_scaling.append(s)
@@ -1664,7 +1665,7 @@ def plot_electronic_scaling(data_list, names, outdir):
     tk_str = f"R²={r2_tk:.3f}(n={tk_v.sum()})" if hasattr(tk_v, 'sum') and tk_v.sum() >= 3 else ""
     tn_str = f"R²={r2_tn:.3f}(n={tn_v.sum()})" if hasattr(tn_v, 'sum') and tn_v.sum() >= 3 else ""
     txt = (f"Thick: φ⁴×CN^(3/2)×cov×√τ {tk_str}\n"
-           f"Thin: √f_p×CN×por×√cov/√ξ {tn_str}\n"
+           f"Thin: √f_p×CN×√A×por×√cov/√ξ {tn_str}\n"
            f"ALL R²={r2:.3f}, |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
     ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',
             bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffeaea', alpha=0.8))

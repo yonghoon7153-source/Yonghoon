@@ -1610,7 +1610,7 @@ def plot_electronic_scaling(data_list, names, outdir):
                 s = C_thick * SIGMA_AM * phi_am[i]**4 * cn_am[i]**1.5 * cov_list[i] * tau[i]**0.5
             else:
                 # THIN: √f_p × CN × por × √cov / √(T/d)
-                if el_perc[i] >= 0.85:
+                if el_perc[i] >= 0.65:
                     d2a_i = am_delta[i]**2 / am_area[i] if am_area[i] > 0 else 0.001
                     s = C_thin * SIGMA_AM * np.sqrt(el_perc[i]) * cn_am[i] * porosity[i] * cov_list[i]**0.5 * d2a_i**0.25 / ratio_i**0.5
                 else:

@@ -1594,9 +1594,9 @@ def plot_electronic_scaling(data_list, names, outdir):
             _ep = np.array([r['ep'] for r in _unique])[_tn]
             _por_tn = np.array([r['por'] for r in _unique])[_tn]
             _cov_tn = np.array([r['cov'] for r in _unique])[_tn]
-            _ea = np.array([r.get('ea', 0.01) for r in _unique])[_tn]
-            # (f_p × f_a)^¾ × CN / √ξ — percolation quality
-            _rhs_tn = SIGMA_AM * (_ep * _ea)**0.75 * _cn[_tn] / _ratio[_tn]**0.5
+            _tau_tn = _tau[_tn]
+            # THICK 식 + √f_p/√ξ (같은 물리, C만 다르게)
+            _rhs_tn = SIGMA_AM * np.sqrt(_ep) * _pa[_tn]**4 * _cn[_tn]**1.5 * _cov_tn * _tau_tn**0.5 / _ratio[_tn]**0.5
             # C fitting: el_perc ≥ 0.85만 사용
             _perc_ok = _ep >= 0.85
             if _perc_ok.sum() >= 3:
@@ -1615,8 +1615,8 @@ def plot_electronic_scaling(data_list, names, outdir):
             else:
                 # THIN: √f_p × CN × por × √cov / √(T/d)
                 if el_perc[i] >= 0.65:
-                    # (f_p × f_a)^¾ × CN / √ξ
-                    s = C_thin * SIGMA_AM * (el_perc[i] * el_act[i])**0.75 * cn_am[i] / ratio_i**0.5
+                    # THICK식 + √f_p/√ξ
+                    s = C_thin * SIGMA_AM * np.sqrt(el_perc[i]) * phi_am[i]**4 * cn_am[i]**1.5 * cov_list[i] * tau[i]**0.5 / ratio_i**0.5
                 else:
                     s = 0.0  # percolation 미달 → 예측 불가
             sigma_scaling.append(s)
@@ -1669,7 +1669,7 @@ def plot_electronic_scaling(data_list, names, outdir):
     tk_str = f"R²={r2_tk:.3f}(n={tk_v.sum()})" if hasattr(tk_v, 'sum') and tk_v.sum() >= 3 else ""
     tn_str = f"R²={r2_tn:.3f}(n={tn_v.sum()})" if hasattr(tn_v, 'sum') and tn_v.sum() >= 3 else ""
     txt = (f"Thick: φ⁴×CN^(3/2)×cov×√τ {tk_str}\n"
-           f"Thin: (f_p×f_a)^¾×CN/√ξ {tn_str}\n"
+           f"Thin: √f_p×φ⁴×CN^(3/2)×cov×√τ/√ξ {tn_str}\n"
            f"ALL R²={r2:.3f}, |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
     ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',
             bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffeaea', alpha=0.8))

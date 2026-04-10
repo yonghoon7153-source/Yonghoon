@@ -2601,7 +2601,13 @@ def predictor_optimal():
     try:
         fixed = json.loads(request.args.get('fixed', '{}'))
         sweep = json.loads(request.args.get('sweep', '[]'))
-        defaults = {k: float(v) for k, v in request.args.items() if k not in ('fixed', 'sweep')}
+        defaults = {}
+        for k, v in request.args.items():
+            if k in ('fixed', 'sweep'): continue
+            try:
+                defaults[k] = float(v)
+            except (ValueError, TypeError):
+                defaults[k] = v  # keep string for additive, ptfe etc.
         result = predictor_engine.sweep_optimal(
             top_n=10, fixed_params=fixed, sweep_keys=sweep if sweep else None, defaults=defaults
         )

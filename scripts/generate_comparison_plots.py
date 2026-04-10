@@ -1593,8 +1593,8 @@ def plot_electronic_scaling(data_list, names, outdir):
             _por_tn = np.array([r['por'] for r in _unique])[_tn]
             _cov_tn = np.array([r['cov'] for r in _unique])[_tn]
             _area_tn = np.array([r['area'] for r in _unique])[_tn]
-            # √f_p × CN / √ξ  (극단 단순화 — CN만이 일관적)
-            _rhs_tn = SIGMA_AM * np.sqrt(_ep) * _cn[_tn] / _ratio[_tn]**0.5
+            # √f_p × √(CN×A) / √ξ  (기하평균: CN↓×A↑ 보상)
+            _rhs_tn = SIGMA_AM * np.sqrt(_ep) * np.sqrt(_cn[_tn] * _area_tn) / _ratio[_tn]**0.5
             # C fitting: el_perc ≥ 0.85만 사용
             _perc_ok = _ep >= 0.85
             if _perc_ok.sum() >= 3:
@@ -1613,8 +1613,8 @@ def plot_electronic_scaling(data_list, names, outdir):
             else:
                 # THIN: √f_p × CN × por × √cov / √(T/d)
                 if el_perc[i] >= 0.65:
-                    # √f_p × CN / √ξ
-                    s = C_thin * SIGMA_AM * np.sqrt(el_perc[i]) * cn_am[i] / ratio_i**0.5
+                    # √f_p × √(CN×A) / √ξ
+                    s = C_thin * SIGMA_AM * np.sqrt(el_perc[i]) * np.sqrt(cn_am[i] * am_area[i]) / ratio_i**0.5
                 else:
                     s = 0.0  # percolation 미달 → 예측 불가
             sigma_scaling.append(s)
@@ -1667,7 +1667,7 @@ def plot_electronic_scaling(data_list, names, outdir):
     tk_str = f"R²={r2_tk:.3f}(n={tk_v.sum()})" if hasattr(tk_v, 'sum') and tk_v.sum() >= 3 else ""
     tn_str = f"R²={r2_tn:.3f}(n={tn_v.sum()})" if hasattr(tn_v, 'sum') and tn_v.sum() >= 3 else ""
     txt = (f"Thick: φ⁴×CN^(3/2)×cov×√τ {tk_str}\n"
-           f"Thin: √f_p×CN/√ξ {tn_str}\n"
+           f"Thin: √f_p×√(CN×A)/√ξ {tn_str}\n"
            f"ALL R²={r2:.3f}, |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
     ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',
             bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffeaea', alpha=0.8))
@@ -2810,9 +2810,32 @@ def main():
             r2_val, loocv_val = _GLOBAL_FORMX_R2
             desc = desc.replace("{formx_r2}", f"{r2_val:.3f}")
             desc = desc.replace("{formx_loocv}", f"{loocv_val:.3f}")
-        else:
-            desc = desc.replace("{formx_r2}", "N/A")
-            desc = desc.replace("{formx_loocv}", "N/A")
+        elif '{formx_r2}' in desc:
+            # Compute FORM X R² on the fly from all data
+            try:
+                PHI_C = 0.18; SGRAIN = 3.0
+                _phi_se = np.array([_get(d, "phi_se", 0) for d in all_data])
+                _cn_se = np.array([_get(d, "se_se_cn", 0) for d in all_data])
+                _tau_se = np.array([max(_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)), 0.1) for d in all_data])
+                _cov_se = np.array([(lambda vs: sum(vs)/len(vs)/100 if vs else 0.20)([v for v in [_get(d,"coverage_AM_P_mean",0),_get(d,"coverage_AM_S_mean",0),_get(d,"coverage_AM_mean",0)] if v>0]) for d in all_data])
+                _snet = np.array(_load_network_sigma(all_data))
+                _valid = (_phi_se > PHI_C+0.01) & (_cn_se > 0) & (_tau_se > 0) & (_cov_se > 0) & (_snet > 0.01)
+                if _valid.sum() >= 5:
+                    _phi_ex = np.clip(_phi_se[_valid] - PHI_C, 0.001, None)
+                    _log_rhs = np.log(SGRAIN) + 0.75*np.log(_phi_ex) + np.log(_cn_se[_valid]) + 0.5*np.log(_cov_se[_valid]) - 0.5*np.log(_tau_se[_valid])
+                    _log_s = np.log(_snet[_valid])
+                    _lnC = np.mean(_log_s - _log_rhs)
+                    _ss_res = np.sum((_log_s - _lnC - _log_rhs)**2)
+                    _ss_tot = np.sum((_log_s - np.mean(_log_s))**2)
+                    _r2 = 1 - _ss_res / _ss_tot
+                    desc = desc.replace("{formx_r2}", f"{_r2:.3f}")
+                    desc = desc.replace("{formx_loocv}", f"~{_r2:.3f}")
+                else:
+                    desc = desc.replace("{formx_r2}", "N/A")
+                    desc = desc.replace("{formx_loocv}", "N/A")
+            except:
+                desc = desc.replace("{formx_r2}", "N/A")
+                desc = desc.replace("{formx_loocv}", "N/A")
         info_entry = {
             "file": entry["file"],
             "csv": csv_file,

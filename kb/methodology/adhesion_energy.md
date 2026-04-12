@@ -78,6 +78,25 @@ Sharp drop from Li₆ to Li₅.₄ → vacancy reduces surface bond strength.
 ## Calculator
 UMA (uma-s-1p2, fairchem, V100 GPU)
 
+## Known Bugs & Fixes
+
+### v5 FIX: ASE atom slicing error (2026-04-12)
+**Error:** `could not broadcast input array from shape (248,) into shape (348,)`
+**Cause:** ASE `Atoms` object does not support NumPy-style slicing `interface[:n_ncm]`.
+**Fix:** Use `copy()` + `del` instead of slice:
+```python
+# Before (broken):
+ncm_iso = interface[:n_ncm].copy()
+se_iso = interface[n_ncm:].copy()
+
+# After (fixed):
+ncm_iso = interface.copy()
+del ncm_iso[n_ncm:]
+se_iso = interface.copy()
+del se_iso[:n_ncm]
+```
+**Status:** FIX2 deployed on V100, running comp4→comp2B→comp3→comp1→comp5.
+
 ## References
 - [j_nucl_mater2020] Au/a-Si crystalline/amorphous interface statistics
 - [pnas2018] GAP MLIP melt-quench amorphous Si validation

@@ -1,0 +1,46 @@
+&CONTROL
+    calculation = 'scf'
+    prefix      = '${PREFIX}_strain${STRAIN_ID}'
+    outdir      = './tmp'
+    pseudo_dir  = './pseudo'
+    tprnfor     = .true.
+    tstress     = .true.
+/
+&SYSTEM
+    ibrav       = 0
+    nat         = ${NAT}
+    ntyp        = ${NTYP}
+    ecutwfc     = 60.0
+    ecutrho     = 480.0
+    occupations = 'smearing'
+    smearing    = 'mv'
+    degauss     = 0.01
+/
+&ELECTRONS
+    conv_thr    = 1.0d-10
+    mixing_beta = 0.3
+/
+
+K_POINTS automatic
+${KGRID} 0 0 0
+
+! Finite strain elastic calculation:
+!   6 strain patterns x ±0.005 = 12 SCF calculations
+!
+! Strain patterns (Voigt notation):
+!   1: e11 (xx)    → C11, C12
+!   2: e22 (yy)    → C11, C12
+!   3: e33 (zz)    → C11, C12, C13 (for non-cubic)
+!   4: e23 (yz)    → C44
+!   5: e13 (xz)    → C55
+!   6: e12 (xy)    → C66
+!
+! Apply strain to CELL_PARAMETERS:
+!   H_strained = (I + eps) * H_0
+!   where eps is 3x3 strain tensor
+!
+! QE stress convention: positive = compression
+!   Cij = -d(sigma)/d(epsilon)
+!   Use kbar columns 3,4,5 for shear components!
+!
+! CELL_PARAMETERS: strained from V0 relaxed coordinates

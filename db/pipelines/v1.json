@@ -1,0 +1,59 @@
+{
+  "id": "pipeline_v1",
+  "name": "Halogen Enumerate + DFT (current paper)",
+  "steps": [
+    {
+      "step": 1,
+      "name": "halogen_site_enumerate",
+      "tool": "pymatgen",
+      "description": "Enumerate all S/Cl/Br arrangements on 4a/4c sites",
+      "n_configs": "56-70 depending on composition",
+      "example": "Li6PS5Cl: C(8,4)=70 configs",
+      "li_treatment": "Fixed from Rietveld refinement"
+    },
+    {
+      "step": 2,
+      "name": "mlip_screening",
+      "tool": "MACE-MP-0",
+      "description": "MLIP single-point or relax for all halogen configs, rank by energy",
+      "time": "~5-30 min"
+    },
+    {
+      "step": 3,
+      "name": "dft_relax",
+      "tool": "QE (pw.x)",
+      "description": "DFT relaxation at each volume point. Cell fixed, atoms free. Basin consistency check.",
+      "time": "~3h per volume point",
+      "key_issue": "Basin transitions possible at large volume expansion (v108)"
+    },
+    {
+      "step": 4,
+      "name": "dft_eos",
+      "tool": "scipy BM fitting",
+      "description": "3rd-order Birch-Murnaghan EOS fitting -> B0, B0', V0",
+      "volume_range": "v096-v106 (v108 often excluded due to basin transition)",
+      "quality": "R2 > 0.9999 target"
+    },
+    {
+      "step": 5,
+      "name": "v0_confirmation",
+      "description": "DFT relax at V0 grid point + tight SCF (conv_thr=1e-10)"
+    },
+    {
+      "step": 6,
+      "name": "post_processing",
+      "substeps": [
+        "NSCF -> DOS/PDOS -> band gap",
+        "Bader charge (pp.x -> bader)",
+        "Bond length analysis",
+        "DFT finite strain elastic (12 SCF)",
+        "MLIP 600K snapshot elastic (5 snapshots)"
+      ]
+    }
+  ],
+  "limitations": [
+    "Li from Rietveld, not re-optimized for Br substitution",
+    "comp5 basin problem: DB0=1.3 GPa, DC44=12.7 GPa",
+    "v108 basin transition excludes data points"
+  ]
+}

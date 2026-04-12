@@ -1,0 +1,22 @@
+{
+  "property": "bond_lengths",
+  "description": "DFT relaxed V0 coordinates, PBC distance calculation",
+
+  "results": {
+    "comp2": {"Li-Cl": 2.51, "Li-Br": 2.71, "P-S": 2.06},
+    "comp5_A": {"Li-Cl": 2.466, "Li-Br": 2.713, "Li-S": 2.463, "P-S": 2.066},
+    "comp5_B": {"Li-Cl": 2.466, "Li-Br": 2.725, "Li-S": 2.469, "P-S": 2.067}
+  },
+
+  "trends": {
+    "Li-Br_vs_Li-Cl": "Li-Br 0.10-0.26 A longer in all compositions",
+    "P-S_constant": "~2.06 A across all compositions (PS4 framework invariant)",
+    "basin_effect": "Li-Br differs by 0.012 A between basins (comp5)"
+  },
+
+  "physics": {
+    "ionic_radii": {"Cl-": 1.81, "Br-": 1.96, "S2-": 1.84},
+    "source": "Shannon (1976)",
+    "longer_bond_weaker": "Longer Li-Br -> weaker ionic interaction -> lower B0/E"
+  }
+}

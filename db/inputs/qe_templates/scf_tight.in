@@ -1,0 +1,30 @@
+&CONTROL
+    calculation = 'scf'
+    prefix      = '${PREFIX}'
+    outdir      = './tmp'
+    pseudo_dir  = './pseudo'
+    tprnfor     = .true.
+    tstress     = .true.
+/
+&SYSTEM
+    ibrav       = 0
+    nat         = ${NAT}
+    ntyp        = ${NTYP}
+    ecutwfc     = 60.0
+    ecutrho     = 480.0
+    occupations = 'smearing'
+    smearing    = 'mv'
+    degauss     = 0.01
+/
+&ELECTRONS
+    conv_thr    = 1.0d-10   ! Tight convergence for charge density
+    mixing_beta = 0.3
+/
+
+K_POINTS automatic
+${KGRID} 0 0 0
+
+! Purpose: Generate precise charge density at V0 for:
+!   - NSCF → DOS/PDOS
+!   - Bader charge analysis
+!   - Use same prefix as NSCF!

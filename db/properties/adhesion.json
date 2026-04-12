@@ -1,0 +1,55 @@
+{
+  "property": "adhesion_energy",
+  "description": "SE/NCM interface work of adhesion (Wad)",
+  "equation": "Wad = gamma_SE + gamma_NCM - gamma_SE_NCM (Dupre)",
+
+  "surface_energies": [
+    {"id": "comp1",  "gamma_SE": 1.211, "two_gamma": 2.42},
+    {"id": "comp2",  "gamma_SE": 1.189, "two_gamma": 2.38},
+    {"id": "comp3",  "gamma_SE": 0.565, "two_gamma": 1.13},
+    {"id": "comp4",  "gamma_SE": 0.450, "two_gamma": 0.90},
+    {"id": "comp5",  "gamma_SE": 0.470, "two_gamma": 0.94}
+  ],
+
+  "adhesion_v2_3000K_melt": {
+    "method": "3000K melt-quench -> amorphous SE on crystalline NCM",
+    "NCM": "LiNiO2 R-3m 3x3x1 slab (108 atoms, 64.6 A^2)",
+    "results": {
+      "comp1": {"seeds": [1,2,3], "Wad": [1.081, 1.153, 1.105], "mean": 1.113, "std": 0.037}
+    }
+  },
+
+  "adhesion_v1_random": [
+    {"id": "comp1",  "Wad_Jm2": 1.052, "Wad_aJ_r10nm": 331, "expt_aJ": 194},
+    {"id": "comp2",  "Wad_Jm2": 1.101, "Wad_aJ_r10nm": 346, "expt_aJ": 180},
+    {"id": "comp3",  "Wad_Jm2": 1.052, "Wad_aJ_r10nm": 331, "expt_aJ": 316},
+    {"id": "comp4",  "Wad_Jm2": 1.200, "Wad_aJ_r10nm": 377, "expt_aJ": 298}
+  ],
+
+  "adhesion_v5_crystalline_slab": {
+    "method": "crystalline SE slab + surface-only MQA (800K/300K/500K/100K)",
+    "protocol": [
+      "1. SE 2x2x1 repeat + z-shift",
+      "2. NCM 5x5x1 slab",
+      "3. SE strained to match NCM (~1-3%)",
+      "4. Gap 2.5A stacking",
+      "5. 800K surface softening (2ps)",
+      "6. Quench 300K (2ps)",
+      "7. 500K Li anneal (3ps)",
+      "8. Cool 100K (2ps) + relax",
+      "9. Wad = (E_ncm + E_se - E_int) / A  (isolated slab method)"
+    ],
+    "cell_matching": {
+      "Li6": {"SE": "prim_2x2x1 (52at)", "NCM": "5x5x1 (300at)", "strain": 3.3},
+      "Li5.4": {"SE": "2x2x1 (248at)", "NCM": "5x5x1 (300at)", "strain": 1.1}
+    },
+    "z_cuts": 5,
+    "status": "in_progress"
+  },
+
+  "vacancy_adhesion_mechanism": {
+    "Li6_no_vacancy": "Surface Li saturated -> no extra NCM bonding -> Wad lower",
+    "Li5.4_vacancy": "Under-coordinated Li near vacancy -> chemical anchor -> pulls NCM O2- -> Wad higher",
+    "evidence": "Li5.4 z-cut variance >> Li6 z-cut variance (vacancy exposure dependent)"
+  }
+}

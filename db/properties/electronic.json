@@ -1,0 +1,27 @@
+{
+  "property": "electronic_structure",
+  "description": "Band gap, DOS/PDOS, Bader charge analysis",
+
+  "band_gaps": [
+    {"id": "comp1",  "gap_eV": 2.28, "vbm": "S 3p",           "cbm": "Li 2s, P 3s"},
+    {"id": "comp2",  "gap_eV": 2.04, "vbm": "S 3p + Br 4p",   "cbm": "Li 2s, P 3s"},
+    {"id": "comp3",  "gap_eV": 2.10, "vbm": "S 3p + Br 4p",   "cbm": "Li 2s, P 3s"},
+    {"id": "comp4",  "gap_eV": 1.96, "vbm": "S 3p + Br 4p",   "cbm": "Li 2s, P 3s"},
+    {"id": "comp5",  "gap_eV": 2.06, "vbm": "S 3p + Br 4p",   "cbm": "Li 2s, P 3s", "basin": "B"},
+    {"id": "comp5_A","gap_eV": 1.77, "vbm": "S(93%)>Li(5%)>Br(1%)", "cbm": "S(44%)+P(36%)+Li(19%)", "basin": "A"}
+  ],
+
+  "trends": {
+    "gap_range": "1.77-2.28 eV",
+    "Br_effect": "Br 4p contributes to VBM -> slight gap reduction",
+    "PS4_framework": "Invariant across compositions (P-S covalent bonds unchanged)",
+    "notes": "Mechanical property changes are ionic in origin, not covalent."
+  },
+
+  "bader": {
+    "key_finding": "|Cl charge| > |Br charge| -> Cl more ionic",
+    "Br_polarizability": "Higher -> less charge transfer -> weaker bonds",
+    "PS4_invariance": "P-S charges constant across compositions",
+    "rhombo_issue": "FFT grid problem in rhombo cells -> use pp.x plot_num=21 (all-electron)"
+  }
+}

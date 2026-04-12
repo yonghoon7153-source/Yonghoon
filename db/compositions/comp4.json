@@ -1,0 +1,53 @@
+{
+  "id": "comp4",
+  "formula": "Li5.4PS4.4Cl0.8Br0.8",
+  "formula_html": "Li<sub>5.4</sub>PS<sub>4.4</sub>Cl<sub>0.8</sub>Br<sub>0.8</sub>",
+  "family": "Li5.4",
+  "atoms": 62,
+  "cell_type": "rhombohedral",
+  "formula_units": 5,
+  "halogen": {"Cl": 4, "Br": 4},
+  "li_per_fu": 5.4,
+  "s_per_fu": 4.4,
+  "has_vacancy": true,
+  "vacancy_per_fu": 0.6,
+
+  "eos": {
+    "B0_GPa": 20.8,
+    "B0_prime": 6.33,
+    "n_points": 10,
+    "R_squared": 0.999996,
+    "status": "confirmed",
+    "pipeline": "v1"
+  },
+
+  "band_gap_eV": 1.96,
+  "vbm_character": "S 3p + Br 4p",
+  "cbm_character": "Li 2s, P 3s",
+
+  "elastic_mlip_600K_GPa": {
+    "method": "600K_snapshot_x5",
+    "E_VRH": 26.4, "E_std": 1.6,
+    "K_VRH": 20.5, "G_VRH": 10.3
+  },
+
+  "surface_energy_Jm2": 0.450,
+  "two_gamma_Jm2": 0.90,
+
+  "adhesion_v1": {
+    "Wad_Jm2": 1.200,
+    "Wad_aJ_r10nm": 377
+  },
+
+  "adhesion_v5": {
+    "method": "crystalline_slab_surface_MQA",
+    "SE_cell": "2x2x1_248at",
+    "NCM_cell": "5x5x1_300at",
+    "strain_pct": 1.1,
+    "status": "in_progress"
+  },
+
+  "practical_notes": "Optimal composition candidate: E down 9%, Wad up (1.200), basin stable. Best balance of compliance + adhesion + reproducibility.",
+
+  "references": ["adeli2019", "kraft2018"]
+}

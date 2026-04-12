@@ -1,0 +1,81 @@
+{
+  "id": "pipeline_v2",
+  "name": "Halogen + Li Screening + Annealing (recommended)",
+  "improvement_over_v1": "Li sublattice re-optimization via MLIP MD annealing. Reduces basin transition risk.",
+  "steps": [
+    {
+      "step": 1,
+      "name": "halogen_site_enumerate",
+      "tool": "pymatgen",
+      "description": "Same as v1. Enumerate S/Cl/Br on 4a/4c.",
+      "n_configs": "56-70"
+    },
+    {
+      "step": "2a",
+      "name": "halogen_screening",
+      "tool": "MACE or UMA",
+      "description": "Fix representative Li arrangement. MLIP relax all halogen configs. Select best halogen placement.",
+      "determines": "4c vs 4a halogen site preference",
+      "time": "~30 min (GPU)"
+    },
+    {
+      "step": "2b",
+      "name": "li_screening",
+      "tool": "MACE or UMA",
+      "description": "Fix best halogen. Random 20 Li arrangements from 48h sites. MLIP relax. Measure energy spread.",
+      "li_selection": "Random from C(48,24) for Li6 or C(48,27) for Li5.4",
+      "n_configs": 20,
+      "energy_spread_example": "Li6PS5Cl: 1162 meV (huge!)"
+    },
+    {
+      "step": 3,
+      "name": "li_annealing",
+      "tool": "MACE/UMA MD",
+      "description": "Top 5 Li configs -> 500K MD annealing (50-100ps) -> MLIP relax. Champion selection.",
+      "temperature_K": 500,
+      "duration_ps": "50-100",
+      "physics": {
+        "Li+": "Active hopping (Ea~0.2 eV << kT=0.043 eV)",
+        "S2-": "PS4 covalent bonds hold (P-S~3.5 eV >> kT)",
+        "Cl-/Br-": "Ionic cage, no migration at 500K",
+        "warning_800K": "Cl/Br start hopping -> halogen enumeration invalidated",
+        "warning_1500K": "PS4 framework destruction"
+      },
+      "key_finding": "Screening and annealing rankings can reverse! comp1: #15 was rank 4 -> rank 2 after annealing. #0 remained champion (491 meV ahead).",
+      "time": "+6h per composition"
+    },
+    {
+      "step": 4,
+      "name": "mlip_eos",
+      "description": "Champion structure volume scaling 96-108%. BM fitting for preliminary V0, B0.",
+      "time": "~5 min"
+    },
+    {
+      "step": 5,
+      "name": "dft_relax",
+      "description": "Same as v1 step 3. But champion from annealing is deeper basin -> fewer transitions.",
+      "time": "~3h per point"
+    },
+    {
+      "step": 6,
+      "name": "dft_eos",
+      "description": "Same as v1 step 4."
+    },
+    {
+      "step": 7,
+      "name": "v0_confirmation",
+      "description": "Same as v1 step 5."
+    },
+    {
+      "step": 8,
+      "name": "post_processing",
+      "description": "Same as v1 step 6."
+    }
+  ],
+  "v1_vs_v2_comparison": {
+    "comp1_B0_v1": 26.2,
+    "comp1_B0_v2_mlip": 26.9,
+    "delta": 0.7,
+    "interpretation": "Li6 compositions insensitive to Li ordering (no vacancy). Delta expected larger for Li5.4."
+  }
+}

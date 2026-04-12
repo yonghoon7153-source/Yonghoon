@@ -1,0 +1,195 @@
+{
+  "references": [
+    {
+      "id": "deiseroth2006",
+      "authors": "Deiseroth, H.-J. et al.",
+      "title": "Li6PS5X (X=Cl, Br, I): synthesis, crystal structure, ionic conductivity",
+      "journal": "Angew. Chem. Int. Ed.",
+      "volume": 45,
+      "pages": "5305",
+      "year": 2006,
+      "key_content": "First synthesis of argyrodite Li6PS5X. F-43m space group. 4a/4c site S/halogen disorder. Li-X bond lengths.",
+      "tags": ["argyrodite", "synthesis", "structure", "disorder"]
+    },
+    {
+      "id": "kraft2018",
+      "authors": "Kraft, M. A. et al.",
+      "title": "Influence of lattice polarizability on the ionic conductivity in the lithium superionic argyrodites",
+      "journal": "J. Am. Chem. Soc.",
+      "volume": 140,
+      "pages": "16330",
+      "year": 2018,
+      "key_content": "S/Cl site disorder vs ionic conductivity. Li migration pathways depend on halogen site preference. Bond length analysis.",
+      "tags": ["argyrodite", "conductivity", "disorder", "bonds"]
+    },
+    {
+      "id": "adeli2019",
+      "authors": "Adeli, P. et al.",
+      "title": "Boosting solid-state diffusivity and conductivity in lithium superionic argyrodites by halide substitution",
+      "journal": "Angew. Chem. Int. Ed.",
+      "volume": 58,
+      "pages": "8681",
+      "year": 2019,
+      "key_content": "Li(6-x)PS(5-x)Cl(1+x) halogen-rich compositions. Vacancy introduction -> conductivity enhancement. Li5.4PS4.4Cl1.6 studied.",
+      "tags": ["argyrodite", "vacancy", "conductivity", "halogen-rich"]
+    },
+    {
+      "id": "deng2016",
+      "authors": "Deng, Z. et al.",
+      "title": "Elastic properties of alkali superionic conductor electrolytes from first principles calculations",
+      "journal": "J. Electrochem. Soc.",
+      "volume": 163,
+      "pages": "A67",
+      "year": 2016,
+      "key_content": "Li6PS5Cl DFT SQS elastic: C11=39.9, C12=23.1, C44=7.8, E=22.1 GPa. 23 SE compositions compared.",
+      "data": {"comp1_ref": {"C11": 39.9, "C12": 23.1, "C44": 7.8, "E": 22.1}},
+      "tags": ["argyrodite", "elastic", "DFT", "SQS"]
+    },
+    {
+      "id": "pustorino2025",
+      "authors": "Pustorino, M. et al.",
+      "title": "Systematic structure sampling for Li+ distribution optimization in LPSCl",
+      "journal": "Chem. Mater.",
+      "volume": 37,
+      "pages": "313",
+      "year": 2025,
+      "key_content": "Li+ distribution (24g vs 48h) causes E variation 10-30 GPa. Li ordering directly affects local bonding -> shear/compressibility.",
+      "tags": ["argyrodite", "Li_ordering", "elastic", "structure_sampling"]
+    },
+    {
+      "id": "birch1947",
+      "authors": "Birch, F.",
+      "title": "Finite elastic strain of cubic crystals",
+      "journal": "Phys. Rev.",
+      "volume": 71,
+      "pages": "809",
+      "year": 1947,
+      "key_content": "Original Birch-Murnaghan EOS derivation from Eulerian finite strain theory.",
+      "tags": ["EOS", "theory", "methodology"]
+    },
+    {
+      "id": "minerals2019",
+      "authors": "Angel, R. J. et al.",
+      "title": "EOS: equations of state",
+      "journal": "Minerals",
+      "volume": 9,
+      "pages": "745",
+      "year": 2019,
+      "key_content": "BM EOS derivation tutorial. Eulerian vs Lagrangian scheme, 2nd-4th order comparison.",
+      "tags": ["EOS", "methodology", "tutorial"]
+    },
+    {
+      "id": "bader1990",
+      "authors": "Bader, R. F. W.",
+      "title": "Atoms in Molecules: A Quantum Theory",
+      "journal": "Oxford University Press",
+      "year": 1990,
+      "key_content": "Bader charge analysis theory. Electron density gradient defines atomic boundaries.",
+      "tags": ["Bader", "charge", "theory"]
+    },
+    {
+      "id": "henkelman2006",
+      "authors": "Henkelman, G. et al.",
+      "title": "A fast and robust algorithm for Bader decomposition of charge density",
+      "journal": "Comput. Mater. Sci.",
+      "volume": 36,
+      "pages": "354",
+      "year": 2006,
+      "key_content": "Efficient Bader analysis implementation for VASP/QE charge densities.",
+      "tags": ["Bader", "methodology", "implementation"]
+    },
+    {
+      "id": "shannon1976",
+      "authors": "Shannon, R. D.",
+      "title": "Revised effective ionic radii",
+      "journal": "Acta Crystallogr. A",
+      "volume": 32,
+      "pages": "751",
+      "year": 1976,
+      "key_content": "Standard ionic radii data. Cl-(1.81A), Br-(1.96A), S2-(1.84A).",
+      "tags": ["ionic_radii", "reference"]
+    },
+    {
+      "id": "ayadi2024",
+      "authors": "Ayadi, T. et al.",
+      "title": "Short-range order analysis of Li distribution in LPSCl",
+      "journal": "CEA",
+      "year": 2024,
+      "key_content": "AIMD Li short-range order in LPSCl. Non-uniform Li distribution around S/Cl. Temperature homogenizes. Vacancy deepens inhomogeneity.",
+      "tags": ["argyrodite", "Li_ordering", "AIMD", "short_range_order"]
+    },
+    {
+      "id": "damore2022",
+      "authors": "D'Amore, M. et al.",
+      "title": "Quantum-mechanical exploration of LPSCl polymorphs",
+      "journal": "Phys. Chem. Chem. Phys.",
+      "volume": 24,
+      "pages": "22978",
+      "year": 2022,
+      "key_content": "Pseudo-cubic vs monoclinic LPSCl. Monoclinic more rigid (higher B0). QHA B(T) calculation. Structure difference -> elastic variation.",
+      "tags": ["argyrodite", "polymorphism", "elastic", "QHA"]
+    },
+    {
+      "id": "kozuka2025",
+      "authors": "Kozuka, T. et al.",
+      "title": "LPSCl DFT elastic and mechanical strength",
+      "journal": "J. Phys. Chem. C",
+      "year": 2025,
+      "key_content": "LPSCl DFT elastic: E=22.1 GPa (DFT-D3). Stress-strain curve for strength/ductility evaluation.",
+      "tags": ["argyrodite", "elastic", "DFT", "strength"]
+    },
+    {
+      "id": "sakuda2013",
+      "authors": "Sakuda, A. et al.",
+      "title": "Mechanical properties of sulfide SE particles",
+      "journal": "Sci. Rep.",
+      "volume": 3,
+      "pages": "2261",
+      "year": 2013,
+      "key_content": "Nanoindentation on SE particles. Single particle vs pellet mechanical property difference.",
+      "tags": ["SE", "mechanical", "nanoindentation", "experiment"]
+    },
+    {
+      "id": "ketter2025",
+      "authors": "Ketter, M. & Zeier, W.",
+      "title": "Microstructure effects on argyrodite mechanical properties",
+      "journal": "Nat. Commun.",
+      "year": 2025,
+      "key_content": "Grain boundary effects on argyrodite mechanics. Microstructure dominates polycrystal behavior.",
+      "tags": ["argyrodite", "microstructure", "grain_boundary", "experiment"]
+    },
+    {
+      "id": "ohno2021",
+      "authors": "Ohno, S. et al.",
+      "title": "Electronic structure and electrochemical stability of argyrodites",
+      "journal": "Adv. Energy Mater.",
+      "volume": 11,
+      "pages": "2100370",
+      "year": 2021,
+      "key_content": "Band gap vs electrochemical stability window. SEI formation relationship.",
+      "tags": ["argyrodite", "electronic", "stability", "band_gap"]
+    },
+    {
+      "id": "zhu2015",
+      "authors": "Zhu, Y. et al.",
+      "title": "Electrochemical stability window of Li solid electrolytes from DFT",
+      "journal": "ACS Appl. Mater. Interfaces",
+      "volume": 7,
+      "pages": "23685",
+      "year": 2015,
+      "key_content": "Band gap vs decomposition voltage relationship for solid electrolytes.",
+      "tags": ["SE", "stability", "DFT", "band_gap"]
+    },
+    {
+      "id": "ong2013",
+      "authors": "Ong, S. P. et al.",
+      "title": "Li10GeP2S12 electronic structure and phase stability",
+      "journal": "Energy Environ. Sci.",
+      "volume": 6,
+      "pages": "148",
+      "year": 2013,
+      "key_content": "LGPS PDOS analysis separating ionic and electronic conduction.",
+      "tags": ["LGPS", "electronic", "PDOS", "DFT"]
+    }
+  ]
+}

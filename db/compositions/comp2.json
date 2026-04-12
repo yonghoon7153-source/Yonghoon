@@ -1,0 +1,65 @@
+{
+  "id": "comp2",
+  "formula": "Li6PS5Cl0.5Br0.5",
+  "formula_html": "Li<sub>6</sub>PS<sub>5</sub>Cl<sub>0.5</sub>Br<sub>0.5</sub>",
+  "family": "Li6",
+  "atoms": 52,
+  "cell_type": "cubic",
+  "formula_units": 4,
+  "space_group": "F-43m",
+  "halogen": {"Cl": 2, "Br": 2},
+  "li_per_fu": 6.0,
+  "s_per_fu": 5.0,
+  "has_vacancy": false,
+
+  "eos": {
+    "B0_GPa": 25.8,
+    "B0_prime": 4.22,
+    "n_points": 11,
+    "R_squared": 1.000000,
+    "volume_range": "v096-v108",
+    "status": "confirmed",
+    "basin": "single",
+    "pipeline": "v1"
+  },
+
+  "band_gap_eV": 2.04,
+  "vbm_character": "S 3p + Br 4p",
+  "cbm_character": "Li 2s, P 3s",
+
+  "bader_trend": {
+    "Cl_more_ionic_than_Br": true,
+    "notes": "|Cl charge| > |Br charge| confirmed."
+  },
+
+  "bond_lengths_A": {
+    "Li-Cl": 2.51,
+    "Li-Br": 2.71,
+    "P-S": 2.06,
+    "notes": "Li-Br 0.20 A longer than Li-Cl."
+  },
+
+  "elastic_mlip_600K_GPa": {
+    "method": "600K_snapshot_x5",
+    "E_VRH": 28.6, "E_std": 1.1,
+    "K_VRH": 21.2, "G_VRH": 11.2
+  },
+
+  "surface_energy_Jm2": 1.189,
+  "two_gamma_Jm2": 2.38,
+
+  "adhesion_v1": {
+    "Wad_Jm2": 1.101,
+    "Wad_aJ_r10nm": 346
+  },
+
+  "adhesion_v5": {
+    "method": "crystalline_slab_surface_MQA",
+    "SE_cell": "prim_2x2x1_52at",
+    "NCM_cell": "5x5x1_300at",
+    "strain_pct": 3.3,
+    "status": "in_progress"
+  },
+
+  "references": ["deiseroth2006", "kraft2018"]
+}

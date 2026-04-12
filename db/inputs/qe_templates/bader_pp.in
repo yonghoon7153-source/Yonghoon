@@ -1,0 +1,21 @@
+&INPUTPP
+    prefix  = '${PREFIX}'
+    outdir  = './tmp'
+    filplot = '${PREFIX}_charge.dat'
+    plot_num = 21    ! All-electron charge density (recommended for rhombo cells)
+/
+
+&PLOT
+    iflag  = 3       ! 3D plot
+    output_format = 6  ! Gaussian cube format (for bader)
+    fileout = '${PREFIX}_charge.cube'
+/
+
+! After pp.x:
+!   bader ${PREFIX}_charge.cube
+!   → ACF.dat contains atomic charges
+!
+! For rhombo cells: use plot_num=21 (all-electron) instead of 0 (valence)
+!   to avoid FFT grid artifacts on P atoms.
+!
+! Alternative: critic2 for more robust Bader analysis

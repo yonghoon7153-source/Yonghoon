@@ -1,0 +1,33 @@
+# MLIP MD Annealing for Li sublattice re-optimization
+# Used in Pipeline v2, Step 3
+
+calculator:
+  model: "MACE-MP-0"  # or UMA-s-1p2 for adhesion
+  device: "cuda"  # or "cpu"
+
+md:
+  ensemble: "NVT"
+  thermostat: "Langevin"
+  temperature_K: 500
+  friction: 0.01  # ps^-1
+  timestep_fs: 2.0
+  n_steps: 25000  # = 50 ps
+
+  # For longer annealing:
+  # n_steps: 50000  # = 100 ps
+
+output:
+  trajectory: "annealing_traj.xyz"
+  log_interval: 100
+  traj_interval: 500
+
+post_processing:
+  optimizer: "FIRE"
+  fmax: 0.01  # eV/A
+  max_steps: 500
+
+# Temperature guidelines:
+#   500K: Li hopping active, framework preserved (RECOMMENDED)
+#   300K: Li too slow, stuck in local minima
+#   800K: Cl/Br start hopping - halogen enumeration invalidated!
+#   1500K: PS4 framework can break

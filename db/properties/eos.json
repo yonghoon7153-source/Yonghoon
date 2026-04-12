@@ -1,0 +1,29 @@
+{
+  "property": "equation_of_state",
+  "method": "3rd_order_Birch_Murnaghan",
+  "description": "Bulk modulus B0 from DFT E-V curve fitting",
+  "equation": "E(V) = E0 + (9*V0*B0/16) * {[(V0/V)^(2/3)-1]^2 * [6 + B0'*((V0/V)^(2/3)-1) - 4*(V0/V)^(2/3)]}",
+
+  "results": [
+    {"id": "comp1",  "B0_GPa": 26.2, "B0_prime": 4.17, "pts": 8,  "R2": 1.000000, "status": "confirmed"},
+    {"id": "comp2",  "B0_GPa": 25.8, "B0_prime": 4.22, "pts": 11, "R2": 1.000000, "status": "confirmed"},
+    {"id": "comp3",  "B0_GPa": 20.8, "B0_prime": 6.79, "pts": 10, "R2": 0.999993, "status": "confirmed"},
+    {"id": "comp4",  "B0_GPa": 20.8, "B0_prime": 6.33, "pts": 10, "R2": 0.999996, "status": "confirmed"},
+    {"id": "comp5",  "B0_GPa": 22.9, "B0_prime": 5.21, "pts": 10, "R2": 0.999995, "status": "confirmed", "basin": "A", "notes": "Basin B: 21.8 GPa"},
+    {"id": "modelc", "B0_GPa": 21.7, "B0_prime": 4.31, "pts": 10, "R2": 0.999988, "status": "confirmed", "basin": "A"}
+  ],
+
+  "trends": {
+    "Li6_family": "comp1(26.2) > comp2(25.8) -> Br up, B0 down",
+    "Li5.4_family": "modelc(21.7) > comp5(22.9) > comp3(20.8) = comp4(20.8)",
+    "cross_family": "Li6(~26) > Li5.4(~21) -> vacancy + S reduction -> B0 down by ~5 GPa",
+    "Br_effect": "Br increase -> B0 decrease (consistent within each family)"
+  },
+
+  "physics": {
+    "B0_meaning": "Resistance to uniform compression (volume elasticity)",
+    "Br_weakening": ["Larger ionic radius (1.96 vs 1.81 A)", "Lower charge density", "Longer Li-Br bonds (2.71 vs 2.51 A)"],
+    "vacancy_effect": "Compositional vacancy reduces bond density -> B0 down ~5.4 GPa",
+    "Li_ordering_effect": "Same composition, different Li arrangement: DB0 = 1.3 GPa (comp5)"
+  }
+}

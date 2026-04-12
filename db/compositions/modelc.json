@@ -1,0 +1,48 @@
+{
+  "id": "modelc",
+  "formula": "Li5.4PS4.4Cl1.6",
+  "formula_html": "Li<sub>5.4</sub>PS<sub>4.4</sub>Cl<sub>1.6</sub>",
+  "family": "Li5.4",
+  "atoms": 62,
+  "cell_type": "rhombohedral",
+  "formula_units": 5,
+  "halogen": {"Cl": 8, "Br": 0},
+  "li_per_fu": 5.4,
+  "s_per_fu": 4.4,
+  "has_vacancy": true,
+  "vacancy_per_fu": 0.6,
+  "notes": "Cl-only Li5.4 composition. No Br. Control for isolating Br effect.",
+
+  "eos": {
+    "basin_A": {
+      "B0_GPa": 21.7,
+      "B0_prime": 4.31,
+      "n_points": 10,
+      "R_squared": 0.999988,
+      "volume_range": "v096-v105",
+      "status": "confirmed_final"
+    },
+    "v106_basin_transition": {
+      "delta_meV": -66.4,
+      "n_atoms_moved": 7,
+      "nature": "local_hop (Li 6 + Cl 1)"
+    },
+    "v108_basin": {
+      "delta_vs_A_meV": -199,
+      "n_atoms_moved": 28,
+      "nature": "full_rearrangement",
+      "mean_disp": {"Li": 0.057, "Cl": 0.040, "S": 0.022, "P": 0.016},
+      "max_disp": {"Li": 0.264, "Cl": 0.082, "S": 0.051, "P": 0.018},
+      "notes": "28/62 atoms moved. Li18 largest (Dx=-0.145, Dy=+0.219). Cl also moves unlike comp5."
+    }
+  },
+
+  "comparison_to_comp3": {
+    "modelc_B0": 21.7,
+    "comp3_B0": 20.8,
+    "delta": 0.9,
+    "interpretation": "No Br -> more rigid. Confirms Br weakening effect."
+  },
+
+  "references": ["adeli2019"]
+}

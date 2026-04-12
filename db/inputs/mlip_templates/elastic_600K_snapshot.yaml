@@ -1,0 +1,36 @@
+# MLIP 600K Snapshot Elastic Constants
+# Generates finite-temperature elastic constants with Li disorder
+
+# Step 1: MD at 600K
+md:
+  ensemble: "NVT"
+  thermostat: "Langevin"
+  temperature_K: 600
+  timestep_fs: 2.0
+  equilibration_steps: 5000  # 10 ps
+  production_steps: 10000    # 20 ps
+  n_snapshots: 5             # Evenly spaced from production
+
+# Step 2: Quench each snapshot
+quench:
+  optimizer: "FIRE"
+  fmax: 0.01  # eV/A
+  max_steps: 1000
+
+# Step 3: Finite-strain Cij for each snapshot
+elastic:
+  strain_magnitude: 0.005    # ±0.5%
+  n_strain_patterns: 6       # For general symmetry
+  voigt_convention: true
+
+# Step 4: VRH average across snapshots
+averaging:
+  method: "Voigt-Reuss-Hill"
+  report: ["C11", "C12", "C44", "K_VRH", "G_VRH", "E_VRH"]
+  report_std: true
+
+# Why 600K:
+#   - Li actively hopping → natural disorder
+#   - PS4 framework intact
+#   - Matches experimental measurement temperature (~RT, but Li is disordered)
+#   - Resolves DFT 0K C44 overestimation problem

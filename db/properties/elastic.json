@@ -1,0 +1,42 @@
+{
+  "property": "elastic_constants",
+  "description": "Elastic constants from MLIP 600K snapshot method (paper values) and DFT 0K clamped-ion",
+
+  "mlip_600K_snapshot": {
+    "method": "600K MD -> 5 snapshots -> quench -> FIRE relax -> finite-strain Cij -> VRH average",
+    "temperature_K": 600,
+    "n_snapshots": 5,
+    "includes_Li_disorder": true,
+    "includes_thermal_vibration": false,
+    "results": [
+      {"id": "comp1",  "E": 29.1, "E_std": 1.1, "K": 21.0, "G": 11.5, "expt_E": 28.0, "expt_E_std": 1.8},
+      {"id": "comp2",  "E": 28.6, "E_std": 1.1, "K": 21.2, "G": 11.2, "expt_E": null},
+      {"id": "comp3",  "E": 27.3, "E_std": 0.4, "K": 20.9, "G": 10.6, "expt_E": null},
+      {"id": "comp4",  "E": 26.4, "E_std": 1.6, "K": 20.5, "G": 10.3, "expt_E": null},
+      {"id": "comp5",  "E": 25.8, "E_std": 0.8, "K": 19.6, "G": 10.1, "expt_E": null, "basin": "B"}
+    ],
+    "trend": "E: 29.1 > 28.6 > 27.3 > 26.4 > 25.8 -> Br up, E down (perfectly consistent)"
+  },
+
+  "comp5_basin_comparison": {
+    "dft_0K_clamped": {
+      "basin_A": {"C11": 87.4, "C12": 20.6, "C44": 39.9, "K": 42.9, "G": 37.1, "E": 86.5},
+      "basin_B": {"C11": 84.6, "C12": 20.4, "C44": 27.2, "K": 41.8, "G": 29.1, "E": 70.9},
+      "delta": {"C11": 2.8, "C12": 0.2, "C44": 12.7, "K": 1.1, "G": 8.0, "E": 15.6},
+      "key_finding": "C44 most sensitive: 47% change. Li ordering -> shear resistance. Compression (K) only 2.6% change."
+    },
+    "mlip_600K_snap": {
+      "basin_A": {"C11": 34.9, "C12": 17.1, "C44": 14.0, "E": 30.0},
+      "basin_B": {"C11": 32.8, "C12": 13.1, "C44": 10.2, "E": 25.8},
+      "delta_E": 4.2
+    }
+  },
+
+  "dft_0K_notes": "DFT 0K clamped-ion overestimates C44 (39.9 vs literature 7.8 GPa) due to ordered Li -> cooperative shear. MLIP 600K snapshot resolves this.",
+
+  "intrinsic_vs_extrinsic": {
+    "intrinsic": "Br up -> E down (consistent in both calc and expt within same family)",
+    "extrinsic": "Li5.4 > Li6 in experiment (reversed!) due to GB pinning by vacancy",
+    "notes": "Same family: intrinsic dominates. Cross-family: extrinsic (microstructure) can reverse trend."
+  }
+}

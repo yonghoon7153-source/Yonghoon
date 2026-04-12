@@ -1,0 +1,125 @@
+{
+  "id": "comp1",
+  "formula": "Li6PS5Cl",
+  "formula_html": "Li<sub>6</sub>PS<sub>5</sub>Cl",
+  "family": "Li6",
+  "atoms": 52,
+  "cell_type": "cubic",
+  "formula_units": 4,
+  "space_group": "F-43m",
+  "halogen": {"Cl": 4, "Br": 0},
+  "li_per_fu": 6.0,
+  "s_per_fu": 5.0,
+  "has_vacancy": false,
+  "notes": "Pure Cl end-member. No compositional vacancy.",
+
+  "eos": {
+    "B0_GPa": 26.2,
+    "B0_prime": 4.17,
+    "n_points": 8,
+    "R_squared": 1.000000,
+    "volume_range": "v096-v106",
+    "status": "confirmed",
+    "basin": "single",
+    "pipeline": "v1"
+  },
+
+  "eos_v2": {
+    "B0_GPa": 26.9,
+    "B0_prime": 4.75,
+    "R_squared": 0.999997,
+    "status": "mlip_confirmed_dft_in_progress",
+    "pipeline": "v2",
+    "notes": "Li annealing champion. DFT EOS v097-v107 in progress on KISTI GPU 0."
+  },
+
+  "band_gap_eV": 2.28,
+  "vbm_character": "S 3p",
+  "cbm_character": "Li 2s, P 3s",
+
+  "bader_trend": {
+    "Cl_charge": "most_ionic",
+    "notes": "Pure Cl, no Br for comparison within this composition."
+  },
+
+  "bond_lengths_A": {
+    "Li-Cl": null,
+    "Li-Br": null,
+    "Li-S": null,
+    "P-S": null,
+    "notes": "Bond lengths from DFT relaxed V0 coordinates. Values pending extraction."
+  },
+
+  "elastic_dft_0K_GPa": {
+    "notes": "DFT 0K clamped-ion elastic from finite strain. Values from Deng et al. reference: C11=39.9, C12=23.1, C44=7.8, E=22.1"
+  },
+
+  "elastic_mlip_600K_GPa": {
+    "method": "600K_snapshot_x5",
+    "C11": null, "C12": null, "C44": null,
+    "E_VRH": 29.1, "E_std": 1.1,
+    "K_VRH": 21.0, "G_VRH": 11.5,
+    "notes": "MLIP 600K snapshot method. E=29.1+-1.1 GPa, matches expt 28.0+-1.8."
+  },
+
+  "surface_energy_Jm2": 1.211,
+  "two_gamma_Jm2": 2.42,
+
+  "adhesion_v2": {
+    "seeds": [1, 2, 3],
+    "Wad_Jm2": [1.081, 1.153, 1.105],
+    "Wad_mean": 1.113,
+    "Wad_std": 0.037,
+    "method": "3000K_melt_quench",
+    "status": "confirmed_3seeds"
+  },
+
+  "adhesion_v5": {
+    "method": "crystalline_slab_surface_MQA",
+    "SE_cell": "prim_2x2x1_52at",
+    "NCM_cell": "5x5x1_300at",
+    "strain_pct": 3.3,
+    "z_cuts": 5,
+    "status": "in_progress"
+  },
+
+  "pipeline_v2": {
+    "halogen_screening": {
+      "n_configs": 70,
+      "best_config": 39,
+      "best_4c_Cl": 2,
+      "best_4a_Cl": 2,
+      "status": "completed"
+    },
+    "li_screening": {
+      "n_configs": 20,
+      "energy_spread_meV": 1162,
+      "top5_ids": [0, 1, 8, 15, 9],
+      "top5_energies_eV": [-217.468, -217.283, -217.200, -217.175, -217.131],
+      "status": "completed"
+    },
+    "li_annealing": {
+      "temperature_K": 500,
+      "duration_ps": 50,
+      "champion_id": 0,
+      "champion_energy_eV": -217.533,
+      "ranking_after": [0, 15, 8, 9, 1],
+      "energies_after_eV": [-217.533, -217.042, -217.030, -217.013, -216.953],
+      "ranking_reversed": true,
+      "notes": "#15 was screening rank 4, became annealing rank 2. #1 was rank 2, became rank 5.",
+      "status": "completed"
+    },
+    "mlip_eos": {
+      "B0_GPa": 26.9,
+      "status": "completed"
+    },
+    "dft_eos": {
+      "volume_points": "v097-v107",
+      "n_points": 11,
+      "status": "in_progress",
+      "location": "KISTI_GPU_0"
+    }
+  },
+
+  "references": ["deiseroth2006", "kraft2018", "adeli2019", "deng2016"]
+}

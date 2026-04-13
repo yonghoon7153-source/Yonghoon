@@ -43,8 +43,20 @@
       "9. Wad = (E_ncm + E_se - E_int) / A  (isolated slab method)"
     ],
     "cell_matching": {
-      "Li6": {"SE": "prim_2x2x1 (52at)", "NCM": "5x5x1 (300at)", "strain": 3.3},
-      "Li5.4": {"SE": "2x2x1 (248at)", "NCM": "5x5x1 (300at)", "strain": 1.1}
+      "Li6_v5_xyshift": {
+        "SE": "prim_2x2x1 (52at x4 = 208at)", "NCM": "7x7x1 (196at)",
+        "A_Å2": 351, "strain_pct": 0.2,
+        "SE_density_at_per_A2": 0.592,
+        "ISSUE": "SE 208at on 351 A² → 0.59 at/A² — SE가 NCM 위에 넓게 퍼짐, SE 밀도 낮음!"
+      },
+      "Li5.4_v5_xyshift": {
+        "SE": "2x2x1 (248at)", "NCM": "5x5x1 (100at)",
+        "A_Å2": 179, "strain_pct": 1.1,
+        "SE_density_at_per_A2": 1.385,
+        "notes": "SE 248at on 179 A² → 1.39 at/A² — 정상 밀도"
+      },
+      "density_mismatch": "comp2B SE density (0.59) = comp4의 43%! → Wad cross-comparison NOT fair",
+      "Li6_original": {"SE": "prim_2x2x1 (52at)", "NCM": "5x5x1 (300at)", "strain": 3.3, "notes": "original plan, not used in v5_xyshift"}
     },
     "z_cuts_DEPRECATED": {
       "status": "deprecated_nonphysical",

@@ -76,8 +76,14 @@
       "seeds": [42, 43, 44, 45, 46],
       "results": {
         "comp4": {"Wad": [1.299, 1.591, 1.689, 1.551, 1.118], "mean": 1.45, "std": 0.22, "SE_at": 248, "SE_thick_A": 29, "A_A2": 179, "status": "done"},
-        "comp2B": {"Wad_partial": [2.852, 2.073], "SE_at": 416, "SE_thick_A": 20, "A_A2": 351, "status": "in_progress",
-          "ISSUE": "comp2B(2.5) > comp4(1.45)! Opposite of vacancy anchor prediction. SE atom count differs (416 vs 248) — more atoms = more contact?"}
+        "comp2B": {"Wad_partial": [2.852, 2.073], "SE_at": 624, "SE_thick_A": 30, "A_A2": 351, "status": "in_progress"},
+        "comp3": {"Wad_partial": [1.918, 3.033], "SE_at": 248, "SE_thick_A": 29, "A_A2": 179, "status": "in_progress",
+          "gap_analysis": {
+            "seed42": {"Wad": 1.918, "gap_A": -0.3, "min_dist_A": 1.798},
+            "seed43": {"Wad": 3.033, "gap_A": -3.9, "min_dist_A": 1.755},
+            "interpretation": "Larger negative gap = deeper SE penetration into NCM = stronger contact = higher Wad. Physical: depends on which SE atoms (Li vs Cl) face NCM O. 5-seed average meaningful."
+          }
+        }
       },
       "cross_comparison_issue": {
         "problem": "Li6 SE 416at vs Li5.4 SE 248at → different total contact. Wad = dE/A normalizes by area but NOT by SE atom count.",

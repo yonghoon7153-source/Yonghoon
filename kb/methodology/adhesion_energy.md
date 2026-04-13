@@ -142,8 +142,26 @@ Wad = (E_sep - E_int) / A * 16.0218
 
 ### v5_noMQA variant (2026-04-13)
 Crystalline stacking + relax only (no MQA thermal treatment).
-Running on V100: comp4→comp2B→comp3→comp1→comp5, 5 z-cuts each.
 Purpose: baseline comparison — does MQA improve or change Wad?
+
+### v5_xyshift (2026-04-13, CURRENT)
+z-cut 대신 xy random shift로 통계 확보. SE slab은 자르지 않음!
+- z-cut 문제: SE를 z방향으로 자르면 vacancy가 노출/은폐 → 분산 원인이 불명확
+- xy-shift: SE 전체를 xy 평면에서 random shift → NCM과의 registry만 변경
+  → SE bulk 구조 완전 보존, vacancy 분포 동일
+  → 분산 = 순수 interface registry 효과
+
+Protocol:
+1. SE 2×2×1 repeat (bulk 그대로)
+2. SE fractional xy를 (dx, dy) random shift (seed별)
+3. NCM cell에 strain → gap 2.5A stacking
+4. Relax only (MQA 없음)
+5. Separation: SE +30A, cell_z +30A, single point
+6. Wad = (E_sep - E_int) / A × 16.0218
+
+Seeds: 42, 43, 44, 45, 46 (5 random xy positions per comp)
+Order: comp4 → comp2B → comp3 → comp1 → comp5
+Running on V100.
 
 ### Validation
 Test result (no MQA, comp4 z=0.0): Wad = 1.252 J/m2

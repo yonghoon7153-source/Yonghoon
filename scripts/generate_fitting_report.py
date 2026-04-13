@@ -432,7 +432,7 @@ def generate_report(data_list, names, outdir):
     th_r2, th_C = None, None
 
     # Ionic fit — FORM X: σ = C × σ_grain × (φ-φc)^(3/4) × CN × √cov / √τ
-    PHI_C = 0.18
+    PHI_C = 0.185
     ion_actual = []
     ion_pred_rhs = []
     for d in data_list:

@@ -1,5 +1,5 @@
 {
-  "built": "2026-04-13T16:15:40.284631",
+  "built": "2026-04-13T23:43:03.079126",
   "compositions": {
     "comp1": {
       "formula": "Li6PS5Cl",
@@ -50,6 +50,16 @@
       "has_elastic": true,
       "has_band_gap": true,
       "has_adhesion": false
+    },
+    "modelc": {
+      "formula": "Li5.4PS4.4Cl1.6",
+      "family": "Li5.4",
+      "atoms": 62,
+      "cell_type": "rhombohedral",
+      "has_eos": true,
+      "has_elastic": true,
+      "has_band_gap": true,
+      "has_adhesion": false
     }
   },
   "properties": {
@@ -84,7 +94,7 @@
     {
       "path": "kb/methodology/adhesion_methods_comparison.md",
       "title": "Adhesion Methods Comparison — v2 / v5 crystalline / MQA 500K",
-      "words": 533
+      "words": 751
     },
     {
       "path": "kb/methodology/elastic_constants.md",
@@ -115,6 +125,16 @@
       "path": "kb/physics/vacancy_effects.md",
       "title": "Vacancy Effects in Argyrodite",
       "words": 422
+    },
+    {
+      "path": "kb/results/adhesion_final.md",
+      "title": "Adhesion Energy — Final Results (2026-04-14)",
+      "words": 194
+    },
+    {
+      "path": "kb/results/adhesion_methodology_detail.md",
+      "title": "Adhesion Calculation — Detailed Methodology",
+      "words": 817
     }
   ],
   "data_points": [
@@ -1862,6 +1882,351 @@
       "comp": "comp5",
       "path": "basin_analysis.key_displacement.A_to_v108.max_disp_by_element.Cl",
       "value": 0.036
+    },
+    {
+      "comp": "modelc",
+      "path": "atoms",
+      "value": 62
+    },
+    {
+      "comp": "modelc",
+      "path": "formula_units",
+      "value": 5
+    },
+    {
+      "comp": "modelc",
+      "path": "halogen.Cl",
+      "value": 8
+    },
+    {
+      "comp": "modelc",
+      "path": "halogen.Br",
+      "value": 0
+    },
+    {
+      "comp": "modelc",
+      "path": "li_per_fu",
+      "value": 5.4
+    },
+    {
+      "comp": "modelc",
+      "path": "s_per_fu",
+      "value": 4.4
+    },
+    {
+      "comp": "modelc",
+      "path": "vacancy_per_fu",
+      "value": 0.6
+    },
+    {
+      "comp": "modelc",
+      "path": "postprocessing.results.band_gap_eV",
+      "value": 1.65
+    },
+    {
+      "comp": "modelc",
+      "path": "band_gap_eV",
+      "value": 1.65
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_dft_0K_GPa.C11",
+      "value": 85.3
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_dft_0K_GPa.C12",
+      "value": 25.6
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_dft_0K_GPa.C44",
+      "value": 28.0
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_dft_0K_GPa.K",
+      "value": 43.7
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_dft_0K_GPa.G",
+      "value": 30.0
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_dft_0K_GPa.E",
+      "value": 73.3
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_dft_0K_GPa.nu",
+      "value": 0.221
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C11",
+      "value": 36.7
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C12",
+      "value": 15.5
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C44",
+      "value": 10.3
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_300K_GPa.unit_cell.E",
+      "value": 28.9
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C11",
+      "value": 34.8
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C12",
+      "value": 13.5
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C44",
+      "value": 12.5
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.E",
+      "value": 29.7
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.C11",
+      "value": 39.3
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.C11_std",
+      "value": 1.1
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.C12",
+      "value": 15.4
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.C12_std",
+      "value": 0.7
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.C44",
+      "value": 12.9
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.C44_std",
+      "value": 0.7
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.K_VRH",
+      "value": 23.4
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.G_VRH",
+      "value": 13.0
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.E_VRH",
+      "value": 32.9
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.E_std",
+      "value": 0.9
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_A.B0_GPa",
+      "value": 21.7
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_A.B0_prime",
+      "value": 4.31
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_A.n_points",
+      "value": 10
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_A.R_squared",
+      "value": 0.999988
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.v106_basin_transition.delta_meV",
+      "value": -66.4
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.v106_basin_transition.n_atoms_moved",
+      "value": 7
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.energy_Ry",
+      "value": -1262.85003
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.basin_A_energy_Ry",
+      "value": -1262.84881
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.delta_meV",
+      "value": -1.4
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.eos_attempt.unstable_n_moved[0]",
+      "value": 50
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.eos_attempt.unstable_n_moved[1]",
+      "value": 54
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.eos_attempt.unstable_n_moved[2]",
+      "value": 53
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.eos_attempt.unstable_disp_mean.Li",
+      "value": 0.11
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.eos_attempt.unstable_disp_mean.S",
+      "value": 0.09
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.eos_attempt.unstable_disp_mean.Cl",
+      "value": 0.07
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.v108_basin.delta_vs_A_meV",
+      "value": -199
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.v108_basin.n_atoms_moved",
+      "value": 28
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.v108_basin.mean_disp.Li",
+      "value": 0.057
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.v108_basin.mean_disp.Cl",
+      "value": 0.04
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.v108_basin.mean_disp.S",
+      "value": 0.022
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.v108_basin.mean_disp.P",
+      "value": 0.016
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.v108_basin.max_disp.Li",
+      "value": 0.264
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.v108_basin.max_disp.Cl",
+      "value": 0.082
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.v108_basin.max_disp.S",
+      "value": 0.051
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.v108_basin.max_disp.P",
+      "value": 0.018
+    },
+    {
+      "comp": "modelc",
+      "path": "bader_charge.Li",
+      "value": 0.857
+    },
+    {
+      "comp": "modelc",
+      "path": "bader_charge.Cl",
+      "value": -0.886
+    },
+    {
+      "comp": "modelc",
+      "path": "bader_charge.S",
+      "value": -1.728
+    },
+    {
+      "comp": "modelc",
+      "path": "bader_charge.P",
+      "value": 4.396
+    },
+    {
+      "comp": "modelc",
+      "path": "bond_lengths_A.Li-Cl",
+      "value": 2.552
+    },
+    {
+      "comp": "modelc",
+      "path": "bond_lengths_A.Li-S",
+      "value": 2.514
+    },
+    {
+      "comp": "modelc",
+      "path": "bond_lengths_A.P-S",
+      "value": 2.063
+    },
+    {
+      "comp": "modelc",
+      "path": "comparison_to_comp3.modelc_B0",
+      "value": 21.7
+    },
+    {
+      "comp": "modelc",
+      "path": "comparison_to_comp3.comp3_B0",
+      "value": 20.8
+    },
+    {
+      "comp": "modelc",
+      "path": "comparison_to_comp3.delta",
+      "value": 0.9
     }
   ]
 }

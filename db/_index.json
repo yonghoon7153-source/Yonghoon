@@ -1,5 +1,5 @@
 {
-  "built": "2026-04-13T11:39:27.910161",
+  "built": "2026-04-13T11:47:09.959483",
   "compositions": {
     "comp1": {
       "formula": "Li6PS5Cl",
@@ -1485,6 +1485,11 @@
     },
     {
       "comp": "comp5",
+      "path": "elastic_dft_0K_GPa.basin_A.nu",
+      "value": 0.164
+    },
+    {
+      "comp": "comp5",
       "path": "elastic_dft_0K_GPa.basin_B.C11",
       "value": 84.6
     },
@@ -1512,6 +1517,11 @@
       "comp": "comp5",
       "path": "elastic_dft_0K_GPa.basin_B.E",
       "value": 70.9
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_dft_0K_GPa.basin_B.nu",
+      "value": 0.196
     },
     {
       "comp": "comp5",
@@ -1625,33 +1635,143 @@
     },
     {
       "comp": "comp5",
-      "path": "elastic_mlip_300K_GPa.unit_cell.C11",
+      "path": "elastic_mlip_300K_GPa.basin_A.unit_cell.C11",
       "value": 26.1
     },
     {
       "comp": "comp5",
-      "path": "elastic_mlip_300K_GPa.unit_cell.C12",
+      "path": "elastic_mlip_300K_GPa.basin_A.unit_cell.C12",
       "value": 14.2
     },
     {
       "comp": "comp5",
-      "path": "elastic_mlip_300K_GPa.unit_cell.C44",
+      "path": "elastic_mlip_300K_GPa.basin_A.unit_cell.C44",
       "value": 12.1
     },
     {
       "comp": "comp5",
-      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C11",
+      "path": "elastic_mlip_300K_GPa.basin_A.unit_cell.K",
+      "value": 18.2
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_A.unit_cell.G",
+      "value": 8.4
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_A.unit_cell.E",
+      "value": 21.7
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_A.unit_cell.nu",
+      "value": 0.289
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_A.supercell_2x2x1.C11",
       "value": 30.3
     },
     {
       "comp": "comp5",
-      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C12",
+      "path": "elastic_mlip_300K_GPa.basin_A.supercell_2x2x1.C12",
       "value": 15.0
     },
     {
       "comp": "comp5",
-      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C44",
+      "path": "elastic_mlip_300K_GPa.basin_A.supercell_2x2x1.C44",
       "value": 8.4
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_A.supercell_2x2x1.K",
+      "value": 20.1
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_A.supercell_2x2x1.G",
+      "value": 8.7
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_A.supercell_2x2x1.E",
+      "value": 23.0
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_A.supercell_2x2x1.nu",
+      "value": 0.319
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_B.unit_cell.C11",
+      "value": 44.7
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_B.unit_cell.C12",
+      "value": 11.4
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_B.unit_cell.C44",
+      "value": 14.2
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_B.unit_cell.K",
+      "value": 22.4
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_B.unit_cell.G",
+      "value": 14.6
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_B.unit_cell.E",
+      "value": 36.0
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_B.unit_cell.nu",
+      "value": 0.233
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_B.supercell_2x2x1.C11",
+      "value": 48.1
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_B.supercell_2x2x1.C12",
+      "value": 8.1
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_B.supercell_2x2x1.C44",
+      "value": 13.9
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_B.supercell_2x2x1.K",
+      "value": 21.3
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_B.supercell_2x2x1.G",
+      "value": 15.2
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_B.supercell_2x2x1.E",
+      "value": 36.9
+    },
+    {
+      "comp": "comp5",
+      "path": "elastic_mlip_300K_GPa.basin_B.supercell_2x2x1.nu",
+      "value": 0.212
     },
     {
       "comp": "comp5",

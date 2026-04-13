@@ -1,5 +1,5 @@
 {
-  "built": "2026-04-13T14:54:23.644769",
+  "built": "2026-04-13T14:58:05.895517",
   "compositions": {
     "comp1": {
       "formula": "Li6PS5Cl",
@@ -90,6 +90,11 @@
       "path": "kb/methodology/adhesion_energy.md",
       "title": "Adhesion Energy (Wad) Calculation",
       "words": 1254
+    },
+    {
+      "path": "kb/methodology/adhesion_methods_comparison.md",
+      "title": "Adhesion Methods Comparison — v2 / v5 crystalline / MQA 500K",
+      "words": 377
     },
     {
       "path": "kb/methodology/elastic_constants.md",

@@ -75,8 +75,19 @@
       "method": "SE xy fractional shift (PBC safe), no z cut, 5 seeds per comp",
       "seeds": [42, 43, 44, 45, 46],
       "results": {
-        "comp1":  {"Wad_20seeds_partial": "mean=1.153, std=0.392 (20 seeds done)", "SE_at": 624, "SE_thick_A": 30, "A_A2": 351, "family": "Li6"},
-        "comp2B": {"Wad_20seeds_partial": "mean≈1.471 (12/20 seeds)", "SE_at": 624, "SE_thick_A": 30, "A_A2": 351, "family": "Li6"},
+        "comp1":  {
+          "Wad_20seeds": [1.646, 0.733, 1.241, 1.528, 1.116, 0.921, 0.929, 0.974, 1.544, 0.686, 1.238, 0.950, 0.781, 1.850, 0.765, 1.560, 1.764, 1.515, 0.761, 0.555],
+          "mean_20": 1.153, "std_20": 0.392, "median_20": 0.962,
+          "SE_at": 624, "SE_thick_A": 30, "A_A2": 351, "family": "Li6"
+        },
+        "comp2B": {
+          "Wad_20seeds": [1.514, 1.357, 1.632, 1.940, 1.687, 1.892, 1.432, 0.676, 1.335, 2.026, 1.022, 1.136, 1.555, 2.607, 1.317, 2.691, 1.671, 6.428, 1.030, 0.695],
+          "mean_20": 1.782, "std_20": 1.184, "median_20": 1.544,
+          "SE_at": 624, "SE_thick_A": 30, "A_A2": 351, "family": "Li6",
+          "outlier": "seed59=6.428",
+          "comp1_wins": "5/20 seeds (42,49,50,52,58)",
+          "notes": "comp2B > comp1 in 15/20 seeds. High variance (std=1.18). seed59=6.428 outlier."
+        },
         "comp3":  {"Wad": [1.918, 3.033, 2.417, 2.195, 2.242], "mean": 2.36, "std": 0.42, "SE_at": 248, "SE_thick_A": 29, "A_A2": 179, "family": "Li5.4"},
         "comp4":  {"Wad": [1.983, 2.207, 2.694, 1.827, 2.300], "mean": 2.20, "std": 0.33, "SE_at": 248, "SE_thick_A": 29, "A_A2": 179, "family": "Li5.4"},
         "comp5":  {"Wad": [1.873, 2.819, 1.765, 1.972, 1.757], "mean": 2.04, "std": 0.44, "SE_at": 248, "SE_thick_A": 29, "A_A2": 179, "family": "Li5.4"}

@@ -12,11 +12,14 @@
   ],
 
   "adhesion_v2_3000K_melt": {
-    "method": "3000K melt-quench -> amorphous SE on crystalline NCM",
+    "method": "3000K melt-quench -> amorphous SE on crystalline NCM, CIF start, 5 seeds",
     "NCM": "LiNiO2 R-3m 3x3x1 slab (108 atoms, 64.6 A^2)",
     "results": {
-      "comp1": {"seeds": [1,2,3], "Wad": [1.081, 1.153, 1.105], "mean": 1.113, "std": 0.037}
-    }
+      "comp1": {"seeds": [1,2,3,4,5], "Wad": [1.081, 1.153, 1.105, 1.080, 1.115], "mean": 1.107, "std": 0.027},
+      "comp2": {"seeds": [1,2,3,4,5], "Wad": [1.005, 0.979, 1.102, 0.982, 1.163], "mean": 1.046, "std": 0.074},
+      "comp3_to_5": "PBC artifact due to SE rhombo 5x1x1 vs NCM 3x3x1 lattice mismatch ±20%"
+    },
+    "trend": "comp1(1.107) > comp2(1.046) -> Br up, Wad down within Li6 family"
   },
 
   "adhesion_v1_random": [

@@ -1,42 +1,87 @@
 {
   "property": "elastic_constants",
-  "description": "Elastic constants from MLIP 600K snapshot method (paper values) and DFT 0K clamped-ion",
+  "description": "Elastic constants: DFT 0K clamped-ion, MLIP 300K unit cell, MLIP 300K 2x2x1 SC, MLIP 600K snapshot (paper)",
+
+  "dft_0K_clamped_ion": {
+    "method": "QE finite strain ±0.005, 6 patterns x pos/neg = 12 SCF, kbar->GPa, QE sign flip",
+    "notes": "Ordered Li -> cooperative shear -> C44 overestimated. Reference only, NOT for paper.",
+    "results": [
+      {"id": "comp1",  "C11": 74.4, "C12": 29.4, "C44": 37.9, "K": 44.4, "G": 30.3, "E": 76.9, "nu": 0.178},
+      {"id": "comp2",  "C11": 73.4, "C12": 29.2, "C44": 37.4, "K": 43.9, "G": 29.7, "E": 75.9, "nu": 0.178},
+      {"id": "comp3",  "C11": 85.6, "C12": 21.0, "C44": 27.5, "K": 42.5, "G": 29.2, "E": 71.7, "nu": 0.200},
+      {"id": "comp4",  "C11": 85.5, "C12": 20.9, "C44": 27.3, "K": 42.4, "G": 29.1, "E": 71.5, "nu": 0.200},
+      {"id": "comp5_A","C11": 87.4, "C12": 20.6, "C44": 39.9, "K": 42.9, "G": 37.1, "E": 86.5, "nu": 0.164},
+      {"id": "comp5_B","C11": 84.6, "C12": 20.4, "C44": 27.2, "K": 41.8, "G": 29.1, "E": 70.9, "nu": 0.196}
+    ]
+  },
+
+  "mlip_300K_unit_cell": {
+    "method": "MACE CPU, 300K Langevin 5ps -> quench -> relaxed-ion Cij",
+    "results": [
+      {"id": "comp1",  "C11": 40.1, "C12": 15.7, "C44": 25.0, "K": 23.7, "G": 18.6, "E": 44.3, "nu": 0.188},
+      {"id": "comp2",  "C11": 39.5, "C12": 17.0, "C44": 22.8, "K": 24.4, "G": 17.0, "E": 41.4, "nu": 0.217},
+      {"id": "comp3",  "C11": 54.3, "C12": 15.0, "C44": 14.5, "K": 28.1, "G": 15.3, "E": 39.0, "nu": 0.269},
+      {"id": "comp4",  "C11": 46.2, "C12": 7.7,  "C44": 13.9, "K": 20.5, "G": 15.1, "E": 36.4, "nu": 0.204},
+      {"id": "comp5_A","C11": 26.1, "C12": 14.2, "C44": 12.1, "K": 18.2, "G": 8.4,  "E": 21.7, "nu": 0.289},
+      {"id": "comp5_B","C11": 44.7, "C12": 11.4, "C44": 14.2, "K": 22.4, "G": 14.6, "E": 36.0, "nu": 0.233}
+    ]
+  },
+
+  "mlip_300K_supercell_2x2x1": {
+    "method": "MACE, 2x2x1 SC (208-248 atoms), 300K MD -> quench -> Cij",
+    "results": [
+      {"id": "comp1",  "C11": 48.8, "C12": 25.2, "C44": 24.7, "K": 33.0, "G": 18.3, "E": 46.4, "nu": 0.266},
+      {"id": "comp2",  "C11": 42.1, "C12": 19.3, "C44": 24.0, "K": 26.5, "G": 17.6, "E": 43.3, "nu": 0.227},
+      {"id": "comp3",  "C11": 47.8, "C12": 9.2,  "C44": 13.4, "K": 22.0, "G": 15.0, "E": 36.6, "nu": 0.223},
+      {"id": "comp4",  "C11": 48.6, "C12": 8.1,  "C44": 14.6, "K": 21.5, "G": 16.0, "E": 38.5, "nu": 0.202},
+      {"id": "comp5_A","C11": 30.3, "C12": 15.0, "C44": 8.4,  "K": 20.1, "G": 8.7,  "E": 23.0, "nu": 0.319},
+      {"id": "comp5_B","C11": 48.1, "C12": 8.1,  "C44": 13.9, "K": 21.3, "G": 15.2, "E": 36.9, "nu": 0.212}
+    ]
+  },
 
   "mlip_600K_snapshot": {
-    "method": "600K MD -> 5 snapshots -> quench -> FIRE relax -> finite-strain Cij -> VRH average",
+    "method": "600K MD 10-18ps -> 5 snapshots -> quench -> FIRE relax -> finite-strain Cij -> VRH avg +/- SD",
     "temperature_K": 600,
     "n_snapshots": 5,
     "includes_Li_disorder": true,
     "includes_thermal_vibration": false,
+    "paper_values": true,
     "results": [
-      {"id": "comp1",  "E": 29.1, "E_std": 1.1, "K": 21.0, "G": 11.5, "expt_E": 28.0, "expt_E_std": 1.8},
-      {"id": "comp2",  "E": 28.6, "E_std": 1.1, "K": 21.2, "G": 11.2, "expt_E": null},
-      {"id": "comp3",  "E": 27.3, "E_std": 0.4, "K": 20.9, "G": 10.6, "expt_E": null},
-      {"id": "comp4",  "E": 26.4, "E_std": 1.6, "K": 20.5, "G": 10.3, "expt_E": null},
-      {"id": "comp5",  "E": 25.8, "E_std": 0.8, "K": 19.6, "G": 10.1, "expt_E": null, "basin": "B"}
+      {"id": "comp1",  "C11": 33.1, "C11_std": 1.2, "C12": 15.0, "C12_std": 0.5, "C44": 13.1, "C44_std": 0.6, "K": 21.0, "G": 11.5, "E": 29.1, "E_std": 1.1, "expt_E": 28.0, "expt_E_std": 1.8},
+      {"id": "comp2",  "C11": 33.1, "C11_std": 1.0, "C12": 15.2, "C12_std": 0.4, "C44": 12.7, "C44_std": 0.5, "K": 21.2, "G": 11.2, "E": 28.6, "E_std": 1.1, "expt_E": null},
+      {"id": "comp3",  "C11": 34.5, "C11_std": 0.8, "C12": 14.0, "C12_std": 0.3, "C44": 10.9, "C44_std": 0.4, "K": 20.9, "G": 10.6, "E": 27.3, "E_std": 0.4, "expt_E": null},
+      {"id": "comp4",  "C11": 33.4, "C11_std": 1.1, "C12": 14.1, "C12_std": 0.5, "C44": 10.7, "C44_std": 0.6, "K": 20.5, "G": 10.3, "E": 26.4, "E_std": 1.6, "expt_E": null},
+      {"id": "comp5_A","C11": 34.9, "C11_std": 1.5, "C12": 17.1, "C12_std": 0.7, "C44": 14.0, "C44_std": 0.8, "K": 23.0, "G": 11.7, "E": 30.0, "expt_E": null},
+      {"id": "comp5_B","C11": 32.8, "C11_std": 1.2, "C12": 13.1, "C12_std": 0.4, "C44": 10.2, "C44_std": 0.3, "K": 19.6, "G": 10.1, "E": 25.8, "E_std": 0.8, "expt_E": null}
     ],
-    "trend": "E: 29.1 > 28.6 > 27.3 > 26.4 > 25.8 -> Br up, E down (perfectly consistent)"
+    "trend": "E(Basin B): 29.1 > 28.6 > 27.3 > 26.4 > 25.8 -> Br up, E down (perfectly consistent)"
   },
 
   "comp5_basin_comparison": {
     "dft_0K_clamped": {
       "basin_A": {"C11": 87.4, "C12": 20.6, "C44": 39.9, "K": 42.9, "G": 37.1, "E": 86.5},
       "basin_B": {"C11": 84.6, "C12": 20.4, "C44": 27.2, "K": 41.8, "G": 29.1, "E": 70.9},
-      "delta": {"C11": 2.8, "C12": 0.2, "C44": 12.7, "K": 1.1, "G": 8.0, "E": 15.6},
-      "key_finding": "C44 most sensitive: 47% change. Li ordering -> shear resistance. Compression (K) only 2.6% change."
+      "delta":   {"C11": 2.8,  "C12": 0.2,  "C44": 12.7, "K": 1.1,  "G": 8.0,  "E": 15.6},
+      "delta_pct":{"C11": 3.3, "C12": 1.0,  "C44": 46.7, "K": 2.6,  "G": 27.5, "E": 22.0},
+      "key_finding": "C44 most sensitive: 47% change from single Li hop. Shear >> compression sensitivity."
     },
     "mlip_600K_snap": {
       "basin_A": {"C11": 34.9, "C12": 17.1, "C44": 14.0, "E": 30.0},
       "basin_B": {"C11": 32.8, "C12": 13.1, "C44": 10.2, "E": 25.8},
-      "delta_E": 4.2
+      "delta":   {"C11": 2.1,  "C12": 4.0,  "C44": 3.8,  "E": 4.2},
+      "delta_pct":{"C44": 37.3, "E": 16.3}
     }
   },
 
-  "dft_0K_notes": "DFT 0K clamped-ion overestimates C44 (39.9 vs literature 7.8 GPa) due to ordered Li -> cooperative shear. MLIP 600K snapshot resolves this.",
+  "deng2016_reference": {
+    "comp1_SQS": {"C11": 39.9, "C12": 23.1, "C44": 7.8, "E": 22.1},
+    "notes": "DFT SQS method. C44 lower than our 0K ordered but E also lower."
+  },
 
   "intrinsic_vs_extrinsic": {
-    "intrinsic": "Br up -> E down (consistent in both calc and expt within same family)",
-    "extrinsic": "Li5.4 > Li6 in experiment (reversed!) due to GB pinning by vacancy",
-    "notes": "Same family: intrinsic dominates. Cross-family: extrinsic (microstructure) can reverse trend."
+    "intrinsic_calc": "Br up -> E down (29.1 > 28.6 > 27.3 > 26.4 > 25.8)",
+    "extrinsic_expt": "Li5.4 > Li6 REVERSED due to GB pinning by vacancy",
+    "within_family": "Br up -> E down in both calc and expt",
+    "cross_family": "Vacancy -> GB pinning -> polycrystal stiffer -> trend reversal"
   }
 }

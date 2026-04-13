@@ -1,5 +1,5 @@
 {
-  "built": "2026-04-13T11:24:19.683538",
+  "built": "2026-04-13T11:39:27.910161",
   "compositions": {
     "comp1": {
       "formula": "Li6PS5Cl",
@@ -205,6 +205,151 @@
     },
     {
       "comp": "comp1",
+      "path": "elastic_dft_0K_GPa.C11",
+      "value": 74.4
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_dft_0K_GPa.C12",
+      "value": 29.4
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_dft_0K_GPa.C44",
+      "value": 37.9
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_dft_0K_GPa.K",
+      "value": 44.4
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_dft_0K_GPa.G",
+      "value": 30.3
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_dft_0K_GPa.E",
+      "value": 76.9
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_dft_0K_GPa.nu",
+      "value": 0.178
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_dft_0K_GPa.deng2016_ref.C11",
+      "value": 39.9
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_dft_0K_GPa.deng2016_ref.C12",
+      "value": 23.1
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_dft_0K_GPa.deng2016_ref.C44",
+      "value": 7.8
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_dft_0K_GPa.deng2016_ref.E",
+      "value": 22.1
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C11",
+      "value": 40.1
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C12",
+      "value": 15.7
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C44",
+      "value": 25.0
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_300K_GPa.unit_cell.K",
+      "value": 23.7
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_300K_GPa.unit_cell.G",
+      "value": 18.6
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_300K_GPa.unit_cell.E",
+      "value": 44.3
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C11",
+      "value": 48.8
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C12",
+      "value": 25.2
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C44",
+      "value": 24.7
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.K",
+      "value": 33.0
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.G",
+      "value": 18.3
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.E",
+      "value": 46.4
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_600K_GPa.C11",
+      "value": 33.1
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_600K_GPa.C11_std",
+      "value": 1.2
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_600K_GPa.C12",
+      "value": 15.0
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_600K_GPa.C12_std",
+      "value": 0.5
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_600K_GPa.C44",
+      "value": 13.1
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_600K_GPa.C44_std",
+      "value": 0.6
+    },
+    {
+      "comp": "comp1",
       "path": "elastic_mlip_600K_GPa.E_VRH",
       "value": 29.1
     },
@@ -222,6 +367,16 @@
       "comp": "comp1",
       "path": "elastic_mlip_600K_GPa.G_VRH",
       "value": 11.5
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_600K_GPa.expt_E",
+      "value": 28.0
+    },
+    {
+      "comp": "comp1",
+      "path": "elastic_mlip_600K_GPa.expt_E_std",
+      "value": 1.8
     },
     {
       "comp": "comp1",
@@ -515,6 +670,131 @@
     },
     {
       "comp": "comp2",
+      "path": "elastic_dft_0K_GPa.C11",
+      "value": 73.4
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_dft_0K_GPa.C12",
+      "value": 29.2
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_dft_0K_GPa.C44",
+      "value": 37.4
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_dft_0K_GPa.K",
+      "value": 43.9
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_dft_0K_GPa.G",
+      "value": 29.7
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_dft_0K_GPa.E",
+      "value": 75.9
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_dft_0K_GPa.nu",
+      "value": 0.178
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C11",
+      "value": 39.5
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C12",
+      "value": 17.0
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C44",
+      "value": 22.8
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_300K_GPa.unit_cell.K",
+      "value": 24.4
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_300K_GPa.unit_cell.G",
+      "value": 17.0
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_300K_GPa.unit_cell.E",
+      "value": 41.4
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C11",
+      "value": 42.1
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C12",
+      "value": 19.3
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C44",
+      "value": 24.0
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.K",
+      "value": 26.5
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.G",
+      "value": 17.6
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.E",
+      "value": 43.3
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_600K_GPa.C11",
+      "value": 33.1
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_600K_GPa.C11_std",
+      "value": 1.0
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_600K_GPa.C12",
+      "value": 15.2
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_600K_GPa.C12_std",
+      "value": 0.4
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_600K_GPa.C44",
+      "value": 12.7
+    },
+    {
+      "comp": "comp2",
+      "path": "elastic_mlip_600K_GPa.C44_std",
+      "value": 0.5
+    },
+    {
+      "comp": "comp2",
       "path": "elastic_mlip_600K_GPa.E_VRH",
       "value": 28.6
     },
@@ -620,6 +900,131 @@
     },
     {
       "comp": "comp3",
+      "path": "elastic_dft_0K_GPa.C11",
+      "value": 85.6
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_dft_0K_GPa.C12",
+      "value": 21.0
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_dft_0K_GPa.C44",
+      "value": 27.5
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_dft_0K_GPa.K",
+      "value": 42.5
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_dft_0K_GPa.G",
+      "value": 29.2
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_dft_0K_GPa.E",
+      "value": 71.7
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_dft_0K_GPa.nu",
+      "value": 0.2
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C11",
+      "value": 54.3
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C12",
+      "value": 15.0
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C44",
+      "value": 14.5
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_300K_GPa.unit_cell.K",
+      "value": 28.1
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_300K_GPa.unit_cell.G",
+      "value": 15.3
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_300K_GPa.unit_cell.E",
+      "value": 39.0
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C11",
+      "value": 47.8
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C12",
+      "value": 9.2
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C44",
+      "value": 13.4
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.K",
+      "value": 22.0
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.G",
+      "value": 15.0
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.E",
+      "value": 36.6
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_600K_GPa.C11",
+      "value": 34.5
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_600K_GPa.C11_std",
+      "value": 0.8
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_600K_GPa.C12",
+      "value": 14.0
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_600K_GPa.C12_std",
+      "value": 0.3
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_600K_GPa.C44",
+      "value": 10.9
+    },
+    {
+      "comp": "comp3",
+      "path": "elastic_mlip_600K_GPa.C44_std",
+      "value": 0.4
+    },
+    {
+      "comp": "comp3",
       "path": "elastic_mlip_600K_GPa.E_VRH",
       "value": 27.3
     },
@@ -722,6 +1127,131 @@
       "comp": "comp4",
       "path": "band_gap_eV",
       "value": 1.96
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_dft_0K_GPa.C11",
+      "value": 85.5
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_dft_0K_GPa.C12",
+      "value": 20.9
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_dft_0K_GPa.C44",
+      "value": 27.3
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_dft_0K_GPa.K",
+      "value": 42.4
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_dft_0K_GPa.G",
+      "value": 29.1
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_dft_0K_GPa.E",
+      "value": 71.5
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_dft_0K_GPa.nu",
+      "value": 0.2
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C11",
+      "value": 46.2
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C12",
+      "value": 7.7
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C44",
+      "value": 13.9
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_300K_GPa.unit_cell.K",
+      "value": 20.5
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_300K_GPa.unit_cell.G",
+      "value": 15.1
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_300K_GPa.unit_cell.E",
+      "value": 36.4
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C11",
+      "value": 48.6
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C12",
+      "value": 8.1
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C44",
+      "value": 14.6
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.K",
+      "value": 21.5
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.G",
+      "value": 16.0
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.E",
+      "value": 38.5
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_600K_GPa.C11",
+      "value": 33.4
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_600K_GPa.C11_std",
+      "value": 1.1
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_600K_GPa.C12",
+      "value": 14.1
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_600K_GPa.C12_std",
+      "value": 0.5
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_600K_GPa.C44",
+      "value": 10.7
+    },
+    {
+      "comp": "comp4",
+      "path": "elastic_mlip_600K_GPa.C44_std",
+      "value": 0.6
     },
     {
       "comp": "comp4",

@@ -54,15 +54,22 @@
   },
 
   "elastic_dft_0K_GPa": {
-    "notes": "DFT 0K clamped-ion elastic from finite strain. Values from Deng et al. reference: C11=39.9, C12=23.1, C44=7.8, E=22.1"
+    "C11": 74.4, "C12": 29.4, "C44": 37.9,
+    "K": 44.4, "G": 30.3, "E": 76.9, "nu": 0.178,
+    "deng2016_ref": {"C11": 39.9, "C12": 23.1, "C44": 7.8, "E": 22.1}
+  },
+
+  "elastic_mlip_300K_GPa": {
+    "unit_cell": {"C11": 40.1, "C12": 15.7, "C44": 25.0, "K": 23.7, "G": 18.6, "E": 44.3},
+    "supercell_2x2x1": {"C11": 48.8, "C12": 25.2, "C44": 24.7, "K": 33.0, "G": 18.3, "E": 46.4}
   },
 
   "elastic_mlip_600K_GPa": {
     "method": "600K_snapshot_x5",
-    "C11": null, "C12": null, "C44": null,
+    "C11": 33.1, "C11_std": 1.2, "C12": 15.0, "C12_std": 0.5, "C44": 13.1, "C44_std": 0.6,
     "E_VRH": 29.1, "E_std": 1.1,
     "K_VRH": 21.0, "G_VRH": 11.5,
-    "notes": "MLIP 600K snapshot method. E=29.1+-1.1 GPa, matches expt 28.0+-1.8."
+    "expt_E": 28.0, "expt_E_std": 1.8
   },
 
   "surface_energy_Jm2": 1.211,

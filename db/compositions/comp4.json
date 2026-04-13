@@ -25,8 +25,18 @@
   "vbm_character": "S 3p + Br 4p",
   "cbm_character": "Li 2s, P 3s",
 
+  "elastic_dft_0K_GPa": {
+    "C11": 85.5, "C12": 20.9, "C44": 27.3, "K": 42.4, "G": 29.1, "E": 71.5, "nu": 0.200
+  },
+
+  "elastic_mlip_300K_GPa": {
+    "unit_cell": {"C11": 46.2, "C12": 7.7, "C44": 13.9, "K": 20.5, "G": 15.1, "E": 36.4},
+    "supercell_2x2x1": {"C11": 48.6, "C12": 8.1, "C44": 14.6, "K": 21.5, "G": 16.0, "E": 38.5}
+  },
+
   "elastic_mlip_600K_GPa": {
     "method": "600K_snapshot_x5",
+    "C11": 33.4, "C11_std": 1.1, "C12": 14.1, "C12_std": 0.5, "C44": 10.7, "C44_std": 0.6,
     "E_VRH": 26.4, "E_std": 1.6,
     "K_VRH": 20.5, "G_VRH": 10.3
   },

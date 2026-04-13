@@ -2552,6 +2552,22 @@ def download_fitting_report(session_id):
                               download_name='GB_correction_fitting_report.md')
 
 
+@app.route('/scaling-report')
+def scaling_report():
+    """Generate and download scaling law report."""
+    import subprocess
+    scripts = app.config['SCRIPTS_FOLDER']
+    cmd = ['python3', os.path.join(scripts, 'generate_scaling_report.py')]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    if result.returncode != 0:
+        return jsonify({'error': result.stderr[-500:]}), 500
+    report_path = os.path.join(app.config['RESULTS_FOLDER'], 'reports', 'scaling_law_report.md')
+    if os.path.exists(report_path):
+        return send_file(report_path, as_attachment=True,
+                        download_name='Scaling_Law_Report.md')
+    return jsonify({'error': 'Report generation failed'}), 500
+
+
 # ─── ML Predictor ──────────────────────────────────────────────────────────
 
 @app.route('/predictor')

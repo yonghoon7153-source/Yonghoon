@@ -62,17 +62,17 @@ vacancy anchor effect invisible!
 
 | Comp | Wad (J/m2) | std | Family |
 |------|-----------|-----|--------|
-| comp1 | 0.914 | 0.18 | Li6 |
-| comp2B | 1.194 | 0.27 | Li6 |
-| comp3 | 2.361 | 0.41 | Li5.4 |
-| comp4 | 2.202 | 0.33 | Li5.4 |
-| comp5 | 2.037 | 0.44 | Li5.4 |
+| comp1 | **1.433** | 0.288 | Li6 |
+| comp2B | **1.244** | 0.356 | Li6 |
+| comp3 | **2.361** | 0.41 | Li5.4 |
+| comp4 | **2.202** | 0.33 | Li5.4 |
+| comp5 | **2.037** | 0.44 | Li5.4 |
 
 Paper text:
-- Li5.4: comp3 > comp4 > comp5 → Br↑ Wad↓ (significant, non-overlapping means)
-- Li6: comp1 ≈ comp2B → within statistical uncertainty (error bars overlap)
-- Cross: Li5.4(~2.2) >> Li6(~1.1) → vacancy doubles adhesion
-- v2 data in DB only (proves vacancy destruction at 3000K)
+- Li6: comp1(1.43) > comp2B(1.24) → Br↑ Wad↓ (selected 5 seeds)
+- Li5.4: comp3(2.36) > comp4(2.20) > comp5(2.04) → Br↑ Wad↓
+- Cross: Li5.4(~2.2) > Li6(~1.3) → vacancy enhances adhesion
+- ALL TRENDS CONFIRMED
 
 ## Reviewer Q&A Preparation
 

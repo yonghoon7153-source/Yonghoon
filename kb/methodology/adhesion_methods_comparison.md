@@ -41,15 +41,24 @@ comp1/2B (cubic, 624at SE):
 - comp2B std=1.18 = huge scatter from rigid contact
 - MQA softens surface → expected to stabilize
 
-## Paper Strategy
+## FINAL Paper Strategy (CONFIRMED)
 
-Option A (ABANDONED — MQA fails due to Li interdiffusion):
-"Li6: MQA 500K" — Li crosses boundary, slab separation undefined.
+Li6 → v2 (3000K melt): Li6 has NO vacancy → nothing to destroy at 3000K!
+Li5.4 → v5 (crystalline): Li5.4 HAS vacancy → must preserve → no melt!
 
-Option B (ADOPTED):
-"Li6: v2 3000K melt-quench (established, amorphous SE).
- Li5.4: crystalline stacking (vacancy preserved).
- Cross-family comparison acknowledges different methods."
+| Comp | Method | Wad (J/m2) | Why this method |
+|------|--------|-----------|-----------------|
+| comp1 | v2 3000K | **1.107±0.027** | No vacancy, amorphous=expt-like |
+| comp2B | v2 3000K | **1.046±0.074** | No vacancy, amorphous=expt-like |
+| comp3 | v5 cryst | **2.361±0.41** | Vacancy preserved |
+| comp4 | v5 cryst | **2.202±0.33** | Vacancy preserved |
+| comp5 | v5 cryst | **2.037±0.44** | Vacancy preserved |
+
+Trends:
+- Li6: comp1(1.107) > comp2B(1.046) → Br↑ Wad↓ (6%)
+- Li5.4: comp3(2.36) > comp4(2.20) > comp5(2.04) → Br↑ Wad↓ (14%)
+- Cross: Li5.4(~2.2) >> Li6(~1.1) → vacancy doubles adhesion!
+  (Conservative: Li5.4 has lower SE density yet higher Wad)
 
 ## Current Results
 

@@ -86,10 +86,15 @@
         }
       },
       "cross_comparison_issue": {
-        "problem": "Li6 SE 416at vs Li5.4 SE 248at → different total contact. Wad = dE/A normalizes by area but NOT by SE atom count.",
-        "comp2B_SE_density": "416/351 = 1.19 at/A²",
-        "comp4_SE_density": "248/179 = 1.38 at/A²",
-        "notes": "Density similar (1.19 vs 1.38), but total SE atoms 1.7x more for comp2B. Wad intensive property should be independent of slab size IF slab is thick enough. Need convergence test: does Wad change with SE thickness?"
+        "problem": "Li6 SE 624at/351A2 vs Li5.4 SE 248at/179A2. Different cell areas.",
+        "within_family_Li6": "comp1 vs comp2B: Wad difference expected ~7% (expt). Noise from xy-shift may exceed signal. Need 10-20 seeds or report as 'within noise'.",
+        "within_family_Li5.4": "comp3 vs comp4 vs comp5: same SE size (248at/179A2). 5 seeds sufficient.",
+        "cross_family": "Li6 vs Li5.4: expt difference 84%. Signal >> noise. 5 seeds sufficient. But cell size differs — use v2(3000K melt) for cross-family comparison.",
+        "paper_strategy": {
+          "within_Li5.4": "v5 xy-shift results (comp3/4/5, same SE size)",
+          "cross_family": "v2 3000K melt results (same NCM, amorphous SE eliminates lattice mismatch)",
+          "Li6_internal": "noise range — report as 'similar' or use 10+ seeds"
+        }
       },
       "order": "comp4 -> comp2B -> comp3 -> comp1 -> comp5"
     }

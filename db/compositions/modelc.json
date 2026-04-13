@@ -85,7 +85,15 @@
     }
   },
 
-  "comparison_to_comp3": {
+  "bader_charge": {
+    "Li": 0.857, "Cl": -0.886, "S": -1.728, "P": 4.396,
+    "notes": "Cl ionicity: comp1(0.925)>ModelC(0.886)>comp3(0.903). Li6 more ionic than Li5.4 for Cl."
+  },
+
+  "bond_lengths_A": {
+    "Li-Cl": 2.552, "Li-S": 2.514, "P-S": 2.063,
+    "notes": "Li-Cl: comp1(2.607)>ModelC(2.552)>comp3(2.506). P-S=2.063≈comp3(2.064)→PS4 invariant."
+  },
     "modelc_B0": 21.7,
     "comp3_B0": 20.8,
     "delta": 0.9,

@@ -1,5 +1,5 @@
 {
-  "built": "2026-04-13T23:43:03.079126",
+  "built": "2026-04-13T23:58:38.133265",
   "compositions": {
     "comp1": {
       "formula": "Li6PS5Cl",
@@ -135,6 +135,11 @@
       "path": "kb/results/adhesion_methodology_detail.md",
       "title": "Adhesion Calculation — Detailed Methodology",
       "words": 817
+    },
+    {
+      "path": "kb/results/adhesion_v5_full_report.md",
+      "title": "Adhesion v5 — Crystalline Slab xy-shift 방법론 상세 보고서",
+      "words": 801
     }
   ],
   "data_points": [

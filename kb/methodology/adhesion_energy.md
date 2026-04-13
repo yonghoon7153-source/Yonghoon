@@ -181,6 +181,17 @@ Seeds: 42, 43, 44, 45, 46 (5 random xy positions per comp)
 Order: comp4 → comp2B → comp3 → comp1 → comp5
 Running on V100.
 
+### v5_comp12_mqa (next: for Li6 family)
+Crystalline stacking gives comp2B > comp1 (counter-intuitive at 20 seeds).
+MQA version with two key improvements:
+1. **500K MQA** (not 800K): gentler surface treatment for Li6 cubic
+   - 500K(2ps) → 300K(2ps) → 100K(2ps) → relax
+2. **Element-based separation** (not index-based):
+   - Ni/O → always NCM; P/S/Cl/Br → always SE
+   - Li → z_boundary = (NCM_O_zmax + SE_S_zmin) / 2
+   - MQA can cause Li to cross interface → index-based separation wrong!
+   - Element-based handles cross-interface Li correctly
+
 ### Validation
 Test result (no MQA, comp4 z=0.0): Wad = 1.252 J/m2
 Compare v2 (3000K melt): comp1 = 1.107, comp2B = 1.046 J/m2

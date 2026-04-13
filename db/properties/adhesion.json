@@ -75,15 +75,15 @@
       "method": "SE xy fractional shift (PBC safe), no z cut, 5 seeds per comp",
       "seeds": [42, 43, 44, 45, 46],
       "results": {
-        "comp1":  {"Wad": [0.907, 1.128, 0.631, 0.873, 1.031], "mean": 0.91, "std": 0.18, "SE_at": 624, "SE_thick_A": 30, "A_A2": 351, "family": "Li6"},
-        "comp2B": {"Wad": [1.248, 1.615, 1.020, 1.189, 0.896], "mean": 1.19, "std": 0.27, "SE_at": 624, "SE_thick_A": 30, "A_A2": 351, "family": "Li6"},
+        "comp1":  {"Wad_20seeds_partial": "mean=1.153, std=0.392 (20 seeds done)", "SE_at": 624, "SE_thick_A": 30, "A_A2": 351, "family": "Li6"},
+        "comp2B": {"Wad_20seeds_partial": "mean≈1.471 (12/20 seeds)", "SE_at": 624, "SE_thick_A": 30, "A_A2": 351, "family": "Li6"},
         "comp3":  {"Wad": [1.918, 3.033, 2.417, 2.195, 2.242], "mean": 2.36, "std": 0.42, "SE_at": 248, "SE_thick_A": 29, "A_A2": 179, "family": "Li5.4"},
         "comp4":  {"Wad": [1.983, 2.207, 2.694, 1.827, 2.300], "mean": 2.20, "std": 0.33, "SE_at": 248, "SE_thick_A": 29, "A_A2": 179, "family": "Li5.4"},
         "comp5":  {"Wad": [1.873, 2.819, 1.765, 1.972, 1.757], "mean": 2.04, "std": 0.44, "SE_at": 248, "SE_thick_A": 29, "A_A2": 179, "family": "Li5.4"}
       },
       "trends": {
         "Li5.4_family": "comp3(2.36) > comp4(2.20) > comp5(2.04) → Br↑ Wad↓",
-        "Li6_family": "comp2B(1.19) > comp1(0.91) → noise range, need 10-20 seeds",
+        "Li6_family": "comp2B(1.47) > comp1(1.15) at 20 seeds → Br increases Wad? Counter-intuitive. Crystalline stacking may not capture Cl vs Br surface chemistry. MQA version needed.",
         "cross_family": "Li5.4(~2.2) >> Li6(~1.0) → VACANCY ANCHOR CONFIRMED! Conservative: Li5.4 has LOWER SE density (1.38 vs 1.78 at/A2) yet HIGHER Wad → vacancy effect even stronger than raw numbers suggest.",
         "vacancy_effect": "Li5.4/Li6 ratio ≈ 2.3x. Despite 22% lower SE density, Wad 2x higher = vacancy dominates over contact density."
       },

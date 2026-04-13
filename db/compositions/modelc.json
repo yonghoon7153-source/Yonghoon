@@ -31,9 +31,17 @@
       "source": "v106 coords relaxed in v103 cell",
       "energy_Ry": -1262.85003,
       "basin_A_energy_Ry": -1262.84881,
-      "delta_meV": -16.6,
-      "status": "confirmed_more_stable",
-      "notes": "Basin B is 16.6 meV MORE stable than Basin A! v106 Li6+Cl1 hop persists in v103 cell = true ground state."
+      "delta_meV": -1.4,
+      "status": "EOS_impossible",
+      "eos_attempt": {
+        "stable_volumes": ["v101", "v103", "v105"],
+        "unstable_volumes": ["v100", "v102", "v104"],
+        "unstable_n_moved": [50, 54, 53],
+        "unstable_disp_mean": {"Li": 0.11, "S": 0.09, "Cl": 0.07},
+        "pattern": "Basin B stable only at odd volumes, collapses at even volumes (50+ atoms rearrange)"
+      },
+      "conclusion": "Basin B is 1.4 meV more stable but occupies extremely narrow volume range. EOS fitting impossible. Paper uses Basin A (B0=21.7 GPa).",
+      "limitation_text": "A more stable basin exists (1.4 meV lower) but is stable only within a narrow volume range, precluding EOS fitting. Basin A is used for B0 determination."
     },
     "v108_basin": {
       "delta_vs_A_meV": -199,

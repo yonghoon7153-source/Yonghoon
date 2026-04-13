@@ -1,5 +1,5 @@
 {
-  "built": "2026-04-13T11:52:06.999246",
+  "built": "2026-04-13T13:10:39.611610",
   "compositions": {
     "comp1": {
       "formula": "Li6PS5Cl",
@@ -1946,7 +1946,37 @@
     {
       "comp": "modelc",
       "path": "eos.basin_B.delta_meV",
-      "value": -16.6
+      "value": -1.4
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.eos_attempt.unstable_n_moved[0]",
+      "value": 50
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.eos_attempt.unstable_n_moved[1]",
+      "value": 54
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.eos_attempt.unstable_n_moved[2]",
+      "value": 53
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.eos_attempt.unstable_disp_mean.Li",
+      "value": 0.11
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.eos_attempt.unstable_disp_mean.S",
+      "value": 0.09
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.eos_attempt.unstable_disp_mean.Cl",
+      "value": 0.07
     },
     {
       "comp": "modelc",

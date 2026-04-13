@@ -83,7 +83,13 @@
       },
       "trends": {
         "Li5.4_family": "comp3(2.36) > comp4(2.20) > comp5(2.04) → Br↑ Wad↓",
-        "Li6_family": "comp2B(1.47) > comp1(1.15) at 20 seeds → Br increases Wad? Counter-intuitive. Crystalline stacking may not capture Cl vs Br surface chemistry. MQA version needed.",
+        "Li6_family": "comp2B(1.47) > comp1(1.15) at 20 seeds → crystalline stacking insufficient. MQA version running.",
+        "Li6_mqa_status": {
+          "method": "500K(2ps)->300K(2ps)->100K(2ps)->relax->element-based sep",
+          "atoms": 820, "steps": 6000, "time_per_seed_min": 8,
+          "seeds": 10, "comps": 2, "total_time_min": 160,
+          "status": "running_V100, ETA ~02:00"
+        },
         "cross_family": "Li5.4(~2.2) >> Li6(~1.0) → VACANCY ANCHOR CONFIRMED! Conservative: Li5.4 has LOWER SE density (1.38 vs 1.78 at/A2) yet HIGHER Wad → vacancy effect even stronger than raw numbers suggest.",
         "vacancy_effect": "Li5.4/Li6 ratio ≈ 2.3x. Despite 22% lower SE density, Wad 2x higher = vacancy dominates over contact density."
       },

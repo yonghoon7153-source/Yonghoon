@@ -94,6 +94,8 @@
     "Li-Cl": 2.552, "Li-S": 2.514, "P-S": 2.063,
     "notes": "Li-Cl: comp1(2.607)>ModelC(2.552)>comp3(2.506). P-S=2.063≈comp3(2.064)→PS4 invariant."
   },
+
+  "comparison_to_comp3": {
     "modelc_B0": 21.7,
     "comp3_B0": 20.8,
     "delta": 0.9,

@@ -16,17 +16,16 @@
   "postprocessing": {
     "V0_volume": "v102.6 (interpolated from EOS)",
     "V0_coords": "v103 Basin A relaxed coords in v102.6 cell",
-    "location": "KISTI GPU 0, /scratch/x3430a02/kgy/manuscript_support/post_relax_modelC",
-    "steps": [
-      "1. relax (v102.6 cell, v103 coords, K=2x2x1, ecutwfc=52)",
-      "2. SCF tight (K=4x4x2, conv_thr=1e-10)",
-      "3. NSCF (K=6x6x3, tetrahedra)",
-      "4. DOS (dos.x)",
-      "5. PDOS (projwfc.x)"
-    ],
-    "status": "in_progress",
-    "expected_results": ["band_gap", "PDOS", "charge_density_for_bader"]
+    "location": "KISTI GPU 0",
+    "status": "completed",
+    "results": {
+      "band_gap_eV": 1.65,
+      "DOS": "done",
+      "PDOS": "done"
+    }
   },
+
+  "band_gap_eV": 1.65,
 
   "eos": {
     "basin_A": {

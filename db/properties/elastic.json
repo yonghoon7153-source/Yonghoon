@@ -52,9 +52,10 @@
       {"id": "comp3",  "C11": 34.5, "C11_std": 0.8, "C12": 14.0, "C12_std": 0.3, "C44": 10.9, "C44_std": 0.4, "K": 20.9, "G": 10.6, "E": 27.3, "E_std": 0.4, "expt_E": null},
       {"id": "comp4",  "C11": 33.4, "C11_std": 1.1, "C12": 14.1, "C12_std": 0.5, "C44": 10.7, "C44_std": 0.6, "K": 20.5, "G": 10.3, "E": 26.4, "E_std": 1.6, "expt_E": null},
       {"id": "comp5_A","C11": 34.9, "C11_std": 1.5, "C12": 17.1, "C12_std": 0.7, "C44": 14.0, "C44_std": 0.8, "K": 23.0, "G": 11.7, "E": 30.0, "expt_E": null},
-      {"id": "comp5_B","C11": 32.8, "C11_std": 1.2, "C12": 13.1, "C12_std": 0.4, "C44": 10.2, "C44_std": 0.3, "K": 19.6, "G": 10.1, "E": 25.8, "E_std": 0.8, "expt_E": null}
+      {"id": "comp5_B","C11": 32.8, "C11_std": 1.2, "C12": 13.1, "C12_std": 0.4, "C44": 10.2, "C44_std": 0.3, "K": 19.6, "G": 10.1, "E": 25.8, "E_std": 0.8, "expt_E": null},
+      {"id": "modelc", "C11": 39.2, "C11_std": 1.4, "C12": 15.5, "C12_std": 0.8, "C44": 12.8, "C44_std": 0.8, "E": 32.6, "E_std": 0.8, "expt_E": null, "notes": "Cl-only, highest E!"}
     ],
-    "trend": "E(Basin B): 29.1 > 28.6 > 27.3 > 26.4 > 25.8 -> Br up, E down (perfectly consistent)"
+    "trend": "With ModelC: ModelC(32.6) > comp1(29.1) > comp2(28.6) > comp3(27.3) > comp4(26.4) > comp5(25.8). Br up E down, Cl-only = most rigid."
   },
 
   "comp5_basin_comparison": {

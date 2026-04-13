@@ -1,5 +1,5 @@
 {
-  "built": "2026-04-13T13:10:39.611610",
+  "built": "2026-04-13T14:54:23.644769",
   "compositions": {
     "comp1": {
       "formula": "Li6PS5Cl",
@@ -57,8 +57,8 @@
       "atoms": 62,
       "cell_type": "rhombohedral",
       "has_eos": true,
-      "has_elastic": false,
-      "has_band_gap": false,
+      "has_elastic": true,
+      "has_band_gap": true,
       "has_adhesion": false
     }
   },
@@ -89,7 +89,7 @@
     {
       "path": "kb/methodology/adhesion_energy.md",
       "title": "Adhesion Energy (Wad) Calculation",
-      "words": 1171
+      "words": 1254
     },
     {
       "path": "kb/methodology/elastic_constants.md",
@@ -1902,6 +1902,56 @@
       "comp": "modelc",
       "path": "vacancy_per_fu",
       "value": 0.6
+    },
+    {
+      "comp": "modelc",
+      "path": "postprocessing.results.band_gap_eV",
+      "value": 1.65
+    },
+    {
+      "comp": "modelc",
+      "path": "band_gap_eV",
+      "value": 1.65
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.C11",
+      "value": 39.2
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.C11_std",
+      "value": 1.4
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.C12",
+      "value": 15.5
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.C12_std",
+      "value": 0.8
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.C44",
+      "value": 12.8
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.C44_std",
+      "value": 0.8
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.E_VRH",
+      "value": 32.6
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.E_std",
+      "value": 0.8
     },
     {
       "comp": "modelc",

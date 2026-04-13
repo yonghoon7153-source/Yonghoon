@@ -27,6 +27,13 @@
 
   "band_gap_eV": 1.65,
 
+  "elastic_mlip_600K_GPa": {
+    "method": "600K_snapshot_x5",
+    "C11": 39.2, "C11_std": 1.4, "C12": 15.5, "C12_std": 0.8, "C44": 12.8, "C44_std": 0.8,
+    "E_VRH": 32.6, "E_std": 0.8,
+    "notes": "Highest E of all compositions! Cl-only = most rigid. Confirms Br up E down."
+  },
+
   "eos": {
     "basin_A": {
       "B0_GPa": 21.7,

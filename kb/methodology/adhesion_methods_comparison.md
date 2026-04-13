@@ -56,18 +56,28 @@ vacancy anchor effect invisible!
 - v5: Li5.4(2.2) >> Li6(1.1) → vacancy doubles adhesion
 - v2: Li5.4(1.0) ≈ Li6(1.1) → no difference (vacancy melted away)
 
-## REVISED Paper Strategy (FINAL)
+## FINAL Paper Strategy (2026-04-14)
 
-v5 crystalline for ALL compositions:
-- Li6 (comp1/2B): crystalline 2x2x3, xy-shift, relax only
-  - Current results noisy (std>0.3) but usable with more seeds
-- Li5.4 (comp3/4/5): crystalline 2x2x1, xy-shift, relax only
-  - Clean results: comp3(2.36) > comp4(2.20) > comp5(2.04)
+1. **Li₅.₄ Br trend (v5 crystalline)**: comp3(2.36) > comp4(2.20) > comp5(2.04) → Br↑ Wad↓ ✅
+2. **Li₆ Br trend (v2 3000K)**: comp1(1.107) > comp2B(1.046) → Br↑ Wad↓ ✅
+3. **Cross-family**: cite EXPERIMENT — Li5.4(316 aJ) >> Li6(194 aJ)
+   - Calculation cannot fairly compare (different cell sizes, different methods)
+   - v2 destroys vacancy → no cross difference
+   - v5 has different SE/A density
+   - → "vacancy-mediated adhesion enhancement" supported by experiment
+   - → limitation: "computational cross-family comparison requires identical cell setup"
 
-v2 (3000K) demoted to:
-- Validation that method matters: "amorphous interface erases vacancy effect"
-- Shows intrinsic (bonding-only) adhesion ≈ 1.0 J/m2 for all compositions
-- Proves vacancy contribution = additional ~1.2 J/m2 for Li5.4
+Key insight for paper:
+- v2 (amorphous) captures Br effect ONLY (bonding change)
+- v5 (crystalline) captures Br + vacancy effects (bonding + structural)
+- The DIFFERENCE (v5-v2 for Li5.4) ≈ +1.2 J/m2 = vacancy contribution!
+
+| Comp | v2 (3000K) | v5 (cryst) | Vacancy effect |
+|------|-----------|------------|----------------|
+| comp1 (Li6) | 1.107 | ~1.15 | ≈0 (no vacancy) |
+| comp3 (Li5.4) | ~1.0 | 2.36 | **+1.36** |
+| comp4 (Li5.4) | — | 2.20 | ~+1.2 |
+| comp5 (Li5.4) | — | 2.04 | ~+1.0 |
 
 ## Current Results
 

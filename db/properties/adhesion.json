@@ -84,8 +84,8 @@
       "trends": {
         "Li5.4_family": "comp3(2.36) > comp4(2.20) > comp5(2.04) → Br↑ Wad↓",
         "Li6_family": "comp2B(1.19) > comp1(0.91) → noise range, need 10-20 seeds",
-        "cross_family": "Li5.4(~2.2) >> Li6(~1.0) → VACANCY ANCHOR CONFIRMED!",
-        "vacancy_effect": "Li5.4/Li6 ratio ≈ 2.3x → vacancy doubles adhesion!"
+        "cross_family": "Li5.4(~2.2) >> Li6(~1.0) → VACANCY ANCHOR CONFIRMED! Conservative: Li5.4 has LOWER SE density (1.38 vs 1.78 at/A2) yet HIGHER Wad → vacancy effect even stronger than raw numbers suggest.",
+        "vacancy_effect": "Li5.4/Li6 ratio ≈ 2.3x. Despite 22% lower SE density, Wad 2x higher = vacancy dominates over contact density."
       },
       "status": "done_5seeds",
       "cross_comparison_issue": {

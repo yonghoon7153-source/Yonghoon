@@ -74,8 +74,18 @@
       "status": "in_progress",
       "method": "SE xy fractional shift (PBC safe), no z cut, 5 seeds per comp",
       "seeds": [42, 43, 44, 45, 46],
-      "order": "comp4 -> comp2B -> comp3 -> comp1 -> comp5",
-      "notes": "SE slab NOT cut, only NCM-SE registry varies. Running on V100."
+      "results": {
+        "comp4": {"Wad": [1.299, 1.591, 1.689, 1.551, 1.118], "mean": 1.45, "std": 0.22, "SE_at": 248, "SE_thick_A": 29, "A_A2": 179, "status": "done"},
+        "comp2B": {"Wad_partial": [2.852, 2.073], "SE_at": 416, "SE_thick_A": 20, "A_A2": 351, "status": "in_progress",
+          "ISSUE": "comp2B(2.5) > comp4(1.45)! Opposite of vacancy anchor prediction. SE atom count differs (416 vs 248) — more atoms = more contact?"}
+      },
+      "cross_comparison_issue": {
+        "problem": "Li6 SE 416at vs Li5.4 SE 248at → different total contact. Wad = dE/A normalizes by area but NOT by SE atom count.",
+        "comp2B_SE_density": "416/351 = 1.19 at/A²",
+        "comp4_SE_density": "248/179 = 1.38 at/A²",
+        "notes": "Density similar (1.19 vs 1.38), but total SE atoms 1.7x more for comp2B. Wad intensive property should be independent of slab size IF slab is thick enough. Need convergence test: does Wad change with SE thickness?"
+      },
+      "order": "comp4 -> comp2B -> comp3 -> comp1 -> comp5"
     }
   },
 

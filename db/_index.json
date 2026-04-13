@@ -1,5 +1,5 @@
 {
-  "built": "2026-04-13T14:58:05.895517",
+  "built": "2026-04-13T16:01:21.158888",
   "compositions": {
     "comp1": {
       "formula": "Li6PS5Cl",
@@ -94,7 +94,7 @@
     {
       "path": "kb/methodology/adhesion_methods_comparison.md",
       "title": "Adhesion Methods Comparison — v2 / v5 crystalline / MQA 500K",
-      "words": 377
+      "words": 533
     },
     {
       "path": "kb/methodology/elastic_constants.md",
@@ -1920,43 +1920,128 @@
     },
     {
       "comp": "modelc",
-      "path": "elastic_mlip_600K_GPa.C11",
-      "value": 39.2
+      "path": "elastic_dft_0K_GPa.C11",
+      "value": 85.3
     },
     {
       "comp": "modelc",
-      "path": "elastic_mlip_600K_GPa.C11_std",
-      "value": 1.4
+      "path": "elastic_dft_0K_GPa.C12",
+      "value": 25.6
     },
     {
       "comp": "modelc",
-      "path": "elastic_mlip_600K_GPa.C12",
+      "path": "elastic_dft_0K_GPa.C44",
+      "value": 28.0
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_dft_0K_GPa.K",
+      "value": 43.7
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_dft_0K_GPa.G",
+      "value": 30.0
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_dft_0K_GPa.E",
+      "value": 73.3
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_dft_0K_GPa.nu",
+      "value": 0.221
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C11",
+      "value": 36.7
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C12",
       "value": 15.5
     },
     {
       "comp": "modelc",
+      "path": "elastic_mlip_300K_GPa.unit_cell.C44",
+      "value": 10.3
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_300K_GPa.unit_cell.E",
+      "value": 28.9
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C11",
+      "value": 34.8
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C12",
+      "value": 13.5
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.C44",
+      "value": 12.5
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_300K_GPa.supercell_2x2x1.E",
+      "value": 29.7
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.C11",
+      "value": 39.3
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.C11_std",
+      "value": 1.1
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.C12",
+      "value": 15.4
+    },
+    {
+      "comp": "modelc",
       "path": "elastic_mlip_600K_GPa.C12_std",
-      "value": 0.8
+      "value": 0.7
     },
     {
       "comp": "modelc",
       "path": "elastic_mlip_600K_GPa.C44",
-      "value": 12.8
+      "value": 12.9
     },
     {
       "comp": "modelc",
       "path": "elastic_mlip_600K_GPa.C44_std",
-      "value": 0.8
+      "value": 0.7
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.K_VRH",
+      "value": 23.4
+    },
+    {
+      "comp": "modelc",
+      "path": "elastic_mlip_600K_GPa.G_VRH",
+      "value": 13.0
     },
     {
       "comp": "modelc",
       "path": "elastic_mlip_600K_GPa.E_VRH",
-      "value": 32.6
+      "value": 32.9
     },
     {
       "comp": "modelc",
       "path": "elastic_mlip_600K_GPa.E_std",
-      "value": 0.8
+      "value": 0.9
     },
     {
       "comp": "modelc",

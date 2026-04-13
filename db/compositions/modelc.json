@@ -27,11 +27,22 @@
 
   "band_gap_eV": 1.65,
 
+  "elastic_dft_0K_GPa": {
+    "C11": 85.3, "C12": 25.6, "C44": 28.0, "K": 43.7, "G": 30.0, "E": 73.3, "nu": 0.221,
+    "notes": "C11(85.3)≈comp3(85.6)≈comp4(85.5). C44(28.0)≈comp3(27.5). E(73.3)>comp3(71.7)→Cl-only slightly more rigid."
+  },
+
+  "elastic_mlip_300K_GPa": {
+    "unit_cell": {"C11": 36.7, "C12": 15.5, "C44": 10.3, "E": 28.9},
+    "supercell_2x2x1": {"C11": 34.8, "C12": 13.5, "C44": 12.5, "E": 29.7}
+  },
+
   "elastic_mlip_600K_GPa": {
     "method": "600K_snapshot_x5",
-    "C11": 39.2, "C11_std": 1.4, "C12": 15.5, "C12_std": 0.8, "C44": 12.8, "C44_std": 0.8,
-    "E_VRH": 32.6, "E_std": 0.8,
-    "notes": "Highest E of all compositions! Cl-only = most rigid. Confirms Br up E down."
+    "C11": 39.3, "C11_std": 1.1, "C12": 15.4, "C12_std": 0.7, "C44": 12.9, "C44_std": 0.7,
+    "K_VRH": 23.4, "G_VRH": 13.0,
+    "E_VRH": 32.9, "E_std": 0.9,
+    "notes": "Sign-corrected. Highest E of all comps! Cl-only = most rigid."
   },
 
   "eos": {

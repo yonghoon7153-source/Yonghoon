@@ -46,13 +46,45 @@
       "Li6": {"SE": "prim_2x2x1 (52at)", "NCM": "5x5x1 (300at)", "strain": 3.3},
       "Li5.4": {"SE": "2x2x1 (248at)", "NCM": "5x5x1 (300at)", "strain": 1.1}
     },
-    "z_cuts": 5,
-    "status": "in_progress"
+    "z_cuts_DEPRECATED": {
+      "status": "deprecated_nonphysical",
+      "reason": "z-shift cuts crystalline SE slab -> dangling bonds -> extreme variance",
+      "comp4_results": [null, 2.719, 2.662, 0.006, 0.960],
+      "comp2B_results": [1.412, 2.902, 9.252],
+      "notes": "comp4: 0.006~2.719, comp2B: 1.412~9.252 -> meaningless"
+    },
+    "xy_shift": {
+      "status": "in_progress",
+      "method": "SE xy fractional shift (PBC safe), no z cut, 5 seeds per comp",
+      "seeds": [42, 43, 44, 45, 46],
+      "order": "comp4 -> comp2B -> comp3 -> comp1 -> comp5",
+      "notes": "SE slab NOT cut, only NCM-SE registry varies. Running on V100."
+    }
   },
+
+  "vacuum_sensitivity": {
+    "finding": "UMA gives nonphysical energies with large vacuum",
+    "vacuum_30A": "Wad = 1.252 J/m2 (correct)",
+    "vacuum_60A": "Wad = 24.5 J/m2 (10x too high!)",
+    "cause": "UMA trained on bulk/dense systems. Large vacuum = out of distribution.",
+    "solution": "Always use vacuum=30A, expand cell on separation"
+  },
+
+  "debug_history": [
+    {"version": "v5_fix",    "Wad": 10.0,  "problem": "isolated slab relax releases strain"},
+    {"version": "v5_final",  "Wad": 75.4,  "problem": "E_ncm=+248eV, 60A vacuum -> UMA artifact"},
+    {"version": "v5_final2", "Wad": 40.2,  "problem": "PBC wrap, SE exceeds cell"},
+    {"version": "v5_correct","Wad": 17.3,  "problem": "used pre-MQA structure"},
+    {"version": "v5_real",   "Wad": 47.8,  "problem": "E_ncm=-24eV, vacuum issue"},
+    {"version": "v5_v2method","Wad": 24.5, "problem": "60A vacuum too large for UMA"},
+    {"version": "v5_working","Wad": 1.252, "problem": "CORRECT! sep+30A, cell+30A, vac=30A"},
+    {"version": "v5_noMQA", "Wad": "pending","problem": "baseline without MQA"},
+    {"version": "v5_xyshift","Wad": "pending","problem": "CURRENT: xy-shift instead of z-cut"}
+  ],
 
   "vacancy_adhesion_mechanism": {
     "Li6_no_vacancy": "Surface Li saturated -> no extra NCM bonding -> Wad lower",
     "Li5.4_vacancy": "Under-coordinated Li near vacancy -> chemical anchor -> pulls NCM O2- -> Wad higher",
-    "evidence": "Li5.4 z-cut variance >> Li6 z-cut variance (vacancy exposure dependent)"
+    "evidence": "Expect Li5.4 xy-shift variance > Li6 variance (vacancy creates site-dependent bonding)"
   }
 }

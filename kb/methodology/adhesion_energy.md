@@ -44,13 +44,31 @@ Why 800K is safe in v5 (but failed in v3/v4):
 - v3/v4 failure cause was lattice mismatch (±20%), not temperature
 - v5 has matched lattice (~1-3%) → 800K only softens surface
 
-## z-Cut Sampling
+## Sampling: z-Cut (DEPRECATED) vs xy-Shift (CORRECT)
 
-SE slab cut at 5 z-positions (0.0, 0.2, 0.4, 0.6, 0.8 fractional).
-Different layers exposed to NCM:
-- **Li₆ (no vacancy):** Similar Wad across z-cuts → small variance
-- **Li₅.₄ (vacancy):** Wad depends on vacancy exposure → large variance
-  → The variance itself is evidence for vacancy chemical anchor effect
+### z-Cut — DEPRECATED, nonphysical!
+SE slab shifted along z by fractional amounts (0.0, 0.2, 0.4, 0.6, 0.8).
+**Problem:** z-shift cuts the crystalline SE slab at arbitrary planes, creating
+nonphysical dangling-bond surfaces. Results showed extreme variance:
+- comp4: Wad = 0.006 ~ 2.719 J/m2 (3 orders of magnitude!)
+- comp2B: Wad = 1.412 ~ 9.252 J/m2 (z=0.4 → SE slab cut invaded NCM)
+
+Analogy: cutting bread in half and placing the cut face on the table.
+Each cut exposes completely different internals → meaningless statistics.
+
+### xy-Shift — CORRECT
+SE slab shifted in xy fractional coordinates (PBC-safe). SE slab NOT cut.
+```python
+frac_se[:,0] = (frac_se[:,0] + dx) % 1.0  # x shift
+frac_se[:,1] = (frac_se[:,1] + dy) % 1.0  # y shift
+# z untouched! SE slab continuity preserved!
+```
+**Why xy works:** PBC makes xy periodic → shift just changes which SE atoms
+sit above which NCM atoms (registry). SE surface itself is identical.
+5 random seeds (42-46) → 5 different contact patterns → meaningful statistics.
+
+Analogy: sliding bread on the table without cutting it.
+Same bottom surface, different table position → reasonable variation.
 
 ## Vacancy → Adhesion Mechanism
 

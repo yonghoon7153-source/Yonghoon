@@ -1,5 +1,5 @@
 {
-  "built": "2026-04-13T11:47:09.959483",
+  "built": "2026-04-13T11:52:06.999246",
   "compositions": {
     "comp1": {
       "formula": "Li6PS5Cl",
@@ -89,7 +89,7 @@
     {
       "path": "kb/methodology/adhesion_energy.md",
       "title": "Adhesion Energy (Wad) Calculation",
-      "words": 912
+      "words": 1171
     },
     {
       "path": "kb/methodology/elastic_constants.md",

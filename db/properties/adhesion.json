@@ -43,11 +43,15 @@
       "9. Wad = (E_ncm + E_se - E_int) / A  (isolated slab method)"
     ],
     "cell_matching": {
-      "Li6_v5_xyshift": {
-        "SE": "prim_2x2x1 (52at x4 = 208at)", "NCM": "7x7x1 (196at)",
-        "A_Å2": 351, "strain_pct": 0.2,
-        "SE_density_at_per_A2": 0.592,
-        "ISSUE": "SE 208at on 351 A², thickness 13.6A (vs comp4 33.7A). Gap=-2.3A = NCM-SE overlap! SE too thin → penetrates NCM → Wad artificially high. Need SE 2x2x2 (416at, ~20A) for Li6."
+      "Li6_v5_xyshift_OLD": {
+        "SE": "prim_2x2x1 (208at)", "NCM": "7x7x1 (196at)",
+        "A_Å2": 351, "SE_thickness_A": 13.6,
+        "ISSUE": "DEPRECATED: SE 13.6A too thin, Gap=-2.3A = overlap. Wad artificially high."
+      },
+      "Li6_v5_xyshift_FIX": {
+        "SE": "prim_2x2x2 (416at)", "NCM": "7x7x1 (196at)",
+        "A_Å2": 351, "SE_thickness_A": 20, "strain_pct": 0.2,
+        "notes": "SE repeat=(2,2,2) → ~20A thick. Now comparable to Li5.4 (29A)."
       },
       "Li5.4_v5_xyshift": {
         "SE": "2x2x1 (248at)", "NCM": "5x5x1 (100at)",
@@ -56,7 +60,7 @@
         "notes": "SE 248at on 179 A² → 1.39 at/A² — 정상 밀도"
       },
       "density_mismatch": "comp2B SE density (0.59) = comp4의 43%! SE thickness 13.6 vs 33.7A. Gap=-2.3A = overlap!",
-      "solution": "Option A: Li6 SE 2x2x2 (416at, ~20A thick). Option B: Compare only within same SE size (comp3 vs comp4 vs comp5).",
+      "solution": "Li6 SE repeat=(2,2,2) → 416at, ~20A thick. All comps then 20-29A range. ADOPTED.",
       "Li6_original": {"SE": "prim_2x2x1 (52at)", "NCM": "5x5x1 (300at)", "strain": 3.3, "notes": "original plan, not used in v5_xyshift"}
     },
     "z_cuts_DEPRECATED": {

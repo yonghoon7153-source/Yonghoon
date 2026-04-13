@@ -16,11 +16,17 @@
 - Results: comp3=2.361±0.41, comp4=2.202±0.33, comp5=2.037±0.44
 - comp3 > comp4 > comp5 → Br↑ Wad↓
 
-### 3. MQA 500K (Li6 in progress)
+### 3. MQA 500K (Li6 — PROBLEMATIC)
 - SE crystalline 2×2×3 + NCM 7×7×1, xy shift, MQA 500K→300K→100K→relax
 - Element-based separation (Ni/O=NCM, P/S/Cl/Br=SE, Li=z-boundary)
-- **Pro:** Vacancy preserved + interface restructuring + handles Li interdiffusion
-- **Con:** Slow (~1h/seed), slightly different SE/A density vs Li5.4
+- **PROBLEM: Li interdiffusion at 500K!**
+  - Original: NCM z=0~17A (LiNiO2 c=14.2A)
+  - After MQA: z_boundary=10.3A → NCM top Li classified as SE!
+  - NCM becomes 227 atoms (was 196), SE becomes 593 (was 624)
+  - Li crosses NCM-SE boundary in both directions
+  - Element-based separation cannot resolve Li ownership
+  - 500K is enough for Li to hop across interface → fundamental limitation
+- **CONCLUSION: MQA not viable for adhesion Wad calculation with shared Li species**
 
 ## Why comp1/2B need MQA but comp3/4/5 don't
 
@@ -37,11 +43,10 @@ comp1/2B (cubic, 624at SE):
 
 ## Paper Strategy
 
-Option A (mixed methods):
-"Li5.4: crystalline stacking (vacancy preserved).
- Li6: MQA 500K (surface softening for rigid cubic SE)."
+Option A (ABANDONED — MQA fails due to Li interdiffusion):
+"Li6: MQA 500K" — Li crosses boundary, slab separation undefined.
 
-Option B (conservative):
+Option B (ADOPTED):
 "Li6: v2 3000K melt-quench (established, amorphous SE).
  Li5.4: crystalline stacking (vacancy preserved).
  Cross-family comparison acknowledges different methods."

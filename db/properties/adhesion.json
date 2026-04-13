@@ -49,9 +49,9 @@
         "ISSUE": "DEPRECATED: SE 13.6A too thin, Gap=-2.3A = overlap. Wad artificially high."
       },
       "Li6_v5_xyshift_FIX": {
-        "SE": "prim_2x2x2 (416at)", "NCM": "7x7x1 (196at)",
-        "A_Å2": 351, "SE_thickness_A": 20, "strain_pct": 0.2,
-        "notes": "SE repeat=(2,2,2) → ~20A thick. Now comparable to Li5.4 (29A)."
+        "SE": "prim_2x2x3 (624at)", "NCM": "7x7x1 (196at)",
+        "A_Å2": 351, "SE_thickness_A": 30, "strain_pct": 0.2,
+        "notes": "SE repeat=(2,2,3) → 624at, 30A thick. Matches Li5.4 (29A). FINAL."
       },
       "Li5.4_v5_xyshift": {
         "SE": "2x2x1 (248at)", "NCM": "5x5x1 (100at)",

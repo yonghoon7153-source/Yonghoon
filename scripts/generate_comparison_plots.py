@@ -1063,7 +1063,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
 
     # === FORM X (v4++ champion) ===
     # σ = C × σ_grain × (φ-φc)^(3/4) × CN × √cov / √τ
-    PHI_C = 0.18
+    PHI_C = 0.19
     coverage = [(lambda vs: sum(vs)/len(vs)/100 if vs else 0.20)([v for v in [_get(d,"coverage_AM_P_mean",0), _get(d,"coverage_AM_S_mean",0), _get(d,"coverage_AM_mean",0)] if v>0]) for d in data_list]
 
     phi_ex_arr = np.array([max(phi_se[i] - PHI_C, 0.001) for i in valid_idx])
@@ -1234,7 +1234,7 @@ def plot_network_sigma(data_list, names, outdir):
 def plot_multiscale_sigma(data_list, names, outdir):
     """FORM X: σ = C × σ_grain × (φ-φc)^¾ × CN × √cov / √τ."""
     SIGMA_BULK = 3.0
-    PHI_C = 0.18
+    PHI_C = 0.19
 
     phi_se = [_get(d, "phi_se") for d in data_list]
     cn = [_get(d, "se_se_cn", 0) for d in data_list]
@@ -1332,7 +1332,7 @@ def plot_v3_fitting(data_list, names, outdir):
 
 def plot_formx_decomposition(data_list, names, outdir):
     """FORM X factor decomposition: (φ-φc)^¾, CN, √cov, 1/√τ."""
-    PHI_C = 0.18
+    PHI_C = 0.19
     phi_se = [_get(d, "phi_se") for d in data_list]
     cn = [_get(d, "se_se_cn", 0) for d in data_list]
     tau = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)) for d in data_list]
@@ -2130,14 +2130,14 @@ PLOT_REGISTRY = {
         "func": plot_ionic_scaling_fit,
         "file": "ionic_scaling_fit.png",
         "title": "Ionic: FORM X Scaling Law (Predicted vs Actual)",
-        "description": "FORM X (v4++ champion):\nσ = C × σ_grain × ⁴√[(φ-φc)³ × CN⁴ × cov² / τ²]\n= C × σ_grain × (φ-φc)^(3/4) × CN × √cov / √τ\n\nφ_c=0.18 (percolation threshold)\nR²={formx_r2}, LOOCV={formx_loocv}, 1 free param",
+        "description": "FORM X (v4++ champion):\nσ = C × σ_grain × ⁴√[(φ-φc)³ × CN⁴ × cov² / τ²]\n= C × σ_grain × (φ-φc)^(3/4) × CN × √cov / √τ\n\nφ_c=0.19 (percolation threshold)\nR²={formx_r2}, LOOCV={formx_loocv}, 1 free param",
         "origin_tip": "Scatter (log-log): X=actual (Network solver), Y=predicted (FORM X).\n1:1 line (black dashed), ±20% band (green).",
     },
     "multiscale_sigma": {
         "func": plot_multiscale_sigma,
         "file": "multiscale_sigma.png",
         "title": "Ionic: FORM X Scaling Law",
-        "description": "FORM X (v4++ champion):\nσ = C × σ_grain × (φ\u2011φc)^¾ × CN × √cov / √τ\nφc=0.18 (percolation threshold)\nR²={formx_r2}, thick+thin universal",
+        "description": "FORM X (v4++ champion):\nσ = C × σ_grain × (φ\u2011φc)^¾ × CN × √cov / √τ\nφc=0.19 (percolation threshold)\nR²={formx_r2}, thick+thin universal",
         "origin_tip": "Red: FORM X prediction.\nGreen dashed: Network solver (ground truth).",
     },
     "formx_decomposition": {
@@ -2812,7 +2812,7 @@ def main():
         elif '{formx_r2}' in desc:
             # Compute FORM X R² on the fly from all data
             try:
-                PHI_C = 0.18; SGRAIN = 3.0
+                PHI_C = 0.19; SGRAIN = 3.0
                 _phi_se = np.array([_get(d, "phi_se", 0) for d in all_data])
                 _cn_se = np.array([_get(d, "se_se_cn", 0) for d in all_data])
                 _tau_se = np.array([max(_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)), 0.1) for d in all_data])

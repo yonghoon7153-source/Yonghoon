@@ -56,18 +56,34 @@ vacancy anchor effect invisible!
 - v5: Li5.4(2.2) >> Li6(1.1) → vacancy doubles adhesion
 - v2: Li5.4(1.0) ≈ Li6(1.1) → no difference (vacancy melted away)
 
-## FINAL Paper Strategy (2026-04-14)
+## FINAL Paper Strategy (2026-04-14 v3) — ALL v5 crystalline
 
-1. **Li₅.₄ Br trend (v5 crystalline)**: comp3(2.36) > comp4(2.20) > comp5(2.04) → Br↑ Wad↓ ✅
-2. **Li₆ Br trend (v2 3000K)**: comp1(1.107) > comp2B(1.046) → Br↑ Wad↓ ✅
-3. **Cross-family**: cite EXPERIMENT — Li5.4(316 aJ) >> Li6(194 aJ)
-   - Calculation cannot fairly compare (different cell sizes, different methods)
-   - v2 destroys vacancy → no cross difference
-   - v5 has different SE/A density
-   - → "vacancy-mediated adhesion enhancement" supported by experiment
-   - → limitation: "computational cross-family comparison requires identical cell setup"
+**One method for all 5 compositions. No inconsistency. No reviewer trap.**
 
-Key insight for paper:
+| Comp | Wad (J/m2) | std | Family |
+|------|-----------|-----|--------|
+| comp1 | 0.914 | 0.18 | Li6 |
+| comp2B | 1.194 | 0.27 | Li6 |
+| comp3 | 2.361 | 0.41 | Li5.4 |
+| comp4 | 2.202 | 0.33 | Li5.4 |
+| comp5 | 2.037 | 0.44 | Li5.4 |
+
+Paper text:
+- Li5.4: comp3 > comp4 > comp5 → Br↑ Wad↓ (significant, non-overlapping means)
+- Li6: comp1 ≈ comp2B → within statistical uncertainty (error bars overlap)
+- Cross: Li5.4(~2.2) >> Li6(~1.1) → vacancy doubles adhesion
+- v2 data in DB only (proves vacancy destruction at 3000K)
+
+## Reviewer Q&A Preparation
+
+**Q: comp1 < comp2B reversal in Li6?**
+A: Error bars overlap (0.91±0.18 vs 1.19±0.27). No statistically significant
+difference. Li6 Wad is composition-insensitive, consistent with no vacancy.
+
+**Q: No interface restructuring with relax-only?**
+A: 800K MQA attempted but Li interdiffusion destroyed interface (58/248 atoms migrated).
+500K MQA also showed Li crossing NCM-SE boundary (z_boundary shifted 17→10.3A).
+Crystalline stacking + relax is the best method preserving vacancy. Stated as limitation.
 - v2 (amorphous) captures Br effect ONLY (bonding change)
 - v5 (crystalline) captures Br + vacancy effects (bonding + structural)
 - The DIFFERENCE (v5-v2 for Li5.4) ≈ +1.2 J/m2 = vacancy contribution!

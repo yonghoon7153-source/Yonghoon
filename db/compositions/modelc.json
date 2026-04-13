@@ -40,8 +40,8 @@
         "unstable_disp_mean": {"Li": 0.11, "S": 0.09, "Cl": 0.07},
         "pattern": "Basin B stable only at odd volumes, collapses at even volumes (50+ atoms rearrange)"
       },
-      "conclusion": "Basin B is 1.4 meV more stable but occupies extremely narrow volume range. EOS fitting impossible. Paper uses Basin A (B0=21.7 GPa).",
-      "limitation_text": "A more stable basin exists (1.4 meV lower) but is stable only within a narrow volume range, precluding EOS fitting. Basin A is used for B0 determination."
+      "conclusion": "Basin B is 1.4 meV more stable but EOS impossible. Paper uses Basin A (B0=21.7 GPa). Basin B NOT mentioned in paper.",
+      "paper_strategy": "DO NOT mention Basin B. Reasons: (1) 16.6 meV = 0.013% energy = within DFT error (PBE, k-point, PP), (2) Basin A is valid local minimum (both may coexist experimentally), (3) mentioning Basin B invites reviewer question 'why not use it?' with weak answer 'EOS impossible', (4) comp5 basin discussion already covers Li ordering sensitivity. Keep Model C simple."
     },
     "v108_basin": {
       "delta_vs_A_meV": -199,

@@ -95,7 +95,60 @@ del ncm_iso[n_ncm:]
 se_iso = interface.copy()
 del se_iso[:n_ncm]
 ```
-**Status:** FIX2 deployed on V100, running comp4→comp2B→comp3→comp1→comp5.
+**Status:** FIX2 deployed on V100. Superseded by v5_working.
+
+### v5 Wad Debugging Saga (2026-04-13)
+
+6 iterations to get correct Wad. Root cause: **UMA vacuum sensitivity**.
+
+| Version | Method | Wad (J/m2) | Problem |
+|---------|--------|-----------|---------|
+| v5_fix | isolated slab + relax | 10.0 | relax releases strain |
+| v5_final | isolated slab, no relax | 75.4 | E_ncm=+248eV! 60A vacuum |
+| v5_final2 | separation 30A, cell fixed | 40.2 | PBC wrap (SE exceeds cell) |
+| v5_correct | independent slab cells, relax | 17.3 | used pre-MQA structure |
+| v5_real | post-MQA split, no relax | 47.8 | E_ncm=-24eV (vacuum issue) |
+| v5_v2method | separation 30A, vacuum 60A | 24.5 | vacuum too large for UMA |
+| **v5_working** | **sep 30A + cell+30A, vac 30A** | **1.252** | **CORRECT** |
+
+### UMA Vacuum Sensitivity (Critical Finding)
+
+UMA (graph neural network MLIP) gives nonphysical energies with large vacuum:
+- vacuum 30A: Wad = 1.252 J/m2 (correct, matches literature)
+- vacuum 60A: Wad = 24.5 J/m2 (10x too high!)
+
+Same atoms, same arrangement — only vacuum differs.
+Cause: UMA trained on bulk/dense systems. Large vacuum = out of training distribution.
+
+### Correct Protocol (v5_working)
+
+Three conditions ALL required:
+1. **vacuum = 30A** (not 60A!) — `cell_z = atoms_max + 30`
+2. **Expand cell on separation** — `sep_cell_z += 30A` AND `SE_z += 30A`
+3. **No relax after separation** — single point only (relax releases strain)
+
+```python
+# E_int: interface after MQA + relax
+cell_z = total_max + 30.0  # 30A vacuum
+E_int = interface.get_potential_energy()
+
+# E_sep: separate, expand cell, single point
+sep_cell[2] = [0, 0, cell_z + 30.0]  # cell +30A
+pos_sep[n_ncm:, 2] += 30.0            # SE +30A
+E_sep = sep.get_potential_energy()     # NO relax!
+
+Wad = (E_sep - E_int) / A * 16.0218
+```
+
+### v5_noMQA variant (2026-04-13)
+Crystalline stacking + relax only (no MQA thermal treatment).
+Running on V100: comp4→comp2B→comp3→comp1→comp5, 5 z-cuts each.
+Purpose: baseline comparison — does MQA improve or change Wad?
+
+### Validation
+Test result (no MQA, comp4 z=0.0): Wad = 1.252 J/m2
+Compare v2 (3000K melt): comp1 = 1.107, comp2B = 1.046 J/m2
+→ Same order of magnitude, reasonable range.
 
 ## References
 - [j_nucl_mater2020] Au/a-Si crystalline/amorphous interface statistics

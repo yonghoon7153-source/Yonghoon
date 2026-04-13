@@ -1,5 +1,5 @@
 {
-  "built": "2026-04-12T18:31:25.982028",
+  "built": "2026-04-13T11:24:19.683538",
   "compositions": {
     "comp1": {
       "formula": "Li6PS5Cl",
@@ -80,7 +80,7 @@
       "has_trends": true
     },
     "equation_of_state": {
-      "n_results": 6,
+      "n_results": 7,
       "has_trends": true
     }
   },
@@ -89,7 +89,7 @@
     {
       "path": "kb/methodology/adhesion_energy.md",
       "title": "Adhesion Energy (Wad) Calculation",
-      "words": 485
+      "words": 912
     },
     {
       "path": "kb/methodology/elastic_constants.md",
@@ -175,18 +175,28 @@
     },
     {
       "comp": "comp1",
-      "path": "eos_v2.B0_GPa",
+      "path": "eos_v2.B0_GPa_mlip",
       "value": 26.9
     },
     {
       "comp": "comp1",
-      "path": "eos_v2.B0_prime",
-      "value": 4.75
+      "path": "eos_v2.B0_GPa_dft",
+      "value": 26.5
     },
     {
       "comp": "comp1",
-      "path": "eos_v2.R_squared",
-      "value": 0.999997
+      "path": "eos_v2.B0_prime_dft",
+      "value": 4.61
+    },
+    {
+      "comp": "comp1",
+      "path": "eos_v2.n_points_dft",
+      "value": 11
+    },
+    {
+      "comp": "comp1",
+      "path": "eos_v2.R_squared_dft",
+      "value": 0.999998
     },
     {
       "comp": "comp1",
@@ -1272,6 +1282,21 @@
       "comp": "modelc",
       "path": "eos.v106_basin_transition.n_atoms_moved",
       "value": 7
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.energy_Ry",
+      "value": -1262.85003
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.basin_A_energy_Ry",
+      "value": -1262.84881
+    },
+    {
+      "comp": "modelc",
+      "path": "eos.basin_B.delta_meV",
+      "value": -16.6
     },
     {
       "comp": "modelc",

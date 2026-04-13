@@ -25,12 +25,15 @@
   },
 
   "eos_v2": {
-    "B0_GPa": 26.9,
-    "B0_prime": 4.75,
-    "R_squared": 0.999997,
-    "status": "mlip_confirmed_dft_in_progress",
+    "B0_GPa_mlip": 26.9,
+    "B0_GPa_dft": 26.5,
+    "B0_prime_dft": 4.61,
+    "n_points_dft": 11,
+    "R_squared_dft": 0.999998,
+    "volume_range_dft": "v097-v107",
+    "status": "dft_confirmed",
     "pipeline": "v2",
-    "notes": "Li annealing champion. DFT EOS v097-v107 in progress on KISTI GPU 0."
+    "notes": "Li annealing champion #0. DFT 11pts DONE. v1(26.2) vs v2(26.5) = +0.3 GPa. Li6 insensitive to Li ordering (no vacancy)."
   },
 
   "band_gap_eV": 2.28,

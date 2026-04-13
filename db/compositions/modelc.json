@@ -27,6 +27,14 @@
       "n_atoms_moved": 7,
       "nature": "local_hop (Li 6 + Cl 1)"
     },
+    "basin_B": {
+      "source": "v106 coords relaxed in v103 cell",
+      "energy_Ry": -1262.85003,
+      "basin_A_energy_Ry": -1262.84881,
+      "delta_meV": -16.6,
+      "status": "confirmed_more_stable",
+      "notes": "Basin B is 16.6 meV MORE stable than Basin A! v106 Li6+Cl1 hop persists in v103 cell = true ground state."
+    },
     "v108_basin": {
       "delta_vs_A_meV": -199,
       "n_atoms_moved": 28,

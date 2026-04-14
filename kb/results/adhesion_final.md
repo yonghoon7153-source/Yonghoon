@@ -95,14 +95,73 @@ comp2B: ~1.8 (partial, awaiting full results)
 - Figure: 1L seed52 xyz + VESTA crop
 - Limitation: "single-layer NCM slab; thicker slabs show surface reconstruction"
 
-### TODO: 5L NCM (future improvement)
+### TODO: 5L NCM + FixAtoms (future improvement)
 - Literature standard: 3-5 NCM layers for adhesion DFT
 - 5L = ~70A thick → bulk-like interior + realistic surface
-- Need bottom vacuum (15A+) to prevent PBC issues
+- **FixAtoms**: bottom 3 layers FIXED (bulk), top 2 layers FREE (surface)
+  ```
+  Layer 1 (bottom): FIXED
+  Layer 2:          FIXED
+  Layer 3 (middle): FIXED
+  Layer 4:          FREE ← surface relaxation
+  Layer 5 (top):    FREE ← SE contact
+  ```
+- This is the DFT slab standard method
+- Solves 2L asymmetry problem: fixed bottom = no O escape
 - Cell: vac(15) + NCM(70) + gap(2.5) + SE(30) + vac(30) ≈ 150A
 - comp1/2B: NCM 7x7x5 = 980 atoms + SE 624 = 1604 total
 - comp3/4/5: NCM 5x5x5 = 500 atoms + SE 248 = 748 total
-- Key: pristine NCM (no standalone relax), interface relax only
+- ASE: `FixAtoms(indices=[i for i,p in enumerate(ncm.positions) if p[2] < z_cut])`
+
+### Literature References for Adhesion Methodology
+
+1. **Electrolyte Coatings for High Adhesion Interfaces (ACS AMI 2023)**
+   https://pubs.acs.org/doi/10.1021/acsami.3c04452
+   - Adhesion parameter from single-material slab cleavage energies
+   - No direct interface calculation needed
+   - Screened 19,481 Li compounds, 945 slab terminations
+
+2. **Comparative Study: Sulfide vs Oxide SE Interfaces (ACS AEM 2020)**
+   https://pubs.acs.org/doi/full/10.1021/acsaem.0c02033
+   - DFT direct interface: LCO/LPS, LCO/Li3PO4, LCO/LLZO
+   - 3-5 atomic layers per slab, systematic interface matching
+   - Wad = (E_slab1 + E_slab2 - E_interface) / A
+
+3. **Cathode-SE Interface Thermodynamics & Kinetics (JACS 2022)**
+   https://pubs.acs.org/doi/10.1021/jacs.2c07482
+   - MTP (moment tensor potential) MLIP for large-scale MD
+   - >1000 atoms interface models, 600K, 5ns
+   - Amorphous interface formation via melt-quench
+
+4. **Interfacial Stability of Layered Cathodes with Sulfide SE (JPC C 2022)**
+   https://pubs.acs.org/doi/10.1021/acs.jpcc.2c05336
+   - LiNixMnyCo1-x-yO2 / sulfide SE interfaces
+   - Composition-dependent interfacial stability
+   - DFT+U framework
+
+5. **Interfaces and Interphases in ASSB (Review)**
+   https://innovationcenter.msu.edu/wp-content/uploads/2022/09/Interfaces-and-interphases-in-all-solid-state-batteries-with-inorganic-solid-electrolytes.pdf
+   - Comprehensive review of interface modeling approaches
+   - DFT slab standard: 4-6 layers, bottom layers fixed
+
+6. **Space-Charge Layer at Oxide Cathode/Sulfide SE (Chem. Mater. 2014)**
+   https://pubs.acs.org/doi/10.1021/cm5016959
+   - LiCoO2/β-Li3PS4 interface DFT+U
+   - 3-4 layers + vacuum 15A
+
+7. **Computational Design of Double-Layer Cathode Coatings (ChemRxiv 2021)**
+   https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.14773590.v1
+   - Coating optimization for cathode-SE interfaces
+   - Adhesion energy as screening descriptor
+
+### DFT Slab Standard Summary
+| Parameter | Typical Value | Our Method |
+|-----------|--------------|------------|
+| NCM layers | 3-5 | 1L (current), 5L (planned) |
+| Bottom fixed | 2-3 layers | FixAtoms (planned) |
+| Top free | 1-2 layers | all free (current) |
+| Vacuum | 15-20A | 30A (UMA requirement) |
+| Wad method | E_s1+E_s2-E_int | E_sep-E_int (UMA compatible) |
 | | 1L LiNiO2 | 2L NCM811 | Change |
 |---|-----------|-----------|--------|
 | comp1 | 1.153±0.39 | ~2.0±0.7 | +74% |

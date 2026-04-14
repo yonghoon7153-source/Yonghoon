@@ -79,18 +79,13 @@ comp1 (20 seeds, outlier<4.0 removed):
 
 comp2B: ~1.8 (partial, awaiting full results)
 
-### LiNiO2 2L PRISTINE NCM (CURRENT — 2026-04-14)
-- NCM: pristine crystal, NO standalone relax!
-  - ncm_pristine_7x7x2.xyz (392 atoms)
-  - ncm_pristine_5x5x2.xyz (200 atoms)
-- Only interface LBFGS relax (NCM+SE together)
-  - NCM surface O: constrained by SE above → slight movement only
-  - NCM bulk O: anchored by Ni below → no movement
-  - = realistic pressing interface!
-- NCM standalone relax WRONG: surface O flies out (no constraint, PBC wrap)
-- 20 seeds (42-61) per composition, V100
-- Script: adhesion_2L_fixed.py (with ncm_pristine)
-- Output: comp*_2Lf_s*.xyz
+### LiNiO2 2L PRISTINE + BOTTOM VACUUM (CURRENT — 2026-04-14)
+- NCM: pristine crystal, NO standalone relax
+- KEY FIX: NCM shifted up by 15A → bottom vacuum!
+  - Without: NCM bottom O ↔ PBC SE top = 30A (too close!)
+  - With: NCM bottom O ↔ PBC SE top = 45A (safe!)
+- Cell layout: vacuum(15A) + NCM(25A) + gap(2.5A) + SE(30A) + vacuum(30A) ≈ 102A
+- Previous 2L failures ALL caused by NCM bottom = PBC image interaction
 | | 1L LiNiO2 | 2L NCM811 | Change |
 |---|-----------|-----------|--------|
 | comp1 | 1.153±0.39 | ~2.0±0.7 | +74% |

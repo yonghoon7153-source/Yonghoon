@@ -38,9 +38,16 @@
 - Cross: Li5.4(~2.0) >> Li6(~1.2) → vacancy doubles adhesion
 - Order: comp3 > comp4 > comp5 > comp1 > comp2B = MATCHES EXPERIMENT PERFECTLY
 
-## Figure (seed 52, SAME xy for all comps)
-- xy_shift = (0.82, 0.03) → all 5 compositions at IDENTICAL xy position
-- This ensures fair comparison: only composition differs, not contact geometry
+## Figure (seed 52)
+- xy_shift = (0.82, 0.03) → same fractional shift for all compositions
+- **Within-family**: same cell → same physical shift → FAIR comparison
+  - comp1 vs comp2B: NCM 7x7, SE cubic 2x2x3 → identical contact geometry
+  - comp3 vs comp4 vs comp5: NCM 5x5, SE rhombo 2x2x1 → identical contact geometry
+- **Cross-family**: different cells → dx=0.82 means different Angstrom shift
+  - comp1: 0.82 × 20.15A = 16.5A shift
+  - comp3: 0.82 × 14.39A = 11.8A shift
+  - → Same "random intent", but NOT same physical contact
+  - → Cross-family Wad comparison is qualitative (Li5.4 >> Li6), not exact
 - Files: comp{1,2B,3,4,5}_v5xy_s52.xyz
 
 | Comp | Wad (seed52) | Order |

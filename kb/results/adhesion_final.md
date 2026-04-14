@@ -49,9 +49,10 @@
   - → Same "random intent", but NOT same physical contact
   - → Cross-family Wad comparison is qualitative (Li5.4 >> Li6), not exact
 - **Figure strategy**: 
-  - Main figure: comp3/4/5 only (same cell size, 348 atoms, compact)
-  - SI: comp1/2B (820 atoms, larger cell)
-  - Or: all 5 in VESTA at same scale
+  - VESTA: crop z to ~15A around interface (NCM 2-3 layers + gap + SE 2-3 layers)
+  - All 5 comps at same z range → cell size difference invisible
+  - 820 vs 348 atoms irrelevant when cropped to interface region
+  - Main figure: all 5 comps side-by-side (cropped)
 - Files: comp{1,2B,3,4,5}_v5xy_s52.xyz
 
 | Comp | Wad (seed52) | Order |

@@ -66,3 +66,15 @@
 C3 > C4 > C5 > C1 > C2B = PERFECT experimental order at same xy!
 3000K melt comp3: Wad ≈ 1.0 = comp1(1.1) → vacancy destroyed → no difference
 v5 - v2 difference ≈ +1.0 J/m2 for Li5.4 = vacancy contribution quantified
+
+## NCM811 2-Layer Calculation (in progress, 2026-04-14)
+- NCM811: Li(Ni0.8Co0.1Mn0.1)O2, nz=2 (2 layers along c-axis)
+- NCM 7x7x2 = 392 atoms (comp1/2B), NCM 5x5x2 = 200 atoms (comp3/4/5)
+- Total: comp1/2B ~1016 atoms, comp3/4/5 ~448 atoms
+- 20 seeds (42-61) per composition, V100 GPU
+- Purpose: bulk NCM structure preserved + surface O migration visible
+- 1-layer problem: all O migrates to SE (no bulk to anchor)
+- 2-layer: bottom layer = bulk-like, top layer = surface restructuring
+- Figure: seed52 xyz (comp*_ncm811_s52.xyz) for VESTA
+- Note: NCM811 has Co(10%)/Mn(10%) — verify UMA handles correctly
+- If Co/Mn issue: fallback to pure LiNiO2 nz=2

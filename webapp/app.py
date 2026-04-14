@@ -2567,6 +2567,22 @@ def scaling_report():
                         download_name='Scaling_Law_Report.md')
     return jsonify({'error': 'Report generation failed'}), 500
 
+@app.route('/docs/full-report')
+def full_report():
+    """Download full scaling law report."""
+    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'docs', 'Scaling_Law_Report_Full.md')
+    if os.path.exists(path):
+        return send_file(path, as_attachment=True, download_name='Scaling_Law_Report_Full.md')
+    return jsonify({'error': 'Not found'}), 404
+
+@app.route('/docs/formula-catalog')
+def formula_catalog():
+    """Download formula catalog."""
+    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'docs', 'Formula_Catalog.md')
+    if os.path.exists(path):
+        return send_file(path, as_attachment=True, download_name='Formula_Catalog.md')
+    return jsonify({'error': 'Not found'}), 404
+
 
 # ─── ML Predictor ──────────────────────────────────────────────────────────
 

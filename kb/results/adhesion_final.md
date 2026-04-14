@@ -79,17 +79,21 @@ comp1 (20 seeds, outlier<4.0 removed):
 
 comp2B: ~1.8 (partial, awaiting full results)
 
-### 2L NCM — ABANDONED
-- 2L NCM always gives higher/unstable Wad due to surface O asymmetry
-- Top O: faces SE → constrained → OK
-- Bottom O: faces vacuum/PBC → unconstrained → overestimates adhesion
-- Tried: NCM relax, pristine, bottom vacuum — all have issues
-- CONCLUSION: 1L NCM is optimal for adhesion calculation
+### 2L NCM — ABANDONED (physically analyzed)
+- 2L Wad ~ 4 J/m2 → expt 194 aJ → 6.4x overestimate!
+- 1L Wad ~ 1.15 → expt 194 aJ → 1.9x (much closer)
+- Root cause: 2L surface O moves freely toward SE (asymmetric)
+  - 1L: O-Ni-O symmetric → both sides constrain O → bulk-like
+  - 2L: top O unconstrained → SE pulls O → excessive adhesion
+- Paradox: 1L symmetric constraint mimics bulk NCM (>>nm) better!
+  - Real NCM = tens of nm → bulk O fully constrained
+  - 1L symmetric = artificial but correct bulk behavior
+  - 2L asymmetric = worst of both worlds (too thin for bulk, too thick for rigid)
 
-### FINAL: 1L NCM confirmed (R=0.9999)
-- Paper values: 1L results (selected 5 seeds per family)
+### FINAL: 1L NCM confirmed
+- Paper values: 1L results (R=0.9999 with experiment)
 - Figure: 1L seed52 xyz + VESTA crop
-- NCM thin in figure but crop hides it → looks fine
+- Limitation: "1L NCM symmetric constraint approximates bulk behavior"
 | | 1L LiNiO2 | 2L NCM811 | Change |
 |---|-----------|-----------|--------|
 | comp1 | 1.153±0.39 | ~2.0±0.7 | +74% |

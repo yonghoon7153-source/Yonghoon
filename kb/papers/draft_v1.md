@@ -125,7 +125,7 @@ Computed adhesion energies are summarized in Table 4. Within each family, Wad de
 | comp1 | 1.277 | 0.383 | 194 | 1.000 |
 | comp2 | 1.183 | 0.362 | 180 | 0.926 (expt 0.928) |
 
-The computed Wad ratios reproduce the experimental ranking with remarkable fidelity (R = 0.9999): comp4/comp3 = 0.936 (expt 0.943), comp5/comp3 = 0.785 (expt 0.788), and comp2/comp1 = 0.926 (expt 0.928). Both the cross-family vacancy effect (Li₅.₄ ≈ 2.0 J/m² vs. Li₆ ≈ 1.2 J/m²) and the within-family Br effect (Wad decreasing with Br content) are captured.
+The computed Wad ratios reproduce the experimental ranking with remarkable fidelity (R = 0.9999): comp4/comp3 = 0.936 (expt 0.943), comp5/comp3 = 0.785 (expt 0.788), and comp2/comp1 = 0.926 (expt 0.928). To enable cross-family comparison despite different interfacial areas, the adhesion energy was also normalized per SE atom. The per-atom adhesion energy is approximately twice as large for Li₅.₄ compositions (0.075–0.095 eV/atom) compared to Li₆ (0.042–0.045 eV/atom), directly reflecting the vacancy-mediated anchoring effect: each SE atom in the vacancy-containing compositions forms substantially stronger bonds with the NCM surface.
 
 We attribute the enhanced adhesion of Li₅.₄ compositions to vacancy-mediated interfacial anchoring: under-coordinated Li⁺ ions adjacent to vacancies at the SE surface form stronger bonds with NCM oxygen, acting as chemical anchors. This interpretation is supported by a control calculation in which the SE was melted at 3000 K prior to interface formation, destroying the vacancy structure; the resulting Wad (≈ 1.0 J/m²) was indistinguishable from Li₆ compositions, confirming that the crystalline vacancy arrangement is essential for the enhanced adhesion.
 

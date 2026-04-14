@@ -48,6 +48,10 @@
   - comp3: 0.82 × 14.39A = 11.8A shift
   - → Same "random intent", but NOT same physical contact
   - → Cross-family Wad comparison is qualitative (Li5.4 >> Li6), not exact
+- **Figure strategy**: 
+  - Main figure: comp3/4/5 only (same cell size, 348 atoms, compact)
+  - SI: comp1/2B (820 atoms, larger cell)
+  - Or: all 5 in VESTA at same scale
 - Files: comp{1,2B,3,4,5}_v5xy_s52.xyz
 
 | Comp | Wad (seed52) | Order |

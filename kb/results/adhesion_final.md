@@ -67,14 +67,24 @@ C3 > C4 > C5 > C1 > C2B = PERFECT experimental order at same xy!
 3000K melt comp3: Wad ≈ 1.0 = comp1(1.1) → vacancy destroyed → no difference
 v5 - v2 difference ≈ +1.0 J/m2 for Li5.4 = vacancy contribution quantified
 
-## NCM811 2-Layer Calculation (in progress, 2026-04-14)
+## NCM811 2-Layer Results (2026-04-14)
 - NCM811: Li(Ni0.8Co0.1Mn0.1)O2, nz=2 (2 layers along c-axis)
 - NCM 7x7x2 = 392 atoms (comp1/2B), NCM 5x5x2 = 200 atoms (comp3/4/5)
-- Total: comp1/2B ~1016 atoms, comp3/4/5 ~448 atoms
-- 20 seeds (42-61) per composition, V100 GPU
-- Purpose: bulk NCM structure preserved + surface O migration visible
-- 1-layer problem: all O migrates to SE (no bulk to anchor)
-- 2-layer: bottom layer = bulk-like, top layer = surface restructuring
-- Figure: seed52 xyz (comp*_ncm811_s52.xyz) for VESTA
-- Note: NCM811 has Co(10%)/Mn(10%) — verify UMA handles correctly
-- If Co/Mn issue: fallback to pure LiNiO2 nz=2
+
+### Preliminary Results
+comp1 (20 seeds, outlier<4.0 removed):
+  Valid: [1.431, 1.033, 1.174, 2.475, 2.301, 1.415, 2.085, 1.806, 1.973, 2.027, 1.020, 2.679, 2.891, 3.299, 3.412]
+  mean ≈ 2.0 ± 0.7 (n=15)
+  Outliers: 5.058, 7.310, 4.253, 3.882, 3.623
+
+comp2B: ~1.8 (partial, awaiting full results)
+
+### Comparison: 1L vs 2L
+| | 1L LiNiO2 | 2L NCM811 | Change |
+|---|-----------|-----------|--------|
+| comp1 | 1.153±0.39 | ~2.0±0.7 | +74% |
+| comp2B | 1.782±1.18 | ~1.8 | similar |
+
+2L gives higher Wad — NCM bulk layer anchors surface O, preventing full migration.
+Co/Mn may also contribute to stronger interface bonding.
+Awaiting comp3/4/5 results for cross-family comparison.

@@ -6,6 +6,26 @@
 
 ## A. Ionic Conductivity — 시도한 모든 수식
 
+### A.0 v1 — 초기 탐색 (find_scaling_law.py)
+
+```
+[v1-0]  σ ∝ φ_SE^n (pure Bruggeman power law)                          R²≈0.30
+[v1-1]  σ = σ_brug × hop^a × CN^b (simplest contact)                   R²≈0.80
+[v1-2]  σ ∝ φ^a × f_perc^b × τ^c × hop^d × CN^e (5-var free)         R²≈0.85
+[v1-3]  σ = σ_brug × hop^a × CN^b × GB_d^c                            R²≈0.84
+[v1-4]  σ = σ_brug × hop^a × CN^b × bottleneck^c                      R²≈0.83
+[v1-5]  σ = σ_brug × hop^a × CN^b × GB_d^c × BN^d × T^e (kitchen)    R²≈0.86
+[v1-6]  σ = σ_brug × C × hop^a (simplest 1-contact)                    R²≈0.78
+[v1-7]  σ_brug × hop^a × CN^b × GB_d^c (fixed: a=0.5, b=2, c=4/3)    R²≈0.84
+[v1-8]  σ_brug × (G_path×GB_d²)^¼ × CN² (v1 champion → v3로 진화)     R²≈0.84
+
+핵심 발견:
+- Bruggeman(φ/τ²)만으로는 R²=0.30 → 접촉 보정 필수
+- hop_area, CN, GB_density가 접촉 보정의 핵심 변수
+- σ_brug 기반 + (G_path×GB_d²)^¼×CN² 구조 확립 → v3의 원형
+- R_contact ≈ 1 + constr/bulk → constriction이 지배적
+```
+
 ### A.1 Bruggeman 기반 (v2.0~v2.0c)
 
 ```

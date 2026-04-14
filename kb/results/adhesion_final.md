@@ -90,10 +90,19 @@ comp2B: ~1.8 (partial, awaiting full results)
   - 1L symmetric = artificial but correct bulk behavior
   - 2L asymmetric = worst of both worlds (too thin for bulk, too thick for rigid)
 
-### FINAL: 1L NCM confirmed
-- Paper values: 1L results (R=0.9999 with experiment)
+### CURRENT: 1L NCM (R=0.9999)
+- Paper values: 1L results confirmed
 - Figure: 1L seed52 xyz + VESTA crop
-- Limitation: "1L NCM symmetric constraint approximates bulk behavior"
+- Limitation: "single-layer NCM slab; thicker slabs show surface reconstruction"
+
+### TODO: 5L NCM (future improvement)
+- Literature standard: 3-5 NCM layers for adhesion DFT
+- 5L = ~70A thick → bulk-like interior + realistic surface
+- Need bottom vacuum (15A+) to prevent PBC issues
+- Cell: vac(15) + NCM(70) + gap(2.5) + SE(30) + vac(30) ≈ 150A
+- comp1/2B: NCM 7x7x5 = 980 atoms + SE 624 = 1604 total
+- comp3/4/5: NCM 5x5x5 = 500 atoms + SE 248 = 748 total
+- Key: pristine NCM (no standalone relax), interface relax only
 | | 1L LiNiO2 | 2L NCM811 | Change |
 |---|-----------|-----------|--------|
 | comp1 | 1.153±0.39 | ~2.0±0.7 | +74% |

@@ -95,7 +95,7 @@ comp2B: ~1.8 (partial, awaiting full results)
 - Figure: 1L seed52 xyz + VESTA crop
 - Limitation: "single-layer NCM slab; thicker slabs show surface reconstruction"
 
-### TODO: 5L NCM + FixAtoms (future improvement)
+### 5L NCM + FixAtoms (IN PROGRESS — 2026-04-14)
 - Literature standard: 3-5 NCM layers for adhesion DFT
 - 5L = ~70A thick → bulk-like interior + realistic surface
 - **FixAtoms**: bottom 3 layers FIXED (bulk), top 2 layers FREE (surface)

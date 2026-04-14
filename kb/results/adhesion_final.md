@@ -79,12 +79,17 @@ comp1 (20 seeds, outlier<4.0 removed):
 
 comp2B: ~1.8 (partial, awaiting full results)
 
-### LiNiO2 2L FIXED NCM (CURRENT — 2026-04-14)
-- NCM pre-relaxed and saved as FIXED reference (no re-relax per seed!)
-  - ncm_linio2_7x7x2.xyz (392 atoms, fmax=0.005)
-  - ncm_linio2_5x5x2.xyz (200 atoms, fmax=0.005)
+### LiNiO2 2L PRISTINE NCM (CURRENT — 2026-04-14)
+- NCM: pristine crystal, NO standalone relax!
+  - ncm_pristine_7x7x2.xyz (392 atoms)
+  - ncm_pristine_5x5x2.xyz (200 atoms)
+- Only interface LBFGS relax (NCM+SE together)
+  - NCM surface O: constrained by SE above → slight movement only
+  - NCM bulk O: anchored by Ni below → no movement
+  - = realistic pressing interface!
+- NCM standalone relax WRONG: surface O flies out (no constraint, PBC wrap)
 - 20 seeds (42-61) per composition, V100
-- Script: adhesion_2L_fixed.py
+- Script: adhesion_2L_fixed.py (with ncm_pristine)
 - Output: comp*_2Lf_s*.xyz
 | | 1L LiNiO2 | 2L NCM811 | Change |
 |---|-----------|-----------|--------|

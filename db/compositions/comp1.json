@@ -47,11 +47,9 @@
   },
 
   "bond_lengths_A": {
-    "Li-Cl": null,
-    "Li-Br": null,
-    "Li-S": null,
-    "P-S": null,
-    "notes": "Bond lengths from DFT relaxed V0 coordinates. Values pending extraction."
+    "v1": {"Li-Cl": 2.607, "Li-S": 2.461, "P-S": 2.072},
+    "v2": {"Li-Cl": 2.486, "Li-S": 2.498, "P-S": 2.064},
+    "notes": "v2 at V0=v102.37. Li-Cl shorter (2.607→2.486), Li-S longer (2.461→2.498), P-S same (~2.06). Annealing Li rearrangement changes local bonding."
   },
 
   "elastic_dft_0K_GPa": {

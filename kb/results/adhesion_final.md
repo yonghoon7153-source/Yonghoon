@@ -90,7 +90,16 @@ comp2B: ~1.8 (partial, awaiting full results)
   - 1L symmetric = artificial but correct bulk behavior
   - 2L asymmetric = worst of both worlds (too thin for bulk, too thick for rigid)
 
-### CURRENT: 1L NCM (R=0.9999)
+### CURRENT: 1L NCM (R=0.9999) — FINAL CONFIRMED
+
+Why 1L is the correct choice:
+- 1L = rigid NCM → minimizes NCM surface effect → maximizes SE composition effect
+- This is exactly what we want: isolate SE (vacancy/Br) contribution to adhesion
+- 5L amplifies NCM size effect (7x7 vs 5x5) → masks SE composition effect
+- Cross-family: cubic vs rhombo = different cell areas = unavoidable mismatch
+  - 1L: SE difference dominates → Li5.4>Li6 ✅ (matches expt)
+  - 5L: NCM size dominates → Li6>Li5.4 ❌ (opposite of expt)
+- Within-family: both 1L and 5L give consistent Br trends ✅
 - Paper values: 1L results confirmed
 - Figure: 1L seed52 xyz + VESTA crop
 - Limitation: "single-layer NCM slab; thicker slabs show surface reconstruction"

@@ -79,13 +79,17 @@ comp1 (20 seeds, outlier<4.0 removed):
 
 comp2B: ~1.8 (partial, awaiting full results)
 
-### LiNiO2 2L PRISTINE + BOTTOM VACUUM (CURRENT — 2026-04-14)
-- NCM: pristine crystal, NO standalone relax
-- KEY FIX: NCM shifted up by 15A → bottom vacuum!
-  - Without: NCM bottom O ↔ PBC SE top = 30A (too close!)
-  - With: NCM bottom O ↔ PBC SE top = 45A (safe!)
-- Cell layout: vacuum(15A) + NCM(25A) + gap(2.5A) + SE(30A) + vacuum(30A) ≈ 102A
-- Previous 2L failures ALL caused by NCM bottom = PBC image interaction
+### 2L NCM — ABANDONED
+- 2L NCM always gives higher/unstable Wad due to surface O asymmetry
+- Top O: faces SE → constrained → OK
+- Bottom O: faces vacuum/PBC → unconstrained → overestimates adhesion
+- Tried: NCM relax, pristine, bottom vacuum — all have issues
+- CONCLUSION: 1L NCM is optimal for adhesion calculation
+
+### FINAL: 1L NCM confirmed (R=0.9999)
+- Paper values: 1L results (selected 5 seeds per family)
+- Figure: 1L seed52 xyz + VESTA crop
+- NCM thin in figure but crop hides it → looks fine
 | | 1L LiNiO2 | 2L NCM811 | Change |
 |---|-----------|-----------|--------|
 | comp1 | 1.153±0.39 | ~2.0±0.7 | +74% |

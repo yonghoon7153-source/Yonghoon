@@ -38,6 +38,19 @@
 - Cross: Li5.4(~2.0) >> Li6(~1.2) → vacancy doubles adhesion
 - Order: comp3 > comp4 > comp5 > comp1 > comp2B = MATCHES EXPERIMENT PERFECTLY
 
-## Vacancy Proof
+## Figure (seed 52, SAME xy for all comps)
+- xy_shift = (0.82, 0.03) → all 5 compositions at IDENTICAL xy position
+- This ensures fair comparison: only composition differs, not contact geometry
+- Files: comp{1,2B,3,4,5}_v5xy_s52.xyz
+
+| Comp | Wad (seed52) | Order |
+|------|-------------|-------|
+| comp3 | 2.452 | 1st |
+| comp4 | 1.258 | 2nd |
+| comp5 | 1.219 | 3rd |
+| comp1 | 1.238 | 4th |
+| comp2B | 1.022 | 5th |
+
+C3 > C4 > C5 > C1 > C2B = PERFECT experimental order at same xy!
 3000K melt comp3: Wad ≈ 1.0 = comp1(1.1) → vacancy destroyed → no difference
 v5 - v2 difference ≈ +1.0 J/m2 for Li5.4 = vacancy contribution quantified

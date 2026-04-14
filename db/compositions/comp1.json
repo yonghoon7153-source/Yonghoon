@@ -40,9 +40,10 @@
   "vbm_character": "S 3p",
   "cbm_character": "Li 2s, P 3s",
 
-  "bader_trend": {
-    "Cl_charge": "most_ionic",
-    "notes": "Pure Cl, no Br for comparison within this composition."
+  "bader_charge_v2": {
+    "Li": 0.877, "P": 4.686, "S": -1.807, "Cl": -0.914,
+    "Li_std": 0.010, "P_std": 0.358, "S_std": 0.186, "Cl_std": 0.004,
+    "notes": "V0=v102.37(a=9.9291A). v1 vs v2: Li(0.874→0.877), Cl(-0.925→-0.914), S(-1.518→-1.807), P(4.396→4.686). Li/Cl nearly identical. S/P differ but may be FFT grid effect."
   },
 
   "bond_lengths_A": {

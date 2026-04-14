@@ -120,6 +120,34 @@ Order: comp3>comp4>comp5>comp1>comp2B = PERFECT MATCH with experiment!
 Li5.4 per-atom adhesion (~0.09 eV) ≈ 2x Li6 (~0.04 eV) → vacancy anchor!
 This normalization eliminates cell size/SE density effects completely.
 
+### Surface Energy Inverse Correlation (R=0.83)
+γ_SE↓ → Wad↑ = inverse relationship!
+
+| Comp | γ_SE (J/m2) | 1/γ_SE | Expt (aJ) |
+|------|-----------|--------|-----------|
+| comp3 | 0.565 | 1.770 | 316 |
+| comp4 | 0.450 | 2.222 | 298 |
+| comp5 | 0.470 | 2.128 | 249 |
+| comp1 | 1.211 | 0.826 | 194 |
+| comp2B | 1.189 | 0.841 | 180 |
+
+R(1/γ vs expt) = 0.83 — captures cross-family but NOT within-family Br trend.
+Physics: low γ_SE = weak surface cohesion = under-coordinated surface atoms
+→ these atoms readily form new bonds with NCM → higher Wad!
+"Vacancy reduces SE surface cohesion, promoting interfacial adhesion."
+
+### Three-Method Validation Summary
+| Method | Cross-family | Within Li5.4 | Within Li6 | R |
+|--------|-------------|-------------|-----------|---|
+| 1L Wad (5 seeds) | ✅ | ✅ | ✅ | 0.9999 |
+| dE/SE_atom (20 seeds) | ✅ (2x) | △ (comp4≈5) | ❌ | ~0.9 |
+| 1/γ_SE | ✅ | ❌ | △ | 0.83 |
+
+Paper strategy:
+- Main text: 1L Wad (R=0.9999, all trends)
+- Supporting: dE/SE_atom (vacancy anchor 2x quantified)
+- Discussion: γ_SE inverse correlation (physical mechanism)
+
 ### 5L NCM + FixAtoms — Results (2026-04-15)
 - Li6: comp1=2.78, comp2B=2.62 → within-family: comp1>comp2B ✅
 - Li5.4: comp3=1.38, comp4=0.82, comp5=0.99 → within-family: comp3>comp4≈comp5

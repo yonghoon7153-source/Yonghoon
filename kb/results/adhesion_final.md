@@ -95,7 +95,17 @@ comp2B: ~1.8 (partial, awaiting full results)
 - Figure: 1L seed52 xyz + VESTA crop
 - Limitation: "single-layer NCM slab; thicker slabs show surface reconstruction"
 
-### 5L NCM + FixAtoms (IN PROGRESS — 2026-04-14)
+### 5L NCM + FixAtoms — Results (2026-04-15)
+- Li6: comp1=2.78, comp2B=2.62 → within-family: comp1>comp2B ✅
+- Li5.4: comp3=1.38, comp4=0.82, comp5=0.99 → within-family: comp3>comp4≈comp5
+- Cross-family: Li6(2.7) >> Li5.4(1.0) = REVERSED vs experiment! ❌
+- Root cause: NCM 7x7x5 (980at, A=351) vs 5x5x5 (500at, A=179)
+  - SE density: comp1/2B=1.78 at/A2 vs comp3/4/5=1.38 at/A2
+  - More SE contact per area for Li6 → higher Wad
+  - Same issue as 1L but now reversed direction!
+- CONCLUSION: 5L does NOT solve cross-family comparison
+  - Within-family trends: comp1>comp2B ✅ (both 5L and 1L)
+  - Cross-family: cell size mismatch dominates over vacancy effect
 - Literature standard: 3-5 NCM layers for adhesion DFT
 - 5L = ~70A thick → bulk-like interior + realistic surface
 - **FixAtoms**: bottom 3 layers FIXED (bulk), top 2 layers FREE (surface)

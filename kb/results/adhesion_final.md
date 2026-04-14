@@ -79,7 +79,16 @@ comp1 (20 seeds, outlier<4.0 removed):
 
 comp2B: ~1.8 (partial, awaiting full results)
 
-### Comparison: 1L vs 2L
+### LiNiO2 2L (ADOPTED — stable, no Co/Mn issues)
+NCM pre-relaxed and saved:
+  - ncm_linio2_7x7x2.xyz (392 atoms, for comp1/2B)
+  - ncm_linio2_5x5x2.xyz (200 atoms, for comp3/4/5)
+  - fmax=0.005, 200 steps → well-converged
+
+LiNiO2 2L test (7 seeds): [0.695, 1.522, 1.601, 1.201, 1.281, 1.134, 0.702]
+  mean = 1.16 ± 0.35, outlier = 0 → very stable!
+
+NCM811 2L: many outliers (Co/Mn relax instability) → ABANDONED
 | | 1L LiNiO2 | 2L NCM811 | Change |
 |---|-----------|-----------|--------|
 | comp1 | 1.153±0.39 | ~2.0±0.7 | +74% |

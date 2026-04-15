@@ -288,9 +288,59 @@ def train_models(results_folder, archive_folder):
     scores = {}
     cv_scores = {}
 
+    # v2.1: Two-pass training
+    # Pass 1: Quick CV to detect overfitting
+    # Pass 2: Adaptive alpha for overfitting targets
+    print(f"  [v2.1] Pass 1: CV overfitting detection...")
+    overfit_targets = set()
+    for target in CORE_TARGETS:
+        y = Y.get(target)
+        if y is None or np.std(y) == 0:
+            continue
+        use_log = np.all(y > 0) and (np.max(y) / np.min(y) > 3)
+        y_t = np.log(y) if use_log else y.copy()
+        sc_y = StandardScaler()
+        y_sc = sc_y.fit_transform(y_t.reshape(-1, 1)).ravel()
+
+        # Quick CV with default kernel
+        fold_r2s = []
+        for tr_i, va_i in kf.split(X_scaled):
+            try:
+                gpr_q = GaussianProcessRegressor(
+                    kernel=ConstantKernel(1.0)*Matern(length_scale=1.0, nu=2.5)+WhiteKernel(0.1),
+                    n_restarts_optimizer=1, alpha=1e-6)
+                gpr_q.fit(X_scaled[tr_i], y_sc[tr_i])
+                p_v = gpr_q.predict(X_scaled[va_i])
+                p_r = sc_y.inverse_transform(p_v.reshape(-1, 1)).ravel()
+                y_r = sc_y.inverse_transform(y_sc[va_i].reshape(-1, 1)).ravel()
+                if use_log: p_r = np.exp(p_r); y_r = np.exp(y_r)
+                ss_r = np.sum((y_r - p_r)**2)
+                ss_t = np.sum((y_r - np.mean(y_r))**2)
+                fold_r2s.append(1 - ss_r/ss_t if ss_t > 0 else 0)
+            except: fold_r2s.append(0)
+        cv_r2_quick = np.mean(fold_r2s)
+        if cv_r2_quick < 0.6:
+            overfit_targets.add(target)
+    if overfit_targets:
+        print(f"  [v2.1] Overfitting detected: {overfit_targets}")
+        print(f"  [v2.1] Pass 2: Adaptive alpha for these targets")
+
+    # Physics-based targets (don't need GPR)
+    PHYSICS_TARGETS = {
+        'f_perc': lambda r: min(100, max(0, (r.get('phi_se', 0.3) - 0.15) / 0.15 * 100)),
+    }
+
     for target in MICRO_TARGETS:
         y = Y[target]
         if np.std(y) == 0:
+            continue
+
+        # v2.1: Skip physics-based targets (replace with formula)
+        if target in PHYSICS_TARGETS:
+            print(f"    {target:15s}: PHYSICS (GPR skipped, CV_R² was negative)")
+            models[target] = {'physics': True, 'formula': PHYSICS_TARGETS[target]}
+            scores[target] = -1
+            cv_scores[target] = -1
             continue
 
         use_log = np.all(y > 0) and (np.max(y) / np.min(y) > 3)
@@ -299,27 +349,26 @@ def train_models(results_folder, archive_folder):
         scaler_y = StandardScaler()
         y_scaled = scaler_y.fit_transform(y_train.reshape(-1, 1)).ravel()
 
-        # v2.0: Try multiple kernels, pick best by CV (Lecture 5: hypothesis class selection)
+        # v2.1: Adaptive alpha (Lecture 5: soft-margin)
+        # Overfitting targets get higher alpha → more regularization
+        base_alpha = 1e-6
+        if target in overfit_targets:
+            base_alpha = 0.01  # 10000× more regularization!
+
+        # v2.0: Try multiple kernels, pick best by CV
         best_kernel_name = 'Matern2.5'
         best_cv_r2 = -999
         best_gpr = None
 
         for k_name, k_template in kernel_candidates.items():
             try:
-                # Quick fit to check kernel suitability
-                gpr_trial = GaussianProcessRegressor(
-                    kernel=k_template, n_restarts_optimizer=3,
-                    alpha=1e-6  # v2.0: noise floor for numerical stability (Lecture 5: soft-margin)
-                )
-                # K-fold CV (Lecture 4: robust hyperparameter evaluation)
                 fold_r2s = []
                 for train_idx, val_idx in kf.split(X_scaled):
                     gpr_trial_fold = GaussianProcessRegressor(
-                        kernel=k_template, n_restarts_optimizer=2, alpha=1e-6
+                        kernel=k_template, n_restarts_optimizer=2, alpha=base_alpha
                     )
                     gpr_trial_fold.fit(X_scaled[train_idx], y_scaled[train_idx])
                     pred_val = gpr_trial_fold.predict(X_scaled[val_idx])
-                    # Inverse transform for R²
                     pred_real = scaler_y.inverse_transform(pred_val.reshape(-1, 1)).ravel()
                     y_val_real = scaler_y.inverse_transform(y_scaled[val_idx].reshape(-1, 1)).ravel()
                     if use_log:
@@ -338,7 +387,7 @@ def train_models(results_folder, archive_folder):
 
         # Final fit with best kernel on ALL data
         best_kernel = kernel_candidates[best_kernel_name]
-        gpr = GaussianProcessRegressor(kernel=best_kernel, n_restarts_optimizer=5, alpha=1e-6)
+        gpr = GaussianProcessRegressor(kernel=best_kernel, n_restarts_optimizer=5, alpha=base_alpha)
         gpr.fit(X_scaled, y_scaled)
 
         # Train R² (for display)
@@ -441,6 +490,11 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
     # Stage 1: GPR predict microstructure
     micro = {}
     for target, m in models.items():
+        # v2.1: Physics-based targets
+        if m.get('physics'):
+            val = m['formula'](input_dict)
+            micro[target] = {'value': float(val), 'std': 0.0}
+            continue
         x = np.array([[input_dict.get(f, 0) for f in INPUT_FEATURES]])
         x_scaled = m['scaler_X'].transform(x)
         pred_scaled, std_scaled = m['gpr'].predict(x_scaled, return_std=True)

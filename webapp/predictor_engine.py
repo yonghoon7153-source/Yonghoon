@@ -235,7 +235,9 @@ def load_training_data(results_folder, archive_folder):
 
 def train_models(results_folder, archive_folder):
     """Train GPR models with ML best practices.
-    v2.0: K-fold CV, multi-kernel comparison, feature engineering."""
+    v2.0: K-fold CV, multi-kernel comparison, feature engineering.
+    v2.1: Adaptive alpha, physics fallback.
+    v2.2: GPR+RF ensemble, CN features, dynamic weighting."""
     global _cached_models, _training_data_count
     from sklearn.gaussian_process import GaussianProcessRegressor
     from sklearn.gaussian_process.kernels import (
@@ -243,6 +245,7 @@ def train_models(results_folder, archive_folder):
     )
     from sklearn.preprocessing import StandardScaler
     from sklearn.model_selection import KFold
+    from sklearn.ensemble import RandomForestRegressor  # v2.2: RF ensemble
 
     rows = load_training_data(results_folder, archive_folder)
     _training_data_count = len(rows)
@@ -399,13 +402,42 @@ def train_models(results_folder, archive_folder):
         ss_tot = np.sum((y - np.mean(y)) ** 2)
         r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
+        # v2.2: Train RF as ensemble partner (especially for low-CV targets)
+        rf = RandomForestRegressor(n_estimators=100, max_depth=6, min_samples_leaf=3,
+                                   random_state=42, n_jobs=-1)
+        rf.fit(X_scaled, y_scaled)
+
+        # RF CV score
+        rf_cv_r2s = []
+        for tr_i, va_i in kf.split(X_scaled):
+            rf_fold = RandomForestRegressor(n_estimators=50, max_depth=6, min_samples_leaf=3, random_state=42)
+            rf_fold.fit(X_scaled[tr_i], y_scaled[tr_i])
+            p_v = rf_fold.predict(X_scaled[va_i])
+            p_r = scaler_y.inverse_transform(p_v.reshape(-1, 1)).ravel()
+            y_r = scaler_y.inverse_transform(y_scaled[va_i].reshape(-1, 1)).ravel()
+            if use_log: p_r = np.exp(p_r); y_r = np.exp(y_r)
+            ss_r = np.sum((y_r - p_r)**2)
+            ss_t = np.sum((y_r - np.mean(y_r))**2)
+            rf_cv_r2s.append(1 - ss_r/ss_t if ss_t > 0 else 0)
+        rf_cv_r2 = np.mean(rf_cv_r2s)
+
+        # v2.2: Dynamic ensemble weight based on CV R²
+        # Better CV_R² model gets more weight
+        gpr_w = max(0.1, best_cv_r2) if best_cv_r2 > 0 else 0.1
+        rf_w = max(0.1, rf_cv_r2) if rf_cv_r2 > 0 else 0.1
+        total_w = gpr_w + rf_w
+        gpr_weight = gpr_w / total_w
+        rf_weight = rf_w / total_w
+
         models[target] = {
-            'gpr': gpr, 'scaler_X': scaler_X, 'scaler_y': scaler_y,
+            'gpr': gpr, 'rf': rf,
+            'scaler_X': scaler_X, 'scaler_y': scaler_y,
             'use_log': use_log, 'r2': r2, 'kernel': best_kernel_name,
-            'cv_r2': best_cv_r2
+            'cv_r2': best_cv_r2, 'rf_cv_r2': rf_cv_r2,
+            'gpr_weight': gpr_weight, 'rf_weight': rf_weight,
         }
         scores[target] = round(r2, 3)
-        cv_scores[target] = round(best_cv_r2, 3)
+        cv_scores[target] = round(max(best_cv_r2, rf_cv_r2), 3)  # best of GPR/RF
 
     # Log kernel selection summary (core targets only)
     print(f"  [v2.0] Kernel selection (core targets):")
@@ -415,7 +447,9 @@ def train_models(results_folder, archive_folder):
             if m.get('physics'):
                 print(f"    {t:15s}: PHYSICS   R²=N/A   CV_R²=N/A")
             else:
-                print(f"    {t:15s}: {m['kernel']:10s} R²={m['r2']:.3f} CV_R²={m['cv_r2']:.3f}")
+                rf_str = f" RF_CV={m.get('rf_cv_r2',0):.3f}" if 'rf_cv_r2' in m else ""
+                w_str = f" w=[GPR:{m.get('gpr_weight',1):.0%}/RF:{m.get('rf_weight',0):.0%}]"
+                print(f"    {t:15s}: {m['kernel']:10s} GPR_CV={m['cv_r2']:.3f}{rf_str}{w_str}")
 
     # Fit C constants from data
     # FORM X (v4++ champion): σ = C × σ_grain × (φ-φc)^(3/4) × CN × √cov / √τ
@@ -500,12 +534,34 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
             continue
         x = np.array([[input_dict.get(f, 0) for f in INPUT_FEATURES]])
         x_scaled = m['scaler_X'].transform(x)
+
+        # GPR prediction
         pred_scaled, std_scaled = m['gpr'].predict(x_scaled, return_std=True)
-        pred = m['scaler_y'].inverse_transform(pred_scaled.reshape(-1, 1)).ravel()[0]
+        pred_gpr = m['scaler_y'].inverse_transform(pred_scaled.reshape(-1, 1)).ravel()[0]
         std = std_scaled[0] * m['scaler_y'].scale_[0]
-        if m['use_log']:
-            pred = np.exp(pred)
-            std = pred * abs(std)
+
+        # v2.2: RF prediction + ensemble
+        if 'rf' in m:
+            pred_rf_scaled = m['rf'].predict(x_scaled)[0]
+            pred_rf = m['scaler_y'].inverse_transform([[pred_rf_scaled]])[0][0]
+            if m['use_log']:
+                pred_gpr_final = np.exp(pred_gpr)
+                pred_rf_final = np.exp(pred_rf)
+                std = pred_gpr_final * abs(std)
+            else:
+                pred_gpr_final = pred_gpr
+                pred_rf_final = pred_rf
+            # Weighted ensemble
+            w_gpr = m.get('gpr_weight', 0.5)
+            w_rf = m.get('rf_weight', 0.5)
+            pred = w_gpr * pred_gpr_final + w_rf * pred_rf_final
+        else:
+            if m['use_log']:
+                pred = np.exp(pred_gpr)
+                std = pred * abs(std)
+            else:
+                pred = pred_gpr
+
         micro[target] = {'value': float(pred), 'std': float(abs(std))}
 
     # Stage 2: Physics scaling laws

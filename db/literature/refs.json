@@ -139,6 +139,27 @@
       "tags": ["argyrodite", "elastic", "DFT", "strength"]
     },
     {
+      "id": "torii2025",
+      "authors": "Torii, M.; Okita, Y.; Motohashi, K.; Sakuda, A.; Hayashi, A.",
+      "title": "First-Principles Investigation of Mechanical Properties and Anisotropy of Argyrodite Li6PS5Cl Crystal Electrolytes",
+      "journal": "J. Phys. Chem. C",
+      "volume": 129,
+      "pages": "17882-17891",
+      "year": 2025,
+      "doi": "10.1021/acs.jpcc.5c05116",
+      "key_content": "Li6PS5Cl DFT-D3 (VASP/PBE-D3, PAW, 500eV, 3x3x3 k-pts). Elastic: C11=47.4, C12=28.4, C44=10.4, E=27.4, B=34.7, G=10.0 GPa. Pugh ratio B/G=3.46 (ductile). Anisotropy index A=1.09 (nearly isotropic). Stress-strain: elastic region up to 20% uniaxial strain. Shear fracture at 0.7% strain → brittle under shear. {111} plane most susceptible to fracture (layered gaps). Cl movement toward Li forms Li4Cl units under shear. Bader: Li(+0.87), P(+1.32), S1(-0.99), S2(-1.69), Cl(-0.69). Particle micro-compression: strength ~76 MPa (comparable to calculated shear strength).",
+      "data": {
+        "elastic_DFT_D3": {"C11": 47.4, "C12": 28.4, "C44": 10.4, "E": 27.4, "B": 34.7, "G": 10.0, "nu": 0.37},
+        "deng_comparison": {"C11": 39.9, "C12": 23.1, "C44": 7.8, "E": 22.1, "B": 28.7, "G": 8.1},
+        "shear_fracture_strain": 0.007,
+        "tensile_elastic_limit": 0.20,
+        "ultimate_strength_GPa": {"100": 8.8, "110": 5.9, "111": 6.2},
+        "bader": {"Li": 0.87, "P": 1.32, "S1": -0.99, "S2": -1.69, "Cl": -0.69}
+      },
+      "comparison_to_our_work": "Their DFT-D3 E=27.4 vs our 600K snapshot E=29.1 → close agreement despite different methods. Their C44=10.4 vs our DFT 0K C44=37.9 → difference is Li ordering, not D3. Their Bader Li(+0.87) matches our v2(+0.877). Key difference: single composition vs our 6 compositions + composition-dependent trends.",
+      "tags": ["argyrodite", "elastic", "DFT", "DFT-D3", "stress-strain", "shear", "anisotropy", "Bader", "VASP"]
+    },
+    {
       "id": "sakuda2013",
       "authors": "Sakuda, A. et al.",
       "title": "Mechanical properties of sulfide SE particles",

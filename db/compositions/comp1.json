@@ -69,8 +69,7 @@
     "method": "600K_snapshot_x5",
     "C11": 33.1, "C11_std": 1.2, "C12": 15.0, "C12_std": 0.5, "C44": 13.1, "C44_std": 0.6,
     "E_VRH": 29.1, "E_std": 1.1,
-    "K_VRH": 21.0, "G_VRH": 11.5,
-    "expt_E": 28.0, "expt_E_std": 1.8
+    "K_VRH": 21.0, "G_VRH": 11.5
   },
 
   "surface_energy_Jm2": 1.211,

@@ -95,6 +95,53 @@
     "notes": "Li-Cl: comp1(2.607)>ModelC(2.552)>comp3(2.506). P-S=2.063≈comp3(2.064)→PS4 invariant."
   },
 
+  "pipeline_v2": {
+    "halogen_screening": {
+      "n_configs": 45,
+      "best_config_idx": 0,
+      "best_s_indices": [1, 4],
+      "status": "completed",
+      "notes": "C(10,2)=45 halogen configs. Best S at free_sites [1,4]. Clear winner."
+    },
+    "li_screening": {
+      "n_configs": 100,
+      "method": "top5_halogen_x_20_li",
+      "energy_spread_meV": 157.1,
+      "li_spread_within_best_halogen_meV": 0.1,
+      "top5_all_H0": true,
+      "top5_energies_eV": [-258.0913, -258.0912, -258.0912, -258.0912, -258.0912],
+      "status": "completed",
+      "notes": "Top 5 ALL from H0 (S=[1,4]). Li ordering almost irrelevant (0.1 meV). Pure Cl cage too symmetric for Li to matter."
+    },
+    "li_annealing": {
+      "temperature_K": 500,
+      "duration_ps": 50,
+      "champion_rank": 0,
+      "champion_li_trial": 15,
+      "champion_energy_eV": -258.2051,
+      "screening_best_eV": -258.0913,
+      "annealing_gain_meV": 114,
+      "ranks_1to4": "killed (login node time limit), but 0.1 meV Li spread = champion confirmed",
+      "status": "rank0_confirmed"
+    },
+    "mlip_eos": {
+      "B0_GPa": 20.0,
+      "B0_prime": 7.50,
+      "V0_A3": 1213.01,
+      "V0_pct": 100.7,
+      "R_squared": 0.999289,
+      "volume_range": "v094-v109",
+      "status": "completed",
+      "notes": "v2 MLIP B0=20.0 vs v1 DFT B0=21.7 → delta=-1.7 GPa. R2 lower than usual (0.9993 vs 0.9999). B0'=7.50 high. Possible basin transition at edges. DFT will clarify."
+    },
+    "dft_eos": {
+      "volume_range": "v096-v106",
+      "n_points": 11,
+      "status": "pending",
+      "notes": "V0≈v101. Use champion xyz as starting coords."
+    }
+  },
+
   "comparison_to_comp3": {
     "modelc_B0": 21.7,
     "comp3_B0": 20.8,

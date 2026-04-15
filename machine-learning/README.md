@@ -11,4 +11,5 @@ Department of Data Science, Hanyang University
 
 | Lecture | Topic | File |
 |---------|-------|------|
+| Lecture 2 | Linear Algebra & Probability Review | [lecture02-linear-algebra-probability.md](lectures/lecture02-linear-algebra-probability.md) |
 | Lecture 3 | Linear Regression | [lecture03-linear-regression.md](lectures/lecture03-linear-regression.md) |

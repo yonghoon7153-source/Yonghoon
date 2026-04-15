@@ -93,7 +93,43 @@
 - **Evidence**: NCM thick=37Å (cell=28Å), O wraps via PBC
 - **Fix**: Use pristine NCM (no standalone relax), interface relax only
 
-## Current Best Protocol (2026-04-15)
+### 18. v6 — NCM-frozen 500K SE Anneal — NCM Penetration
+- **Problem**: Fix NCM, anneal SE at 500K → SE Li hops into frozen NCM lattice
+- **Evidence**: 29/248 SE atoms below NCM_zmax (20 Li + 6 S + 3 P)
+- **Result**: Wad = 45~67 J/m² (nonphysical, ripped-out atoms on separation)
+- **Fix attempt**: Lower to 300K + z-wall (push back atoms below NCM_zmax+0.5Å)
+
+### 19. v6 300K + z-wall — SE Vacuum Ejection
+- **Problem**: z-wall prevents downward penetration, but SE atoms fly UPWARD into vacuum
+- **Evidence**: SE Li z = 12~**11,080 Å**, S z up to 2,144 Å (cell_z = 75 Å!)
+- **Root cause**: UMA gives nonphysical forces at vacuum boundary during MD
+- LBFGS controls step size → OK; MD integrates force errors → cascade ejection
+- **Conclusion**: z-wall on bottom doesn't fix top ejection. Temperature irrelevant.
+
+### 20. v7 Sandwich (NCM-SE-NCM) — SE Escapes Through Frozen NCM
+- **Problem**: NCM_top cap should prevent upward escape, but SE atoms pass through
+- **Evidence**: 239/248 SE atoms escaped. SE z = -9,724~12,215 Å
+- **Root cause**: FixAtoms ≠ physical wall. Fixed atoms don't repel. UMA force errors
+  so large that SE atoms fly through frozen NCM lattice in a few MD steps.
+- **Conclusion**: UMA MD fundamentally incompatible with slab/interface geometry.
+  Force errors accumulate over timesteps → catastrophic for ANY temperature/constraint.
+
+### 21. UMA MD — Fundamental Limitation (CONCLUSION)
+- **Summary**: ALL attempts to use MD at NCM/SE interface fail with UMA:
+  | Method | T(K) | Constraint | Result |
+  |--------|------|------------|--------|
+  | MQA (v2) | 800 | None | Li interdiffusion (58 atoms) |
+  | MQA (v5) | 500 | None | Li crosses boundary |
+  | v6 freeze-NCM | 500 | FixAtoms NCM | SE penetrates NCM (29 atoms) |
+  | v6 + z-wall | 300 | FixAtoms + z-wall | SE ejected to 11 km |
+  | v7 sandwich | 500 | NCM cap both sides | SE escapes through NCM (239 atoms) |
+- **Root cause**: UMA trained on bulk/dense periodic systems. Interface + vacuum = 
+  out-of-distribution → nonphysical forces. LBFGS OK (controlled steps), MD fails 
+  (force integration accumulates errors).
+- **Final fix**: LBFGS only (v5). No MD at interface with UMA.
+- **Alternative (v8)**: Anneal SE in BULK PBC (UMA works) → stack → LBFGS only at interface.
+
+## Current Best Protocol (2026-04-15, updated)
 
 ```
 NCM: 7×7×5 pristine, bottom 3L FixAtoms

@@ -623,13 +623,22 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
         arrhenius_SE = 1.0
         arrhenius_AM = 1.0
 
-    # Electronic conductivity
+    # Electronic conductivity — v2.2: 2-Regime (was: exp(π/(T/d)))
     sigma_electronic = 0
     if phi_am > 0 and am_cn > 0 and d_am > 0 and thickness > 0:
         ratio = thickness / d_am
-        if ratio > 0:
-            sigma_electronic = 0.015 * SIGMA_AM * phi_am ** 1.5 * am_cn ** 2 * np.exp(np.pi / ratio)
-            sigma_electronic *= arrhenius_AM  # temperature correction
+        if ratio >= 10:
+            # THICK: φ⁴ × CN^(3/2) × cov × √τ (R²=0.97)
+            sigma_electronic = 0.79 * SIGMA_AM * phi_am**4 * am_cn**1.5 * coverage_frac * np.sqrt(max(tau, 0.1))
+        elif ratio > 0:
+            # THIN: hop^0.25 × CN^0.4 × δ^0.2 × f_p^0.15 / (φ_SE^0.85 × √ξ)
+            # Simplified: use available variables
+            am_hop = micro.get('fm_am_am_mean_hop', {}).get('value', 8.0) if isinstance(micro.get('fm_am_am_mean_hop'), dict) else 8.0
+            am_delta = micro.get('fm_am_am_mean_delta', {}).get('value', 0.1) if isinstance(micro.get('fm_am_am_mean_delta'), dict) else 0.1
+            el_perc = micro.get('fm_electronic_percolating_fraction', {}).get('value', 0.9) if isinstance(micro.get('fm_electronic_percolating_fraction'), dict) else 0.9
+            phi_se_val = max(phi_se, 0.01)
+            sigma_electronic = 5.0 * SIGMA_AM * am_hop**0.25 * am_cn**0.4 * am_delta**0.2 * el_perc**0.15 / (phi_se_val**0.85 * ratio**0.5)
+        sigma_electronic *= arrhenius_AM  # temperature correction
 
     # ── Electronic Active AM (Dead AM estimation) ──
     # Ref: Minnmann 2021, Clausnitzer 2023, Bielefeld 2023

@@ -497,7 +497,15 @@ function trainModels() {
         const badge = document.getElementById('model-status');
         badge.textContent = 'Models Ready';
         badge.className = 'status-badge badge-green';
-        showToast('Models trained on ' + data.count + ' cases');
+        // v2.2: Show CV scores summary
+        let cvMsg = 'Models trained on ' + data.count + ' cases (v2.2 GPR+RF)';
+        if (data.cv_scores) {
+          const keys = ['phi_se','tau','cn','porosity','sigma_ion','am_cn'];
+          const cvParts = keys.filter(k => data.cv_scores[k] !== undefined)
+                              .map(k => k + ':' + data.cv_scores[k]);
+          if (cvParts.length) cvMsg += '\nCV_R²: ' + cvParts.join(', ');
+        }
+        showToast(cvMsg);
       } else {
         showToast(data.message || 'Training failed');
       }

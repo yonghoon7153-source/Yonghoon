@@ -11,7 +11,8 @@
     {"id": "comp3",  "B0_GPa": 20.8, "B0_prime": 6.79, "pts": 10, "R2": 0.999993, "status": "confirmed"},
     {"id": "comp4",  "B0_GPa": 20.8, "B0_prime": 6.33, "pts": 10, "R2": 0.999996, "status": "confirmed"},
     {"id": "comp5",  "B0_GPa": 22.9, "B0_prime": 5.21, "pts": 10, "R2": 0.999995, "status": "confirmed", "basin": "A", "notes": "Basin B: 21.8 GPa"},
-    {"id": "modelc", "B0_GPa": 21.7, "B0_prime": 4.31, "pts": 10, "R2": 0.999988, "status": "confirmed", "basin": "A", "notes": "Basin B found: 16.6 meV more stable. Basin B EOS pending."}
+    {"id": "modelc", "B0_GPa": 21.7, "B0_prime": 4.31, "pts": 10, "R2": 0.999988, "status": "confirmed", "basin": "A", "notes": "Basin B found: 16.6 meV more stable. Basin B EOS pending."},
+    {"id": "modelc_v2_mlip", "B0_GPa": 20.0, "B0_prime": 7.50, "pts": 15, "R2": 0.999289, "status": "mlip_preliminary", "pipeline": "v2", "notes": "Annealing champion -258.2051 eV. Delta vs v1 DFT: -1.7 GPa. DFT pending."}
   ],
 
   "trends": {
@@ -21,10 +22,17 @@
     "Br_effect": "Br increase -> B0 decrease (consistent within each family)"
   },
 
+  "v1_vs_v2_comparison": {
+    "comp1": {"v1_DFT": 26.2, "v2_DFT": 26.5, "delta": 0.3, "family": "Li6", "li_spread_meV": 1162, "annealing_gain_meV": 65},
+    "modelc": {"v1_DFT": 21.7, "v2_MLIP": 20.0, "delta_mlip": -1.7, "v2_DFT": "pending", "family": "Li5.4", "li_spread_meV": 0.1, "annealing_gain_meV": 114},
+    "interpretation": "Li6: v1≈v2 (0.3 GPa, annealing optional). Li5.4: v1≠v2 (1.7 GPa, annealing essential). Flat Li landscape + hidden deep basin = 0K methods fail for Li5.4.",
+    "implication": "comp3/4/5 (Li5.4+Br) should be recalculated with v2 pipeline"
+  },
+
   "physics": {
     "B0_meaning": "Resistance to uniform compression (volume elasticity)",
     "Br_weakening": ["Larger ionic radius (1.96 vs 1.81 A)", "Lower charge density", "Longer Li-Br bonds (2.71 vs 2.51 A)"],
     "vacancy_effect": "Compositional vacancy reduces bond density -> B0 down ~5.4 GPa",
-    "Li_ordering_effect": "Same composition, different Li arrangement: DB0 = 1.3 GPa (comp5)"
+    "Li_ordering_effect": "Same composition, different Li arrangement: comp5 DB0=1.3 GPa (basin A vs B), Model C DB0=1.7 GPa (v1 vs v2 annealing)"
   }
 }

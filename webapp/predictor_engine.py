@@ -412,7 +412,10 @@ def train_models(results_folder, archive_folder):
     for t in CORE_TARGETS:
         if t in models:
             m = models[t]
-            print(f"    {t:15s}: {m['kernel']:10s} R²={m['r2']:.3f} CV_R²={m['cv_r2']:.3f}")
+            if m.get('physics'):
+                print(f"    {t:15s}: PHYSICS   R²=N/A   CV_R²=N/A")
+            else:
+                print(f"    {t:15s}: {m['kernel']:10s} R²={m['r2']:.3f} CV_R²={m['cv_r2']:.3f}")
 
     # Fit C constants from data
     # FORM X (v4++ champion): σ = C × σ_grain × (φ-φc)^(3/4) × CN × √cov / √τ

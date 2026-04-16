@@ -114,8 +114,11 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
             input_params = json.load(f)
 
     e_sim_list = input_params.get('youngs_modulus_sim', [])
-    # SE real E ≈ 24 GPa
-    se_real_e = '24 GPa'
+    # SE: 유효영률 ↔ 실제영률 비례 스케일링
+    # 기준: E_eff=1.35 GPa (sim 1.35e6) → E_real=24 GPa
+    SE_BASELINE_EFF_SIM = 1.35e6   # baseline E_eff in sim units (Pa)
+    SE_BASELINE_REAL_GPA = 24.0    # baseline E_real (GPa)
+    AM_REAL_GPA = 140.0            # AM E_real (GPa, 고정)
 
     rows = []
     type_keys = sorted(type_map.keys())
@@ -130,14 +133,18 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         e_idx = t - 1  # type 1 → index 0
         if e_idx < len(e_sim_list):
             e_sim = e_sim_list[e_idx]
-            e_real = e_sim * scale  # × 1000
+            e_real = e_sim * scale  # × 1000 → effective real (Pa)
             if e_real >= 1e9:
-                e_str = f"{e_real/1e9:.1f} GPa"
+                e_str = f"{e_real/1e9:.2f} GPa"
             else:
                 e_str = f"{e_real/1e6:.1f} MPa"
-            # SE: 유효영률 옆에 실제값 표기
+            # SE: 유효영률(실제영률) — E_real을 E_eff 비율로 스케일링
             if name == 'SE':
-                e_str = f"{e_str} ({se_real_e})"
+                factor = e_sim / SE_BASELINE_EFF_SIM  # 0.5x→0.5, 1.0x→1.0, 1.5x→1.5
+                se_real_gpa = SE_BASELINE_REAL_GPA * factor
+                e_str = f"{e_str} ({se_real_gpa:.0f} GPa)"
+            elif name == 'AM':
+                e_str = f"{e_str} ({AM_REAL_GPA:.0f} GPa)"
         else:
             e_str = '-'
 
@@ -377,6 +384,12 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
     # Target pressure from input_params (sim → real MPa)
     if input_params.get('target_press_sim'):
         metrics['target_pressure_mpa'] = round(input_params['target_press_sim'] * scale, 1)
+
+    # E_SE effective GPa (for scaling law / predictor)
+    e_sim_list_met = input_params.get('youngs_modulus_sim', [])
+    if len(e_sim_list_met) >= 2:
+        e_se_eff_gpa = e_sim_list_met[-1] * scale / 1e9  # sim Pa × scale → GPa
+        metrics['e_se_eff_gpa'] = round(e_se_eff_gpa, 4)
 
     # ── Data quality warnings ──
     warnings = []

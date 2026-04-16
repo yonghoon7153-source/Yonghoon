@@ -91,10 +91,11 @@ def load_all_data():
             target_press = ip.get('target_press_sim', 0)
             pressure_mpa = target_press * scale  # sim → real MPa
 
-            # Young's modulus SE (sim → real)
-            ym = ip.get('youngs_modulus_sim', [0, 0, 0])
-            if len(ym) >= 3:
-                E_se = ym[2] * scale / 1e6  # sim → real GPa (rough)
+            # Young's modulus SE (sim → real, effective GPa)
+            # SE는 항상 마지막 type: standard(2-type)→index 1, bimodal(3-type)→index 2
+            ym = ip.get('youngs_modulus_sim', [])
+            if len(ym) >= 2:
+                E_se = ym[-1] * scale / 1e9  # sim Pa × scale → effective GPa
             else:
                 E_se = 0
 

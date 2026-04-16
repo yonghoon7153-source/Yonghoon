@@ -17,6 +17,7 @@
           {% if metrics.thickness_um is defined %}<span class="badge">두께: {{ "%.1f"|format(metrics.thickness_um) }}μm</span>{% endif %}
           {% if metrics.percolation_pct is defined %}<span class="badge">Percolation: {{ "%.1f"|format(metrics.percolation_pct) }}%</span>{% endif %}
           {% if metrics.ionic_active_pct is defined %}<span class="badge badge-{{ 'standard' if metrics.ionic_active_pct >= 95 else 'bimodal' }}">Ionic Active: {{ "%.1f"|format(metrics.ionic_active_pct) }}%</span>{% endif %}
+          {% if metrics.e_se_eff_gpa is defined %}<span class="badge">E_SE: {{ "%.2f"|format(metrics.e_se_eff_gpa) }} GPa ({{ "%.0f"|format(metrics.e_se_eff_gpa / 1.35 * 24) }} GPa)</span>{% endif %}
         {% endif %}
         {% if metrics.warnings is defined and metrics.warnings %}
         <span class="badge badge-warning" title="{% for w in metrics.warnings %}{{ w.msg }}&#10;{% endfor %}">⚠ {{ metrics.warning_count }}</span>

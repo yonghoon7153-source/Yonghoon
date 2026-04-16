@@ -2338,7 +2338,9 @@ def plot_electronic_decomposition(data_list, names, outdir):
 
     # Build contributions based on regime
     colors_all = ['#e74c3c', '#f39c12', '#27ae60', '#3498db', '#9b59b6']
-    labels_all = ['φ^2.5', 'CN²/CN', '1/√por', '√δ', '1/√(T/d)']
+    labels_all = ['[Thick] φ^2.5', '[Thick] CN²', '[Thick] 1/√por', '[Thin] √δ', '[Thin] 1/√(T/d)']
+    # Thin CN uses same slot [1] but different label
+    label_cn_thin = '[Thin] CN'
 
     # Thick reference: highest σ among thick cases; Thin reference: highest σ among thin
     thick_idx = [i for i in range(n) if is_thick[i] and sigma_el[i] > 0]
@@ -2363,21 +2365,33 @@ def plot_electronic_decomposition(data_list, names, outdir):
     x = np.arange(n)
     w = 0.6
 
+    has_thick = any(is_thick[i] for i in range(n))
+    has_thin = any(not is_thick[i] for i in range(n))
+
     pos_bottom = np.zeros(n)
     neg_bottom = np.zeros(n)
+    used_labels = set()
     for j in range(5):
         contrib = contribs[j]
+        if np.all(np.abs(contrib) < 1e-6):
+            continue
         pos = np.maximum(contrib, 0)
         neg = np.minimum(contrib, 0)
-        ax.bar(x, pos, w, bottom=pos_bottom, color=colors_all[j], label=labels_all[j], alpha=0.8, edgecolor='white', linewidth=0.5)
+        lbl = labels_all[j]
+        if j == 1 and has_thin and not has_thick:
+            lbl = label_cn_thin
+        ax.bar(x, pos, w, bottom=pos_bottom, color=colors_all[j], label=lbl, alpha=0.8, edgecolor='white', linewidth=0.5)
         ax.bar(x, neg, w, bottom=neg_bottom, color=colors_all[j], alpha=0.4, edgecolor='white', linewidth=0.5)
         pos_bottom += pos
         neg_bottom += neg
+        used_labels.add(j)
 
     ax.axhline(0, color='gray', linewidth=0.5)
     ax.set_ylabel('Δlog(σ_el) from reference', fontsize=11)
-    ref_str = f"Thick ref: {names[ref_tk]}" + (f", Thin ref: {names[ref_tn]}" if thin_idx else "")
-    ax.set_title(f'Electronic σ_el Factor Decomposition ({ref_str})', fontsize=11, fontweight='bold')
+    regime_str = []
+    if has_thick: regime_str.append(f"Thick ref: {names[ref_tk]}")
+    if has_thin: regime_str.append(f"Thin ref: {names[ref_tn]}")
+    ax.set_title(f'Electronic σ_el Factor Decomposition ({", ".join(regime_str)})', fontsize=11, fontweight='bold')
     ax.legend(fontsize=8, loc='upper left', ncol=3)
     ax.set_xticks(x)
     ax.set_xticklabels(names, rotation=45, ha='right', fontsize=8)
@@ -2408,8 +2422,8 @@ def plot_electronic_decomposition(data_list, names, outdir):
     ax2.spines['top'].set_visible(False)
     ax2.spines['right'].set_visible(False)
     from matplotlib.patches import Patch
-    legend_elements = [Patch(facecolor=c, label=l) for c, l in zip(colors_all, labels_all)]
-    ax2.legend(handles=legend_elements, fontsize=7, loc='lower right', ncol=3)
+    legend_elements = [Patch(facecolor=colors_all[j], label=labels_all[j] if not (j==1 and has_thin and not has_thick) else label_cn_thin) for j in sorted(used_labels)]
+    ax2.legend(handles=legend_elements, fontsize=7, loc='lower right', ncol=min(len(legend_elements), 3))
 
     plt.tight_layout()
     _write_csv(outdir, 'electronic_decomposition.csv',

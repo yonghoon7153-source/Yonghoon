@@ -1597,6 +1597,37 @@ def plot_electronic_scaling(data_list, names, outdir):
             _rhs_tn = SIGMA_AM * _cn[_tn] * _delta_tn**0.5 / _ratio[_tn]**0.5
             C_thin = float(np.exp(np.mean(np.log(_s[_tn]) - np.log(_rhs_tn))))
 
+    # ── Global R² from ALL data (not just this comparison group) ──
+    r2_global_tk = 0; r2_global_tn = 0; n_global_tk = 0; n_global_tn = 0
+    if len(_unique) >= 5:
+        _s_all = np.array([r['s'] for r in _unique])
+        _ratio_all = np.array([r['ratio'] for r in _unique])
+        # Thick global R²
+        _tk_mask = _ratio_all >= 10
+        if _tk_mask.sum() >= 3:
+            _pa_tk = np.array([r['pa'] for r in _unique])[_tk_mask]
+            _cn_tk = np.array([r['cn'] for r in _unique])[_tk_mask]
+            _cov_tk = np.array([r['cov'] for r in _unique])[_tk_mask]
+            _por_tk = np.array([r['por'] for r in _unique])[_tk_mask]
+            _pred_tk = C_thick * SIGMA_AM * _pa_tk**2 * _cn_tk**2 * _cov_tk**0.5 / _por_tk**0.5
+            _log_a = np.log(_s_all[_tk_mask]); _log_p = np.log(_pred_tk)
+            _ss_res = np.sum((_log_a - _log_p)**2); _ss_tot = np.sum((_log_a - np.mean(_log_a))**2)
+            r2_global_tk = 1 - _ss_res / _ss_tot if _ss_tot > 0 else 0
+            n_global_tk = int(_tk_mask.sum())
+        # Thin global R²
+        _tn_mask = _ratio_all < 10
+        _ep_all = np.array([r['ep'] for r in _unique])
+        _tn_perc = _tn_mask & (_ep_all >= 0.50)
+        if _tn_perc.sum() >= 3:
+            _cn_tn = np.array([r['cn'] for r in _unique])[_tn_perc]
+            _delta_tn = np.array([r['delta'] for r in _unique])[_tn_perc]
+            _ratio_tn = _ratio_all[_tn_perc]
+            _pred_tn = C_thin * SIGMA_AM * _cn_tn * _delta_tn**0.5 / _ratio_tn**0.5
+            _log_a = np.log(_s_all[_tn_perc]); _log_p = np.log(_pred_tn)
+            _ss_res = np.sum((_log_a - _log_p)**2); _ss_tot = np.sum((_log_a - np.mean(_log_a))**2)
+            r2_global_tn = 1 - _ss_res / _ss_tot if _ss_tot > 0 else 0
+            n_global_tn = int(_tn_perc.sum())
+
     # Compute predictions per case
     sigma_scaling = []
     for i in range(len(data_list)):
@@ -1636,33 +1667,25 @@ def plot_electronic_scaling(data_list, names, outdir):
     _apply_style(ax, "σ_electronic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
 
-    # R² (log-space) — overall + thick/thin split
+    # R² (log-space) — this group only (for display)
     valid_both = [i for i in range(len(names)) if sigma_net[i] > 0 and sigma_scaling[i] > 0]
     if len(valid_both) >= 3:
         sa = np.array([sigma_net[i] for i in valid_both])
         sp = np.array([sigma_scaling[i] for i in valid_both])
-        log_a = np.log(sa); log_p = np.log(sp)
-        r2 = 1 - np.sum((log_a - log_p)**2) / np.sum((log_a - np.mean(log_a))**2)
         errs = np.abs(sp - sa) / sa * 100
         w20 = np.sum(errs < 20)
-        # thick/thin split R²
-        ratios_v = np.array([thickness[i] / d_am_list[i] for i in valid_both])
-        tk_v = ratios_v >= 10; tn_v = ratios_v < 10
-        r2_tk = 1 - np.sum((log_a[tk_v]-log_p[tk_v])**2)/np.sum((log_a[tk_v]-np.mean(log_a[tk_v]))**2) if tk_v.sum() >= 3 else 0
-        r2_tn = 1 - np.sum((log_a[tn_v]-log_p[tn_v])**2)/np.sum((log_a[tn_v]-np.mean(log_a[tn_v]))**2) if tn_v.sum() >= 3 else 0
     else:
-        r2 = 0; errs = np.array([0]); w20 = 0; r2_tk = 0; r2_tn = 0; tk_v = np.array([]); tn_v = np.array([])
+        errs = np.array([0]); w20 = 0
 
+    n_total = n_global_tk + n_global_tn
     ax.set_title(f"Electronic 2-Regime Scaling Law\n"
-                 f"R²={r2:.3f} (n={len(valid_both)}), |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}",
+                 f"Thick R²={r2_global_tk:.3f}(n={n_global_tk}), Thin R²={r2_global_tn:.3f}(n={n_global_tn})",
                  fontsize=9, fontweight='bold')
 
-    # Formula box with thick/thin R²
-    tk_str = f"R²={r2_tk:.3f}(n={tk_v.sum()})" if hasattr(tk_v, 'sum') and tk_v.sum() >= 3 else ""
-    tn_str = f"R²={r2_tn:.3f}(n={tn_v.sum()})" if hasattr(tn_v, 'sum') and tn_v.sum() >= 3 else ""
-    txt = (f"Thick: φ²×CN²×√cov/√por {tk_str}\n"
-           f"Thin: CN×√δ/√(T/d) {tn_str}\n"
-           f"ALL R²={r2:.3f}, |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
+    # Formula box with global R²
+    txt = (f"Thick: φ²×CN²×√cov/√por R²={r2_global_tk:.3f}(n={n_global_tk})\n"
+           f"Thin: CN×√δ/√(T/d) R²={r2_global_tn:.3f}(n={n_global_tn})\n"
+           f"Group |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
     ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',
             bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffeaea', alpha=0.8))
 

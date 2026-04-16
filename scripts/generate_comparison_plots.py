@@ -2810,7 +2810,7 @@ def main():
             desc = desc.replace("{formx_r2}", f"{r2_val:.3f}")
             desc = desc.replace("{formx_loocv}", f"{loocv_val:.3f}")
         elif '{formx_r2}' in desc:
-            # Compute FORM X R² on the fly from all data
+            # Compute FORM X R² on the fly (same logic as plot_ionic_scaling_fit)
             try:
                 PHI_C = 0.185; SGRAIN = 3.0
                 _phi_se = np.array([_get(d, "phi_se", 0) for d in all_data])
@@ -2818,7 +2818,10 @@ def main():
                 _tau_se = np.array([max(_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)), 0.1) for d in all_data])
                 _cov_se = np.array([(lambda vs: sum(vs)/len(vs)/100 if vs else 0.20)([v for v in [_get(d,"coverage_AM_P_mean",0),_get(d,"coverage_AM_S_mean",0),_get(d,"coverage_AM_mean",0)] if v>0]) for d in all_data])
                 _snet = np.array(_load_network_sigma(all_data))
-                _valid = (_phi_se > PHI_C+0.01) & (_cn_se > 0) & (_tau_se > 0) & (_cov_se > 0) & (_snet > 0.01)
+                _gb = np.array([_get(d, "gb_density_mean", 0) for d in all_data])
+                _gp = np.array([_get(d, "path_conductance_mean", 0) for d in all_data])
+                # Match ionic_scaling_fit filter: require gb_density and path_conductance
+                _valid = (_phi_se > PHI_C+0.01) & (_cn_se > 0) & (_tau_se > 0) & (_cov_se > 0) & (_snet > 0.01) & (_gb > 0) & (_gp > 0)
                 if _valid.sum() >= 5:
                     _phi_ex = np.clip(_phi_se[_valid] - PHI_C, 0.001, None)
                     _log_rhs = np.log(SGRAIN) + 0.75*np.log(_phi_ex) + np.log(_cn_se[_valid]) + 0.5*np.log(_cov_se[_valid]) - 0.5*np.log(_tau_se[_valid])

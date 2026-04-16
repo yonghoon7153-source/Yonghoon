@@ -1586,7 +1586,7 @@ def plot_electronic_scaling(data_list, names, outdir):
         _por = np.array([r['por'] for r in _unique])
         _ps = np.array([r['ps'] for r in _unique])
 
-        _tk = _ratio >= 10; _tn = _ratio < 10
+        _tk = _ratio >= 8; _tn = _ratio < 8
         if _tk.sum() >= 3:
             # Thick: φ^2.5 × CN² / √por  (sweep Phase 2 champion)
             _rhs_tk = SIGMA_AM * _pa[_tk]**2.5 * _cn[_tk]**2 / _por[_tk]**0.5
@@ -1603,7 +1603,7 @@ def plot_electronic_scaling(data_list, names, outdir):
         _s_all = np.array([r['s'] for r in _unique])
         _ratio_all = np.array([r['ratio'] for r in _unique])
         # Thick global R²
-        _tk_mask = _ratio_all >= 10
+        _tk_mask = _ratio_all >= 8
         if _tk_mask.sum() >= 3:
             _pa_tk = np.array([r['pa'] for r in _unique])[_tk_mask]
             _cn_tk = np.array([r['cn'] for r in _unique])[_tk_mask]
@@ -1632,7 +1632,7 @@ def plot_electronic_scaling(data_list, names, outdir):
     for i in range(len(data_list)):
         if phi_am[i] > 0 and cn_am[i] > 0 and d_am_list[i] > 0 and thickness[i] > 0:
             ratio_i = thickness[i] / d_am_list[i]
-            if ratio_i >= 10:
+            if ratio_i >= 8:
                 # THICK: φ^2.5 × CN² / √por
                 s = C_thick * SIGMA_AM * phi_am[i]**2.5 * cn_am[i]**2 / porosity[i]**0.5
             else:
@@ -2318,7 +2318,7 @@ def plot_electronic_decomposition(data_list, names, outdir):
     log_ratio = np.array([-0.5 * np.log(max(ratios[i], 0.1)) for i in range(n)])
 
     # Determine thick/thin per case
-    is_thick = [ratios[i] >= 10 for i in range(n)]
+    is_thick = [ratios[i] >= 8 for i in range(n)]
 
     # σ_el for reference selection (use max)
     sigma_el = []

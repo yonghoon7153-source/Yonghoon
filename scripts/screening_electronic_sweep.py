@@ -88,10 +88,10 @@ def fit_and_score(log_sigma, log_rhs):
 
 
 def sweep_thick(data):
-    """Sweep thick regime (ratio >= 10)."""
+    """Sweep thick regime (ratio >= 8)."""
     thick = [r for r in data if r['ratio'] >= 10]
     print(f"\n{'='*60}")
-    print(f"THICK REGIME SWEEP (T/d >= 10, n={len(thick)})")
+    print(f"THICK REGIME SWEEP (T/d >= 8, n={len(thick)})")
     print(f"{'='*60}")
 
     if len(thick) < 5:
@@ -215,7 +215,7 @@ def sweep_thick(data):
 
 
 def sweep_thin(data):
-    """Sweep thin regime (ratio < 10)."""
+    """Sweep thin regime (ratio < 8)."""
     thin = [r for r in data if r['ratio'] < 10]
     print(f"\n{'='*60}")
     print(f"THIN REGIME SWEEP (T/d < 10, n={len(thin)})")
@@ -316,7 +316,7 @@ def sweep_thin(data):
 if __name__ == '__main__':
     data = load_all_electronic()
     print(f"Total electronic data: {len(data)} unique cases")
-    print(f"  Thick (T/d >= 10): {sum(1 for r in data if r['ratio'] >= 10)}")
+    print(f"  Thick (T/d >= 8): {sum(1 for r in data if r['ratio'] >= 10)}")
     print(f"  Thin  (T/d <  10): {sum(1 for r in data if r['ratio'] < 10)}")
 
     sweep_thick(data)

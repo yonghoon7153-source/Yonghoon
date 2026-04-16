@@ -1588,8 +1588,8 @@ def plot_electronic_scaling(data_list, names, outdir):
 
         _tk = _ratio >= 10; _tn = _ratio < 10
         if _tk.sum() >= 3:
-            # Thick: φ² × CN² × √cov / √por
-            _rhs_tk = SIGMA_AM * _pa[_tk]**2 * _cn[_tk]**2 * _cov[_tk]**0.5 / _por[_tk]**0.5
+            # Thick: φ^2.5 × CN² / √por  (sweep Phase 2 champion)
+            _rhs_tk = SIGMA_AM * _pa[_tk]**2.5 * _cn[_tk]**2 / _por[_tk]**0.5
             C_thick = float(np.exp(np.mean(np.log(_s[_tk]) - np.log(_rhs_tk))))
         if _tn.sum() >= 3:
             _delta_tn = np.array([r['delta'] for r in _unique])[_tn]
@@ -1607,9 +1607,8 @@ def plot_electronic_scaling(data_list, names, outdir):
         if _tk_mask.sum() >= 3:
             _pa_tk = np.array([r['pa'] for r in _unique])[_tk_mask]
             _cn_tk = np.array([r['cn'] for r in _unique])[_tk_mask]
-            _cov_tk = np.array([r['cov'] for r in _unique])[_tk_mask]
             _por_tk = np.array([r['por'] for r in _unique])[_tk_mask]
-            _pred_tk = C_thick * SIGMA_AM * _pa_tk**2 * _cn_tk**2 * _cov_tk**0.5 / _por_tk**0.5
+            _pred_tk = C_thick * SIGMA_AM * _pa_tk**2.5 * _cn_tk**2 / _por_tk**0.5
             _log_a = np.log(_s_all[_tk_mask]); _log_p = np.log(_pred_tk)
             _ss_res = np.sum((_log_a - _log_p)**2); _ss_tot = np.sum((_log_a - np.mean(_log_a))**2)
             r2_global_tk = 1 - _ss_res / _ss_tot if _ss_tot > 0 else 0
@@ -1634,8 +1633,8 @@ def plot_electronic_scaling(data_list, names, outdir):
         if phi_am[i] > 0 and cn_am[i] > 0 and d_am_list[i] > 0 and thickness[i] > 0:
             ratio_i = thickness[i] / d_am_list[i]
             if ratio_i >= 10:
-                # THICK: φ² × CN² × √cov / √por
-                s = C_thick * SIGMA_AM * phi_am[i]**2 * cn_am[i]**2 * cov_list[i]**0.5 / porosity[i]**0.5
+                # THICK: φ^2.5 × CN² / √por
+                s = C_thick * SIGMA_AM * phi_am[i]**2.5 * cn_am[i]**2 / porosity[i]**0.5
             else:
                 # THIN: CN × δ^0.5 / √(T/d)
                 if el_perc[i] >= 0.50:
@@ -1683,7 +1682,7 @@ def plot_electronic_scaling(data_list, names, outdir):
                  fontsize=9, fontweight='bold')
 
     # Formula box with global R²
-    txt = (f"Thick: φ²×CN²×√cov/√por R²={r2_global_tk:.3f}(n={n_global_tk})\n"
+    txt = (f"Thick: φ^2.5×CN²/√por R²={r2_global_tk:.3f}(n={n_global_tk})\n"
            f"Thin: CN×√δ/√(T/d) R²={r2_global_tn:.3f}(n={n_global_tn})\n"
            f"Group |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
     ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',
@@ -2295,30 +2294,40 @@ PLOT_REGISTRY["sigma_decomposition"] = {
 
 
 def plot_electronic_decomposition(data_list, names, outdir):
-    """Decompose σ_el into φ_AM^(3/2), CN_AM², exp(π/(T/d)) factors."""
+    """Decompose σ_el: Thick(φ^2.5 × CN² / √por), Thin(CN × √δ / √(T/d))."""
     SIGMA_AM = 50.0
-    C_el = 0.015
 
     phi_am = [_get(d, "phi_am") for d in data_list]
-    cn_am = [_get(d, "am_am_cn") for d in data_list]
+    cn_am = [max(_get(d, "am_am_cn"), 0.01) for d in data_list]
     thickness = [_get(d, "thickness_um") for d in data_list]
     d_am = [2.0 * max(_get(d, "r_AM_P", 0), _get(d, "r_AM_S", 0), _get(d, "r_AM", 0))
             for d in data_list]
+    porosity = [max(_get(d, "porosity", 10), 0.1) for d in data_list]
+    am_delta = [max(_get(d, "am_am_mean_delta", 0), 0.001) for d in data_list]
 
     n = len(data_list)
+    ratios = [thickness[i] / d_am[i] if d_am[i] > 0 and thickness[i] > 0 else 0 for i in range(n)]
 
-    # log contributions
-    log_phi = np.array([1.5 * np.log(phi_am[i]) if phi_am[i] > 0 else 0 for i in range(n)])
-    log_cn2 = np.array([2 * np.log(cn_am[i]) if cn_am[i] > 0 else 0 for i in range(n)])
-    log_exp = np.array([np.pi / (thickness[i] / d_am[i]) if d_am[i] > 0 and thickness[i] > 0 else 0
-                        for i in range(n)])
+    # Thick factors: φ^2.5, CN², por^-0.5
+    log_phi = np.array([2.5 * np.log(max(phi_am[i], 0.01)) for i in range(n)])
+    log_cn2 = np.array([2.0 * np.log(cn_am[i]) for i in range(n)])
+    log_por = np.array([-0.5 * np.log(porosity[i]) for i in range(n)])
+    # Thin factors: CN, δ^0.5, (T/d)^-0.5
+    log_cn1 = np.array([1.0 * np.log(cn_am[i]) for i in range(n)])
+    log_delta = np.array([0.5 * np.log(am_delta[i]) for i in range(n)])
+    log_ratio = np.array([-0.5 * np.log(max(ratios[i], 0.1)) for i in range(n)])
 
-    # σ_el for reference selection
+    # Determine thick/thin per case
+    is_thick = [ratios[i] >= 10 for i in range(n)]
+
+    # σ_el for reference selection (use max)
     sigma_el = []
     for i in range(n):
         if phi_am[i] > 0 and cn_am[i] > 0 and d_am[i] > 0 and thickness[i] > 0:
-            ratio = thickness[i] / d_am[i]
-            sigma_el.append(C_el * SIGMA_AM * phi_am[i]**(3/2) * cn_am[i]**2 * np.exp(np.pi / ratio))
+            if is_thick[i]:
+                sigma_el.append(phi_am[i]**2.5 * cn_am[i]**2 / porosity[i]**0.5)
+            else:
+                sigma_el.append(cn_am[i] * am_delta[i]**0.5 / max(ratios[i], 0.1)**0.5)
         else:
             sigma_el.append(0)
 
@@ -2326,9 +2335,28 @@ def plot_electronic_decomposition(data_list, names, outdir):
         return None
 
     ref = int(np.argmax(sigma_el))
-    d_phi = log_phi - log_phi[ref]
-    d_cn = log_cn2 - log_cn2[ref]
-    d_exp = log_exp - log_exp[ref]
+
+    # Build contributions based on regime
+    colors_thick = ['#e74c3c', '#f39c12', '#27ae60']
+    labels_thick = ['φ_AM^2.5', 'CN_AM²', '1/√por']
+    colors_thin = ['#f39c12', '#3498db', '#9b59b6']
+    labels_thin = ['CN_AM', '√δ', '1/√(T/d)']
+
+    # Use thick decomposition for thick, thin for thin
+    # For mixed display, show all 4 unique factors
+    colors_all = ['#e74c3c', '#f39c12', '#27ae60', '#3498db', '#9b59b6']
+    labels_all = ['φ_AM^2.5', 'CN²(thick)/CN(thin)', '1/√por', '√δ', '1/√(T/d)']
+
+    contribs = np.zeros((5, n))
+    for i in range(n):
+        if is_thick[i]:
+            contribs[0, i] = log_phi[i] - log_phi[ref] if is_thick[ref] else log_phi[i]
+            contribs[1, i] = log_cn2[i] - (log_cn2[ref] if is_thick[ref] else 0)
+            contribs[2, i] = log_por[i] - (log_por[ref] if is_thick[ref] else 0)
+        else:
+            contribs[1, i] = log_cn1[i] - (log_cn1[ref] if not is_thick[ref] else 0)
+            contribs[3, i] = log_delta[i] - (log_delta[ref] if not is_thick[ref] else 0)
+            contribs[4, i] = log_ratio[i] - (log_ratio[ref] if not is_thick[ref] else 0)
 
     fig, axes = plt.subplots(2, 1, figsize=(max(8, len(names)*0.7), 10), gridspec_kw={'height_ratios': [2, 1]})
 
@@ -2336,24 +2364,21 @@ def plot_electronic_decomposition(data_list, names, outdir):
     x = np.arange(n)
     w = 0.6
 
-    colors = ['#e74c3c', '#f39c12', '#9b59b6']
-    labels = ['φ_AM^(3/2)', 'CN_AM²', 'exp(π/(T/d))']
-    contributions = [d_phi, d_cn, d_exp]
-
     pos_bottom = np.zeros(n)
     neg_bottom = np.zeros(n)
-    for j, (contrib, color, label) in enumerate(zip(contributions, colors, labels)):
+    for j in range(5):
+        contrib = contribs[j]
         pos = np.maximum(contrib, 0)
         neg = np.minimum(contrib, 0)
-        ax.bar(x, pos, w, bottom=pos_bottom, color=color, label=label, alpha=0.8, edgecolor='white', linewidth=0.5)
-        ax.bar(x, neg, w, bottom=neg_bottom, color=color, alpha=0.4, edgecolor='white', linewidth=0.5)
+        ax.bar(x, pos, w, bottom=pos_bottom, color=colors_all[j], label=labels_all[j], alpha=0.8, edgecolor='white', linewidth=0.5)
+        ax.bar(x, neg, w, bottom=neg_bottom, color=colors_all[j], alpha=0.4, edgecolor='white', linewidth=0.5)
         pos_bottom += pos
         neg_bottom += neg
 
     ax.axhline(0, color='gray', linewidth=0.5)
     ax.set_ylabel('Δlog(σ_el) from reference', fontsize=11)
     ax.set_title(f'Electronic σ_el Factor Decomposition (ref: {names[ref]})', fontsize=12, fontweight='bold')
-    ax.legend(fontsize=9, loc='upper left', ncol=3)
+    ax.legend(fontsize=8, loc='upper left', ncol=3)
     ax.set_xticks(x)
     ax.set_xticklabels(names, rotation=45, ha='right', fontsize=8)
     ax.yaxis.grid(True, linestyle='--', alpha=0.5)
@@ -2362,16 +2387,17 @@ def plot_electronic_decomposition(data_list, names, outdir):
 
     # Bottom: dominant factor
     ax2 = axes[1]
-    all_contribs = np.array(contributions)
     for i in range(n):
         if i == ref:
             ax2.barh(i, 0, color='gray')
             continue
-        vals = all_contribs[:, i]
+        vals = contribs[:, i]
         sorted_idx = np.argsort(np.abs(vals))[::-1]
         for rank, j in enumerate(sorted_idx[:3]):
+            if abs(vals[j]) < 0.01:
+                continue
             ax2.barh(i, vals[j], height=0.25, left=0,
-                    color=colors[j], alpha=0.9 - rank*0.25,
+                    color=colors_all[j], alpha=0.9 - rank*0.25,
                     edgecolor='white', linewidth=0.5)
 
     ax2.set_yticks(range(n))
@@ -2382,21 +2408,21 @@ def plot_electronic_decomposition(data_list, names, outdir):
     ax2.spines['top'].set_visible(False)
     ax2.spines['right'].set_visible(False)
     from matplotlib.patches import Patch
-    legend_elements = [Patch(facecolor=c, label=l) for c, l in zip(colors, labels)]
-    ax2.legend(handles=legend_elements, fontsize=8, loc='lower right', ncol=3)
+    legend_elements = [Patch(facecolor=c, label=l) for c, l in zip(colors_all, labels_all)]
+    ax2.legend(handles=legend_elements, fontsize=7, loc='lower right', ncol=3)
 
     plt.tight_layout()
     _write_csv(outdir, 'electronic_decomposition.csv',
-               ['φ_AM^1.5(Δlog)', 'CN²(Δlog)', 'exp(π/(T/d))(Δlog)'],
-               names, list(d_phi), list(d_cn), list(d_exp))
+               ['φ^2.5(Δlog)', 'CN(Δlog)', '1/√por(Δlog)', '√δ(Δlog)', '1/√(T/d)(Δlog)'],
+               names, *[list(contribs[j]) for j in range(5)])
     return _save(fig, outdir, "electronic_decomposition.png")
 
 
 PLOT_REGISTRY["electronic_decomposition"] = {
     "func": plot_electronic_decomposition,
     "file": "electronic_decomposition.png",
-    "title": "Electronic: Factor Decomposition (R²=0.89)",
-    "description": "σ_el = 0.015 × σ_AM × φ_AM^(3/2) × CN_AM² × exp(π/(T/d_AM))\nR²=0.89\n\nφ_AM^(3/2): volume fraction (percolation)\nCN_AM²: AM network connectivity\nexp(π/(T/d)): finite-size effect (thin → higher σ_el)",
+    "title": "Electronic: Factor Decomposition",
+    "description": "Thick: φ^2.5 × CN² / √por\nThin: CN × √δ / √(T/d)\n\nφ^2.5: AM volume fraction\nCN²: AM-AM coordination\n1/√por: porosity 효과\n√δ: AM-AM penetration depth\n1/√(T/d): finite-size correction",
     "origin_tip": "Stacked bar (top) + Horizontal bar (bottom).",
 }
 

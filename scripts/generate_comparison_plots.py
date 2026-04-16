@@ -1558,8 +1558,7 @@ def plot_electronic_scaling(data_list, names, outdir):
             _T = _m.get('thickness_um', 0)
             if _pa <= 0 or _cn <= 0 or _T <= 0 or _dam <= 0: continue
             _ratio = _T / _dam
-            _case_id = os.path.basename(os.path.dirname(_mp))
-            _k = _case_id
+            _k = f"{_T:.1f}_{_dam:.1f}_{_sel:.2f}_{_pa:.3f}_{_cn:.2f}"
             _por = max(_m.get('porosity', 10), 0.1)
             _ps = max(_m.get('phi_se', 0.2), 0.01)
             _ep = max(_m.get('electronic_percolating_fraction', 0), 0.01)

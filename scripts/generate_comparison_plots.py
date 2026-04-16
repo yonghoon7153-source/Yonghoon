@@ -2337,26 +2337,25 @@ def plot_electronic_decomposition(data_list, names, outdir):
     ref = int(np.argmax(sigma_el))
 
     # Build contributions based on regime
-    colors_thick = ['#e74c3c', '#f39c12', '#27ae60']
-    labels_thick = ['φ_AM^2.5', 'CN_AM²', '1/√por']
-    colors_thin = ['#f39c12', '#3498db', '#9b59b6']
-    labels_thin = ['CN_AM', '√δ', '1/√(T/d)']
-
-    # Use thick decomposition for thick, thin for thin
-    # For mixed display, show all 4 unique factors
     colors_all = ['#e74c3c', '#f39c12', '#27ae60', '#3498db', '#9b59b6']
-    labels_all = ['φ_AM^2.5', 'CN²(thick)/CN(thin)', '1/√por', '√δ', '1/√(T/d)']
+    labels_all = ['φ^2.5', 'CN²/CN', '1/√por', '√δ', '1/√(T/d)']
+
+    # Thick reference: highest σ among thick cases; Thin reference: highest σ among thin
+    thick_idx = [i for i in range(n) if is_thick[i] and sigma_el[i] > 0]
+    thin_idx = [i for i in range(n) if not is_thick[i] and sigma_el[i] > 0]
+    ref_tk = thick_idx[np.argmax([sigma_el[i] for i in thick_idx])] if thick_idx else ref
+    ref_tn = thin_idx[np.argmax([sigma_el[i] for i in thin_idx])] if thin_idx else ref
 
     contribs = np.zeros((5, n))
     for i in range(n):
         if is_thick[i]:
-            contribs[0, i] = log_phi[i] - log_phi[ref] if is_thick[ref] else log_phi[i]
-            contribs[1, i] = log_cn2[i] - (log_cn2[ref] if is_thick[ref] else 0)
-            contribs[2, i] = log_por[i] - (log_por[ref] if is_thick[ref] else 0)
+            contribs[0, i] = log_phi[i] - log_phi[ref_tk]
+            contribs[1, i] = log_cn2[i] - log_cn2[ref_tk]
+            contribs[2, i] = log_por[i] - log_por[ref_tk]
         else:
-            contribs[1, i] = log_cn1[i] - (log_cn1[ref] if not is_thick[ref] else 0)
-            contribs[3, i] = log_delta[i] - (log_delta[ref] if not is_thick[ref] else 0)
-            contribs[4, i] = log_ratio[i] - (log_ratio[ref] if not is_thick[ref] else 0)
+            contribs[1, i] = log_cn1[i] - log_cn1[ref_tn]
+            contribs[3, i] = log_delta[i] - log_delta[ref_tn]
+            contribs[4, i] = log_ratio[i] - log_ratio[ref_tn]
 
     fig, axes = plt.subplots(2, 1, figsize=(max(8, len(names)*0.7), 10), gridspec_kw={'height_ratios': [2, 1]})
 
@@ -2377,7 +2376,8 @@ def plot_electronic_decomposition(data_list, names, outdir):
 
     ax.axhline(0, color='gray', linewidth=0.5)
     ax.set_ylabel('Δlog(σ_el) from reference', fontsize=11)
-    ax.set_title(f'Electronic σ_el Factor Decomposition (ref: {names[ref]})', fontsize=12, fontweight='bold')
+    ref_str = f"Thick ref: {names[ref_tk]}" + (f", Thin ref: {names[ref_tn]}" if thin_idx else "")
+    ax.set_title(f'Electronic σ_el Factor Decomposition ({ref_str})', fontsize=11, fontweight='bold')
     ax.legend(fontsize=8, loc='upper left', ncol=3)
     ax.set_xticks(x)
     ax.set_xticklabels(names, rotation=45, ha='right', fontsize=8)

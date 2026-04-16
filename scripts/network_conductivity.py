@@ -27,7 +27,7 @@ import json
 import os
 import sys
 from scipy import sparse
-from scipy.sparse.linalg import spsolve
+from scipy.sparse.linalg import spsolve, cg
 
 
 # LPSCl argyrodite grain interior conductivity (NOT pellet value)
@@ -285,16 +285,34 @@ def solve_network(network_data, mode='full'):
     b[sink_idx] = -1.0
 
     # Ground one node to make system solvable (pin sink to V=0)
-    # Modify: remove sink equation, set V_sink = 0
-    # Instead, use pseudo-approach: fix V_sink = 0 by replacing its row
-    L_mod = L.tolil()
-    L_mod[sink_idx, :] = 0
-    L_mod[sink_idx, sink_idx] = 1.0
+    # Zero out sink row and set diagonal to 1 (V_sink = 0)
+    # Use CSR manipulation directly to avoid memory-heavy tolil() conversion
+    L_csr = L.tocsr()
+    start, end = L_csr.indptr[sink_idx], L_csr.indptr[sink_idx + 1]
+    L_csr.data[start:end] = 0.0
+    # Set diagonal
+    sink_diag_mask = L_csr.indices[start:end] == sink_idx
+    if sink_diag_mask.any():
+        L_csr.data[start:end][sink_diag_mask] = 1.0
+    else:
+        # Fallback: rebuild with sink row replaced
+        L_csr = L_csr.tolil()
+        L_csr[sink_idx, :] = 0
+        L_csr[sink_idx, sink_idx] = 1.0
+        L_csr = L_csr.tocsr()
     b[sink_idx] = 0.0
-    L_mod = L_mod.tocsr()
+    L_csr.eliminate_zeros()
 
+    n_nodes = L_csr.shape[0]
     try:
-        V = spsolve(L_mod, b)
+        if n_nodes > 200000:
+            # Large network: use iterative CG solver (memory-efficient)
+            print(f"  Using iterative CG solver ({n_nodes} nodes)...")
+            V, info = cg(L_csr, b, tol=1e-8, maxiter=5000)
+            if info != 0:
+                print(f"  CG solver warning: info={info} (0=success, >0=not converged, <0=error)")
+        else:
+            V = spsolve(L_csr, b)
     except Exception as e:
         print(f"  Network solve failed: {e}")
         return None, None

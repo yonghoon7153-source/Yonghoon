@@ -275,12 +275,16 @@ def train_models(results_folder, archive_folder):
     scaler_X = StandardScaler()
     X_scaled = scaler_X.fit_transform(X)
 
-    # v2.0: Multiple kernel candidates (Lecture 5: kernel = hypothesis class)
+    # v2.3: Multiple kernel candidates including ARD (per-feature length scales!)
+    n_features = len(INPUT_FEATURES)
     kernel_candidates = {
         'Matern2.5': ConstantKernel(1.0) * Matern(length_scale=1.0, nu=2.5) + WhiteKernel(0.1),
         'Matern1.5': ConstantKernel(1.0) * Matern(length_scale=1.0, nu=1.5) + WhiteKernel(0.1),
         'RBF': ConstantKernel(1.0) * RBF(length_scale=1.0) + WhiteKernel(0.1),
         'RQ': ConstantKernel(1.0) * RationalQuadratic(length_scale=1.0, alpha=1.0) + WhiteKernel(0.1),
+        # ARD: separate length_scale per feature → auto feature importance!
+        'ARD_Matern': ConstantKernel(1.0) * Matern(length_scale=np.ones(n_features), nu=2.5) + WhiteKernel(0.1),
+        'ARD_RBF': ConstantKernel(1.0) * RBF(length_scale=np.ones(n_features)) + WhiteKernel(0.1),
     }
 
     # v2.0: K-Fold CV setup (Lecture 3: train/val/test split, Lecture 4: CV)
@@ -566,7 +570,14 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
 
     # Stage 2: Physics scaling laws
     phi_se = micro.get('phi_se', {}).get('value', 0)
-    phi_am = micro.get('phi_am', {}).get('value', 0)
+    porosity = micro.get('porosity', {}).get('value', 0)
+    # v2.3: Physics constraint — φ_AM = 1 - φ_SE - porosity/100
+    # Instead of independent GPR prediction, derive from other outputs
+    phi_am_gpr = micro.get('phi_am', {}).get('value', 0)
+    phi_am_phys = max(0, 1.0 - phi_se - porosity / 100)
+    phi_am = 0.5 * phi_am_gpr + 0.5 * phi_am_phys  # ensemble with physics
+    micro['phi_am']['value'] = phi_am  # update for display
+
     f_perc = micro.get('f_perc', {}).get('value', 100)
     tau = micro.get('tau', {}).get('value', 1)
     cn = micro.get('cn', {}).get('value', 0)

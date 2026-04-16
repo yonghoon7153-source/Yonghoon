@@ -1552,19 +1552,24 @@ def plot_electronic_scaling(data_list, names, outdir):
             except: continue
             _sel = _m.get('electronic_sigma_full_mScm', 0)
             if not _sel or _sel < 0.001: continue
-            _pa = max(_m.get('phi_am', 0), 0.01)
-            _cn = max(_m.get('am_am_cn', 0.01), 0.01)
+            _pa_raw = _m.get('phi_am', 0)
+            _cn_raw = _m.get('am_am_cn', 0)
+            _ram = max(_m.get('r_AM_P', 0), _m.get('r_AM_S', 0))
+            _dam = _ram * 2 if _ram > 0.1 else 5.0
+            _T = _m.get('thickness_um', 0)
+            if _pa_raw <= 0 or _cn_raw <= 0 or _T <= 0 or _dam <= 0: continue
+            _ratio = _T / _dam
+            # Dedup: same key as screening_electronic_sweep.py
+            _k = f"{_pa_raw:.4f}_{_ratio:.1f}"
+            if _k in _seen_hashes: continue
+            _seen_hashes.add(_k)
+            _pa = max(_pa_raw, 0.01)
+            _cn = max(_cn_raw, 0.01)
             _tau = max(_m.get('tortuosity_recommended', _m.get('tortuosity_mean', 1)), 0.1)
             _cov = max(_m.get('coverage_AM_P_mean', _m.get('coverage_AM_S_mean', _m.get('coverage_AM_mean', 20))), 0.1) / 100
             _delta = max(_m.get('am_am_mean_delta', 0), 0.001)
             _area = max(_m.get('am_am_mean_area', 0), 0.01)
             _hop = max(_m.get('am_am_mean_hop', 0), 0.1)
-            _ram = max(_m.get('r_AM_P', 0), _m.get('r_AM_S', 0))
-            _dam = _ram * 2 if _ram > 0.1 else 5.0
-            _T = _m.get('thickness_um', 0)
-            if _pa <= 0 or _cn <= 0 or _T <= 0 or _dam <= 0: continue
-            _ratio = _T / _dam
-            _k = f"{round(_sel,1)}_{round(_pa,2)}_{round(_cn,1)}_{round(_T,0)}"
             _por = max(_m.get('porosity', 10), 0.1)
             _ps = max(_m.get('phi_se', 0.2), 0.01)
             _ep = max(_m.get('electronic_percolating_fraction', 0), 0.01)

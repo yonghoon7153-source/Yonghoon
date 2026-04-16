@@ -39,13 +39,13 @@ def load_all_electronic():
             phi_se = max(m.get('phi_se', 0.2), 0.01)
             ep = max(m.get('electronic_percolating_fraction', 0), 0.01)
             ea = max(m.get('electronic_active_fraction', 0), 0.01)
-            cn_std = max(m.get('am_am_cn_std', 0), 0.01)
-            n_contacts = max(m.get('am_am_n_contacts', 0), 1)
-            area_cv = max(m.get('am_am_area_cv', 0), 0.01)
-            contact_r = max(m.get('am_am_mean_contact_radius', 0), 0.001)
-            force = max(m.get('am_am_mean_force', 0), 0.001)
-            pressure = max(m.get('am_am_mean_pressure', 0), 0.001)
-            se_cn = max(m.get('se_se_cn', 0), 0.01)
+            cn_std = max(float(m.get('am_am_cn_std', 0) or 0), 0.01)
+            n_contacts = max(int(float(m.get('am_am_n_contacts', 0) or 0)), 1)
+            area_cv = max(float(m.get('am_am_area_cv', 0) or 0), 0.01)
+            contact_r = max(float(m.get('am_am_mean_contact_radius', 0) or 0), 0.001)
+            force = max(float(m.get('am_am_mean_force', 0) or 0), 0.001)
+            pressure = max(float(m.get('am_am_mean_pressure', 0) or 0), 0.001)
+            se_cn = max(float(m.get('se_se_cn', 0) or 0), 0.01)
 
             if pa <= 0 or cn <= 0 or T <= 0 or dam <= 0:
                 continue

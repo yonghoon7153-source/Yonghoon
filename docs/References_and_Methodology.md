@@ -196,5 +196,80 @@ Reference: Doux et al. (2020), Coetzee (2017)
 
 ---
 
+## 8. DEM Calibration Philosophy & Limitations
+
+### 8.1 캘리브레이션 접근법
+
+**Coetzee, C.J.** (2017). "Review: Calibration of the Discrete Element Method." *Powder Technology*, 310, 104-142.
+- DEM 파라미터 캘리브레이션 방법론 종합 리뷰
+- **핵심**: "DEM 파라미터는 실험 매칭을 통해 결정하며, effective parameter는 bulk behavior를 재현하는 것이 목적"
+- E_eff를 실험 porosity에 매칭하는 접근이 표준 절차
+- Micro-level 파라미터 → Macro-level 응답 매칭 (angle of repose, porosity, bulk density)
+- **우리 접근의 근거**: E_eff=1.35 GPa는 SE pellet porosity ~10% (실험)에 캘리브레이션
+
+**Coetzee, C.J.** (2016). "Calibration of the Discrete Element Method and the Effect of Particle Shape." *Powder Technology*, 297, 50-70.
+- 입자 형상이 캘리브레이션에 미치는 영향
+- 구형 가정의 한계와 보정 방법
+
+### 8.2 Reduced Young's Modulus 접근
+
+**Lommen, S., Schott, D., & Lodewijks, G.** (2014). "DEM speedup: Stiffness effects on behavior of bulk material." *Particuology*, 12, 107-112.
+- E 감소 → timestep 증가 → 계산 효율 향상
+- E를 1/100로 줄여도 bulk flow는 유사하게 유지
+- **단, 접촉 면적은 영향 받음** → contact-sensitive 분석 시 주의
+
+**Yan, Z., Wilkinson, S.K., Stitt, E.H., & Marigo, M.** (2015). "Discrete Element Modelling of Fluid Bed Granulation." *Journal of Computational Physics*, 302, 245-264.
+- E_eff 사용 시 computational efficiency 대 accuracy trade-off
+- Bulk behavior (porosity, flow) 보존, contact-level behavior (면적, 응력) 변화
+
+### 8.3 SSB DEM 캘리브레이션 — 최신 연구
+
+**Alabdali, M., Zanotto, F.M., et al.** (2022). "Contact model for DEM simulation of compaction and sintering of all-solid-state battery electrodes." *MethodsX*, 9, 101861.
+- ASSB 전극용 DEM 접촉 모델 (탄성+소성+점탄성)
+- Maxwell 점탄성 모델로 소결 효과 시뮬레이션
+- **핵심 한계 인정**: "spherical overlap approximation에 의한 접촉 면적은 실제 소성변형보다 과소평가"
+- 소성변형 시 2차 접촉 발생 → 구형 overlap 모델이 감지 못함
+
+**Parameter sensitivity analysis and calibration of a DEM model for optimizing ASSB cathode microstructures** (2025). *Electrochimica Acta*.
+- DEM 파라미터 민감도 분석 (friction이 가장 영향 큼)
+- **높은 AM loading에서 DEM 정확도 저하** → 우리 82:18 케이스 관련
+- 낮은 CAM loading에서 높은 정확도, 높은 loading에서 discrepancy 증가
+- 추가 개선 필요성 언급
+
+**Shi, T., Tu, Q., Tian, Y., et al.** (2020). "High Active Material Loading in All-Solid-State Battery Electrode via Particle Size Optimization." *Advanced Energy Materials*, 10(1), 1902881.
+- DEM으로 SSB cathode packing 시뮬레이션
+- AM loading은 크기비에 의해 결정됨
+- **Percolation 문제**: 높은 cathode loading에서 separator 근처만 활성화
+- 크기비 크게 → cathode utilization 향상
+
+### 8.4 DEM 접촉 면적 한계 — 물리적 설명
+
+```
+DEM 접촉:     a = √(R* × δ)        → 구-구 Hertz 접촉, 원형 patch
+실제 접촉:     소성유동 + 소결       → AM 곡면에 conform, 넓은 비정형 면적
+
+결과:
+  - Porosity:  E_eff로 캘리브레이션 → 실험과 일치 ✓
+  - Coverage:  구-구 접촉 면적 공식 → 실제보다 과소평가 △
+  - CN:        접촉 유무(topology) → E_eff 무관, 정확 ✓
+  - σ_ionic:   Network solver = f(접촉 면적) → 상대적 경향 정확, 절대값 과소 △
+```
+
+**캘리브레이션 가능 vs 불가능:**
+
+| 지표 | 캘리브레이션 | 이유 |
+|------|:-:|------|
+| Porosity | ✓ | 부피 지표 — E_eff로 전체 변형량 매칭 |
+| CN, Percolation | ✓ | 위상 지표 — packing geometry에 의존 |
+| Tortuosity | ✓ | 경로 지표 — 위상에 의존 |
+| Coverage | △ | 접촉 면적 — 구-구 공식 한계 |
+| σ_ionic (절대값) | △ | Coverage 의존 → 상대적 경향만 신뢰 |
+| Contact Pressure | △ | 접촉 면적 과소 → 압력 과대 |
+
+**논문 표현:**
+> "The DEM model with calibrated effective Young's modulus (E_eff = 1.35 GPa) reproduces experimental porosity (~10% for SE-only pellet at 300 MPa, Doux et al. 2020). While the spherical overlap approximation inherently underestimates contact areas compared to actual plastic deformation and partial sintering of sulfide SE (Alabdali et al. 2022), the relative trends in ionic conductivity, coverage, and coordination number across different compositions remain physically valid. This calibration approach follows the established DEM methodology where effective parameters capture bulk-level response rather than individual contact mechanics (Coetzee 2017)."
+
+---
+
 *Database compiled for DEM-Based ASSB Composite Cathode Analysis*
 *Last updated: 2026-04-14*

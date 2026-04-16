@@ -78,6 +78,8 @@
     <input type="hidden" name="case_groups" id="case-groups-json" value="[]">
     <div style="display:flex;gap:8px;align-items:center">
       <button type="submit" class="btn btn-primary">비교하기</button>
+      <button type="button" class="btn btn-secondary" onclick="selectAllCases()">전체 선택</button>
+      <button type="button" class="btn btn-secondary" onclick="deselectAllCases()">전체 해제</button>
       <button type="button" class="btn btn-secondary" onclick="resetAllInputSelections()">입력 파일 초기화</button>
     </div>
   </form>
@@ -497,6 +499,29 @@ function renderPlotGroupSelector() {
     pg.caseGroupIdxs = pg.caseGroupIdxs.filter(i => i < caseGroups.length && caseGroups[i].cases.length > 0);
   });
   renderPlotGroups();
+}
+
+function selectAllCases() {
+  // 현재 보이는 소스 패널(dashboard/archive)의 모든 케이스를 active group에 추가
+  const activePanel = document.querySelector('.source-panel.active');
+  if (!activePanel) return;
+  activePanel.querySelectorAll('.case-checkbox').forEach(el => {
+    const cid = el.querySelector('input[name="cases"]').value;
+    // 이미 어떤 그룹에든 있으면 skip
+    const alreadyIn = caseGroups.some(g => g.cases.includes(cid));
+    if (!alreadyIn) {
+      caseGroups[activeGroupIdx].cases.push(cid);
+    }
+  });
+  updateCaseDisplay();
+  saveCaseGroupsToStorage();
+}
+
+function deselectAllCases() {
+  // active group의 케이스만 전부 해제
+  caseGroups[activeGroupIdx].cases = [];
+  updateCaseDisplay();
+  saveCaseGroupsToStorage();
 }
 
 function resetAllInputSelections() {

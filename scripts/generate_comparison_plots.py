@@ -1588,17 +1588,13 @@ def plot_electronic_scaling(data_list, names, outdir):
 
         _tk = _ratio >= 10; _tn = _ratio < 10
         if _tk.sum() >= 3:
-            _rhs_tk = SIGMA_AM * _pa[_tk]**4 * _cn[_tk]**1.5 * _cov[_tk] * _tau[_tk]**0.5
+            # Thick: φ² × CN² × √cov / √por
+            _rhs_tk = SIGMA_AM * _pa[_tk]**2 * _cn[_tk]**2 * _cov[_tk]**0.5 / _por[_tk]**0.5
             C_thick = float(np.exp(np.mean(np.log(_s[_tk]) - np.log(_rhs_tk))))
         if _tn.sum() >= 3:
-            _ep = np.array([r['ep'] for r in _unique])[_tn]
-            _por_tn = np.array([r['por'] for r in _unique])[_tn]
-            _cov_tn = np.array([r['cov'] for r in _unique])[_tn]
-            _ps_tn = np.array([r['ps'] for r in _unique])[_tn]
             _delta_tn = np.array([r['delta'] for r in _unique])[_tn]
-            _hop_tn = np.array([r['hop'] for r in _unique])[_tn]
-            # hop^0.25 × CN^0.4 × δ^0.2 × f_p^0.15 / (φ_SE^0.85 × √ξ)
-            _rhs_tn = SIGMA_AM * _hop_tn**0.25 * _cn[_tn]**0.4 * _delta_tn**0.2 * _ep**0.15 / (_ps_tn**0.85 * _ratio[_tn]**0.5)
+            # Thin: CN × δ^0.5 / √(T/d)
+            _rhs_tn = SIGMA_AM * _cn[_tn] * _delta_tn**0.5 / _ratio[_tn]**0.5
             C_thin = float(np.exp(np.mean(np.log(_s[_tn]) - np.log(_rhs_tn))))
 
     # Compute predictions per case
@@ -1607,15 +1603,14 @@ def plot_electronic_scaling(data_list, names, outdir):
         if phi_am[i] > 0 and cn_am[i] > 0 and d_am_list[i] > 0 and thickness[i] > 0:
             ratio_i = thickness[i] / d_am_list[i]
             if ratio_i >= 10:
-                # THICK: φ⁴ × CN^(3/2) × cov × √τ
-                s = C_thick * SIGMA_AM * phi_am[i]**4 * cn_am[i]**1.5 * cov_list[i] * tau[i]**0.5
+                # THICK: φ² × CN² × √cov / √por
+                s = C_thick * SIGMA_AM * phi_am[i]**2 * cn_am[i]**2 * cov_list[i]**0.5 / porosity[i]**0.5
             else:
-                # THIN: √f_p × CN × por × √cov / √(T/d)
-                if el_perc[i] >= 0.65:
-                    # hop^0.25 × CN^0.4 × δ^0.2 × f_p^0.15 / (φ_SE^0.85 × √ξ)
-                    s = C_thin * SIGMA_AM * am_hop[i]**0.25 * cn_am[i]**0.4 * am_delta[i]**0.2 * el_perc[i]**0.15 / (phi_se[i]**0.85 * ratio_i**0.5)
+                # THIN: CN × δ^0.5 / √(T/d)
+                if el_perc[i] >= 0.50:
+                    s = C_thin * SIGMA_AM * cn_am[i] * am_delta[i]**0.5 / ratio_i**0.5
                 else:
-                    s = 0.0  # percolation 미달 → 예측 불가
+                    s = 0.0
             sigma_scaling.append(s)
         else:
             sigma_scaling.append(0.0)
@@ -1665,8 +1660,8 @@ def plot_electronic_scaling(data_list, names, outdir):
     # Formula box with thick/thin R²
     tk_str = f"R²={r2_tk:.3f}(n={tk_v.sum()})" if hasattr(tk_v, 'sum') and tk_v.sum() >= 3 else ""
     tn_str = f"R²={r2_tn:.3f}(n={tn_v.sum()})" if hasattr(tn_v, 'sum') and tn_v.sum() >= 3 else ""
-    txt = (f"Thick: φ⁴×CN^(3/2)×cov×√τ {tk_str}\n"
-           f"Thin: hop^0.25×CN^0.4×δ^0.2×f_p^0.15/(φ_SE^0.85×√ξ) {tn_str}\n"
+    txt = (f"Thick: φ²×CN²×√cov/√por {tk_str}\n"
+           f"Thin: CN×√δ/√(T/d) {tn_str}\n"
            f"ALL R²={r2:.3f}, |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
     ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',
             bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffeaea', alpha=0.8))
@@ -2570,7 +2565,7 @@ PLOT_REGISTRY["electronic_scaling"] = {
     "func": plot_electronic_scaling,
     "file": "electronic_scaling.png",
     "title": "Electronic: 2-Regime Scaling Law",
-    "description": "Thick (T/d≥10): σ = C × σ_AM × φ⁴ × CN^(3/2) × cov × √τ\n  R²≈0.97, topology 지배\n\nThin (T/d<10): σ = C × σ_AM × f_p × CN^(5/4) × por × √cov / √ξ\n  f_p = electronic percolating fraction\n  R²≈0.94 (percolating), topology+percolation\n\nC: thick/thin 별도 global fit",
+    "description": "Thick (T/d≥10): σ = C × σ_AM × φ² × CN² × √cov / √por\n  φ: AM vol fraction, CN: AM-AM coordination\n\nThin (T/d<10): σ = C × σ_AM × CN × √δ / √(T/d)\n  δ: AM-AM penetration depth, T/d: thickness ratio\n\nC: thick/thin 별도 global fit (parameter sweep 최적화)",
     "origin_tip": "Red: Scaling law, Green dashed: Network solver (ground truth).",
 }
 PLOT_REGISTRY["thermal_scaling"] = {

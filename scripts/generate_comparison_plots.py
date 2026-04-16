@@ -1536,16 +1536,19 @@ def plot_electronic_scaling(data_list, names, outdir):
 
     # --- Fit C globally on ALL electronic data (thick/thin separate) ---
     import glob as _glob
+    import hashlib as _hashlib
     _webapp = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'webapp')
     _all = []
-    _archive_dir = os.path.join(_webapp, 'archive')
-    _has_archive = os.path.isdir(_archive_dir) and any(True for _ in _glob.glob(os.path.join(_archive_dir, '**', 'full_metrics.json'), recursive=True))
-    _search_dirs = [_archive_dir] if _has_archive else [os.path.join(_webapp, 'results')]
-    for _base in _search_dirs:
+    _seen_hashes = set()
+    for _base in [os.path.join(_webapp, 'archive'), os.path.join(_webapp, 'results')]:
         if not os.path.isdir(_base): continue
         for _mp in sorted(_glob.glob(os.path.join(_base, '**', 'full_metrics.json'), recursive=True)):
             try:
-                with open(_mp) as _f: _m = json.load(_f)
+                _raw = open(_mp, 'rb').read()
+                _h = _hashlib.md5(_raw).hexdigest()
+                if _h in _seen_hashes: continue
+                _seen_hashes.add(_h)
+                _m = json.loads(_raw)
             except: continue
             _sel = _m.get('electronic_sigma_full_mScm', 0)
             if not _sel or _sel < 0.001: continue
@@ -1569,10 +1572,8 @@ def plot_electronic_scaling(data_list, names, outdir):
             _ea = max(_m.get('electronic_active_fraction', 0), 0.01)
             _all.append({'s': _sel, 'pa': _pa, 'cn': _cn, 'tau': _tau, 'cov': _cov,
                          'delta': _delta, 'area': _area, 'hop': _hop, 'ratio': _ratio,
-                         'por': _por, 'ps': _ps, 'ep': _ep, 'gc': _gc, 'ea': _ea, 'k': _k})
-    _seen = set(); _unique = []
-    for _r in _all:
-        if _r['k'] not in _seen: _seen.add(_r['k']); _unique.append(_r)
+                         'por': _por, 'ps': _ps, 'ep': _ep, 'gc': _gc, 'ea': _ea})
+    _unique = _all  # dedup already done by file hash
 
     # Fit C_thick and C_thin separately
     C_thick = 1.0; C_thin = 1.0

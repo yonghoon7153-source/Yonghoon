@@ -1538,7 +1538,8 @@ def plot_electronic_scaling(data_list, names, outdir):
     import glob as _glob
     _webapp = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'webapp')
     _all = []
-    for _base in [os.path.join(_webapp, 'results'), os.path.join(_webapp, 'archive')]:
+    _seen_files = set()
+    for _base in [os.path.join(_webapp, 'archive'), os.path.join(_webapp, 'results')]:
         if not os.path.isdir(_base): continue
         for _mp in sorted(_glob.glob(os.path.join(_base, '**', 'full_metrics.json'), recursive=True)):
             try:
@@ -1558,7 +1559,7 @@ def plot_electronic_scaling(data_list, names, outdir):
             _T = _m.get('thickness_um', 0)
             if _pa <= 0 or _cn <= 0 or _T <= 0 or _dam <= 0: continue
             _ratio = _T / _dam
-            _k = f"{_T:.1f}_{_dam:.1f}_{_sel:.2f}_{_pa:.3f}_{_cn:.2f}"
+            _k = f"{round(_sel,1)}_{round(_pa,2)}_{round(_cn,1)}_{round(_T,0)}"
             _por = max(_m.get('porosity', 10), 0.1)
             _ps = max(_m.get('phi_se', 0.2), 0.01)
             _ep = max(_m.get('electronic_percolating_fraction', 0), 0.01)

@@ -308,7 +308,11 @@ def solve_network(network_data, mode='full'):
         if n_nodes > 200000:
             # Large network: use iterative CG solver (memory-efficient)
             print(f"  Using iterative CG solver ({n_nodes} nodes)...")
-            V, info = cg(L_csr, b, tol=1e-8, maxiter=5000)
+            try:
+                V, info = cg(L_csr, b, tol=1e-8, maxiter=5000)
+            except TypeError:
+                # older scipy: tol → atol
+                V, info = cg(L_csr, b, atol=1e-8, maxiter=5000)
             if info != 0:
                 print(f"  CG solver warning: info={info} (0=success, >0=not converged, <0=error)")
         else:

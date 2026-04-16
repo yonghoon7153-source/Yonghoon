@@ -1538,8 +1538,10 @@ def plot_electronic_scaling(data_list, names, outdir):
     import glob as _glob
     _webapp = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'webapp')
     _all = []
-    _seen_files = set()
-    for _base in [os.path.join(_webapp, 'archive'), os.path.join(_webapp, 'results')]:
+    _archive_dir = os.path.join(_webapp, 'archive')
+    _has_archive = os.path.isdir(_archive_dir) and any(True for _ in _glob.glob(os.path.join(_archive_dir, '**', 'full_metrics.json'), recursive=True))
+    _search_dirs = [_archive_dir] if _has_archive else [os.path.join(_webapp, 'results')]
+    for _base in _search_dirs:
         if not os.path.isdir(_base): continue
         for _mp in sorted(_glob.glob(os.path.join(_base, '**', 'full_metrics.json'), recursive=True)):
             try:

@@ -89,8 +89,11 @@
 <!-- Comparison Results -->
 {% if comparison and comparison.tables %}
 <div class="card">
-  <h3>비교 결과</h3>
-  <div class="table-scroll">
+  <div class="card-header-row" style="cursor:pointer" onclick="toggleComparisonTable()">
+    <h3>비교 결과</h3>
+    <button class="btn btn-sm" id="comparison-toggle-btn" style="font-size:11px">접기 ▲</button>
+  </div>
+  <div id="comparison-table-body" class="table-scroll">
     {% for tbl in comparison.tables %}
     {% if tbl.name %}<div class="group-table-label" style="border-left:4px solid {{ tbl.color }};padding:6px 12px;margin:{{ '20px' if not loop.first else '0' }} 0 8px;font-weight:700;font-size:.9rem;color:{{ tbl.color }};position:sticky;left:0;width:fit-content">{{ tbl.name }}</div>{% endif %}
     <table class="data-table compact group-table">
@@ -499,6 +502,18 @@ function renderPlotGroupSelector() {
     pg.caseGroupIdxs = pg.caseGroupIdxs.filter(i => i < caseGroups.length && caseGroups[i].cases.length > 0);
   });
   renderPlotGroups();
+}
+
+function toggleComparisonTable() {
+  const body = document.getElementById('comparison-table-body');
+  const btn = document.getElementById('comparison-toggle-btn');
+  if (body.style.display === 'none') {
+    body.style.display = '';
+    btn.textContent = '접기 ▲';
+  } else {
+    body.style.display = 'none';
+    btn.textContent = '펼치기 ▼';
+  }
 }
 
 function selectAllCases() {

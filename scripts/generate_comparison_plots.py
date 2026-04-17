@@ -1548,9 +1548,9 @@ def plot_electronic_scaling(data_list, names, outdir):
     for r in _unique:
         _m2 = json.load(open(os.path.join(r['path'], 'full_metrics.json')))
         _nP = _m2.get('n_AM_P', 0); _nS = _m2.get('n_AM_S', 0)
-        _nT = max(_nP + _nS, 1)
-        _fP = _nP / _nT
-        r['mixing'] = 4 * _fP * (1 - _fP)
+        _rP = max(_m2.get('r_AM_P', 0), 0.1); _rS = max(_m2.get('r_AM_S', 0), 0.1)
+        _vP = _nP * _rP**3; _vS = _nS * _rS**3; _vT = max(_vP + _vS, 0.001)
+        r['fP_vol'] = _vP / _vT  # volume fraction of large AM (= P:S ratio)
 
     C_thick = 1.0; C_thin = 1.0
     # Thick interaction coefficients (default, overridden by OLS below)
@@ -1562,7 +1562,7 @@ def plot_electronic_scaling(data_list, names, outdir):
         _por = np.array([r['por'] for r in _unique])
         _delta = np.array([r['delta'] for r in _unique])
         _pa = np.array([r['phi_am'] for r in _unique])
-        _mix = np.array([r['mixing'] for r in _unique])
+        _mix = np.array([r['fP_vol'] for r in _unique])
 
         _tk = _ratio >= 8; _tn = _ratio < 8
         if _tk.sum() >= 5:
@@ -1592,7 +1592,7 @@ def plot_electronic_scaling(data_list, names, outdir):
             _cn_g = np.log(np.array([r['cn'] for r in _unique])[_tk_mask])
             _phi_g = np.log(np.clip(np.array([r['phi_am'] for r in _unique])[_tk_mask] - 0.15, 0.001, None))
             _por_g = np.log(np.array([r['por'] for r in _unique])[_tk_mask])
-            _mix_g = np.array([r['mixing'] for r in _unique])[_tk_mask]
+            _mix_g = np.array([r['fP_vol'] for r in _unique])[_tk_mask]
             _X_g = np.column_stack([_cn_g, _mix_g*_cn_g, _phi_g, _mix_g*_phi_g, _por_g, _mix_g*_por_g, np.ones(_tk_mask.sum())])
             _log_pred_tk = _X_g @ _tk_coefs
             _pred_tk = np.exp(_log_pred_tk)
@@ -1614,12 +1614,13 @@ def plot_electronic_scaling(data_list, names, outdir):
             r2_global_tn = 1 - _ss_res / _ss_tot if _ss_tot > 0 else 0
             n_global_tn = int(_tn_perc.sum())
 
-    # Compute per-case mixing parameter
-    case_mixing = []
+    # Compute per-case fP_vol (volume fraction of large AM)
+    case_fP_vol = []
     for d in data_list:
         _nP = _get(d, "n_AM_P", 0) or 0; _nS = _get(d, "n_AM_S", 0) or 0
-        _nT = max(_nP + _nS, 1); _fP = _nP / _nT
-        case_mixing.append(4 * _fP * (1 - _fP))
+        _rP = max(_get(d, "r_AM_P", 0) or 0, 0.1); _rS = max(_get(d, "r_AM_S", 0) or 0, 0.1)
+        _vP = _nP * _rP**3; _vS = _nS * _rS**3; _vT = max(_vP + _vS, 0.001)
+        case_fP_vol.append(_vP / _vT)
 
     # Compute predictions per case
     sigma_scaling = []
@@ -1628,7 +1629,7 @@ def plot_electronic_scaling(data_list, names, outdir):
             ratio_i = thickness[i] / d_am_list[i]
             if ratio_i >= 8:
                 # THICK: Interaction model — CN^(a+b×mix) × (φ-φc)^(c+d×mix) × por^(e+f×mix)
-                _m_i = case_mixing[i]
+                _m_i = case_fP_vol[i]
                 _x_i = np.array([np.log(cn_am[i]), _m_i*np.log(cn_am[i]),
                                  np.log(max(phi_am[i]-0.15, 0.001)), _m_i*np.log(max(phi_am[i]-0.15, 0.001)),
                                  np.log(porosity[i]), _m_i*np.log(porosity[i]), 1.0])
@@ -1680,7 +1681,7 @@ def plot_electronic_scaling(data_list, names, outdir):
                  fontsize=9, fontweight='bold')
 
     # Formula box with global R²
-    txt = (f"Thick: CN^(a+b×mix)×(φ-φc)^(c+d×mix)/por^(e+f×mix) R²={r2_global_tk:.3f}(n={n_global_tk})\n"
+    txt = (f"Thick: CN^(a+b×fP)×(φ-φc)^(c+d×fP)/por^(e+f×fP) R²={r2_global_tk:.3f}(n={n_global_tk})\n"
            f"Thin: CN×√δ/√(T/d) R²={r2_global_tn:.3f}(n={n_global_tn})\n"
            f"Group |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
     ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',

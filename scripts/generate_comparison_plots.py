@@ -1590,8 +1590,8 @@ def plot_electronic_scaling(data_list, names, outdir):
             # Thick: CN^1.5 × G_holm^0.25 × (φ-φc)² / por^0.35 × exp(-0.05×logCN×logG_h)
             _phi_ex_tk = np.clip(_pa[_tk] - 0.15, 0.001, None)
             _log_cn_tk = np.log(_cn[_tk]); _log_gh_tk = np.log(_gh[_tk])
-            _gt_tk = np.clip(np.array([r.get('g_total', r['cn']) for r in _unique])[_tk], 0.01, None)
-            _rhs_tk = SIGMA_AM * _cn[_tk]**1.5 * _gh[_tk]**0.3 * _gt_tk**0.05 * _phi_ex_tk**1.75 / _por[_tk]**0.4 * np.exp(-0.08 * _log_cn_tk * _log_gh_tk)
+            _log_phi_tk = np.log(_phi_ex_tk)
+            _rhs_tk = SIGMA_AM * _cn[_tk]**1.5 * _gh[_tk]**0.3 * _phi_ex_tk**1.75 / _por[_tk]**0.4 * np.exp(0.1*_log_cn_tk*_log_phi_tk - 0.1*_log_gh_tk**2)
             C_thick = float(np.exp(np.mean(np.log(_s[_tk]) - np.log(_rhs_tk))))
         if _tn.sum() >= 3:
             _delta_tn = _delta[_tn]
@@ -1611,8 +1611,9 @@ def plot_electronic_scaling(data_list, names, outdir):
             _phi_ex_g = np.clip(_pa_g - 0.15, 0.001, None)
             _por_g = np.array([r['por'] for r in _unique])[_tk_mask]
             _gh_g = np.array([r.get('g_holm', r['cn']) for r in _unique])[_tk_mask]
-            _gt_g = np.clip(np.array([r.get('g_total', r['cn']) for r in _unique])[_tk_mask], 0.01, None)
-            _pred_tk = C_thick * SIGMA_AM * np.exp(_cn_g)**1.5 * _gh_g**0.3 * _gt_g**0.05 * _phi_ex_g**1.75 / _por_g**0.4 * np.exp(-0.08 * _cn_g * np.log(_gh_g))
+            _log_phi_g = np.log(_phi_ex_g)
+            _log_gh_g = np.log(_gh_g)
+            _pred_tk = C_thick * SIGMA_AM * np.exp(_cn_g)**1.5 * _gh_g**0.3 * _phi_ex_g**1.75 / _por_g**0.4 * np.exp(0.1*_cn_g*_log_phi_g - 0.1*_log_gh_g**2)
             _log_a = np.log(_s_all[_tk_mask]); _log_p = np.log(_pred_tk)
             _ss_res = np.sum((_log_a - _log_p)**2); _ss_tot = np.sum((_log_a - np.mean(_log_a))**2)
             r2_global_tk = 1 - _ss_res / _ss_tot if _ss_tot > 0 else 0
@@ -1657,9 +1658,9 @@ def plot_electronic_scaling(data_list, names, outdir):
                 # THICK: CN^1.5 × G_holm^0.25 × (φ-φc)² / por^0.35
                 phi_ex_i = max(phi_am[i] - 0.15, 0.001)
                 _gh_i = max(case_g_holm[i], 0.01)
-                _gt_i = max(case_g_total[i], 0.01)
-                _interaction = np.exp(-0.08 * np.log(cn_am[i]) * np.log(_gh_i))
-                s = C_thick * SIGMA_AM * cn_am[i]**1.5 * _gh_i**0.3 * _gt_i**0.05 * phi_ex_i**1.75 / porosity[i]**0.4 * _interaction
+                _log_cn_i = np.log(cn_am[i]); _log_gh_i = np.log(_gh_i); _log_phi_i = np.log(phi_ex_i)
+                _correction = np.exp(0.1*_log_cn_i*_log_phi_i - 0.1*_log_gh_i**2)
+                s = C_thick * SIGMA_AM * cn_am[i]**1.5 * _gh_i**0.3 * phi_ex_i**1.75 / porosity[i]**0.4 * _correction
             else:
                 # THIN: CN × δ^0.5 / √(T/d)
                 if el_perc[i] >= 0.50:

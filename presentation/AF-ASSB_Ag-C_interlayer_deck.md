@@ -195,35 +195,40 @@ PVDF(NMP) + PVP + Carbon + AgNO₃ → **Mixing → Slurry casting → Drying**
 
 <div class="small">
 
-| 권역 | 대표 | 파일럿 | 양산 | 키 포인트 |
+| 권역 | 대표 | 파일럿 (시점·규모) | 양산 | 정량 스펙 |
 |---|---|---|---|---|
-| 🇰🇷 | **Samsung SDI** | 수원 S-Line ('23) | **2027** (세계 최초 목표) | 황화물, 900 Wh/L, BMW 검증 |
-| 🇰🇷 | **LG ES** | 청주 건식 파일럿 (Q4) | 폴리머 '26 / 황화물 **'30** | 건식 전극 선행 |
-| 🇰🇷 | **SK On** | 대전 ('25.9) | **'29** (1년 단축) | WIP-free 공정, Solid Power 협력 |
-| 🇰🇷 | **Hyundai** | 의왕 ('25.3) | **'30** | "Dream Battery" |
-| 🇯🇵 | **Toyota** | Idemitsu 공동 | **'27–28 BEV** | 1,000 km, 10분 충전 |
-| 🇯🇵 | **Nissan** | 요코하마 ('25.1) | **'28 FY** | 800 Wh/L, $75→$65/kWh |
-| 🇯🇵 | **Honda** | 사쿠라시 27,400 m² | 20년대 후반 | ¥430억, 전공정 |
-| 🇺🇸 | **QuantumScape / Factorial** | Eagle Line / FEST | '26 샘플 / 데모 | 375 Wh/kg, EQS 1,205 km |
-| 🇨🇳 | **CATL / BYD / WeLion** | 소량 시범 | '27 소량 / **'30 주류** | Semi → Full solid |
+| 🇰🇷 | **Samsung SDI** | 수원 S-Line **6,500 m²** ('23~) | **2027** (세계 최초 목표) | **900 Wh/L** (각형 대비 +40%), 황화물, BMW 검증 |
+| 🇰🇷 | **LG ES** | 청주 건식 파일럿 (Q4 완성) | 폴리머 **'26** / 황화물 **'30** (Li-S '27, Li-metal '28) | 균질 전해질로 성능 +50% |
+| 🇰🇷 | **SK On** | 대전 ('25.9 완공) | **'29** (1년 단축) | **800 → 1,000 Wh/L** 목표, WIP-free 공정 |
+| 🇰🇷 | **Hyundai** | 의왕 ('25.3 가동) | **'30** | "Dream Battery", 프로토 EV '25말 |
+| 🇯🇵 | **Toyota** | Idemitsu 공동 대형 파일럿 | **'27–28 BEV 시판** | **1,000 km 주행 / 10–80% 10분 충전 / +20–50% 주행거리** |
+| 🇯🇵 | **Nissan** | 요코하마 ('25.1 가동) | **'28 FY** | **800 Wh/L** (LIB ×2), **$75→$65/kWh** ('28→가솔린 동등) |
+| 🇯🇵 | **Honda** | 사쿠라시 **27,400 m²**, **¥430억** 투자 ('25.1) | 20년대 후반 | 칭량·코팅·압연·셀·모듈 전공정 |
+| 🇺🇸 | **QuantumScape** | Eagle Line ('26.2.4 가동) | '26 샘플 → 라이선스 (PowerCo) | **QSE-5 (5 Ah)**, Cobra 공정 |
+| 🇺🇸 | **Factorial** | FEST 77 Ah 셀 ('25, Stellantis) | '26 데모 (Stellantis·MB) | **375 Wh/kg, 600 cycles, 15→90% 18분, –30~45 °C, EQS 1,205 km** |
+| 🇨🇳 | **CATL / BYD** | 소량 시범 | '27 소량 / **'30 주류** | Condensed **500 Wh/kg** + 황화물 ASSB |
+| 🇨🇳 | **WeLion (NIO)** | Semi-solid 150 kWh 팩 양산 中 | **'26말 SSB 양산 목표** | Full-solid **100+ GWh** 계획 |
 
 </div>
 
-- **한국 3사 + 현대가 AF 방향으로 공통 진입** → **interlayer 전략의 수요처**
-- 학술 돌파: KIST/UNIST (2026.1) — AF 1,500 cycle 75% retention (Korea가 선도)
+- **한국 3사 + 현대가 AF 방향으로 공통 진입** → interlayer 전략의 수요처
+- 학술 돌파: **KIST/UNIST (2026.1) — AF 1,500 cycle, 75% retention** (Korea가 선도)
 
 ---
 
 ## 10. 비용·공정 트렌드와 본 연구의 접점
 
-| 산업 이슈 | 현재 상황 | 본 연구의 기여 |
+| 산업 이슈 | 정량 현재 상황 | 본 연구 기여 |
 |---|---|---|
-| **팩 단가** | $108/kWh ('25, BNEF) → Nissan 목표 $65/kWh | **Ag 15 wt% 저로딩** (통상 30–50 wt%의 절반 이하) |
-| **현 ASSB 비용** | LIB 대비 **3–5×** ($400–800/kWh, IDTechEx 2026) | 원가 민감도 완화 방향 |
-| **건식/Simple 공정** | LG ES 17–30% 원가↓, 4680D, Tesla 4680 | **Slurry-casting 1-step** → 이식 가능 |
-| **황화물 SE 공급** | POSCO 7,200톤 / Lotte 1,200톤 (2027) | 공급 ramp와 시점 정렬 |
-| **Li 핵형성 균질화** | ACS Energy Lett. 2025가 꼽은 #1 장벽 | **Part A가 직접 해결** |
-| **한국 AF 선도** | KIST/UNIST 1,500 cyc | interlayer 차원의 보완적 전략 |
+| **LIB 팩 단가** | **$108/kWh ('25, –8% YoY) → $105 ('26E, BNEF)** | — |
+| **ASSB 팩 비용** | LIB 대비 **3–5×** = **$400–800/kWh** (IDTechEx 2026) · 누적 투자 **$8B+** | Ag 15 wt% 저로딩으로 격차 ↓ |
+| **OEM 비용 목표** | Nissan **$75/kWh ('28) → $65/kWh** (가솔린 동등) | 슬러리 1-step → CapEx ↓ |
+| **에너지밀도 목표** | Samsung 900 Wh/L · SK 1,000 Wh/L · Nissan 800 Wh/L · Factorial 375 Wh/kg · CATL 500 Wh/kg | 무음극 전제 — 본 연구가 그 안정성 확보 |
+| **건식/단순 공정** | LG ES **원가 17–30% ↓**, Tesla 4680D | **Slurry-casting 1-step** 이식 가능 |
+| **황화물 SE 공급** | POSCO **24→7,200톤/년** · Lotte 익산 **70→1,200톤 ('26) → '27 본양산** · Idemitsu 대형 파일럿 | 공급 ramp 시점 정렬 |
+| **Li 핵형성 균질화** | ACS Energy Lett. 2025가 꼽은 **#1 장벽** | **Part A가 직접 해결** (250 cyc @ 15 wt%) |
+| **Stack pressure** | 1→20 MPa: 부피팽창 –41.8%, contact loss –94% (Discover Electrochem. 2026) | 균일 계면 → 저스택압 잠재력 |
+| **한국 AF 선도** | KIST/UNIST **1,500 cyc / 75% retention** | interlayer 차원 보완 전략 |
 
 ---
 

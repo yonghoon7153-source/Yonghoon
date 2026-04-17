@@ -1070,7 +1070,8 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     tau_arr = np.array([tau[i] for i in valid_idx])
     cov_arr = np.array([coverage[i] for i in valid_idx])
 
-    log_rhs_formX = np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + 1.5*np.log(cn_arr) + 0.25*np.log(cov_arr) - 0.25*np.log(tau_arr) - 0.1*np.log(cn_arr)*np.log(tau_arr)
+    # FORM X v3: CN^2 × (φ-φc)^¾ × cov^¼ + CN²=-¼ + φ×τ=+¼
+    log_rhs_formX = np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + 2.0*np.log(cn_arr) + 0.25*np.log(cov_arr) - 0.25*np.log(cn_arr)**2 + 0.25*np.log(phi_ex_arr)*np.log(tau_arr)
     ln_C_formX = np.mean(log_sf - log_rhs_formX)
     C_formX = np.exp(ln_C_formX)
     pred_formX = ln_C_formX + log_rhs_formX
@@ -1263,7 +1264,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
     for i in range(len(data_list)):
         phi_ex = max(phi_se[i] - PHI_C, 0.001)
         if cn[i] > 0 and tau[i] > 0 and coverage[i] > 0:
-            s = C_ms * SIGMA_BULK * phi_ex**0.75 * cn[i]**1.5 * coverage[i]**0.25 / tau[i]**0.25 * np.exp(-0.1*np.log(cn[i])*np.log(tau[i]))
+            s = C_ms * SIGMA_BULK * phi_ex**0.75 * cn[i]**2.0 * coverage[i]**0.25 * np.exp(-0.25*np.log(cn[i])**2 + 0.25*np.log(phi_ex)*np.log(tau[i]))
             sigma_ms.append(s)
         else:
             sigma_ms.append(0)
@@ -1287,7 +1288,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     _apply_style(ax, "σ_ionic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
-    ax.set_title(f"FORM X v2: {C_ms:.4f} × σ_grain × (φ−φc)^¾ × CN^1.5 × cov^¼ / τ^¼\n× exp(-0.1·lnCN·lnτ)",
+    ax.set_title(f"FORM X v3: {C_ms:.4f} × σ_grain × CN^(2−¼lnCN) × (φ−φc)^(¾+¼lnτ) × cov^¼",
                  fontsize=8, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',
@@ -2927,7 +2928,7 @@ def main():
                 _valid = (_phi_se > PHI_C+0.01) & (_cn_se > 0) & (_tau_se > 0) & (_cov_se > 0) & (_snet > 0.01) & (_gb > 0) & (_gp > 0)
                 if _valid.sum() >= 5:
                     _phi_ex = np.clip(_phi_se[_valid] - PHI_C, 0.001, None)
-                    _log_rhs = np.log(SGRAIN) + 0.75*np.log(_phi_ex) + np.log(_cn_se[_valid]) + 0.5*np.log(_cov_se[_valid]) - 0.5*np.log(_tau_se[_valid])
+                    _log_rhs = np.log(SGRAIN) + 0.75*np.log(_phi_ex) + 2.0*np.log(_cn_se[_valid]) + 0.25*np.log(_cov_se[_valid]) - 0.25*np.log(_cn_se[_valid])**2 + 0.25*np.log(_phi_ex)*np.log(_tau_se[_valid])
                     _log_s = np.log(_snet[_valid])
                     _lnC = np.mean(_log_s - _log_rhs)
                     _ss_res = np.sum((_log_s - _lnC - _log_rhs)**2)

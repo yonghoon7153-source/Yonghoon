@@ -1553,18 +1553,23 @@ def plot_electronic_scaling(data_list, names, outdir):
         r['fP_vol'] = _vP / _vT
         r['mix'] = 4 * r['fP_vol'] * (1 - r['fP_vol'])  # symmetric: 0=mono, 1=50:50
 
-    # Load bimodal info + w_area for each case
+    # Load contact info + G_holm for each case
     for r in _unique:
         _m2 = json.load(open(os.path.join(r['path'], 'full_metrics.json')))
         _nP = _m2.get('n_AM_P', 0); _nS = _m2.get('n_AM_S', 0)
         _rP = max(_m2.get('r_AM_P', 0), 0.1); _rS = max(_m2.get('r_AM_S', 0), 0.1)
         _vP = _nP * _rP**3; _vS = _nS * _rS**3; _vT = max(_vP + _vS, 0.001)
         r['fP_vol'] = _vP / _vT
-        _is_bimo = _nP > 0 and _nS > 0
-        _pp = _m2.get('area_AM_P_AM_P_mean', 0) or 0
-        _ps_a = _m2.get('area_AM_P_AM_S_mean', 0) or 0
-        _ss = _m2.get('area_AM_S_AM_S_mean', 0) or 0
-        r['w_area'] = (r['fP_vol']*_pp + (1-r['fP_vol'])*_ss + 0.5*_ps_a) if (_is_bimo and (_pp > 0 or _ss > 0)) else 1.0
+        # G_holm: Holm conductance-weighted CN
+        _n_pp = _m2.get('area_AM_P_AM_P_n', 0) or 0
+        _n_ps = _m2.get('area_AM_P_AM_S_n', 0) or 0
+        _n_ss = _m2.get('area_AM_S_AM_S_n', 0) or 0
+        _a_pp = _m2.get('area_AM_P_AM_P_mean', 0) or 0
+        _a_ps = _m2.get('area_AM_P_AM_S_mean', 0) or 0
+        _a_ss = _m2.get('area_AM_S_AM_S_mean', 0) or 0
+        _nAM = max(_nP + _nS, 1)
+        _th = _n_pp*np.sqrt(max(_a_pp,0.001)) + _n_ps*np.sqrt(max(_a_ps,0.001)) + _n_ss*np.sqrt(max(_a_ss,0.001))
+        r['g_holm'] = max(_th / _nAM, 0.01) if _th > 0 else r['cn']
 
     C_thick = 1.0; C_thin = 1.0
     if len(_unique) >= 5:
@@ -1574,19 +1579,13 @@ def plot_electronic_scaling(data_list, names, outdir):
         _por = np.array([r['por'] for r in _unique])
         _delta = np.array([r['delta'] for r in _unique])
         _pa = np.array([r['phi_am'] for r in _unique])
-        _fPv = np.array([r.get('fP_vol', 0) for r in _unique])
-        _mix = np.array([r.get('mix', 0) for r in _unique])
-        _wa = np.array([r.get('w_area', 1.0) for r in _unique])
+        _gh = np.array([r.get('g_holm', r['cn']) for r in _unique])
 
         _tk = _ratio >= 8; _tn = _ratio < 8
         if _tk.sum() >= 3:
-            # Thick: CN^(2-0.3M) × w_area^(0.1Ψ) × (φ-φc)² / por^(0.4-0.15M)
-            # M = 4Ψ(1-Ψ): symmetric mixing (0=mono, 1=50:50)
+            # Thick: CN^1.5 × G_holm^0.25 × (φ-φc)² / por^0.35
             _phi_ex_tk = np.clip(_pa[_tk] - 0.10, 0.001, None)
-            _mix_tk = _mix[_tk]
-            _psi_tk = _fPv[_tk]
-            _wa_tk = np.clip(_wa[_tk], 0.01, None)
-            _rhs_tk = SIGMA_AM * _cn[_tk]**(2-0.3*_mix_tk) * _wa_tk**(0.1*_psi_tk) * _phi_ex_tk**2 / _por[_tk]**(0.4-0.15*_mix_tk)
+            _rhs_tk = SIGMA_AM * _cn[_tk]**1.5 * _gh[_tk]**0.25 * _phi_ex_tk**2 / _por[_tk]**0.35
             C_thick = float(np.exp(np.mean(np.log(_s[_tk]) - np.log(_rhs_tk))))
         if _tn.sum() >= 3:
             _delta_tn = _delta[_tn]
@@ -1605,10 +1604,8 @@ def plot_electronic_scaling(data_list, names, outdir):
             _pa_g = np.array([r['phi_am'] for r in _unique])[_tk_mask]
             _phi_ex_g = np.clip(_pa_g - 0.10, 0.001, None)
             _por_g = np.array([r['por'] for r in _unique])[_tk_mask]
-            _fP_g = np.array([r.get('fP_vol', 0) for r in _unique])[_tk_mask]
-            _mix_g = np.array([r.get('mix', 0) for r in _unique])[_tk_mask]
-            _wa_g = np.clip(np.array([r.get('w_area', 1.0) for r in _unique])[_tk_mask], 0.01, None)
-            _pred_tk = C_thick * SIGMA_AM * np.exp(_cn_g)**(2-0.3*_mix_g) * _wa_g**(0.1*_fP_g) * _phi_ex_g**2 / _por_g**(0.4-0.15*_mix_g)
+            _gh_g = np.array([r.get('g_holm', r['cn']) for r in _unique])[_tk_mask]
+            _pred_tk = C_thick * SIGMA_AM * np.exp(_cn_g)**1.5 * _gh_g**0.25 * _phi_ex_g**2 / _por_g**0.35
             _log_a = np.log(_s_all[_tk_mask]); _log_p = np.log(_pred_tk)
             _ss_res = np.sum((_log_a - _log_p)**2); _ss_tot = np.sum((_log_a - np.mean(_log_a))**2)
             r2_global_tk = 1 - _ss_res / _ss_tot if _ss_tot > 0 else 0
@@ -1627,22 +1624,19 @@ def plot_electronic_scaling(data_list, names, outdir):
             r2_global_tn = 1 - _ss_res / _ss_tot if _ss_tot > 0 else 0
             n_global_tn = int(_tn_perc.sum())
 
-    # Compute per-case fP_vol and w_area
-    case_fP_vol = []; case_w_area = []
+    # Compute per-case G_holm
+    case_g_holm = []
     for d in data_list:
         _nP = _get(d, "n_AM_P", 0) or 0; _nS = _get(d, "n_AM_S", 0) or 0
-        _rP = max(_get(d, "r_AM_P", 0) or 0, 0.1); _rS = max(_get(d, "r_AM_S", 0) or 0, 0.1)
-        _vP = _nP * _rP**3; _vS = _nS * _rS**3; _vT = max(_vP + _vS, 0.001)
-        _fP_i = _vP / _vT
-        case_fP_vol.append(_fP_i)
-        _is_bimo = _nP > 0 and _nS > 0
-        _pp_i = _get(d, "area_AM_P_AM_P_mean", 0) or 0
-        _ps_i = _get(d, "area_AM_P_AM_S_mean", 0) or 0
-        _ss_i = _get(d, "area_AM_S_AM_S_mean", 0) or 0
-        if _is_bimo and (_pp_i > 0 or _ss_i > 0):
-            case_w_area.append(_fP_i * _pp_i + (1-_fP_i) * _ss_i + 0.5 * _ps_i)
-        else:
-            case_w_area.append(1.0)
+        _n_pp = _get(d, "area_AM_P_AM_P_n", 0) or 0
+        _n_ps = _get(d, "area_AM_P_AM_S_n", 0) or 0
+        _n_ss = _get(d, "area_AM_S_AM_S_n", 0) or 0
+        _a_pp = _get(d, "area_AM_P_AM_P_mean", 0) or 0
+        _a_ps = _get(d, "area_AM_P_AM_S_mean", 0) or 0
+        _a_ss = _get(d, "area_AM_S_AM_S_mean", 0) or 0
+        _nAM = max(_nP + _nS, 1)
+        _th = _n_pp*np.sqrt(max(_a_pp,0.001)) + _n_ps*np.sqrt(max(_a_ps,0.001)) + _n_ss*np.sqrt(max(_a_ss,0.001))
+        case_g_holm.append(max(_th / _nAM, 0.01) if _th > 0 else cn_am[len(case_g_holm)] if len(case_g_holm) < len(cn_am) else 1.0)
 
     # Compute predictions per case
     sigma_scaling = []
@@ -1650,12 +1644,10 @@ def plot_electronic_scaling(data_list, names, outdir):
         if phi_am[i] > 0 and cn_am[i] > 0 and d_am_list[i] > 0 and thickness[i] > 0:
             ratio_i = thickness[i] / d_am_list[i]
             if ratio_i >= 8:
-                # THICK: CN^(2-0.3M) × w_area^(0.1Ψ) × (φ-φc)² / por^(0.4-0.15M)
+                # THICK: CN^1.5 × G_holm^0.25 × (φ-φc)² / por^0.35
                 phi_ex_i = max(phi_am[i] - 0.10, 0.001)
-                _psi_i = case_fP_vol[i]
-                _mix_i = 4 * _psi_i * (1 - _psi_i)
-                _wa_i = max(case_w_area[i], 0.01)
-                s = C_thick * SIGMA_AM * cn_am[i]**(2-0.3*_mix_i) * _wa_i**(0.1*_psi_i) * phi_ex_i**2 / porosity[i]**(0.4-0.15*_mix_i)
+                _gh_i = max(case_g_holm[i], 0.01)
+                s = C_thick * SIGMA_AM * cn_am[i]**1.5 * _gh_i**0.25 * phi_ex_i**2 / porosity[i]**0.35
             else:
                 # THIN: CN × δ^0.5 / √(T/d)
                 if el_perc[i] >= 0.50:
@@ -1703,7 +1695,7 @@ def plot_electronic_scaling(data_list, names, outdir):
                  fontsize=9, fontweight='bold')
 
     # Formula box with global R²
-    txt = (f"Thick: CN^(2-0.3M)×w_a^(0.1Ψ)×(φ-φc)²/por^(0.4-0.15M) R²={r2_global_tk:.3f}(n={n_global_tk})\n"
+    txt = (f"Thick: CN^1.5×G_holm^0.25×(φ-φc)²/por^0.35 R²={r2_global_tk:.3f}(n={n_global_tk})\n"
            f"Thin: CN×√δ/√(T/d) R²={r2_global_tn:.3f}(n={n_global_tn})\n"
            f"Group |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
     ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',

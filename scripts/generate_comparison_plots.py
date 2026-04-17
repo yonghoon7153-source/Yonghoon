@@ -1553,8 +1553,6 @@ def plot_electronic_scaling(data_list, names, outdir):
         r['fP_vol'] = _vP / _vT  # volume fraction of large AM (= P:S ratio)
 
     C_thick = 1.0; C_thin = 1.0
-    # Thick interaction coefficients (default, overridden by OLS below)
-    _tk_coefs = [2.2, 0.3, 1.4, -1.1, -0.4, -0.3, np.log(3.09)]
     if len(_unique) >= 5:
         _s = np.array([r['sigma'] for r in _unique])
         _cn = np.array([r['cn'] for r in _unique])
@@ -1562,20 +1560,13 @@ def plot_electronic_scaling(data_list, names, outdir):
         _por = np.array([r['por'] for r in _unique])
         _delta = np.array([r['delta'] for r in _unique])
         _pa = np.array([r['phi_am'] for r in _unique])
-        _mix = np.array([r['fP_vol'] for r in _unique])
 
         _tk = _ratio >= 8; _tn = _ratio < 8
-        if _tk.sum() >= 5:
-            # Thick: CN^(a+b×mix) × (φ-φc)^(c+d×mix) × por^(e+f×mix) — interaction model
-            _cn_tk = np.log(_cn[_tk])
-            _phi_c_tk = np.log(np.clip(_pa[_tk] - 0.15, 0.001, None))
-            _por_tk = np.log(_por[_tk])
-            _mix_tk = _mix[_tk]
-            _s_tk = np.log(_s[_tk])
-            from numpy.linalg import lstsq as _lstsq
-            _X_tk = np.column_stack([_cn_tk, _mix_tk*_cn_tk, _phi_c_tk, _mix_tk*_phi_c_tk, _por_tk, _mix_tk*_por_tk, np.ones(_tk.sum())])
-            _tk_coefs, _, _, _ = _lstsq(_X_tk, _s_tk, rcond=None)
-            C_thick = np.exp(_tk_coefs[6])
+        if _tk.sum() >= 3:
+            # Thick: CN² × (φ-φc)² / √por — Kirkpatrick percolation (t=2, φc=0.10)
+            _phi_ex_tk = np.clip(_pa[_tk] - 0.10, 0.001, None)
+            _rhs_tk = SIGMA_AM * _cn[_tk]**2 * _phi_ex_tk**2 / _por[_tk]**0.5
+            C_thick = float(np.exp(np.mean(np.log(_s[_tk]) - np.log(_rhs_tk))))
         if _tn.sum() >= 3:
             _delta_tn = _delta[_tn]
             _rhs_tn = SIGMA_AM * _cn[_tn] * _delta_tn**0.5 / _ratio[_tn]**0.5
@@ -1590,12 +1581,10 @@ def plot_electronic_scaling(data_list, names, outdir):
         _tk_mask = _ratio_all >= 8
         if _tk_mask.sum() >= 3:
             _cn_g = np.log(np.array([r['cn'] for r in _unique])[_tk_mask])
-            _phi_g = np.log(np.clip(np.array([r['phi_am'] for r in _unique])[_tk_mask] - 0.15, 0.001, None))
-            _por_g = np.log(np.array([r['por'] for r in _unique])[_tk_mask])
-            _mix_g = np.array([r['fP_vol'] for r in _unique])[_tk_mask]
-            _X_g = np.column_stack([_cn_g, _mix_g*_cn_g, _phi_g, _mix_g*_phi_g, _por_g, _mix_g*_por_g, np.ones(_tk_mask.sum())])
-            _log_pred_tk = _X_g @ _tk_coefs
-            _pred_tk = np.exp(_log_pred_tk)
+            _pa_g = np.array([r['phi_am'] for r in _unique])[_tk_mask]
+            _phi_ex_g = np.clip(_pa_g - 0.10, 0.001, None)
+            _por_g = np.array([r['por'] for r in _unique])[_tk_mask]
+            _pred_tk = C_thick * SIGMA_AM * np.exp(_cn_g)**2 * _phi_ex_g**2 / _por_g**0.5
             _log_a = np.log(_s_all[_tk_mask]); _log_p = np.log(_pred_tk)
             _ss_res = np.sum((_log_a - _log_p)**2); _ss_tot = np.sum((_log_a - np.mean(_log_a))**2)
             r2_global_tk = 1 - _ss_res / _ss_tot if _ss_tot > 0 else 0
@@ -1628,12 +1617,9 @@ def plot_electronic_scaling(data_list, names, outdir):
         if phi_am[i] > 0 and cn_am[i] > 0 and d_am_list[i] > 0 and thickness[i] > 0:
             ratio_i = thickness[i] / d_am_list[i]
             if ratio_i >= 8:
-                # THICK: Interaction model — CN^(a+b×mix) × (φ-φc)^(c+d×mix) × por^(e+f×mix)
-                _m_i = case_fP_vol[i]
-                _x_i = np.array([np.log(cn_am[i]), _m_i*np.log(cn_am[i]),
-                                 np.log(max(phi_am[i]-0.15, 0.001)), _m_i*np.log(max(phi_am[i]-0.15, 0.001)),
-                                 np.log(porosity[i]), _m_i*np.log(porosity[i]), 1.0])
-                s = np.exp(_x_i @ _tk_coefs)
+                # THICK: CN² × (φ-φc)² / √por — Kirkpatrick percolation
+                phi_ex_i = max(phi_am[i] - 0.10, 0.001)
+                s = C_thick * SIGMA_AM * cn_am[i]**2 * phi_ex_i**2 / porosity[i]**0.5
             else:
                 # THIN: CN × δ^0.5 / √(T/d)
                 if el_perc[i] >= 0.50:
@@ -1681,7 +1667,7 @@ def plot_electronic_scaling(data_list, names, outdir):
                  fontsize=9, fontweight='bold')
 
     # Formula box with global R²
-    txt = (f"Thick: CN^(a+b×fP)×(φ-φc)^(c+d×fP)/por^(e+f×fP) R²={r2_global_tk:.3f}(n={n_global_tk})\n"
+    txt = (f"Thick: CN²×(φ-φc)²/√por R²={r2_global_tk:.3f}(n={n_global_tk})\n"
            f"Thin: CN×√δ/√(T/d) R²={r2_global_tn:.3f}(n={n_global_tn})\n"
            f"Group |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
     ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',
@@ -2293,7 +2279,7 @@ PLOT_REGISTRY["sigma_decomposition"] = {
 
 
 def plot_electronic_decomposition(data_list, names, outdir):
-    """Decompose σ_el: Thick(CN² × (φ-φc) / por^0.25), Thin(CN × √δ / √(T/d))."""
+    """Decompose σ_el: Thick(CN² × (φ-φc)² / √por), Thin(CN × √δ / √(T/d))."""
     SIGMA_AM = 50.0
 
     phi_am = [_get(d, "phi_am") for d in data_list]
@@ -2307,11 +2293,11 @@ def plot_electronic_decomposition(data_list, names, outdir):
     n = len(data_list)
     ratios = [thickness[i] / d_am[i] if d_am[i] > 0 and thickness[i] > 0 else 0 for i in range(n)]
 
-    # Thick factors: CN², (φ-φc), por^-0.25
-    phi_ex = [max(phi_am[i] - 0.15, 0.001) for i in range(n)]
-    log_phi = np.array([1.0 * np.log(phi_ex[i]) for i in range(n)])
+    # Thick factors: CN², (φ-φc)², por^-0.5
+    phi_ex = [max(phi_am[i] - 0.10, 0.001) for i in range(n)]
+    log_phi = np.array([2.0 * np.log(phi_ex[i]) for i in range(n)])
     log_cn2 = np.array([2.0 * np.log(cn_am[i]) for i in range(n)])
-    log_por = np.array([-0.25 * np.log(porosity[i]) for i in range(n)])
+    log_por = np.array([-0.5 * np.log(porosity[i]) for i in range(n)])
     # Thin factors: CN, δ^0.5, (T/d)^-0.5
     log_cn1 = np.array([1.0 * np.log(cn_am[i]) for i in range(n)])
     log_delta = np.array([0.5 * np.log(am_delta[i]) for i in range(n)])
@@ -2325,7 +2311,7 @@ def plot_electronic_decomposition(data_list, names, outdir):
     for i in range(n):
         if phi_am[i] > 0 and cn_am[i] > 0 and d_am[i] > 0 and thickness[i] > 0:
             if is_thick[i]:
-                sigma_el.append(max(phi_am[i]-0.15,0.001) * cn_am[i]**2 / porosity[i]**0.25)
+                sigma_el.append(max(phi_am[i]-0.10,0.001)**2 * cn_am[i]**2 / porosity[i]**0.5)
             else:
                 sigma_el.append(cn_am[i] * am_delta[i]**0.5 / max(ratios[i], 0.1)**0.5)
         else:
@@ -2338,7 +2324,7 @@ def plot_electronic_decomposition(data_list, names, outdir):
 
     # Build contributions based on regime
     colors_all = ['#e74c3c', '#f39c12', '#27ae60', '#3498db', '#9b59b6']
-    labels_all = ['[Thick] (φ-φc)', '[Thick] CN²', '[Thick] 1/por^0.25', '[Thin] √δ', '[Thin] 1/√(T/d)']
+    labels_all = ['[Thick] (φ-φc)²', '[Thick] CN²', '[Thick] 1/√por', '[Thin] √δ', '[Thin] 1/√(T/d)']
     # Thin CN uses same slot [1] but different label
     label_cn_thin = '[Thin] CN'
 
@@ -2436,7 +2422,7 @@ PLOT_REGISTRY["electronic_decomposition"] = {
     "func": plot_electronic_decomposition,
     "file": "electronic_decomposition.png",
     "title": "Electronic: Factor Decomposition",
-    "description": "Thick: CN² × (φ-φc) / por^0.25\nThin: CN × √δ / √(T/d)\n\n(φ-φc): percolation excess (φc=0.15)\nCN²: AM-AM coordination\n1/por^0.25: porosity correction\n√δ: AM-AM penetration depth\n1/√(T/d): finite-size correction",
+    "description": "Thick: CN² × (φ-φc)² / √por (Kirkpatrick t=2)\nThin: CN × √δ / √(T/d)\n\nCN²: AM-AM coordination (t=2)\n(φ-φc)²: percolation excess (φc=0.10, t=2)\n1/√por: porosity correction\n√δ: AM-AM penetration depth\n1/√(T/d): finite-size correction",
     "origin_tip": "Stacked bar (top) + Horizontal bar (bottom).",
 }
 

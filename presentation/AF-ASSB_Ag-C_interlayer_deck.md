@@ -17,41 +17,181 @@ style: |
 # 균일 Ag 분산 Ag–C Interlayer를 이용한
 # 무음극 전고체 전지(AF-ASSB) 계면 안정화
 
-**글로벌 ASSB 산업 동향과 본 연구의 포지셔닝**
+**랩 실험 결과 → 글로벌 ASSB 산업 동향으로의 확장**
 
 발표자: Yonghoon | 2026.04
 
 ---
 
-## 발표 목차
+## 발표 흐름
 
-1. **왜 지금 전고체 배터리(ASSB)인가** — 시장의 요구
-2. **글로벌 양산 로드맵** — 한/일/미·유/중 4각 경쟁
-3. **ASSB 상용화의 기술 장벽** — 3대 한계
-4. **무음극(Anode-Free) 전략** — 에너지밀도 × 비용
-5. 🎯 **본 연구: Ag–C Interlayer 전략** (포스터 핵심)
-6. **시장·공정 트렌드와의 연결점**
-7. **결론 & Next Steps**
+### Part A. 연구 (Lab work)
+1. 문제 정의 — 무음극 ASSB 계면의 비균일 Li 핵형성
+2. 제안: **AgNO₃–PVP + In-situ 전기화학 환원(EC)** interlayer
+3. Ag 분산 / 입자 크기 (SEM·TEM)
+4. 계면 화학 (XPS) + 초기 전기화학 / EIS
+5. 풀셀 사이클링 (Ag 15 wt%, 250 cycles)
 
-> 포스터의 실험 결과를 *현재 산업이 풀어야 할 문제*의 맥락에서 해석합니다.
+### Part B. 시장 (Zoom-out)
+6. ASSB 상용화의 3대 장벽 — 본 연구가 겨냥한 지점
+7. 글로벌 양산 로드맵 (한/일/미·유/중)
+8. 비용·공정 트렌드와 본 연구의 접점
+9. 결론 & Next Steps
 
 ---
 
-## 1. 왜 지금 ASSB인가 — 시장의 압박
+<!-- _class: lead -->
 
-| 항목 | 현재 (LIB) | 2027–2030 목표 (ASSB) |
+# Part A
+## 랩 실험: Ag–C Interlayer for AF-ASSB
+
+---
+
+## 1. 문제 정의 — 왜 무음극에서 "Ag 분산"인가
+
+### AF-ASSB의 근본 난제
+- 음극 Li foil 없음 → **매 사이클 in-situ Li plating / stripping**
+- Li 핵형성이 **불균일**하면 → 국부 과증착 → Li/SE 계면 파괴 → void → 급격한 capacity fade
+
+### Ag interlayer의 역할
+- Ag가 Li와 합금(Li–Ag) 형성 → **Li 핵형성 사이트** 제공
+- 단, Ag가 **응집**되면 역효과: 응집 지점에 Li 몰림 → 오히려 단락 유발
+
+### 기존 공정(PM, Physical Mixing)의 한계
+- Ag 입자 수 μm 단위 응집
+- → 불균일 Li<sup>+</sup> flux / current density → 계면 열화
+
+→ **핵심 질문**: *간단한 슬러리 공정으로 Ag를 수십 nm 단위로 균일 분산시킬 수 있는가?*
+
+---
+
+## 2. 제안 — AgNO₃–PVP 전구체 + In-situ EC 환원
+
+### 설계 포인트
+1. **AgNO₃ 용액** → carbon matrix 위에 원자 단위로 균질 도포
+2. **PVP** = Ag 성장 억제제 (입자 크기 <30 nm)
+3. 셀 내부 첫 방전 시 **전기화학적으로 Ag⁰ 환원** (별도 열처리·환원제 불필요)
+4. 부산물 NO₃⁻ → 사이클 중 **nitrate-derived SEI** 자발 형성 (뒤에서 XPS로 입증)
+
+### Fabrication flow
+PVDF(NMP) + PVP + Carbon + AgNO₃ → **Mixing → Slurry casting → Drying**
+→ 단일 step, 기존 산업 공정과 호환
+
+| 구성 | Ag 분산 | 비고 |
 |---|---|---|
-| 팩 단가 | $108/kWh ('25 BNEF) → $105 ('26E) | Nissan $75→$65/kWh (가솔린 동등) |
-| 에너지밀도 | ~250 Wh/kg / 700 Wh/L | **375–500 Wh/kg / 900–1,000 Wh/L** |
-| 안전성 | 유기 전해액 발화 위험 | 불연 고체전해질 |
-| 충전 | 20–80% 30 min | 10–80% **10–18 min** (Toyota / Factorial) |
-
-- **2027 = 첫 소량 SSB EV**, **2030 = 본격 양산**이 글로벌 컨센서스 <span class="small">(Interact Analysis, IDTechEx 2026)</span>
-- 현 ASSB pack 비용은 LIB 대비 **3–5×** ($400–800/kWh) → **소재·공정 혁신으로 비용 구조를 깨야 함**
+| PM Ag-C | 응집(수 μm) | 기준 |
+| EC Ag-C | 개선 | PVP 無 |
+| **EC Ag-C-PVP** | **<30 nm 균일** | 본 연구 |
 
 ---
 
-## 2. 글로벌 양산 로드맵 — 4각 경쟁 구도
+## 3. Ag 분산 결과 — SEM·TEM
+
+### SEM/EDS (포스터 section 2)
+- **PM Ag-C**: Ag가 수 μm 덩어리로 응집, 탄소 매트릭스 일부 영역 Ag 無
+- **EC Ag-C**: Ag 입자 크게 분산, 하지만 국부 집중 존재
+- **EC Ag-C-PVP**: Ag EDS 신호가 필드 전체에 **균일** 분포
+
+### TEM (고배율)
+- EC Ag-C-PVP에서 **Ag 입자 < 30 nm** 확인
+- PVP의 steric hindrance 효과로 Ag nuclei 성장 억제
+
+> **Takeaway**: 공정 스텝 수를 늘리지 않고 단일 슬러리 캐스팅으로 nano-dispersion 달성.
+
+---
+
+## 4. 계면 화학 — XPS (nitrate-derived SEI)
+
+### Before cycling
+- N 1s: **AgNO₃** 피크 + **C–N bonding** (PVP 유래)
+
+### After cycling
+- N 1s: **LiNO₂, Li₃N** 등 **lithium nitrate/nitride 계 SEI**로 전환
+- 즉, 별도 전해질 첨가제 없이 **interlayer 자체가 in-situ SEI 전구체** 역할
+
+### 의미
+- LiNO₂/Li₃N은 **고속 Li⁺ 전도** + **계면 안정화**로 알려진 전형적 유익 SEI
+- 기존 문헌 대비 차별점: *외부 nitrate 첨가제 없이 interlayer 설계만으로 확보*
+
+---
+
+## 5. 전기화학 거동 — 초기 / EIS / Li plating-stripping
+
+### 초기 방전 overpotential
+- **EC Ag-C-PVP**: 가장 낮은 nucleation overpotential
+- PM > EC Ag-C > EC Ag-C-PVP 순으로 감소
+
+### EIS (Nyquist, 45 °C)
+- R<sub>int</sub>(계면 저항): PM ≫ EC Ag-C > **EC Ag-C-PVP (최저)**
+- <span class="small">※ 포스터 to-do: EIS fitting 정량화 → equivalent circuit (R<sub>b</sub>/R<sub>int</sub>/CPE) 값 표 추가 예정</span>
+
+### Li plating / stripping (0.7 → 1.5 → 2.0 mAh cm⁻²)
+- 고전류에서도 EC Ag-C-PVP는 안정 전압 프로파일
+- PM은 고전류에서 스파이크 / 단락
+
+→ **균일 Ag 분산 = 낮은 과전압 + 낮은 계면 저항 + 고전류 내구성** 3박자.
+
+---
+
+## 6. 풀셀 — AF-ASSB 사이클링 (Ag 15 wt%, 0.2 C, 45 °C)
+
+| Cell | 초기 용량 | 100 cyc | 250 cyc | 관찰 |
+|---|---|---|---|---|
+| PM Ag-C | 낮음 | — | **단락** | Ag 응집 → 국부 Li deposit |
+| EC Ag-C | ~250 mAh g⁻¹ | 유지 | 200+ cyc 안정 | 개선 |
+| **EC Ag-C-PVP** | **~250 mAh g⁻¹** | **안정** | **250+ cyc, ~80% retention** | **최고** |
+
+### 핵심
+- **Ag 15 wt%라는 저로딩**에서 250 cycles 달성 — 종래 문헌의 30–50 wt% 대비 절반 이하
+- Coulombic efficiency도 200 cycle 이후까지 안정
+- PVP 효과가 특히 **저 Ag 로딩 영역**에서 극대화
+
+---
+
+## 7. Part A 요약
+
+<div class="small">
+
+| 층위 | 관찰 | 메커니즘 |
+|---|---|---|
+| **Ag 분산** | <30 nm 균일 | PVP steric + AgNO₃ EC 환원 |
+| **Li 핵형성** | 균질 | 분산된 Ag seed |
+| **SEI** | LiNO₂/Li₃N | AgNO₃/PVP 유래 nitrate conversion |
+| **계면 저항** | 최저 | 균일 접촉 + 유익 SEI |
+| **풀셀** | 250+ cyc @ 15 wt% | 위 4층의 synergy |
+
+</div>
+
+> **학술적 novelty** — interlayer 하나가 *(i)* Li 핵형성 사이트, *(ii)* in-situ SEI 전구체, *(iii)* Ag 원가 절감 3역할을 동시에 수행.
+
+---
+
+<!-- _class: lead -->
+
+# Part B
+## Zoom-out: 이 결과가 시장에서 왜 중요한가
+
+---
+
+## 8. ASSB 상용화의 3대 기술 장벽 — 본 연구의 위치
+
+### (1) 계면 불안정 / 비균일 Li 핵형성  ← **Part A가 정면으로 다룸**
+- ACS Energy Letters (2025.4, 황화물-AF 리뷰): **#1 장벽으로 지목**
+- 본 연구 = interlayer 레벨 해법
+
+### (2) Stack pressure & 기계적 열화
+- Discover Electrochem. (2026): 1→20 MPa에서 contact loss –94%
+- Nat. Comm. (2025): 저스택압 운영 = cathode chemomechanics
+
+### (3) 공정·대기·비용 안정성
+- 황화물 SE 33% RH 2일 안정 (Nat. Comm. 2025)
+- **건식 전극이 ASSB에 필수** (슬러리 ↔ 황화물 부조화)
+
+> Part A의 슬러리 공정은 (3)과 절충점; (1)은 직접 해결, (2)는 균일 계면 덕에 간접 수혜.
+
+---
+
+## 9. 글로벌 양산 로드맵 — 본 연구가 올라탈 길
 
 <div class="small">
 
@@ -60,159 +200,61 @@ style: |
 | 🇰🇷 | **Samsung SDI** | 수원 S-Line ('23) | **2027** (세계 최초 목표) | 황화물, 900 Wh/L, BMW 검증 |
 | 🇰🇷 | **LG ES** | 청주 건식 파일럿 (Q4) | 폴리머 '26 / 황화물 **'30** | 건식 전극 선행 |
 | 🇰🇷 | **SK On** | 대전 ('25.9) | **'29** (1년 단축) | WIP-free 공정, Solid Power 협력 |
-| 🇰🇷 | **Hyundai** | 의왕 ('25.3) | **'30** | "Dream Battery", 자체 화학 |
-| 🇯🇵 | **Toyota** | Idemitsu 공동 대형 | **'27–28 BEV** | 1,000 km, 10분 충전 |
-| 🇯🇵 | **Nissan** | 요코하마 ('25.1) | **'28 FY** | 800 Wh/L, LiCAP 전극 |
-| 🇯🇵 | **Honda** | 사쿠라시 27,400 m² | 20년대 후반 | ¥430억, 전공정 검증 |
-| 🇺🇸 | **QuantumScape** | Eagle Line ('26.2) | 라이선스 (PowerCo) | QSE-5, Cobra 공정 |
-| 🇺🇸 | **Factorial** | FEST 77 Ah | '26 데모 (Stellantis/MB) | **375 Wh/kg, 600 cyc, EQS 1,205 km** |
-| 🇨🇳 | **CATL/BYD** | 소량 시범 | '27 소량 / **'30 주류** | Condensed + 황화물 |
+| 🇰🇷 | **Hyundai** | 의왕 ('25.3) | **'30** | "Dream Battery" |
+| 🇯🇵 | **Toyota** | Idemitsu 공동 | **'27–28 BEV** | 1,000 km, 10분 충전 |
+| 🇯🇵 | **Nissan** | 요코하마 ('25.1) | **'28 FY** | 800 Wh/L, $75→$65/kWh |
+| 🇯🇵 | **Honda** | 사쿠라시 27,400 m² | 20년대 후반 | ¥430억, 전공정 |
+| 🇺🇸 | **QuantumScape / Factorial** | Eagle Line / FEST | '26 샘플 / 데모 | 375 Wh/kg, EQS 1,205 km |
+| 🇨🇳 | **CATL / BYD / WeLion** | 소량 시범 | '27 소량 / **'30 주류** | Semi → Full solid |
 
 </div>
 
-→ **Samsung SDI 2027 양산**이 현재 선두. 한국 진영의 공통 병목 = **Li metal anode 계면 안정성**.
+- **한국 3사 + 현대가 AF 방향으로 공통 진입** → **interlayer 전략의 수요처**
+- 학술 돌파: KIST/UNIST (2026.1) — AF 1,500 cycle 75% retention (Korea가 선도)
 
 ---
 
-## 3. ASSB 상용화의 3대 기술 장벽
+## 10. 비용·공정 트렌드와 본 연구의 접점
 
-### (1) 계면 불안정 / 비균일 Li 핵형성
-- ACS Energy Letters (2025.4): 황화물-AF 시스템에서 **불균일 Li 핵 → Li/SE 계면 파괴 → void 형성 → 급격한 용량 페이드**
-
-### (2) Stack pressure & 기계적 열화
-- Discover Electrochem. (2026): 1→20 MPa 운영 시 부피팽창 –41.8%, contact loss –94%
-- Nat. Comm. (2025): 저스택압 운영의 핵심 변수 = **cathode chemomechanics**
-
-### (3) 공정/대기 안정성
-- 황화물 SE: 33% RH에서 2일 안정화 (표면 분자 엔지니어링, Nat. Comm. 2025)
-- 건식 전극: 액체 슬러리와 황화물 부조화 → ASSB에 **dry process가 필수적**
-
-> **본 연구가 타겟하는 문제 = (1) 계면 불안정 + 비균일 Li 핵형성**
-
----
-
-## 4. 무음극(AF-ASSB) — 왜 고에너지의 마지막 퍼즐인가
-
-| 이슈 | 기존 (Li-metal 음극) | 무음극 (AF) |
+| 산업 이슈 | 현재 상황 | 본 연구의 기여 |
 |---|---|---|
-| 에너지밀도 | 300–350 Wh/kg | **400+ Wh/kg** (음극 무게·두께 제거) |
-| 비용 | Li foil 가공 비용 | **Li foil 제거 → 원가↓** |
-| 제조 난이도 | 불활성 환경 Li 취급 | 일반 공정 호환 |
-| 문제 | Li 덴드라이트 | **초기 Li 핵형성 균질성이 전부** |
-
-### 최신 무음극 학술 동향
-- Nature Materials (2025.1): AF-SSB의 electro-chemo-mechanics 종합 리뷰
-- **KIST/UNIST (2026.1): 1,500 cycle 후 75% 용량 유지** — 한국이 선도
-- Nat. Comm. (2025.9): AI 기반 전해질 후보 7종 screening
-
-→ **핵형성 균질화를 위한 interlayer 설계**가 AF-ASSB의 핵심 돌파구.
+| **팩 단가** | $108/kWh ('25, BNEF) → Nissan 목표 $65/kWh | **Ag 15 wt% 저로딩** (통상 30–50 wt%의 절반 이하) |
+| **현 ASSB 비용** | LIB 대비 **3–5×** ($400–800/kWh, IDTechEx 2026) | 원가 민감도 완화 방향 |
+| **건식/Simple 공정** | LG ES 17–30% 원가↓, 4680D, Tesla 4680 | **Slurry-casting 1-step** → 이식 가능 |
+| **황화물 SE 공급** | POSCO 7,200톤 / Lotte 1,200톤 (2027) | 공급 ramp와 시점 정렬 |
+| **Li 핵형성 균질화** | ACS Energy Lett. 2025가 꼽은 #1 장벽 | **Part A가 직접 해결** |
+| **한국 AF 선도** | KIST/UNIST 1,500 cyc | interlayer 차원의 보완적 전략 |
 
 ---
 
-<!-- _class: lead -->
+## 11. 결론
 
-# 🎯 본 연구
-## Uniformly Dispersed Ag in Ag–C Interlayer
-## for Anode-Free All-Solid-State Batteries
+### ✅ 랩 성과 (Part A)
+- **AgNO₃–PVP + EC 환원**: 단일 슬러리 공정으로 <30 nm Ag 균일 분산
+- **In-situ nitrate-derived SEI** (LiNO₂/Li₃N)로 계면 자가 안정화
+- AF-ASSB 풀셀: **Ag 15 wt% / 250 cycles / ~80% retention**
 
-<span class="small">*(포스터 기반 — 시장 관점에서 재해석)*</span>
+### 🌐 시장 의의 (Part B)
+- AF-ASSB의 **#1 장벽(핵형성 불균일)** 정면 공략
+- **저 Ag 로딩 + 슬러리 단일 공정** = 한국 3사 2027–2030 로드맵에 이식 가능
+- 황화물 SE 국내 공급 ramp(POSCO·Lotte)와 타이밍 정렬
 
----
-
-## 5-1. 문제 정의 — "Ag 분산이 왜 중요한가"
-
-### 기존 방식(PM, Physical Mixing)의 한계
-- Ag 입자의 **심한 응집(agglomeration)**
-- → 불균일 Li<sup>+</sup> flux / current density
-- → **국부 Li 과핵형성 → 계면 파괴 → cycle life 급락**
-
-### 본 연구의 해법: **AgNO₃–PVP 전구체 + In-situ 전기화학 환원(EC)**
-- Slurry-casting 한 단계 공정 (산업 공정과 호환)
-- PVP가 Ag 성장 억제 → **Ag 입자 30 nm 이하**
-- 계면 전반에 **균질한 Li 핵형성 사이트** 제공
-
-| 구성 | Ag 분산 | 결과 |
-|---|---|---|
-| PM Ag-C | 응집 (수 μm) | 비균일 Li 증착 |
-| EC Ag-C | 양호 | 개선 |
-| **EC Ag-C-PVP** | **<30 nm 균일** | **우수** |
-
----
-
-## 5-2. 계면 안정성 — XPS로 본 "why it works"
-
-### 사이클링 후 나이트레이트 유도 Interphase 형성
-- **AgNO₃ → LiNO₂ / Li₃N 계 계면층** 자발 형성
-- Li<sup>+</sup> 전도 향상 + 계면 저항 감소
-- C–N bonding (PVP 유래) → 추가 안정화
-
-### 초기 전기화학 거동
-- **EC Ag-C-PVP**: 가장 낮은 nucleation overpotential
-- 가장 낮은 R<sub>int</sub> (EIS)
-- 고전류 Li plating/stripping 하에서도 안정
-
-> **학술적 novelty**: interlayer 자체가 *in-situ*로 nitrate-derived SEI를 형성 — 외부 첨가 없이 계면 자가 치유.
-
----
-
-## 5-3. AF-ASSB 풀셀 성능 — 저 Ag 로딩 (15 wt%)
-
-| Cell | 초기 용량 | 수명 | 관찰 |
-|---|---|---|---|
-| PM Ag-C | 낮음 | **단락(short)** | Ag 응집 → 국부 Li deposit |
-| EC Ag-C | ~250 mAh/g | 200+ cyc | 안정 |
-| **EC Ag-C-PVP** | ~250 mAh/g | **250+ cyc, ~80% retention** | **최고** |
-
-### 시장 관점에서의 임팩트
-- **15 wt%라는 낮은 Ag 로딩** → **원가 민감도↓** (Ag 시세 변동 완화)
-- Slurry-casting 단일 공정 → **LG ES 건식 전극 파일럿 / SK On WIP-free 라인**에 이식 가능
-- 황화물 SE + AF 조합 → Samsung SDI·Toyota·Nissan의 2027–28 로드맵과 정렬
-
----
-
-## 6. 본 연구 × 산업 트렌드 맵
-
-<div class="small">
-
-| 산업 이슈 | 본 연구의 기여 | 관련 외부 지표 |
-|---|---|---|
-| **비용 구조 파괴** ($400–800 → $75/kWh) | Ag 15 wt% 저로딩 + 단일 공정 | BNEF '25, Nissan target |
-| **황화물 SE 대량 공급** | POSCO 7,200톤 / Lotte 1,200톤 ramp과 호환 | §2-3 DB |
-| **건식/Simple 공정** | Slurry-casting 1-step, PVDF/PVP만 사용 | LG ES Ochang, Tesla 4680D |
-| **Li 핵형성 균질화** | Ag 나노분산 + nitrate SEI | ACS Energy Lett. 2025 3대 한계 중 #1, #2 |
-| **Stack pressure 민감도** | 균일 계면 → 저스택압 운영 잠재력 | Discover Electrochem. 2026 |
-| **한국 AF 선도** | 1,500 cyc KIST/UNIST와 보완적 전략 | Korea AF 경쟁력 |
-
-</div>
-
----
-
-## 7. 결론 & Next Steps
-
-### ✅ 달성
-- **AgNO₃–PVP 전구체 + EC 전환**이라는 단일 공정 전략으로 <30 nm Ag 균일 분산 interlayer 제작
-- Ag 15 wt% 저로딩에서도 **250+ cycles, 안정 사이클링** 입증
-- In-situ **nitrate-derived SEI**로 계면 자가 안정화
-
-### 🚀 다음 실험 (랩 내 후속)
-- [ ] EIS fitting 정량화 (포스터 to-do 반영)
-- [ ] 산화물/폴리머 SE 시스템으로 전이 가능성 테스트
-- [ ] Scale-up: pouch 사이즈 + 저스택압 (<5 MPa) 운영 curve
-- [ ] Ag 대체(Cu/Sn/Bi) 탐색 → 원가 추가 절감
-
-### 🎯 포지셔닝 메시지
-> *"한국 AF-ASSB 진영이 2027–2030 양산으로 가는 길목에서, **interlayer 차원의 nano-dispersion 전략**은 핵형성·계면·공정 3가지 이슈를 동시에 푸는 solution이다."*
+### 🚀 Next Steps
+- [ ] **EIS fitting 정량화** (포스터 to-do)
+- [ ] **Scheme 수정** + 전기화학 / 특성 분석 데이터 분리
+- [ ] 저스택압(<5 MPa) 운영 curve 확보 → 장벽 (2) 검증
+- [ ] Ag 대체재(Cu/Sn/Bi) 탐색 → 원가·공급망 리스크 추가 완화
 
 ---
 
 ## References (요약)
 
-- **산업 로드맵**: Samsung SDI, LG ES, SK On, Hyundai, Toyota, Nissan, Honda, QuantumScape, Factorial, CATL/BYD 공식 PR (DB §1)
 - **학술 — AF-ASSB**: Nat. Mater. (2025), ACS Energy Lett. (2025), Nat. Commun. (2025), Energy Mater. Adv. (2025)
 - **학술 — Sulfide SE**: Nat. Commun. (2024, 2025), ACS Energy Lett. (2024), ACS Nano (2025), Cell Rep. Phys. Sci. (2025)
 - **학술 — Stack pressure / Interface**: Adv. Energy Mater. (2025), Nat. Commun. (2025), Discover Electrochem. (2026), Adv. Sci. (2025)
+- **산업 로드맵**: Samsung SDI, LG ES, SK On, Hyundai, Toyota, Nissan, Honda, QuantumScape, Factorial, CATL/BYD 공식 PR
 - **시장**: BloombergNEF 2025, IDTechEx 2026, Interact Analysis, EnergyTrend
-- **Full DB**: `refs/SSB_reference_DB.md` (본 repo)
+- **Full DB**: `refs/SSB_reference_DB.md`
 
 ---
 
@@ -222,5 +264,5 @@ style: |
 
 Q & A
 
-<span class="small">본 슬라이드는 `claude/ssb-market-research-ZiEJ4` 브랜치의 reference DB와
-랩 내 Ag–C interlayer 포스터 데이터를 결합해 작성되었습니다.</span>
+<span class="small">Part A (lab) → Part B (market) 흐름.
+근거 DB: `refs/SSB_reference_DB.md` (from `claude/ssb-market-research-ZiEJ4`)</span>

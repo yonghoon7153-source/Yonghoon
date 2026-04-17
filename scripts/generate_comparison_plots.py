@@ -1061,8 +1061,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ss_res_fixed = np.sum((log_sf - pred_fixed)**2)
     r2_fixed = 1 - ss_res_fixed / ss_tot
 
-    # === FORM X (v4++ champion) ===
-    # σ = C × σ_grain × (φ-φc)^(3/4) × CN × √cov / √τ
+    # === FORM X v2: CN^1.5 × (φ-φc)^¾ × cov^¼ / τ^¼ × exp(-0.1×lnCN×lnτ) ===
     PHI_C = 0.185
     coverage = [(lambda vs: sum(vs)/len(vs)/100 if vs else 0.20)([v for v in [_get(d,"coverage_AM_P_mean",0), _get(d,"coverage_AM_S_mean",0), _get(d,"coverage_AM_mean",0)] if v>0]) for d in data_list]
 
@@ -1071,7 +1070,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     tau_arr = np.array([tau[i] for i in valid_idx])
     cov_arr = np.array([coverage[i] for i in valid_idx])
 
-    log_rhs_formX = np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + np.log(cn_arr) + 0.5*np.log(cov_arr) - 0.5*np.log(tau_arr)
+    log_rhs_formX = np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + 1.5*np.log(cn_arr) + 0.25*np.log(cov_arr) - 0.25*np.log(tau_arr) - 0.1*np.log(cn_arr)*np.log(tau_arr)
     ln_C_formX = np.mean(log_sf - log_rhs_formX)
     C_formX = np.exp(ln_C_formX)
     pred_formX = ln_C_formX + log_rhs_formX
@@ -1264,7 +1263,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
     for i in range(len(data_list)):
         phi_ex = max(phi_se[i] - PHI_C, 0.001)
         if cn[i] > 0 and tau[i] > 0 and coverage[i] > 0:
-            s = C_ms * SIGMA_BULK * phi_ex**0.75 * cn[i] * np.sqrt(coverage[i]) / np.sqrt(tau[i])
+            s = C_ms * SIGMA_BULK * phi_ex**0.75 * cn[i]**1.5 * coverage[i]**0.25 / tau[i]**0.25 * np.exp(-0.1*np.log(cn[i])*np.log(tau[i]))
             sigma_ms.append(s)
         else:
             sigma_ms.append(0)
@@ -1278,14 +1277,18 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     ax.plot(x, sigma_ms, 's-', color=RED, markersize=ms, linewidth=lw,
             label="FORM X (mS/cm)")
+    # ±22% error band (DEM stochastic variability)
+    _ms_arr = np.array(sigma_ms)
+    _ms_lo = _ms_arr * 0.78; _ms_hi = _ms_arr * 1.22
+    ax.fill_between(x, _ms_lo, _ms_hi, color=RED, alpha=0.10, label='±22% band')
     if has_net:
         ax.plot(x, sigma_net, 'D--', color='#2ecc71', markersize=ms-2, linewidth=lw-0.5,
                 alpha=0.7, label="Network solver (mS/cm)")
 
     _apply_style(ax, "σ_ionic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
-    ax.set_title(f"FORM X: {C_ms:.4f} × σ_grain × (φ−φc)^¾ × CN × √cov / √τ",
-                 fontsize=9, fontweight='bold')
+    ax.set_title(f"FORM X v2: {C_ms:.4f} × σ_grain × (φ−φc)^¾ × CN^1.5 × cov^¼ / τ^¼\n× exp(-0.1·lnCN·lnτ)",
+                 fontsize=8, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',
                ['φ_SE', 'CN', 'τ', 'coverage', 'σ_FORMX(mS/cm)', 'σ_network(mS/cm)'],

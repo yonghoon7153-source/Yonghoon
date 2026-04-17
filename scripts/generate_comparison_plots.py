@@ -1583,9 +1583,10 @@ def plot_electronic_scaling(data_list, names, outdir):
 
         _tk = _ratio >= 8; _tn = _ratio < 8
         if _tk.sum() >= 3:
-            # Thick: CN^1.5 × G_holm^0.25 × (φ-φc)² / por^0.35
+            # Thick: CN^1.5 × G_h^0.25(sat) × (φ-φc)² / por^0.35
             _phi_ex_tk = np.clip(_pa[_tk] - 0.10, 0.001, None)
-            _rhs_tk = SIGMA_AM * _cn[_tk]**1.5 * _gh[_tk]**0.25 * _phi_ex_tk**2 / _por[_tk]**0.35
+            _gh_sat_tk = _gh[_tk] / (1 + _gh[_tk]/5.0)  # saturating G_holm
+            _rhs_tk = SIGMA_AM * _cn[_tk]**1.5 * _gh_sat_tk**0.25 * _phi_ex_tk**2 / _por[_tk]**0.35
             C_thick = float(np.exp(np.mean(np.log(_s[_tk]) - np.log(_rhs_tk))))
         if _tn.sum() >= 3:
             _delta_tn = _delta[_tn]
@@ -1605,7 +1606,8 @@ def plot_electronic_scaling(data_list, names, outdir):
             _phi_ex_g = np.clip(_pa_g - 0.10, 0.001, None)
             _por_g = np.array([r['por'] for r in _unique])[_tk_mask]
             _gh_g = np.array([r.get('g_holm', r['cn']) for r in _unique])[_tk_mask]
-            _pred_tk = C_thick * SIGMA_AM * np.exp(_cn_g)**1.5 * _gh_g**0.25 * _phi_ex_g**2 / _por_g**0.35
+            _gh_sat_g = _gh_g / (1 + _gh_g/5.0)
+            _pred_tk = C_thick * SIGMA_AM * np.exp(_cn_g)**1.5 * _gh_sat_g**0.25 * _phi_ex_g**2 / _por_g**0.35
             _log_a = np.log(_s_all[_tk_mask]); _log_p = np.log(_pred_tk)
             _ss_res = np.sum((_log_a - _log_p)**2); _ss_tot = np.sum((_log_a - np.mean(_log_a))**2)
             r2_global_tk = 1 - _ss_res / _ss_tot if _ss_tot > 0 else 0
@@ -1644,10 +1646,11 @@ def plot_electronic_scaling(data_list, names, outdir):
         if phi_am[i] > 0 and cn_am[i] > 0 and d_am_list[i] > 0 and thickness[i] > 0:
             ratio_i = thickness[i] / d_am_list[i]
             if ratio_i >= 8:
-                # THICK: CN^1.5 × G_holm^0.25 × (φ-φc)² / por^0.35
+                # THICK: CN^1.5 × G_h^0.25(sat) × (φ-φc)² / por^0.35
                 phi_ex_i = max(phi_am[i] - 0.10, 0.001)
                 _gh_i = max(case_g_holm[i], 0.01)
-                s = C_thick * SIGMA_AM * cn_am[i]**1.5 * _gh_i**0.25 * phi_ex_i**2 / porosity[i]**0.35
+                _gh_sat_i = _gh_i / (1 + _gh_i/5.0)
+                s = C_thick * SIGMA_AM * cn_am[i]**1.5 * _gh_sat_i**0.25 * phi_ex_i**2 / porosity[i]**0.35
             else:
                 # THIN: CN × δ^0.5 / √(T/d)
                 if el_perc[i] >= 0.50:
@@ -1695,7 +1698,7 @@ def plot_electronic_scaling(data_list, names, outdir):
                  fontsize=9, fontweight='bold')
 
     # Formula box with global R²
-    txt = (f"Thick: CN^1.5×G_holm^0.25×(φ-φc)²/por^0.35 R²={r2_global_tk:.3f}(n={n_global_tk})\n"
+    txt = (f"Thick: CN^1.5×G_h^0.25(sat)×(φ-φc)²/por^0.35 R²={r2_global_tk:.3f}(n={n_global_tk})\n"
            f"Thin: CN×√δ/√(T/d) R²={r2_global_tn:.3f}(n={n_global_tn})\n"
            f"Group |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
     ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',

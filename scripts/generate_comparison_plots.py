@@ -1544,29 +1544,40 @@ def plot_electronic_scaling(data_list, names, outdir):
     _unique = _mod.load_all_electronic()
 
     # Fit C_thick and C_thin separately
+    # Load mixing parameter for bimodal correction
+    for r in _unique:
+        _m2 = json.load(open(os.path.join(r['path'], 'full_metrics.json')))
+        _nP = _m2.get('n_AM_P', 0); _nS = _m2.get('n_AM_S', 0)
+        _nT = max(_nP + _nS, 1)
+        _fP = _nP / _nT
+        r['mixing'] = 4 * _fP * (1 - _fP)
+
     C_thick = 1.0; C_thin = 1.0
+    # Thick interaction coefficients (default, overridden by OLS below)
+    _tk_coefs = [2.2, 0.3, 1.4, -1.1, -0.4, -0.3, np.log(3.09)]
     if len(_unique) >= 5:
         _s = np.array([r['sigma'] for r in _unique])
-        _pa = np.array([r['phi_am'] for r in _unique])
         _cn = np.array([r['cn'] for r in _unique])
-        _tau = np.array([r['tau'] for r in _unique])
-        _cov = np.array([r['cov'] for r in _unique])
-        _delta = np.array([r['delta'] for r in _unique])
-        _area = np.array([r['area'] for r in _unique])
-        _hop = np.array([r['hop'] for r in _unique])
         _ratio = np.array([r['ratio'] for r in _unique])
         _por = np.array([r['por'] for r in _unique])
-        _ps = np.array([r['phi_se'] for r in _unique])
+        _delta = np.array([r['delta'] for r in _unique])
+        _pa = np.array([r['phi_am'] for r in _unique])
+        _mix = np.array([r['mixing'] for r in _unique])
 
         _tk = _ratio >= 8; _tn = _ratio < 8
-        if _tk.sum() >= 3:
-            # Thick: CN² × (φ-φc) / por^0.25
-            _phi_ex_tk = np.clip(_pa[_tk] - 0.15, 0.001, None)
-            _rhs_tk = SIGMA_AM * _cn[_tk]**2 * _phi_ex_tk / _por[_tk]**0.25
-            C_thick = float(np.exp(np.mean(np.log(_s[_tk]) - np.log(_rhs_tk))))
+        if _tk.sum() >= 5:
+            # Thick: CN^(a+b×mix) × (φ-φc)^(c+d×mix) × por^(e+f×mix) — interaction model
+            _cn_tk = np.log(_cn[_tk])
+            _phi_c_tk = np.log(np.clip(_pa[_tk] - 0.15, 0.001, None))
+            _por_tk = np.log(_por[_tk])
+            _mix_tk = _mix[_tk]
+            _s_tk = np.log(_s[_tk])
+            from numpy.linalg import lstsq as _lstsq
+            _X_tk = np.column_stack([_cn_tk, _mix_tk*_cn_tk, _phi_c_tk, _mix_tk*_phi_c_tk, _por_tk, _mix_tk*_por_tk, np.ones(_tk.sum())])
+            _tk_coefs, _, _, _ = _lstsq(_X_tk, _s_tk, rcond=None)
+            C_thick = np.exp(_tk_coefs[6])
         if _tn.sum() >= 3:
-            _delta_tn = np.array([r['delta'] for r in _unique])[_tn]
-            # Thin: CN × δ^0.5 / √(T/d)
+            _delta_tn = _delta[_tn]
             _rhs_tn = SIGMA_AM * _cn[_tn] * _delta_tn**0.5 / _ratio[_tn]**0.5
             C_thin = float(np.exp(np.mean(np.log(_s[_tn]) - np.log(_rhs_tn))))
 
@@ -1578,11 +1589,13 @@ def plot_electronic_scaling(data_list, names, outdir):
         # Thick global R²
         _tk_mask = _ratio_all >= 8
         if _tk_mask.sum() >= 3:
-            _pa_tk = np.array([r['phi_am'] for r in _unique])[_tk_mask]
-            _cn_tk = np.array([r['cn'] for r in _unique])[_tk_mask]
-            _por_tk = np.array([r['por'] for r in _unique])[_tk_mask]
-            _phi_ex_tk2 = np.clip(_pa_tk - 0.15, 0.001, None)
-            _pred_tk = C_thick * SIGMA_AM * _cn_tk**2 * _phi_ex_tk2 / _por_tk**0.25
+            _cn_g = np.log(np.array([r['cn'] for r in _unique])[_tk_mask])
+            _phi_g = np.log(np.clip(np.array([r['phi_am'] for r in _unique])[_tk_mask] - 0.15, 0.001, None))
+            _por_g = np.log(np.array([r['por'] for r in _unique])[_tk_mask])
+            _mix_g = np.array([r['mixing'] for r in _unique])[_tk_mask]
+            _X_g = np.column_stack([_cn_g, _mix_g*_cn_g, _phi_g, _mix_g*_phi_g, _por_g, _mix_g*_por_g, np.ones(_tk_mask.sum())])
+            _log_pred_tk = _X_g @ _tk_coefs
+            _pred_tk = np.exp(_log_pred_tk)
             _log_a = np.log(_s_all[_tk_mask]); _log_p = np.log(_pred_tk)
             _ss_res = np.sum((_log_a - _log_p)**2); _ss_tot = np.sum((_log_a - np.mean(_log_a))**2)
             r2_global_tk = 1 - _ss_res / _ss_tot if _ss_tot > 0 else 0
@@ -1601,15 +1614,25 @@ def plot_electronic_scaling(data_list, names, outdir):
             r2_global_tn = 1 - _ss_res / _ss_tot if _ss_tot > 0 else 0
             n_global_tn = int(_tn_perc.sum())
 
+    # Compute per-case mixing parameter
+    case_mixing = []
+    for d in data_list:
+        _nP = _get(d, "n_AM_P", 0) or 0; _nS = _get(d, "n_AM_S", 0) or 0
+        _nT = max(_nP + _nS, 1); _fP = _nP / _nT
+        case_mixing.append(4 * _fP * (1 - _fP))
+
     # Compute predictions per case
     sigma_scaling = []
     for i in range(len(data_list)):
         if phi_am[i] > 0 and cn_am[i] > 0 and d_am_list[i] > 0 and thickness[i] > 0:
             ratio_i = thickness[i] / d_am_list[i]
             if ratio_i >= 8:
-                # THICK: CN² × (φ-φc) / por^0.25
-                phi_ex_i = max(phi_am[i] - 0.15, 0.001)
-                s = C_thick * SIGMA_AM * cn_am[i]**2 * phi_ex_i / porosity[i]**0.25
+                # THICK: Interaction model — CN^(a+b×mix) × (φ-φc)^(c+d×mix) × por^(e+f×mix)
+                _m_i = case_mixing[i]
+                _x_i = np.array([np.log(cn_am[i]), _m_i*np.log(cn_am[i]),
+                                 np.log(max(phi_am[i]-0.15, 0.001)), _m_i*np.log(max(phi_am[i]-0.15, 0.001)),
+                                 np.log(porosity[i]), _m_i*np.log(porosity[i]), 1.0])
+                s = np.exp(_x_i @ _tk_coefs)
             else:
                 # THIN: CN × δ^0.5 / √(T/d)
                 if el_perc[i] >= 0.50:
@@ -1657,7 +1680,7 @@ def plot_electronic_scaling(data_list, names, outdir):
                  fontsize=9, fontweight='bold')
 
     # Formula box with global R²
-    txt = (f"Thick: CN²×(φ-φc)/por^0.25 R²={r2_global_tk:.3f}(n={n_global_tk})\n"
+    txt = (f"Thick: CN^(a+b×mix)×(φ-φc)^(c+d×mix)/por^(e+f×mix) R²={r2_global_tk:.3f}(n={n_global_tk})\n"
            f"Thin: CN×√δ/√(T/d) R²={r2_global_tn:.3f}(n={n_global_tn})\n"
            f"Group |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
     ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',

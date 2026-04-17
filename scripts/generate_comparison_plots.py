@@ -1582,7 +1582,7 @@ def plot_electronic_scaling(data_list, names, outdir):
             _phi_ex_tk = np.clip(_pa[_tk] - 0.10, 0.001, None)
             _psi_tk = _fPv[_tk]
             _wa_tk = np.clip(_wa[_tk], 0.01, None)
-            _rhs_tk = SIGMA_AM * _cn[_tk]**(2-0.5*_psi_tk) * _wa_tk**(0.1*_psi_tk) * _phi_ex_tk**2 / _por[_tk]**(0.5-0.25*_psi_tk)
+            _rhs_tk = SIGMA_AM * _cn[_tk]**(2-0.75*_psi_tk) * _wa_tk**(0.1*_psi_tk) * _phi_ex_tk**2 / _por[_tk]**(0.5-0.35*_psi_tk)
             C_thick = float(np.exp(np.mean(np.log(_s[_tk]) - np.log(_rhs_tk))))
         if _tn.sum() >= 3:
             _delta_tn = _delta[_tn]
@@ -1603,7 +1603,7 @@ def plot_electronic_scaling(data_list, names, outdir):
             _por_g = np.array([r['por'] for r in _unique])[_tk_mask]
             _fP_g = np.array([r.get('fP_vol', 0) for r in _unique])[_tk_mask]
             _wa_g = np.clip(np.array([r.get('w_area', 1.0) for r in _unique])[_tk_mask], 0.01, None)
-            _pred_tk = C_thick * SIGMA_AM * np.exp(_cn_g)**(2-0.5*_fP_g) * _wa_g**(0.1*_fP_g) * _phi_ex_g**2 / _por_g**(0.5-0.25*_fP_g)
+            _pred_tk = C_thick * SIGMA_AM * np.exp(_cn_g)**(2-0.75*_fP_g) * _wa_g**(0.1*_fP_g) * _phi_ex_g**2 / _por_g**(0.5-0.35*_fP_g)
             _log_a = np.log(_s_all[_tk_mask]); _log_p = np.log(_pred_tk)
             _ss_res = np.sum((_log_a - _log_p)**2); _ss_tot = np.sum((_log_a - np.mean(_log_a))**2)
             r2_global_tk = 1 - _ss_res / _ss_tot if _ss_tot > 0 else 0
@@ -1649,7 +1649,7 @@ def plot_electronic_scaling(data_list, names, outdir):
                 phi_ex_i = max(phi_am[i] - 0.10, 0.001)
                 _psi_i = case_fP_vol[i]
                 _wa_i = max(case_w_area[i], 0.01)
-                s = C_thick * SIGMA_AM * cn_am[i]**(2-0.5*_psi_i) * _wa_i**(0.1*_psi_i) * phi_ex_i**2 / porosity[i]**(0.5-0.25*_psi_i)
+                s = C_thick * SIGMA_AM * cn_am[i]**(2-0.75*_psi_i) * _wa_i**(0.1*_psi_i) * phi_ex_i**2 / porosity[i]**(0.5-0.35*_psi_i)
             else:
                 # THIN: CN × δ^0.5 / √(T/d)
                 if el_perc[i] >= 0.50:
@@ -2333,8 +2333,8 @@ def plot_electronic_decomposition(data_list, names, outdir):
         _vP2 = _nP2 * _rP2**3; _vS2 = _nS2 * _rS2**3; _vT2 = max(_vP2 + _vS2, 0.001)
         case_psi.append(_vP2 / _vT2)
     log_phi = np.array([2.0 * np.log(phi_ex[i]) for i in range(n)])
-    log_cn2 = np.array([(2.0 - 0.5*case_psi[i]) * np.log(cn_am[i]) for i in range(n)])
-    log_por = np.array([-(0.5 - 0.25*case_psi[i]) * np.log(porosity[i]) for i in range(n)])
+    log_cn2 = np.array([(2.0 - 0.75*case_psi[i]) * np.log(cn_am[i]) for i in range(n)])
+    log_por = np.array([-(0.5 - 0.35*case_psi[i]) * np.log(porosity[i]) for i in range(n)])
     # Thin factors: CN, δ^0.5, (T/d)^-0.5
     log_cn1 = np.array([1.0 * np.log(cn_am[i]) for i in range(n)])
     log_delta = np.array([0.5 * np.log(am_delta[i]) for i in range(n)])
@@ -2349,7 +2349,7 @@ def plot_electronic_decomposition(data_list, names, outdir):
         if phi_am[i] > 0 and cn_am[i] > 0 and d_am[i] > 0 and thickness[i] > 0:
             if is_thick[i]:
                 _psi_d = case_psi[i] if i < len(case_psi) else 0
-                sigma_el.append(max(phi_am[i]-0.10,0.001)**2 * cn_am[i]**(2-0.5*_psi_d) / porosity[i]**(0.5-0.25*_psi_d))
+                sigma_el.append(max(phi_am[i]-0.10,0.001)**2 * cn_am[i]**(2-0.75*_psi_d) / porosity[i]**(0.5-0.35*_psi_d))
             else:
                 sigma_el.append(cn_am[i] * am_delta[i]**0.5 / max(ratios[i], 0.1)**0.5)
         else:

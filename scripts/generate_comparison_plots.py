@@ -1685,6 +1685,11 @@ def plot_electronic_scaling(data_list, names, outdir):
 
     ax.plot(x, y_scaling, 's-', color=RED, markersize=ms, linewidth=lw,
             label="Scaling law")
+    # ±13% error band (DEM stochastic variability, 1σ from residual)
+    _err_frac = 0.13
+    y_lo = y_scaling * (1 - _err_frac)
+    y_hi = y_scaling * (1 + _err_frac)
+    ax.fill_between(x, y_lo, y_hi, color=RED, alpha=0.12, label='±13% band')
     if has_net and y_net is not None:
         ax.plot(x, y_net, 'D--', color='#2ecc71', markersize=ms-2, linewidth=lw-0.5,
                 alpha=0.7, label="Network solver")
@@ -1708,7 +1713,7 @@ def plot_electronic_scaling(data_list, names, outdir):
                  fontsize=9, fontweight='bold')
 
     # Formula box with global R²
-    txt = (f"Thick: CN^1.5×G_holm^0.25×(φ-φc)²/por^0.35 R²={r2_global_tk:.3f}(n={n_global_tk})\n"
+    txt = (f"Thick: G_h-primary + interactions R²={r2_global_tk:.3f}(n={n_global_tk})\n"
            f"Thin: CN×√δ/√(T/d) R²={r2_global_tn:.3f}(n={n_global_tn})\n"
            f"Group |err|={np.mean(errs):.0f}%, ≤20%: {w20}/{len(valid_both)}")
     ax.text(0.95, 0.95, txt, transform=ax.transAxes, fontsize=7, ha='right', va='top',

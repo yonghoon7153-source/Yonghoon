@@ -1535,56 +1535,19 @@ def plot_electronic_scaling(data_list, names, outdir):
     sigma_net = _load_electronic_sigma(data_list)
 
     # --- Fit C globally on ALL electronic data (thick/thin separate) ---
-    import glob as _glob
-    import hashlib as _hashlib
-    _webapp = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'webapp')
-    _all = []
-    _seen_hashes = set()
-    for _base in [os.path.join(_webapp, 'archive'), os.path.join(_webapp, 'results')]:
-        if not os.path.isdir(_base): continue
-        for _mp in sorted(_glob.glob(os.path.join(_base, '**', 'full_metrics.json'), recursive=True)):
-            try:
-                _raw = open(_mp, 'rb').read()
-                _h = _hashlib.md5(_raw).hexdigest()
-                if _h in _seen_hashes: continue
-                _seen_hashes.add(_h)
-                _m = json.loads(_raw)
-            except: continue
-            _sel = _m.get('electronic_sigma_full_mScm', 0)
-            if not _sel or _sel < 0.001: continue
-            _pa_raw = _m.get('phi_am', 0)
-            _cn_raw = _m.get('am_am_cn', 0)
-            _ram = max(_m.get('r_AM_P', 0), _m.get('r_AM_S', 0))
-            _dam = _ram * 2 if _ram > 0.1 else 5.0
-            _T = _m.get('thickness_um', 0)
-            if _pa_raw <= 0 or _cn_raw <= 0 or _T <= 0 or _dam <= 0: continue
-            _ratio = _T / _dam
-            # Dedup: same key as screening_electronic_sweep.py
-            _k = f"{_pa_raw:.4f}_{_ratio:.1f}"
-            if _k in _seen_hashes: continue
-            _seen_hashes.add(_k)
-            _pa = max(_pa_raw, 0.01)
-            _cn = max(_cn_raw, 0.01)
-            _tau = max(_m.get('tortuosity_recommended', _m.get('tortuosity_mean', 1)), 0.1)
-            _cov = max(_m.get('coverage_AM_P_mean', _m.get('coverage_AM_S_mean', _m.get('coverage_AM_mean', 20))), 0.1) / 100
-            _delta = max(_m.get('am_am_mean_delta', 0), 0.001)
-            _area = max(_m.get('am_am_mean_area', 0), 0.01)
-            _hop = max(_m.get('am_am_mean_hop', 0), 0.1)
-            _por = max(_m.get('porosity', 10), 0.1)
-            _ps = max(_m.get('phi_se', 0.2), 0.01)
-            _ep = max(_m.get('electronic_percolating_fraction', 0), 0.01)
-            _gc = max(_m.get('am_path_conductance_mean', 0), 0.001)
-            _ea = max(_m.get('electronic_active_fraction', 0), 0.01)
-            _all.append({'s': _sel, 'pa': _pa, 'cn': _cn, 'tau': _tau, 'cov': _cov,
-                         'delta': _delta, 'area': _area, 'hop': _hop, 'ratio': _ratio,
-                         'por': _por, 'ps': _ps, 'ep': _ep, 'gc': _gc, 'ea': _ea})
-    _unique = _all  # dedup already done by file hash
+    # Use screening_electronic_sweep.load_all_electronic() for reliable dedup
+    import importlib.util as _ilu
+    _sweep_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'screening_electronic_sweep.py')
+    _spec = _ilu.spec_from_file_location("sweep", _sweep_path)
+    _mod = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    _unique = _mod.load_all_electronic()
 
     # Fit C_thick and C_thin separately
     C_thick = 1.0; C_thin = 1.0
     if len(_unique) >= 5:
-        _s = np.array([r['s'] for r in _unique])
-        _pa = np.array([r['pa'] for r in _unique])
+        _s = np.array([r['sigma'] for r in _unique])
+        _pa = np.array([r['phi_am'] for r in _unique])
         _cn = np.array([r['cn'] for r in _unique])
         _tau = np.array([r['tau'] for r in _unique])
         _cov = np.array([r['cov'] for r in _unique])
@@ -1593,7 +1556,7 @@ def plot_electronic_scaling(data_list, names, outdir):
         _hop = np.array([r['hop'] for r in _unique])
         _ratio = np.array([r['ratio'] for r in _unique])
         _por = np.array([r['por'] for r in _unique])
-        _ps = np.array([r['ps'] for r in _unique])
+        _ps = np.array([r['phi_se'] for r in _unique])
 
         _tk = _ratio >= 8; _tn = _ratio < 8
         if _tk.sum() >= 3:
@@ -1609,12 +1572,12 @@ def plot_electronic_scaling(data_list, names, outdir):
     # ── Global R² from ALL data (not just this comparison group) ──
     r2_global_tk = 0; r2_global_tn = 0; n_global_tk = 0; n_global_tn = 0
     if len(_unique) >= 5:
-        _s_all = np.array([r['s'] for r in _unique])
+        _s_all = np.array([r['sigma'] for r in _unique])
         _ratio_all = np.array([r['ratio'] for r in _unique])
         # Thick global R²
         _tk_mask = _ratio_all >= 8
         if _tk_mask.sum() >= 3:
-            _pa_tk = np.array([r['pa'] for r in _unique])[_tk_mask]
+            _pa_tk = np.array([r['phi_am'] for r in _unique])[_tk_mask]
             _cn_tk = np.array([r['cn'] for r in _unique])[_tk_mask]
             _por_tk = np.array([r['por'] for r in _unique])[_tk_mask]
             _pred_tk = C_thick * SIGMA_AM * _pa_tk**2.5 * _cn_tk**2 / _por_tk**0.5
@@ -1623,7 +1586,7 @@ def plot_electronic_scaling(data_list, names, outdir):
             r2_global_tk = 1 - _ss_res / _ss_tot if _ss_tot > 0 else 0
             n_global_tk = int(_tk_mask.sum())
         # Thin global R²
-        _tn_mask = _ratio_all < 10
+        _tn_mask = _ratio_all < 8
         _ep_all = np.array([r['ep'] for r in _unique])
         _tn_perc = _tn_mask & (_ep_all >= 0.50)
         if _tn_perc.sum() >= 3:

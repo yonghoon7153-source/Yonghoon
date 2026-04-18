@@ -214,12 +214,12 @@ def run_pipeline(case_id, mode, type_map, scale=1000):
         cmd = ['python3', os.path.join(scripts, 'analyze_contacts.py'),
                atoms_csv, contacts_csv, '-o', results_dir,
                '-t', type_map, '-s', str(scale)]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
         log.append({'step': 'Contact Analysis', 'stdout': result.stdout, 'stderr': result.stderr, 'rc': result.returncode})
 
         cmd = ['python3', os.path.join(scripts, 'generate_figures.py'),
                results_dir, '-o', figures_dir, '-s', str(scale)]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
         log.append({'step': 'Basic Figures', 'stdout': result.stdout, 'stderr': result.stderr, 'rc': result.returncode})
 
         atoms_analyzed = os.path.join(results_dir, 'atoms_analyzed.csv')

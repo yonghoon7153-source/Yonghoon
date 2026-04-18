@@ -1423,9 +1423,9 @@ def plot_formx_decomposition(data_list, names, outdir):
 
     fig.tight_layout()
     _write_csv(outdir, 'formx_decomposition.csv',
-               ['(φ-φc)^¾', 'CN', '√cov', '1/√τ', 'dominant'],
+               ['(φ-φc)^¾', 'CN^1.5', '⁴√cov', 'C(τ)', 'dominant'],
                x_labels,
-               list(log_phiex), list(log_cn), list(log_cov), list(log_tau),
+               list(log_phiex), list(log_cn), list(log_cov), list(log_Csig),
                [sorted([(l, v[i]-v[ref]) for l,v,_ in factors], key=lambda x:-abs(x[1]))[0][0] for i in range(n)])
     return _save(fig, outdir, "formx_decomposition.png")
 

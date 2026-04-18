@@ -1063,9 +1063,12 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ss_res_fixed = np.sum((log_sf - pred_fixed)**2)
     r2_fixed = 1 - ss_res_fixed / ss_tot
 
-    # === v12-CLEAN scaling law (production, since 2026-04-18) ===
-    # σ = C_blend(τ) × σ_grain × √(φ−0.2) × CN^(3/2) × √cov × f_p²
-    PHI_C = 0.20  # data-native percolation threshold (v12 fit: 0.203)
+    # === v9 BLEND scaling law (production, reverted 2026-04-18) ===
+    # σ = C_blend(τ) × σ_grain × (φ-0.185)^0.75 × CN^1.5 × cov^0.25 × f_p²
+    # Kirkpatrick 3D percolation + Bruggeman². Stable, LOOCV=0.9764.
+    # v12 data-native fit (α=0.53, γ=0.41) kept as diagnostic only — rounding
+    # to half-integers breaks the coupled exponent balance (LOOCV 0.98 → 0.81).
+    PHI_C = 0.185  # Kirkpatrick-style percolation threshold
     coverage = [(lambda vs: sum(vs)/len(vs)/100 if vs else 0.20)([v for v in [_get(d,"coverage_AM_P_mean",0), _get(d,"coverage_AM_S_mean",0), _get(d,"coverage_AM_mean",0)] if v>0]) for d in data_list]
 
     phi_ex_arr = np.array([max(phi_se[i] - PHI_C, 0.001) for i in valid_idx])
@@ -1079,18 +1082,10 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     TAU_C = 2.1; TAU_K = 5.0          # v5 C(τ) sigmoid (fixed)
     fp_arr = np.array([max(f_perc[i], 0.01) for i in valid_idx])
     log_tau_arr = np.log(tau_arr)
-    # === v12-CLEAN exponents — simple fractions from data-native fit ===
-    # v12 fit gave (α,β,γ,δ) = (0.526, 1.56, 0.411, 1.98). Rounded:
-    #   α=1/2 (mean-field percolation)     — v12 0.526, Δ=−5%
-    #   β=3/2 (Kirkpatrick CN)             — v12 1.56,  Δ=−4%
-    #   γ=2/5 (interface coverage)         — v12 0.411, Δ=−3%
-    #   δ=2   (Bruggeman²)                 — v12 1.98,  Δ=+1%
-    #   φc=0.20                            — v12 0.203, Δ=−1%
-    # (First attempt used γ=1/2 — catastrophic LOOCV drop because 0.5 vs 0.411
-    #  is +22% relative. Fixed to 2/5.)
-    # v9 archive: (0.75, 1.5, 0.25, 2; φc=0.185) — Kirkpatrick 3D priors.
-    log_rhs_base = (np.log(SIGMA_BULK) + 0.50*np.log(phi_ex_arr) + 1.5*np.log(cn_arr)
-                    + 0.40*np.log(cov_arr) + 2.0*np.log(fp_arr))
+    # v9 Kirkpatrick priors: α=0.75, β=1.5, γ=0.25, δ=2 (φc=0.185 above).
+    # v12 data-native fit (α=0.53, γ=0.41) printed as diagnostic below.
+    log_rhs_base = (np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + 1.5*np.log(cn_arr)
+                    + 0.25*np.log(cov_arr) + 2.0*np.log(fp_arr))
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
     def _fit_at(k_bl, tc_bl):

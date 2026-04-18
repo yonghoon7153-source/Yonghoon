@@ -1107,10 +1107,10 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
     def _fit_at(k_bl, tc_bl, k_pf=10.0, pc_pf=0.5):
-        """v18 (PRODUCTION): v12-clean v3 blend + single smooth P:S sigmoid.
-        Residual correction: β1·(w_pf - ⟨w_pf⟩). β2 (τ-modulation) = 0.
-        Simpler, better LOOCV, visually indistinguishable from v19.
-        Returns 10-tuple for API compatibility: beta2 is always 0."""
+        """v21: v12-clean v3 + bilinear P:S (thin & thick-specific β).
+        Correction: (β_thin · w_bl + β_thick · (1-w_bl)) · (w_pf - ⟨w_pf⟩)
+        β_thin targets thin+particulate cases (thin_9/8_AMP/6).
+        Returns (r2, loocv, w20, b_v5, b_p3, w_bl, pred, β_thin, β_thick, w_pf)."""
         w_bl = 1.0 / (1.0 + np.exp(-k_bl * (tau_arr - tc_bl)))
         w_pf = 1.0 / (1.0 + np.exp(-k_pf * (pf_prod - pc_pf)))
         X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
@@ -1123,11 +1123,14 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         pred_pre = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
 
         pf_c = w_pf - w_pf.mean()
+        # Bilinear: separate β for thin (w_bl high) vs thick (w_bl low)
+        col_thin = w_bl * pf_c
+        col_thick = (1 - w_bl) * pf_c
+        X_corr = np.column_stack([col_thin, col_thick])
         resid = log_sf - pred_pre
-        denom = float(np.sum(pf_c**2))
-        beta1 = float(np.sum(resid * pf_c) / denom) if denom > 1e-10 else 0.0
-        beta2 = 0.0
-        pred = pred_pre + beta1 * pf_c
+        bc = np.linalg.lstsq(X_corr, resid, rcond=None)[0]
+        pred = pred_pre + X_corr @ bc
+        beta_thin, beta_thick = float(bc[0]), float(bc[1])
 
         r2 = 1 - np.sum((log_sf - pred)**2) / ss_tot
         n_loo = len(log_sf)
@@ -1138,15 +1141,17 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
             bp_ = np.linalg.lstsq(X_p3_l[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
             pv9 = (1 - w_bl) * (X_v5_l @ bv_) + w_bl * (X_p3_l @ bp_) + log_rhs_base
             pf_c_mk = w_pf[mk] - w_pf[mk].mean()
-            resid_mk = (log_sf - pv9)[mk]
-            dm = float(np.sum(pf_c_mk**2))
-            beta_mk = float(np.sum(resid_mk * pf_c_mk) / dm) if dm > 1e-10 else 0.0
-            pred_ii = pv9[ii] + beta_mk * (w_pf[ii] - w_pf[mk].mean())
+            ct_mk = w_bl[mk] * pf_c_mk
+            ck_mk = (1 - w_bl[mk]) * pf_c_mk
+            Xc_mk = np.column_stack([ct_mk, ck_mk])
+            bc_mk = np.linalg.lstsq(Xc_mk, (log_sf - pv9)[mk], rcond=None)[0]
+            pf_ii = w_pf[ii] - w_pf[mk].mean()
+            pred_ii = pv9[ii] + bc_mk[0] * w_bl[ii] * pf_ii + bc_mk[1] * (1 - w_bl[ii]) * pf_ii
             sse_loo += (log_sf[ii] - pred_ii)**2
         loocv = 1 - sse_loo / ss_tot
         s_act_l = np.exp(log_sf); s_prd_l = np.exp(pred)
         w20 = int(np.sum(np.abs(s_prd_l - s_act_l) / s_act_l < 0.20))
-        return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred, beta1, beta2, w_pf
+        return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred, beta_thin, beta_thick, w_pf
 
     # v18: continuous 4D optimization — (k_bl, τc_bl, k_pf, pc_pf)
     from scipy.optimize import minimize

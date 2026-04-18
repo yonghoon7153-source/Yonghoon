@@ -1109,13 +1109,15 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
     def _fit_at(k_bl, tc_bl, k_pf=10.0, pc_pf=0.5, tau_c_win=2.0, sigma_tau_win=0.3):
-        """v25 PRODUCTION: v18 (P:S sigmoid) + GAUSSIAN τ-bump for particulate.
-        Gaussian bump w_win(τ) = exp(−((τ−τ_c)/(√2·σ_τ))²)
-        Smoother than sigmoid-product (v24), no sharp edges → less shape distortion.
+        """v26 PRODUCTION: v18 + Gaussian τ-bump × p_frac·(1-p_frac) MIXED regime.
+        Correction amplitude: β · p_frac·(1−p_frac) · w_win(τ)
+        Peaks at p_frac=0.5 (mixed), zero at p=0 (all-solid) and p=1 (all-particulate).
+        Captures: specific over-prediction at "mixed P:S in transition τ" regime,
+        without over-correcting pure-phase cases.
         Returns (r2, loocv, w20, b_v5, b_p3, w_bl, pred, β_pf, β_win, w_pf)."""
         w_bl = 1.0 / (1.0 + np.exp(-k_bl * (tau_arr - tc_bl)))
         w_pf = 1.0 / (1.0 + np.exp(-k_pf * (pf_prod - pc_pf)))
-        # Gaussian bump around τ = tau_c_win with std = sigma_tau_win
+        # Gaussian bump × p_frac·(1-p_frac) — MIXED-regime selector
         w_win = np.exp(-0.5 * ((tau_arr - tau_c_win) / max(sigma_tau_win, 0.05))**2)
         X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
         X_p3_l = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
@@ -1126,9 +1128,11 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         pp_l = X_p3_l @ b_p3_l
         pred_pre = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
 
-        # 2-term residual: β_pf·(w_pf centered) + β_win·(p_frac · w_win centered)
+        # v26: 2-term residual:
+        #   β_pf · (w_pf centered)
+        #   β_win · (p·(1-p)·w_win centered)  — MIXED-regime selector
         pf_c = w_pf - w_pf.mean()
-        win_term = pf_prod * w_win   # p_frac × τ-window
+        win_term = pf_prod * (1.0 - pf_prod) * w_win   # mixed × τ-window
         win_c = win_term - win_term.mean()
         X_corr = np.column_stack([pf_c, win_c])
         resid = log_sf - pred_pre
@@ -1680,11 +1684,11 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     global _GLOBAL_IONIC_SIGMOID
     _GLOBAL_IONIC_SIGMOID = (C_thick, C_thin, TAU_C, TAU_K)
     global _GLOBAL_PS_SIGMOID
-    # v25: export (k_pf, pc_pf, β_pf, β_win, ⟨w_pf⟩, ⟨p·w_win⟩, τ_c_win, σ_τ_win)
+    # v26: export (k_pf, pc_pf, β_pf, β_win, ⟨w_pf⟩, ⟨p·(1-p)·w_win⟩, τ_c_win, σ_τ_win)
     _w_win_prod = np.exp(-0.5 * ((tau_arr - best_tcw) / max(best_stw, 0.05))**2)
     _GLOBAL_PS_SIGMOID = (best_kp, best_pc, beta_pf_prod, beta_win_prod,
                           float(w_pf_prod.mean()),
-                          float((pf_prod * _w_win_prod).mean()),
+                          float((pf_prod * (1.0 - pf_prod) * _w_win_prod).mean()),
                           best_tcw, best_stw)
 
     # Use FORM X v4 as primary
@@ -1887,7 +1891,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title(f"Ionic v25: C_blend(τ)·C_pf(p)·C_bump(τ,p) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³\n"
+    ax.set_title(f"Ionic v26: C_blend(τ)·C_pf(p)·C_mixed(τ,p) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³\n"
                  f"τ-blend(k={best_k:.0f},τc={best_tc:.2f})  P:S(k={best_kp:.0f},pc={best_pc:.2f},β={beta_pf_prod:+.3f})  κ_A={kappa_area:+.3f}  R²={r2_formX:.3f} LOOCV={loocv_formX:.3f}",
                  fontsize=8, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
@@ -2006,11 +2010,11 @@ def plot_multiscale_sigma(data_list, names, outdir):
             ln_C = (1 - w_bl) * ln_C_v5 + w_bl * ln_C_p3
             # v19 exponents: α=1/2, β=3/2, γ=2/5, δ=3
             s = np.exp(ln_C) * SIGMA_BULK * phi_ex**0.5 * cn[i]**1.5 * coverage[i]**0.4 * f_perc[i]**3
-            # v25 P:S sigmoid + Gaussian τ-bump correction
+            # v26 P:S sigmoid + Gaussian τ-bump × MIXED regime p·(1−p)
             pf = _pf_local(data_list[i])
             w_pf = 1.0 / (1.0 + np.exp(-K_PF * (pf - PC_PF)))
             w_win = np.exp(-0.5 * ((tau[i] - TAU_C_WIN) / max(SIGMA_TAU_WIN, 0.05))**2)
-            ps_corr = B_PF * (w_pf - WPF_MEAN) + B_WIN * (pf * w_win - PWIN_MEAN)
+            ps_corr = B_PF * (w_pf - WPF_MEAN) + B_WIN * (pf * (1.0 - pf) * w_win - PWIN_MEAN)
             s = s * np.exp(ps_corr)
             sigma_ms.append(s)
         else:
@@ -2044,7 +2048,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     _apply_style(ax, "σ_ionic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
-    ax.set_title(f"FORM X v25: C_blend(τ)·C_pf(p)·C_bump(τ,p) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³",
+    ax.set_title(f"FORM X v26: C_blend(τ)·C_pf(p)·C_mixed(τ,p) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³",
                  fontsize=9, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',

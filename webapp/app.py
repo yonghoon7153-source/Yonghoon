@@ -520,13 +520,24 @@ def analyze(case_id):
         with open(meta_file, 'w') as f:
             json.dump(meta, f, indent=2)
 
+        # Always restore network backup (even if contact analysis failed)
+        if net_already_done and _net_backup and os.path.exists(_net_backup):
+            os.makedirs(results_dir, exist_ok=True)
+            shutil.copy2(_net_backup, net_json_path)
+            os.unlink(_net_backup)
+            if not result.get('success'):
+                meta['network_solver_status'] = 'success'
+                meta['status'] = 'done'
+                with open(meta_file, 'w') as f:
+                    json.dump(meta, f, indent=2)
+                print(f"  [Reanalysis] Contact analysis failed but network results restored ({case_id})")
+                return
+
         if result.get('success'):
             generate_report(case_id, meta.get('name', ''))
 
-            # If network solver already done, restore backup and merge into new metrics
-            if net_already_done and _net_backup and os.path.exists(_net_backup):
-                shutil.copy2(_net_backup, net_json_path)
-                os.unlink(_net_backup)
+            # If network solver already done, merge restored backup into new metrics
+            if net_already_done and os.path.exists(net_json_path):
                 # Merge into new full_metrics.json
                 met_json = os.path.join(results_dir, 'full_metrics.json')
                 if os.path.exists(met_json):

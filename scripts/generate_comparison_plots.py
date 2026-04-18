@@ -1343,6 +1343,17 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     # Goal: measure the irreducible R²/LOOCV achievable on this dataset.
     # Uses ridge (λ=small) on a dense feature matrix. No physical meaning —
     # purely upper bound on linear-model predictability.
+    def _ps_frac(d):
+        ps = (d.get("ps_ratio", "") or "")
+        if ps in ("P only", "10:0"): return 1.0
+        if ps in ("S only", "0:10"): return 0.0
+        if ":" in ps:
+            try:
+                p, s = ps.split(":"); p, s = float(p), float(s)
+                return p / (p + s) if (p + s) > 0 else 0.5
+            except Exception:
+                return 0.5
+        return 0.5
     phi_log = np.log(np.maximum(phi_np - 0.20, 1e-4))
     feats_base = {
         'log(φ-φc)': phi_log,
@@ -1352,7 +1363,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         'log(fp)': np.log(fp_np),
         'log(gb)': np.log(np.maximum(gb_np, 1e-10)),
         'log(gp)': np.log(np.maximum(gp_np, 1e-10)),
-        'p_frac':  np.array([_parse_ps(data_list[i]) for i in valid_idx]),
+        'p_frac':  np.array([_ps_frac(data_list[i]) for i in valid_idx]),
     }
     # Build design matrix: 1 + base + squares + pairwise
     cols = [np.ones(len(ln_sigma))]

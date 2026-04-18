@@ -44,6 +44,7 @@ _GLOBAL_C_ION = None  # Fitted C for ionic scaling law (from global/ionic_scalin
 _GLOBAL_FORMX_R2 = None  # (r2, loocv) from FORM X fit
 _GLOBAL_IONIC_SIGMOID = None  # (C_thick, C_thin, tau_c, k) for sigmoid C(τ)
 _GLOBAL_IONIC_POLY3 = None  # (a0, a1, a2, a3) for poly3 part of v9 BLEND
+_GLOBAL_PS_SIGMOID = None   # v19: (k_pf, pc_pf, beta1, beta2, w_pf_mean, pf_t_mean)
 _ALL_DATA = None  # all_data for _apply_style auto-detect
 
 def _apply_style(ax, ylabel, names, data_list=None):
@@ -1106,26 +1107,31 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
     def _fit_at(k_bl, tc_bl, k_pf=10.0, pc_pf=0.5):
-        """v18: v12-clean v3 blend + sigmoid(k_pf, pc_pf) smooth P:S transition.
-        Returns (r2, loocv, w20, b_v5, b_p3, w_bl, pred, beta_pf, w_pf)."""
+        """v19: v12-clean v3 + smooth P:S sigmoid + τ-modulated P:S coupling.
+        Residual correction is 2-term:
+           β1·(w_pf - ⟨w_pf⟩) + β2·(w_pf·log τ − ⟨⋅⟩)
+        Returns (r2, loocv, w20, b_v5, b_p3, w_bl, pred, beta1, beta2, w_pf)."""
         w_bl = 1.0 / (1.0 + np.exp(-k_bl * (tau_arr - tc_bl)))
-        w_pf = 1.0 / (1.0 + np.exp(-k_pf * (pf_prod - pc_pf)))   # smooth P:S sigmoid
+        w_pf = 1.0 / (1.0 + np.exp(-k_pf * (pf_prod - pc_pf)))
         X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
         X_p3_l = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
 
-        # Step 1: v12-clean v3 blend fit
+        # Step 1: v12-clean v3 blend fit (pre-correction)
         b_v5_l = np.linalg.lstsq(X_v5_l, log_sf - log_rhs_base, rcond=None)[0]
         b_p3_l = np.linalg.lstsq(X_p3_l, log_sf - log_rhs_base, rcond=None)[0]
         pv_l = X_v5_l @ b_v5_l
         pp_l = X_p3_l @ b_p3_l
         pred_pre = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
 
-        # Step 2: β · (w_pf - mean(w_pf)) via centered residual regression
+        # Step 2: 2-term residual regression
         pf_c = w_pf - w_pf.mean()
+        pf_t = w_pf * log_tau_arr
+        pf_t_c = pf_t - pf_t.mean()
+        X_corr = np.column_stack([pf_c, pf_t_c])
         resid = log_sf - pred_pre
-        denom = float(np.sum(pf_c**2))
-        beta_pf = float(np.sum(resid * pf_c) / denom) if denom > 1e-10 else 0.0
-        pred = pred_pre + beta_pf * pf_c
+        bc = np.linalg.lstsq(X_corr, resid, rcond=None)[0]
+        pred = pred_pre + X_corr @ bc
+        beta1, beta2 = float(bc[0]), float(bc[1])
 
         r2 = 1 - np.sum((log_sf - pred)**2) / ss_tot
         n_loo = len(log_sf)
@@ -1135,16 +1141,19 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
             bv_ = np.linalg.lstsq(X_v5_l[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
             bp_ = np.linalg.lstsq(X_p3_l[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
             pv9 = (1 - w_bl) * (X_v5_l @ bv_) + w_bl * (X_p3_l @ bp_) + log_rhs_base
-            pf_mk = w_pf[mk] - w_pf[mk].mean()
-            resid_mk = (log_sf - pv9)[mk]
-            dm = float(np.sum(pf_mk**2))
-            beta_mk = float(np.sum(resid_mk * pf_mk) / dm) if dm > 1e-10 else 0.0
-            pred_ii = pv9[ii] + beta_mk * (w_pf[ii] - w_pf[mk].mean())
+            pf_c_mk = w_pf[mk] - w_pf[mk].mean()
+            pf_t_mk = (w_pf * log_tau_arr)[mk]
+            pf_t_c_mk = pf_t_mk - pf_t_mk.mean()
+            X_corr_mk = np.column_stack([pf_c_mk, pf_t_c_mk])
+            bc_mk = np.linalg.lstsq(X_corr_mk, (log_sf - pv9)[mk], rcond=None)[0]
+            # For ii prediction, use same mean-centering as train set
+            pred_ii = pv9[ii] + bc_mk[0] * (w_pf[ii] - w_pf[mk].mean()) \
+                              + bc_mk[1] * (w_pf[ii] * log_tau_arr[ii] - pf_t_mk.mean())
             sse_loo += (log_sf[ii] - pred_ii)**2
         loocv = 1 - sse_loo / ss_tot
         s_act_l = np.exp(log_sf); s_prd_l = np.exp(pred)
         w20 = int(np.sum(np.abs(s_prd_l - s_act_l) / s_act_l < 0.20))
-        return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred, beta_pf, w_pf
+        return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred, beta1, beta2, w_pf
 
     # v18: continuous 4D optimization — (k_bl, τc_bl, k_pf, pc_pf)
     from scipy.optimize import minimize
@@ -1163,7 +1172,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     for k in k_sweep:
         r2_k, lo_k, w20_k, *_ = _fit_at(k, 2.0, 10.0, 0.5)
         print(f"  {k:5.1f}  {r2_k:.4f}  {lo_k:.4f}  {w20_k:2d}/{len(log_sf):2d}")
-    r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX, beta_pf_prod, w_pf_prod = \
+    r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX, beta1_prod, beta2_prod, w_pf_prod = \
         _fit_at(best_k, best_tc, best_kp, best_pc)
     print(f"  → continuous optimum: k_bl={best_k:.2f}, τc_bl={best_tc:.3f}  |  "
           f"k_pf={best_kp:.2f}, pc_pf={best_pc:.3f}")
@@ -1172,7 +1181,8 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     print(f"    Ct={_Ct_chk:.4f} (thick asymptote)  Cn={_Cn_chk:.4f} (thin asymptote)  "
           f"Ct/Cn={_Ct_chk/_Cn_chk:.2f}")
     print(f"    poly3 coefs = [{b_p3[0]:+.3f}, {b_p3[1]:+.3f}, {b_p3[2]:+.3f}, {b_p3[3]:+.3f}]")
-    print(f"    β_pf = {beta_pf_prod:+.4f}  ← v18: smooth P:S sigmoid amplitude")
+    print(f"    β1 (P:S base)   = {beta1_prod:+.4f}  ← P:S sigmoid amplitude")
+    print(f"    β2 (P:S × log τ) = {beta2_prod:+.4f}  ← τ-modulation of P:S effect")
     TAU_C_BL = best_tc
     TAU_K_BL = best_k
 
@@ -1513,12 +1523,16 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
 
     # (LOOCV already computed inside _fit_at_k for the winning k)
 
-    # Save to global
+    # Save to global — v19 includes P:S sigmoid params + 2 β coefficients
     _GLOBAL_C_ION = C_thick
     global _GLOBAL_FORMX_R2
     _GLOBAL_FORMX_R2 = (r2_formX, loocv_formX)
     global _GLOBAL_IONIC_SIGMOID
     _GLOBAL_IONIC_SIGMOID = (C_thick, C_thin, TAU_C, TAU_K)
+    global _GLOBAL_PS_SIGMOID
+    _GLOBAL_PS_SIGMOID = (best_kp, best_pc, beta1_prod, beta2_prod,
+                          float(w_pf_prod.mean()),
+                          float((w_pf_prod * log_tau_arr).mean()))
 
     # Use FORM X v4 as primary
     s_pred = np.exp(pred_formX)
@@ -1709,9 +1723,9 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title(f"Ionic v9 BLEND: [(1-w)·v5 + w·poly3] × σ_grain × CN^1.5 × (φ−φc)^¾ × ⁴√cov × fp²\n"
-                 f"sigmoid(k={TAU_K:.0f},τc={TAU_C})  Ct={C_thick:.4f} Cn={C_thin:.4f}  R²={r2_formX:.3f}",
-                 fontsize=9, fontweight='bold')
+    ax.set_title(f"Ionic v19: C_blend(τ)·C_pf(p) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³\n"
+                 f"τ-blend(k={best_k:.0f},τc={best_tc:.2f})  P:S(k={best_kp:.0f},pc={best_pc:.2f},β₁={beta1_prod:+.3f},β₂={beta2_prod:+.3f})  R²={r2_formX:.3f} LOOCV={loocv_formX:.3f}",
+                 fontsize=8, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
 
     txt = (f"R²={r2:.3f} (n={len(valid_idx)})\n"
@@ -1773,9 +1787,10 @@ def plot_network_sigma(data_list, names, outdir):
 
 
 def plot_multiscale_sigma(data_list, names, outdir):
-    """FORM X: σ = C × σ_grain × (φ-φc)^¾ × CN × √cov / √τ."""
+    """FORM X v19: v12-clean v3 exponents (α=1/2, β=3/2, γ=2/5, δ=3, φc=0.20)
+    + smooth τ-blend + P:S sigmoid with τ-modulation."""
     SIGMA_BULK = 3.0
-    PHI_C = 0.185
+    PHI_C = 0.20  # v12-clean v3
 
     phi_se = [_get(d, "phi_se") for d in data_list]
     cn = [_get(d, "se_se_cn", 0) for d in data_list]
@@ -1784,43 +1799,53 @@ def plot_multiscale_sigma(data_list, names, outdir):
     f_perc = [max(_get(d, "percolation_pct", 100) / 100, 0.01) for d in data_list]
     sigma_net = _load_network_sigma(data_list)
 
-    # Fit C from data
-    valid_fit = []
-    for i in range(len(data_list)):
-        phi_ex = max(phi_se[i] - PHI_C, 0.001)
-        if phi_ex > 0 and cn[i] > 0 and tau[i] > 0 and coverage[i] > 0 and sigma_net[i] > 0.01:
-            valid_fit.append(i)
-
-    # Sigmoid C(τ) parameters
+    # Sigmoid C(τ) + P:S sigmoid — prefer global (from ionic_scaling_fit fit)
     TAU_C = 2.1; TAU_K = 5.0
     if _GLOBAL_IONIC_SIGMOID is not None:
         C_thick_ms, C_thin_ms, TAU_C, TAU_K = _GLOBAL_IONIC_SIGMOID
     elif _GLOBAL_C_ION is not None:
         C_thick_ms = _GLOBAL_C_ION; C_thin_ms = C_thick_ms * 0.54
-    elif len(valid_fit) < 3:
-        C_thick_ms = 0.034; C_thin_ms = 0.019
     else:
-        log_rhs = np.array([np.log(SIGMA_BULK) + 0.75*np.log(max(phi_se[i]-PHI_C, 0.001))
-                            + 1.5*np.log(cn[i]) + 0.25*np.log(coverage[i])
-                            for i in valid_fit])
-        log_actual = np.array([np.log(sigma_net[i]) for i in valid_fit])
-        C_thick_ms = np.exp(np.mean(log_actual - log_rhs))
-        C_thin_ms = C_thick_ms * 0.54
-    C_ms = C_thick_ms
+        C_thick_ms = 0.029; C_thin_ms = 0.017
 
-    # v9 BLEND: (1-w_bl)·v5_sigmoid + w_bl·poly3
-    p3_coefs = _GLOBAL_IONIC_POLY3 if _GLOBAL_IONIC_POLY3 is not None else (-3.7318, 3.0684, -6.3596, 3.0123)
+    p3_coefs = _GLOBAL_IONIC_POLY3 if _GLOBAL_IONIC_POLY3 is not None else (-3.80, +2.38, -5.58, +2.81)
+
+    # v19 P:S sigmoid params (k_pf, pc_pf, β1, β2, ⟨w_pf⟩, ⟨w_pf·log τ⟩)
+    if _GLOBAL_PS_SIGMOID is not None:
+        K_PF, PC_PF, B1_PF, B2_PF, WPF_MEAN, PFT_MEAN = _GLOBAL_PS_SIGMOID
+    else:
+        K_PF, PC_PF, B1_PF, B2_PF, WPF_MEAN, PFT_MEAN = 17.77, 0.591, -0.17, 0.0, 0.5, 0.0
+
+    # Parse P:S fraction per case
+    def _pf_local(d):
+        ps = (d.get("ps_ratio", "") or "")
+        if ps in ("P only", "10:0"): return 1.0
+        if ps in ("S only", "0:10"): return 0.0
+        if ":" in ps:
+            try:
+                p, s = ps.split(":"); p, s = float(p), float(s)
+                return p / (p + s) if (p + s) > 0 else 0.5
+            except Exception:
+                return 0.5
+        return 0.5
+
     sigma_ms = []
     for i in range(len(data_list)):
-        phi_ex = max(phi_se[i] - PHI_C, 0.001)
+        phi_ex = max(phi_se[i] - PHI_C, 1e-4)
         if cn[i] > 0 and tau[i] > 0 and coverage[i] > 0:
             w_v5 = 1.0 / (1.0 + np.exp(-TAU_K * (tau[i] - TAU_C)))
-            w_bl = 1.0 / (1.0 + np.exp(-15.0 * (tau[i] - 2.0)))
+            w_bl = 1.0 / (1.0 + np.exp(-20.0 * (tau[i] - 1.92)))
             ln_C_v5 = np.log(C_thick_ms) + (np.log(C_thin_ms) - np.log(C_thick_ms)) * w_v5
             lt = np.log(tau[i])
             ln_C_p3 = p3_coefs[0] + p3_coefs[1]*lt + p3_coefs[2]*lt**2 + p3_coefs[3]*lt**3
             ln_C = (1 - w_bl) * ln_C_v5 + w_bl * ln_C_p3
-            s = np.exp(ln_C) * SIGMA_BULK * phi_ex**0.75 * cn[i]**1.5 * coverage[i]**0.25 * f_perc[i]**2
+            # v19 exponents: α=1/2, β=3/2, γ=2/5, δ=3
+            s = np.exp(ln_C) * SIGMA_BULK * phi_ex**0.5 * cn[i]**1.5 * coverage[i]**0.4 * f_perc[i]**3
+            # v19 P:S sigmoid correction
+            pf = _pf_local(data_list[i])
+            w_pf = 1.0 / (1.0 + np.exp(-K_PF * (pf - PC_PF)))
+            ps_corr = B1_PF * (w_pf - WPF_MEAN) + B2_PF * (w_pf * lt - PFT_MEAN)
+            s = s * np.exp(ps_corr)
             sigma_ms.append(s)
         else:
             sigma_ms.append(0)
@@ -1853,7 +1878,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     _apply_style(ax, "σ_ionic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
-    ax.set_title(f"FORM X v9: C_blend(τ) × σ_grain × CN^1.5 × (φ−φc)^¾ × ⁴√cov × fp²",
+    ax.set_title(f"FORM X v19: C_blend(τ)·C_pf(p) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³",
                  fontsize=9, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',

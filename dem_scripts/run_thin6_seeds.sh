@@ -10,9 +10,8 @@ set -e  # exit on error in the loop control (not in LIGGGHTS itself)
 
 # --- Configuration ---
 SCRIPT="thin6_seed.liggghts"
-# LIGGGHTS launch command — ADJUST to your environment
-# processors 2 2 2 in the script → 8 MPI ranks
-LIGGGHTS_CMD="mpirun -np 8 liggghts"
+# LIGGGHTS launch command — processors auto-distributed (no -processors in script)
+LIGGGHTS_CMD="mpirun -np 10 liggghts"
 
 # 5 independent insertion seeds (primes, max statistical independence)
 # First is original thin_6 seed; rest are new.

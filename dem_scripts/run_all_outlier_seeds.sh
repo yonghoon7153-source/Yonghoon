@@ -12,8 +12,9 @@
 set -u
 
 # --- Configuration ---
-# LIGGGHTS launch command — ADJUST if not mpirun -np 8
-LIGGGHTS_CMD="mpirun -np 8 liggghts"
+# LIGGGHTS launch command — processors auto-distributed (no -processors in script)
+# Default: mpirun -np 10 (10 ranks). Adjust if fewer/more threads available.
+LIGGGHTS_CMD="mpirun -np 10 liggghts"
 
 # Skip already-completed runs (check for contact dumps)
 SKIP_IF_DONE=true

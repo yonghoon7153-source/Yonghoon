@@ -13,7 +13,6 @@ newton          off
 soft_particles  yes
 communicate     single vel yes
 units           si
-processors      2 2 2
 
 # --- 2. Variables & Domain ---
 variable target_press equal 0.30

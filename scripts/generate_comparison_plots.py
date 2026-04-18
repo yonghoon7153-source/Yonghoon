@@ -1021,7 +1021,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
 
     # Same as find_scaling_law.py: σ_brug = 3.0 × φ_SE × f_perc / τ²
     valid_idx = []
-    SIGMA_MIN = 0.01  # mS/cm — below this, near percolation threshold, scaling law breaks
+    SIGMA_MIN = 0.0  # include all non-zero σ_net (was 0.01; relaxed to test fit on low-σ cases)
     for i in range(len(data_list)):
         if (phi_se[i] > 0 and f_perc[i] > 0 and tau[i] > 0 and
             g_path[i] > 0 and cn[i] > 0 and gb_dens[i] > 0 and sigma_net[i] > SIGMA_MIN):

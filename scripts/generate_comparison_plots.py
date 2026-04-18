@@ -1149,19 +1149,26 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         w_gb = 1.0 / (1.0 + np.exp(-k_gb * (gb_log - gc_gb)))
         mix_term = w_gb
         mix_c = w_gb - w_gb.mean()
-        # v30: phase-split AM_P vs AM_S coverage asymmetry, thin regime GATED BY SIGMOID
-        # Smooth w_thin = σ(k·(τ-τc)) replaces hard I(τ>1.8) — no discontinuity,
-        # matches design of w_bl / w_pf / w_gb gates. Center τc=1.8 from v30c best.
+        # v30: phase-split AM_P vs AM_S coverage asymmetry — BIMODAL CASES ONLY
+        # Smooth w_thin = σ(k·(τ-τc)) replaces hard I(τ>1.8). Center τc=1.8 from v30c.
+        # IMPORTANT: monomodal cases (P=10:0 or 0:10) have undefined log(cov_P/cov_S)
+        # → ps_term = 0 AND ps_c = 0 (no correction). Bimodal cases only get
+        # centered by the bimodal-subset mean, so β_ps doesn't leak onto monomodal.
         _cov_p_fit = np.array([_get(data_list[i], "coverage_AM_P_mean", 0.0) for i in valid_idx], dtype=float)
         _cov_s_fit = np.array([_get(data_list[i], "coverage_AM_S_mean", 0.0) for i in valid_idx], dtype=float)
+        _bimodal = (_cov_p_fit > 1e-10) & (_cov_s_fit > 1e-10)
         _log_ps = np.zeros_like(_cov_p_fit)
-        _ps_ok = (_cov_p_fit > 1e-10) & (_cov_s_fit > 1e-10)
-        _log_ps[_ps_ok] = np.log(_cov_p_fit[_ps_ok]) - np.log(_cov_s_fit[_ps_ok])
+        _log_ps[_bimodal] = np.log(_cov_p_fit[_bimodal]) - np.log(_cov_s_fit[_bimodal])
         TAU_C_PS = 1.8                     # sigmoid center (v30c optimum τ-threshold)
         K_PS = 10.0                        # steepness — smooth but decisive (~80% at τ=1.98)
         w_thin = 1.0 / (1.0 + np.exp(-K_PS * (tau_arr - TAU_C_PS)))
-        ps_term = w_thin * _log_ps
-        ps_c = ps_term - ps_term.mean()
+        ps_term = w_thin * _log_ps         # zero for monomodal cases by construction
+        # Center using ONLY bimodal cases; monomodal get ps_c = 0 exactly
+        if _bimodal.any():
+            _ps_mean_bi = float(ps_term[_bimodal].mean())
+        else:
+            _ps_mean_bi = 0.0
+        ps_c = np.where(_bimodal, ps_term - _ps_mean_bi, 0.0)
         # v30: 4-term residual (β_pf, β_lin, β_gb, β_ps)
         X_corr = np.column_stack([pf_c, lin_c, mix_c, ps_c])
         resid = log_sf - pred_pre
@@ -1182,13 +1189,24 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
             pf_c_mk = w_pf[mk] - w_pf[mk].mean()
             lin_mk = lin_term[mk];  lin_c_mk = lin_mk - lin_mk.mean()
             wgb_mk = w_gb[mk];      wgb_c_mk = wgb_mk - wgb_mk.mean()
-            ps_mk = ps_term[mk];    ps_c_mk = ps_mk - ps_mk.mean()
+            # v30 monomodal-safe centering: ps_c = 0 for monomodal, bimodal-centered otherwise
+            _bimk = _bimodal[mk]
+            if _bimk.any():
+                _psmean_mk = float(ps_term[mk][_bimk].mean())
+            else:
+                _psmean_mk = 0.0
+            ps_c_mk = np.where(_bimk, ps_term[mk] - _psmean_mk, 0.0)
             Xc_mk = np.column_stack([pf_c_mk, lin_c_mk, wgb_c_mk, ps_c_mk])
             bc_mk = np.linalg.lstsq(Xc_mk, (log_sf - pv9)[mk], rcond=None)[0]
+            # For test case ii: apply ps correction only if bimodal
+            if _bimodal[ii]:
+                ps_ii = ps_term[ii] - _psmean_mk
+            else:
+                ps_ii = 0.0
             pred_ii = pv9[ii] + bc_mk[0] * (w_pf[ii] - w_pf[mk].mean()) \
                               + bc_mk[1] * (lin_term[ii] - lin_mk.mean()) \
                               + bc_mk[2] * (w_gb[ii] - wgb_mk.mean()) \
-                              + bc_mk[3] * (ps_term[ii] - ps_mk.mean())
+                              + bc_mk[3] * ps_ii
             sse_loo += (log_sf[ii] - pred_ii)**2
         loocv = 1 - sse_loo / ss_tot
         s_act_l = np.exp(log_sf); s_prd_l = np.exp(pred)
@@ -1741,6 +1759,8 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     _mk_glob = (_cov_p_glob > 1e-10) & (_cov_s_glob > 1e-10)
     _log_ps_glob[_mk_glob] = np.log(_cov_p_glob[_mk_glob]) - np.log(_cov_s_glob[_mk_glob])
     _ps_term_prod = _w_thin_prod * _log_ps_glob
+    # v30 FIX: PS_MEAN computed ONLY over bimodal cases (monomodal excluded)
+    _ps_mean_bi_exp = float(_ps_term_prod[_mk_glob].mean()) if _mk_glob.any() else 0.0
     _GLOBAL_PS_SIGMOID = (best_kp, best_pc, beta_pf_prod, beta_win_prod, _beta_gb_prod,
                           float(w_pf_prod.mean()),
                           float((pf_prod * _w_win_prod).mean()),
@@ -1749,7 +1769,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
                           float(_w_gb_prod.mean()),                   # ⟨w_gb⟩
                           _beta_ps_val,                               # v30 β_ps
                           _tau_c_ps_val, _k_ps_val,                   # v30 sigmoid params
-                          float(_ps_term_prod.mean()))                # v30 ⟨ps_term⟩ for centering
+                          _ps_mean_bi_exp)                            # v30 ⟨ps_term | bimodal⟩
 
     # Use FORM X v4 as primary
     s_pred = np.exp(pred_formX)
@@ -1973,6 +1993,97 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
             print(f"    · ΔLOOCV>0.0008 (half-noise) + sig r → conservative integration justified")
         else:
             print(f"    — even refined, below noise. True ceiling for parametric fit.")
+
+    # === v30e TUNING SWEEP: monomodal-safe bimodal-only phase-split ===
+    # Compare: v29 (no β_ps) vs v30 variants with different (feature, τc_ps, k_ps).
+    # Monomodal cases (cov_P=0 or cov_S=0) always get ps_c=0, never contribute
+    # to PS_MEAN, β_ps affects bimodal only. Bimodal LOOCV-accurate comparison.
+    _area_p_v30e = np.array([_get(data_list[i], "area_AM_P_SE_mean", 0.0) for i in valid_idx], dtype=float)
+    _area_s_v30e = np.array([_get(data_list[i], "area_AM_S_SE_mean", 0.0) for i in valid_idx], dtype=float)
+    _is_bi = (_cov_p > 1e-10) & (_cov_s > 1e-10)  # uses v30b-scope variables
+
+    def _loocv_v29_plus_monosafe(log_ratio_arr, bimodal_mask, tau_c_ps, k_ps):
+        """4-term residual LOOCV with monomodal-safe phase-split correction.
+        log_ratio_arr: per-case log(feat_P/feat_S); zeroed for monomodal.
+        bimodal_mask: boolean array. Monomodal gets ps_c=0 always."""
+        pf_v = w_pf_prod; lin_v = pf_prod * _w_win_prod; gb_v = _w_gb_prod
+        w_thin_arr = 1.0 / (1.0 + np.exp(-k_ps * (tau_arr - tau_c_ps)))
+        ps_term_arr = w_thin_arr * log_ratio_arr
+        n = len(log_sf); sse = 0.0
+        for ii in range(n):
+            mk = np.ones(n, bool); mk[ii] = False
+            bv_ = np.linalg.lstsq(X_v5[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
+            bp_ = np.linalg.lstsq(X_p3[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
+            pv29 = (1 - w_blend) * (X_v5 @ bv_) + w_blend * (X_p3 @ bp_) + log_rhs_base
+            m_pf = pf_v[mk].mean(); m_lin = lin_v[mk].mean(); m_gb = gb_v[mk].mean()
+            _bim_mk = bimodal_mask[mk]
+            if _bim_mk.any():
+                m_ps = float(ps_term_arr[mk][_bim_mk].mean())
+            else:
+                m_ps = 0.0
+            ps_c_mk = np.where(_bim_mk, ps_term_arr[mk] - m_ps, 0.0)
+            Xc = np.column_stack([pf_v[mk]-m_pf, lin_v[mk]-m_lin,
+                                   gb_v[mk]-m_gb, ps_c_mk])
+            bc = np.linalg.lstsq(Xc, (log_sf - pv29)[mk], rcond=None)[0]
+            ps_ii = (ps_term_arr[ii] - m_ps) if bimodal_mask[ii] else 0.0
+            pred_ii = (pv29[ii] + bc[0]*(pf_v[ii]-m_pf) + bc[1]*(lin_v[ii]-m_lin)
+                       + bc[2]*(gb_v[ii]-m_gb) + bc[3]*ps_ii)
+            sse += (log_sf[ii] - pred_ii)**2
+        # Also report β_ps magnitude for current full-data fit
+        m_ps_full = float(ps_term_arr[bimodal_mask].mean()) if bimodal_mask.any() else 0.0
+        ps_c_full = np.where(bimodal_mask, ps_term_arr - m_ps_full, 0.0)
+        pf_c_f = pf_v - pf_v.mean(); lin_c_f = lin_v - lin_v.mean(); gb_c_f = gb_v - gb_v.mean()
+        bv_f = np.linalg.lstsq(X_v5, log_sf - log_rhs_base, rcond=None)[0]
+        bp_f = np.linalg.lstsq(X_p3, log_sf - log_rhs_base, rcond=None)[0]
+        pv_f = (1 - w_blend) * (X_v5 @ bv_f) + w_blend * (X_p3 @ bp_f) + log_rhs_base
+        Xc_f = np.column_stack([pf_c_f, lin_c_f, gb_c_f, ps_c_full])
+        bc_f = np.linalg.lstsq(Xc_f, log_sf - pv_f, rcond=None)[0]
+        return 1 - sse / ss_tot, bc_f
+
+    # Build log_ratio variants (safe: 0 for monomodal)
+    _log_cov_ratio = np.zeros_like(_cov_p)
+    _log_cov_ratio[_is_bi] = np.log(_cov_p[_is_bi]) - np.log(_cov_s[_is_bi])
+    _is_bi_area = (_area_p_v30e > 1e-10) & (_area_s_v30e > 1e-10)
+    _log_area_ratio = np.zeros_like(_area_p_v30e)
+    _log_area_ratio[_is_bi_area] = np.log(_area_p_v30e[_is_bi_area]) - np.log(_area_s_v30e[_is_bi_area])
+
+    variants = [
+        # (name, log_ratio_array, bimodal_mask, tau_c_ps, k_ps)
+        ('v30 (cov, τc=1.8, k=10)',     _log_cov_ratio,  _is_bi,      1.8, 10.0),
+        ('v30 (cov, τc=1.9, k=10)',     _log_cov_ratio,  _is_bi,      1.9, 10.0),
+        ('v30 (cov, τc=2.0, k=10)',     _log_cov_ratio,  _is_bi,      2.0, 10.0),
+        ('v30 (cov, τc=1.8, k=5)',      _log_cov_ratio,  _is_bi,      1.8, 5.0),
+        ('v30 (cov, τc=1.8, k=20)',     _log_cov_ratio,  _is_bi,      1.8, 20.0),
+        ('v30 (area, τc=1.8, k=10)',    _log_area_ratio, _is_bi_area, 1.8, 10.0),
+        ('v30 (area, τc=1.9, k=10)',    _log_area_ratio, _is_bi_area, 1.9, 10.0),
+        ('v30 (area, τc=2.0, k=10)',    _log_area_ratio, _is_bi_area, 2.0, 10.0),
+    ]
+
+    print(f"\n[v30e TUNING SWEEP] monomodal-safe phase-split (cov vs area, τc_ps, k_ps)")
+    print(f"  v29 baseline LOOCV = {loocv_formX:.4f}   noise σ ≈ {sigma_noise_v29:.4f}")
+    print(f"  {'variant':36s}  {'LOOCV':>8s}  {'ΔLOOCV':>10s}  {'β_ps':>8s}  {'flag':>4s}")
+    v30e_results = []
+    # Baseline: v29 (effectively β_ps=0) — use original v30 sweep baseline
+    print(f"  {'v29 (β_ps=0)':36s}  {loocv_formX:.4f}  {0.0:+10.5f}  {0.0:>+8.3f}  (base)")
+    n_bi_cov = int(_is_bi.sum()); n_bi_area = int(_is_bi_area.sum())
+    print(f"  ({n_bi_cov}/{len(log_sf)} bimodal cov cases, {n_bi_area} bimodal area cases)")
+    for name, larr, bimask, tau_c, k_c in variants:
+        lo, bc_v = _loocv_v29_plus_monosafe(larr, bimask, tau_c, k_c)
+        d = lo - loocv_formX
+        flag = "⭐" if d > sigma_noise_v29 else (" *" if d > 0.0005 else "")
+        v30e_results.append((name, lo, d, bc_v[3], flag))
+        print(f"  {name:36s}  {lo:.4f}  {d:+10.5f}  {bc_v[3]:>+8.3f}  {flag}")
+
+    # Choose winner by LOOCV
+    if v30e_results:
+        best_v30e = max(v30e_results, key=lambda r: r[1])
+        print(f"  → best tuning: {best_v30e[0]} (LOOCV={best_v30e[1]:.4f}, β_ps={best_v30e[3]:+.3f})")
+        if best_v30e[2] > sigma_noise_v29:
+            print(f"    ⭐ beats noise! Consider production adoption.")
+        elif best_v30e[3] != 0 and abs(best_v30e[3]) < 1.0:
+            print(f"    · modest |β_ps|<1 — stable even if ΔLOOCV subnoise")
+        else:
+            print(f"    — still subnoise; v29 remains the honest ceiling.")
 
     # === v30d JOINT 2-FEATURE FIT (v29 + two new betas) ===
     # If best v30b and second-best are uncorrelated, joint fit may capture both.

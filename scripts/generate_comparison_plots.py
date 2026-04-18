@@ -1833,30 +1833,73 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         lbl = names[idx] if idx < len(names) else f"idx{idx}"
         return f"{grp} | {case_id} [{lbl}]" if grp or case_id else lbl
 
-    rel_err = (s_pred - s_actual) / s_actual * 100
+    rel_err = (s_pred - s_actual) / s_actual * 100           # log-space (multiplicative) err %
     abs_err = np.abs(rel_err)
+    delta_sigma = s_pred - s_actual                           # linear-space absolute gap (mS/cm)
+    abs_delta = np.abs(delta_sigma)
     n_total = len(valid_idx)
+    rmse_lin = float(np.sqrt(np.mean(delta_sigma**2)))
+    mae_lin = float(np.mean(abs_delta))
     print(f"\n[IONIC v9 BLEND DIAG] n={n_total}, R²={r2_formX:.4f}, LOOCV={loocv_formX:.4f}")
-    print(f"  mean|err|={np.mean(abs_err):.1f}%  median|err|={np.median(abs_err):.1f}%")
-    # Tier counts
+    print(f"  log-space : mean|err|={np.mean(abs_err):.1f}%   median|err|={np.median(abs_err):.1f}%")
+    print(f"  linear-sp : MAE={mae_lin:.4f} mS/cm   RMSE={rmse_lin:.4f} mS/cm")
+    # Tier counts — show both % and absolute
     tiers = [5, 10, 15, 20, 30]
     cnt = {t: int(np.sum(abs_err < t)) for t in tiers}
-    print(f"  tiers:  <5%:{cnt[5]}/{n_total}   <10%:{cnt[10]}/{n_total}   <15%:{cnt[15]}/{n_total}"
+    print(f"  tiers(%): <5%:{cnt[5]}/{n_total}   <10%:{cnt[10]}/{n_total}   <15%:{cnt[15]}/{n_total}"
           f"   <20%:{cnt[20]}/{n_total}   <30%:{cnt[30]}/{n_total}")
-    hdr = f"  {'#':>3s} {'case (group | id [P:S])':70s} {'σ_act':>7s} {'σ_pred':>7s} {'err%':>7s} {'φ_SE':>5s} {'f_p':>5s} {'τ':>5s} {'CN':>5s} {'cov':>5s}"
+    abs_thresholds_mScm = [0.005, 0.010, 0.020, 0.030, 0.050]
+    acnt = {t: int(np.sum(abs_delta < t)) for t in abs_thresholds_mScm}
+    print(f"  tiers(Δσ): <0.005:{acnt[0.005]}/{n_total}   <0.010:{acnt[0.010]}/{n_total}   "
+          f"<0.020:{acnt[0.020]}/{n_total}   <0.030:{acnt[0.030]}/{n_total}   <0.050:{acnt[0.050]}/{n_total}")
+
+    # ─── TABLE 1: sorted by relative error % (log-space view) ───
+    hdr = (f"  {'#':>3s} {'case (group | id [P:S])':70s} "
+           f"{'σ_act':>7s} {'σ_pred':>7s} {'Δσ':>8s} {'err%':>7s} "
+           f"{'φ_SE':>5s} {'f_p':>5s} {'τ':>5s} {'CN':>5s} {'cov':>5s}")
+    print(f"\n  ── sorted by |err%| (log-space; relative; physics-correct) ──")
     print(hdr); print("  " + "-" * (len(hdr)-2))
-    all_sorted = sorted(range(n_total), key=lambda j: -abs_err[j])
+    pct_sorted = sorted(range(n_total), key=lambda j: -abs_err[j])
     shown = 0
-    for rank, j in enumerate(all_sorted, 1):
+    for rank, j in enumerate(pct_sorted, 1):
         if abs_err[j] <= 10.0:
-            continue  # only show |err|>10%
+            continue
         i = valid_idx[j]
         nm = _case_label(i)[:70]
         flag = "  ⚠" if abs_err[j] > 20 else ("  ·" if abs_err[j] > 15 else "")
-        print(f"  {rank:3d} {nm:70s} {s_actual[j]:7.4f} {s_pred[j]:7.4f} {rel_err[j]:+6.1f}%"
-              f" {phi_se[i]:5.3f} {f_perc[i]:5.3f} {tau[i]:5.2f} {cn[i]:5.2f} {cov_arr[j]:5.3f}{flag}")
+        print(f"  {rank:3d} {nm:70s} {s_actual[j]:7.4f} {s_pred[j]:7.4f} "
+              f"{delta_sigma[j]:+8.4f} {rel_err[j]:+6.1f}% "
+              f"{phi_se[i]:5.3f} {f_perc[i]:5.3f} {tau[i]:5.2f} {cn[i]:5.2f} {cov_arr[j]:5.3f}{flag}")
         shown += 1
     print(f"  ({shown} cases with |err|>10%, remaining {n_total - shown} are within ±10%)")
+
+    # ─── TABLE 2: sorted by absolute gap Δσ (linear-space; matches what plot shows) ───
+    print(f"\n  ── sorted by |Δσ| mS/cm (linear-space; absolute; matches plot visual) ──")
+    print(hdr); print("  " + "-" * (len(hdr)-2))
+    abs_sorted = sorted(range(n_total), key=lambda j: -abs_delta[j])
+    shown2 = 0
+    # Threshold: top 15 OR |Δσ| > 0.015 (whichever larger) — matches plot visibility
+    delta_thr = 0.015
+    for rank, j in enumerate(abs_sorted, 1):
+        if abs_delta[j] <= delta_thr and shown2 >= 15:
+            break
+        i = valid_idx[j]
+        nm = _case_label(i)[:70]
+        flag = "  ⚠" if abs_delta[j] > 0.030 else ("  ·" if abs_delta[j] > 0.020 else "")
+        print(f"  {rank:3d} {nm:70s} {s_actual[j]:7.4f} {s_pred[j]:7.4f} "
+              f"{delta_sigma[j]:+8.4f} {rel_err[j]:+6.1f}% "
+              f"{phi_se[i]:5.3f} {f_perc[i]:5.3f} {tau[i]:5.2f} {cn[i]:5.2f} {cov_arr[j]:5.3f}{flag}")
+        shown2 += 1
+    print(f"  ({shown2} shown; threshold |Δσ|>{delta_thr} or top-15)")
+
+    # ─── Sign-pattern breakdown: how many over vs under, by magnitude tier ───
+    over_mask = delta_sigma > 0
+    under_mask = delta_sigma < 0
+    print(f"\n  ── sign bias: over (pred>act) vs under (pred<act) ──")
+    print(f"  |Δσ|>0.010:  over {int(np.sum(over_mask & (abs_delta > 0.010))):>3d}    under {int(np.sum(under_mask & (abs_delta > 0.010))):>3d}")
+    print(f"  |Δσ|>0.020:  over {int(np.sum(over_mask & (abs_delta > 0.020))):>3d}    under {int(np.sum(under_mask & (abs_delta > 0.020))):>3d}")
+    print(f"  |Δσ|>0.030:  over {int(np.sum(over_mask & (abs_delta > 0.030))):>3d}    under {int(np.sum(under_mask & (abs_delta > 0.030))):>3d}")
+    print(f"  mean(Δσ) = {float(np.mean(delta_sigma)):+.4f}  ← if far from 0, systematic bias")
     # Residual-vs-feature correlation (Pearson on log-residual)
     log_res = np.log(s_pred) - np.log(s_actual)
     gb_arr = np.array([gb_dens[i] for i in valid_idx])

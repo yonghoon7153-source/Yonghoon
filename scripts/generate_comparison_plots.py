@@ -1321,13 +1321,24 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     # Aggressively overfit with Lasso regularization. Top-weighted features
     # reveal which physics the data WANTS to use. Purely exploratory.
     from sklearn.linear_model import LassoCV, Lasso
+    def _pf_v20(d):
+        ps = (d.get("ps_ratio", "") or "")
+        if ps in ("P only", "10:0"): return 1.0
+        if ps in ("S only", "0:10"): return 0.0
+        if ":" in ps:
+            try:
+                p, s = ps.split(":"); p, s = float(p), float(s)
+                return p / (p + s) if (p + s) > 0 else 0.5
+            except Exception:
+                return 0.5
+        return 0.5
     # Build comprehensive feature dict (much bigger than v15)
     am_se_cn_v20 = np.array([_get(data_list[i], "am_se_cn_mean", 0) for i in valid_idx], dtype=float)
     am_am_cn_v20 = np.array([_get(data_list[i], "am_am_cn", 0) for i in valid_idx], dtype=float)
     cn_std_v20 = np.array([_get(data_list[i], "se_se_cn_std", 0) for i in valid_idx], dtype=float)
     tau_std_v20 = np.array([_get(data_list[i], "tortuosity_std", 0) for i in valid_idx], dtype=float)
     stress_cv_v20 = np.array([_get(data_list[i], "stress_cv", 0) for i in valid_idx], dtype=float)
-    pf_v20 = np.array([_ps_frac(data_list[i]) for i in valid_idx])
+    pf_v20 = np.array([_pf_v20(data_list[i]) for i in valid_idx])
     log_gb_v20 = np.log(np.maximum(np.array([gb_dens[i] for i in valid_idx]), 1e-10))
     log_gp_v20 = np.log(np.maximum(np.array([g_path[i] for i in valid_idx]), 1e-10))
     raw_feats = {

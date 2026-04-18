@@ -1108,18 +1108,15 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     log_rhs_base = log_rhs_base_v12.copy()
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
-    def _fit_at(k_bl, tc_bl, k_pf=10.0, pc_pf=0.5):
-        """v24 PRODUCTION: v18 (P:S sigmoid) + smooth τ-window for particulate.
-        v14c winner: p_frac·I(τ∈[1.8,2.2]) gave ΔLOOCV=+0.00545 ⭐.
-        Smooth version: p_frac · σ(k·(τ−1.8)) · σ(−k·(τ−2.2))
-        Two β: β_pf (global particulate) + β_win (τ-window amplifier).
+    def _fit_at(k_bl, tc_bl, k_pf=10.0, pc_pf=0.5, tau_c_win=2.0, sigma_tau_win=0.3):
+        """v25 PRODUCTION: v18 (P:S sigmoid) + GAUSSIAN τ-bump for particulate.
+        Gaussian bump w_win(τ) = exp(−((τ−τ_c)/(√2·σ_τ))²)
+        Smoother than sigmoid-product (v24), no sharp edges → less shape distortion.
         Returns (r2, loocv, w20, b_v5, b_p3, w_bl, pred, β_pf, β_win, w_pf)."""
         w_bl = 1.0 / (1.0 + np.exp(-k_bl * (tau_arr - tc_bl)))
         w_pf = 1.0 / (1.0 + np.exp(-k_pf * (pf_prod - pc_pf)))
-        # τ-window: smooth sigmoid product around τ=2 (center of transition)
-        K_WIN = 8.0; TAU_LO = 1.8; TAU_HI = 2.2
-        w_win = (1.0 / (1.0 + np.exp(-K_WIN * (tau_arr - TAU_LO)))) * \
-                (1.0 / (1.0 + np.exp(+K_WIN * (tau_arr - TAU_HI))))
+        # Gaussian bump around τ = tau_c_win with std = sigma_tau_win
+        w_win = np.exp(-0.5 * ((tau_arr - tau_c_win) / max(sigma_tau_win, 0.05))**2)
         X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
         X_p3_l = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
 
@@ -1161,35 +1158,39 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         w20 = int(np.sum(np.abs(s_prd_l - s_act_l) / s_act_l < 0.20))
         return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred, beta_pf, beta_win, w_pf
 
-    # v18: continuous 4D optimization — (k_bl, τc_bl, k_pf, pc_pf)
+    # v25: continuous 6D optimization — (k_bl, τc_bl, k_pf, pc_pf, τ_c_win, σ_τ_win)
     from scipy.optimize import minimize
     def _neg_loocv(p):
-        k_, tc_, kp_, pc_ = p
+        k_, tc_, kp_, pc_, tcw_, stw_ = p
         if k_ <= 0.1 or k_ > 20 or tc_ < 1.2 or tc_ > 3.0: return 1e6
         if kp_ <= 0.1 or kp_ > 50 or pc_ < 0.1 or pc_ > 0.9: return 1e6
-        return -_fit_at(k_, tc_, kp_, pc_)[1]
-    res = minimize(_neg_loocv, x0=[5.0, 2.0, 10.0, 0.5], method='Nelder-Mead',
-                   options={'xatol': 1e-3, 'fatol': 1e-5, 'maxiter': 400, 'adaptive': True})
-    best_k, best_tc, best_kp, best_pc = float(res.x[0]), float(res.x[1]), float(res.x[2]), float(res.x[3])
+        if tcw_ < 1.2 or tcw_ > 3.0 or stw_ < 0.05 or stw_ > 1.0: return 1e6
+        return -_fit_at(k_, tc_, kp_, pc_, tcw_, stw_)[1]
+    res = minimize(_neg_loocv, x0=[5.0, 2.0, 10.0, 0.5, 2.0, 0.3], method='Nelder-Mead',
+                   options={'xatol': 1e-3, 'fatol': 1e-5, 'maxiter': 600, 'adaptive': True})
+    best_k, best_tc, best_kp, best_pc, best_tcw, best_stw = (float(res.x[0]), float(res.x[1]),
+                                                              float(res.x[2]), float(res.x[3]),
+                                                              float(res.x[4]), float(res.x[5]))
     # Coarse sweep for diagnostic visibility (k_pf/pc_pf fixed at sane defaults)
     k_sweep = [1.5, 2.0, 3.0, 5.0, 8.0, 10.0, 15.0]
     print(f"\n[BLEND SWEEP] coarse k scan at τc=2.0 (k_pf=10, pc_pf=0.5 fixed)")
     print(f"  {'k':>5s}  {'R²':>6s}  {'LOOCV':>6s}  {'±20%':>5s}")
     for k in k_sweep:
-        r2_k, lo_k, w20_k, *_ = _fit_at(k, 2.0, 10.0, 0.5)
+        r2_k, lo_k, w20_k, *_ = _fit_at(k, 2.0, 10.0, 0.5, 2.0, 0.3)
         print(f"  {k:5.1f}  {r2_k:.4f}  {lo_k:.4f}  {w20_k:2d}/{len(log_sf):2d}")
     r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX, beta_pf_prod, beta_win_prod, w_pf_prod = \
-        _fit_at(best_k, best_tc, best_kp, best_pc)
-    kappa_area = 0.0  # placeholder for API (v22 dropped in favor of v24)
+        _fit_at(best_k, best_tc, best_kp, best_pc, best_tcw, best_stw)
+    kappa_area = 0.0
     print(f"  → continuous optimum: k_bl={best_k:.2f}, τc_bl={best_tc:.3f}  |  "
-          f"k_pf={best_kp:.2f}, pc_pf={best_pc:.3f}")
+          f"k_pf={best_kp:.2f}, pc_pf={best_pc:.3f}  |  "
+          f"τ_c_win={best_tcw:.3f}, σ_τ_win={best_stw:.3f}")
     print(f"    R²={r2_formX:.4f}, LOOCV={loocv_formX:.4f}, ±20%={w20_opt}/{len(log_sf)}")
     _Ct_chk = float(np.exp(b_v5[0])); _Cn_chk = float(np.exp(b_v5[0] + b_v5[1]))
     print(f"    Ct={_Ct_chk:.4f} (thick asymptote)  Cn={_Cn_chk:.4f} (thin asymptote)  "
           f"Ct/Cn={_Ct_chk/_Cn_chk:.2f}")
     print(f"    poly3 coefs = [{b_p3[0]:+.3f}, {b_p3[1]:+.3f}, {b_p3[2]:+.3f}, {b_p3[3]:+.3f}]")
     print(f"    β_pf    = {beta_pf_prod:+.4f}  ← P:S sigmoid amplitude")
-    print(f"    β_win   = {beta_win_prod:+.4f}  ← v24: p_frac · τ-window [1.8,2.2] amplifier")
+    print(f"    β_win   = {beta_win_prod:+.4f}  ← v25: p_frac · Gaussian(τ_c={best_tcw:.2f}, σ={best_stw:.2f}) bump")
     TAU_C_BL = best_tc
     TAU_K_BL = best_k
 
@@ -1679,13 +1680,12 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     global _GLOBAL_IONIC_SIGMOID
     _GLOBAL_IONIC_SIGMOID = (C_thick, C_thin, TAU_C, TAU_K)
     global _GLOBAL_PS_SIGMOID
-    # v24: export (k_pf, pc_pf, β_pf, β_win, ⟨w_pf⟩, ⟨p_frac · w_window⟩)
-    _K_WIN_PROD = 8.0; _TAU_LO_PROD = 1.8; _TAU_HI_PROD = 2.2
-    _w_win_prod = (1.0 / (1.0 + np.exp(-_K_WIN_PROD * (tau_arr - _TAU_LO_PROD)))) * \
-                  (1.0 / (1.0 + np.exp(+_K_WIN_PROD * (tau_arr - _TAU_HI_PROD))))
+    # v25: export (k_pf, pc_pf, β_pf, β_win, ⟨w_pf⟩, ⟨p·w_win⟩, τ_c_win, σ_τ_win)
+    _w_win_prod = np.exp(-0.5 * ((tau_arr - best_tcw) / max(best_stw, 0.05))**2)
     _GLOBAL_PS_SIGMOID = (best_kp, best_pc, beta_pf_prod, beta_win_prod,
                           float(w_pf_prod.mean()),
-                          float((pf_prod * _w_win_prod).mean()))
+                          float((pf_prod * _w_win_prod).mean()),
+                          best_tcw, best_stw)
 
     # Use FORM X v4 as primary
     s_pred = np.exp(pred_formX)
@@ -1887,7 +1887,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title(f"Ionic v24: C_blend(τ)·C_pf(p)·C_win(τ,p) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³\n"
+    ax.set_title(f"Ionic v25: C_blend(τ)·C_pf(p)·C_bump(τ,p) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³\n"
                  f"τ-blend(k={best_k:.0f},τc={best_tc:.2f})  P:S(k={best_kp:.0f},pc={best_pc:.2f},β={beta_pf_prod:+.3f})  κ_A={kappa_area:+.3f}  R²={r2_formX:.3f} LOOCV={loocv_formX:.3f}",
                  fontsize=8, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
@@ -1974,12 +1974,12 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     p3_coefs = _GLOBAL_IONIC_POLY3 if _GLOBAL_IONIC_POLY3 is not None else (-3.80, +2.38, -5.58, +2.81)
 
-    # v24 P:S + τ-window params (k_pf, pc_pf, β_pf, β_win, ⟨w_pf⟩, ⟨p·w_win⟩)
-    if _GLOBAL_PS_SIGMOID is not None:
-        K_PF, PC_PF, B_PF, B_WIN, WPF_MEAN, PWIN_MEAN = _GLOBAL_PS_SIGMOID
+    # v25 P:S + Gaussian τ-bump params
+    if _GLOBAL_PS_SIGMOID is not None and len(_GLOBAL_PS_SIGMOID) == 8:
+        K_PF, PC_PF, B_PF, B_WIN, WPF_MEAN, PWIN_MEAN, TAU_C_WIN, SIGMA_TAU_WIN = _GLOBAL_PS_SIGMOID
     else:
         K_PF, PC_PF, B_PF, B_WIN, WPF_MEAN, PWIN_MEAN = 50.0, 0.598, -0.11, -0.46, 0.5, 0.05
-    K_WIN = 8.0; TAU_LO = 1.8; TAU_HI = 2.2
+        TAU_C_WIN, SIGMA_TAU_WIN = 2.0, 0.3
 
     # Parse P:S fraction per case
     def _pf_local(d):
@@ -2006,11 +2006,10 @@ def plot_multiscale_sigma(data_list, names, outdir):
             ln_C = (1 - w_bl) * ln_C_v5 + w_bl * ln_C_p3
             # v19 exponents: α=1/2, β=3/2, γ=2/5, δ=3
             s = np.exp(ln_C) * SIGMA_BULK * phi_ex**0.5 * cn[i]**1.5 * coverage[i]**0.4 * f_perc[i]**3
-            # v24 P:S sigmoid + τ-window correction
+            # v25 P:S sigmoid + Gaussian τ-bump correction
             pf = _pf_local(data_list[i])
             w_pf = 1.0 / (1.0 + np.exp(-K_PF * (pf - PC_PF)))
-            w_win = (1.0 / (1.0 + np.exp(-K_WIN * (tau[i] - TAU_LO)))) * \
-                    (1.0 / (1.0 + np.exp(+K_WIN * (tau[i] - TAU_HI))))
+            w_win = np.exp(-0.5 * ((tau[i] - TAU_C_WIN) / max(SIGMA_TAU_WIN, 0.05))**2)
             ps_corr = B_PF * (w_pf - WPF_MEAN) + B_WIN * (pf * w_win - PWIN_MEAN)
             s = s * np.exp(ps_corr)
             sigma_ms.append(s)
@@ -2045,7 +2044,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     _apply_style(ax, "σ_ionic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
-    ax.set_title(f"FORM X v24: C_blend(τ)·C_pf(p)·C_win(τ,p) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³",
+    ax.set_title(f"FORM X v25: C_blend(τ)·C_pf(p)·C_bump(τ,p) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³",
                  fontsize=9, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',

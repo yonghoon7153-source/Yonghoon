@@ -1082,52 +1082,29 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
                     + 0.25*np.log(cov_arr) + 2.0*np.log(fp_arr))
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
-    # v11b physics-motivated residual features (Clusters B + C, A dropped):
-    #   B: log(cov)          — AM-rich thin-film regime adjustment (γ>0)
-    #   C: (log CN)²         — CN saturation at high packing (δ<0)
-    # Cluster A (log g_path) dropped: α=-0.046 in v11 was noise-level and
-    # widened LOOCV gap. Keep only features with strong signal.
-    cov_log_arr = np.log(cov_arr)
-    cn_log_arr = np.log(cn_arr)
-    X_corr_full = np.column_stack([np.ones(len(log_sf)), cov_log_arr, cn_log_arr**2])
-
     def _fit_at(k_bl, tc_bl):
-        """v11: v9 blend + 3-feature residual correction (path, cov, CN²).
-        Returns (r2, loocv, w20, b_v5, b_p3, w_bl, pred, b_corr).
-        """
+        """Fit v5+poly3 blend at (k, τc). Return (r2, loocv, w20, b_v5, b_p3, w_bl, pred)."""
         w_bl = 1.0 / (1.0 + np.exp(-k_bl * (tau_arr - tc_bl)))
         X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
         X_p3_l = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
-
-        # Step 1: v9 blend fit
         b_v5_l = np.linalg.lstsq(X_v5_l, log_sf - log_rhs_base, rcond=None)[0]
         b_p3_l = np.linalg.lstsq(X_p3_l, log_sf - log_rhs_base, rcond=None)[0]
         pv_l = X_v5_l @ b_v5_l
         pp_l = X_p3_l @ b_p3_l
-        pred_v9 = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
-
-        # Step 2: 3-feature residual regression
-        resid = log_sf - pred_v9
-        b_corr = np.linalg.lstsq(X_corr_full, resid, rcond=None)[0]
-        pred = pred_v9 + X_corr_full @ b_corr
-
+        pred = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
         r2 = 1 - np.sum((log_sf - pred)**2) / ss_tot
-        # LOOCV — jointly refit v9 + correction
         n_loo = len(log_sf)
         sse_loo = 0.0
         for ii in range(n_loo):
             mk = np.ones(n_loo, bool); mk[ii] = False
             bv_ = np.linalg.lstsq(X_v5_l[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
             bp_ = np.linalg.lstsq(X_p3_l[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
-            pv9_full = (1 - w_bl) * (X_v5_l @ bv_) + w_bl * (X_p3_l @ bp_) + log_rhs_base
-            resid_mk = (log_sf - pv9_full)[mk]
-            bc_ = np.linalg.lstsq(X_corr_full[mk], resid_mk, rcond=None)[0]
-            pred_ii = pv9_full[ii] + X_corr_full[ii] @ bc_
+            pred_ii = (1 - w_bl[ii]) * (X_v5_l[ii] @ bv_) + w_bl[ii] * (X_p3_l[ii] @ bp_) + log_rhs_base[ii]
             sse_loo += (log_sf[ii] - pred_ii)**2
         loocv = 1 - sse_loo / ss_tot
         s_act_l = np.exp(log_sf); s_prd_l = np.exp(pred)
         w20 = int(np.sum(np.abs(s_prd_l - s_act_l) / s_act_l < 0.20))
-        return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred, b_corr
+        return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred
 
     # Continuous 2D optimization: maximize LOOCV over (k, τc)
     from scipy.optimize import minimize
@@ -1147,13 +1124,9 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     for k in k_sweep:
         r2_k, lo_k, w20_k, *_ = _fit_at(k, 2.0)
         print(f"  {k:5.1f}  {r2_k:.4f}  {lo_k:.4f}  {w20_k:2d}/{len(log_sf):2d}")
-    r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX, b_corr = _fit_at(best_k, best_tc)
+    r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX = _fit_at(best_k, best_tc)
     print(f"  → continuous optimum: k={best_k:.2f}, τc={best_tc:.3f}")
     print(f"    R²={r2_formX:.4f}, LOOCV={loocv_formX:.4f}, ±20%={w20_opt}/{len(log_sf)}")
-    print(f"  v11b residual correction (Clusters B + C):")
-    print(f"    intercept    = {b_corr[0]:+.4f}")
-    print(f"    B: log(cov)    γ = {b_corr[1]:+.4f}  (eff cov exp = 0.25 + γ)")
-    print(f"    C: (log CN)²   δ = {b_corr[2]:+.4f}  (neg → CN saturation)")
     TAU_C_BL = best_tc
     TAU_K_BL = best_k
 

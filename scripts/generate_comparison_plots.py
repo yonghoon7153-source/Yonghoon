@@ -1341,8 +1341,11 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     pf_v20 = np.array([_pf_v20(data_list[i]) for i in valid_idx])
     log_gb_v20 = np.log(np.maximum(np.array([gb_dens[i] for i in valid_idx]), 1e-10))
     log_gp_v20 = np.log(np.maximum(np.array([g_path[i] for i in valid_idx]), 1e-10))
+    # Inline compute log_phi_ex_np and log_cn_np (may not yet be defined in this block)
+    log_phi_ex_v20 = np.log(np.maximum(phi_np - pc12, 1e-4))
+    log_cn_v20 = np.log(cn_np)
     raw_feats = {
-        'log(φ-φc)':   log_phi_ex_np,  'log(CN)':     log_cn_np,
+        'log(φ-φc)':   log_phi_ex_v20, 'log(CN)':     log_cn_v20,
         'log(τ)':      log_tau_arr,    'log(cov)':    np.log(cov_np),
         'log(fp)':     np.log(fp_np),  'log(gb)':     log_gb_v20,
         'log(gp)':     log_gp_v20,     'p_frac':      pf_v20,

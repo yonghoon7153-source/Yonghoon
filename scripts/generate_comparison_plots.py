@@ -1346,8 +1346,19 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     # === v14b p_frac INTERACTIONS — maximize use of the only flagged signal ===
     # p_frac² has r=+0.469 with v9 residuals but single-β failed cross-group.
     # Test whether p_frac × (another feature) captures the conditional trend.
-    pf_centered = np.array([_ps_frac(data_list[i]) for i in valid_idx]) - 0.5
-    pf_base = np.array([_ps_frac(data_list[i]) for i in valid_idx])
+    def _pf(d):
+        ps = (d.get("ps_ratio", "") or "")
+        if ps in ("P only", "10:0"): return 1.0
+        if ps in ("S only", "0:10"): return 0.0
+        if ":" in ps:
+            try:
+                p, s = ps.split(":"); p, s = float(p), float(s)
+                return p / (p + s) if (p + s) > 0 else 0.5
+            except Exception:
+                return 0.5
+        return 0.5
+    pf_base = np.array([_pf(data_list[i]) for i in valid_idx])
+    pf_centered = pf_base - 0.5
     pf_interactions = {
         'p_frac·log(τ)':           pf_centered * log_tau_arr,
         'p_frac·log(CN)':          pf_centered * log_cn_np,

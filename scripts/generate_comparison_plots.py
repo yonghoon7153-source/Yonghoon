@@ -1073,19 +1073,18 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     cov_arr = np.array([coverage[i] for i in valid_idx])
 
     # FORM X v9 BLEND: (1-w)·v5_sigmoid(τ) + w·poly3(lnτ)
-    # Blend sigmoid steepness k auto-selected by LOOCV (smoother k → fewer outliers
-    # in τ∈[1.9, 2.1] transition band).
+    # Blend sigmoid (k, τc) continuously optimized by LOOCV.
+    # Smooth k → fewer outliers in transition band.
     TAU_C = 2.1; TAU_K = 5.0          # v5 C(τ) sigmoid (fixed)
-    TAU_C_BL = 2.0                    # blend transition center (fixed)
     fp_arr = np.array([max(f_perc[i], 0.01) for i in valid_idx])
     log_tau_arr = np.log(tau_arr)
     log_rhs_base = (np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + 1.5*np.log(cn_arr)
                     + 0.25*np.log(cov_arr) + 2.0*np.log(fp_arr))
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
-    def _fit_at_k(k_bl):
-        """Fit v5+poly3 blend with given blend-sigmoid steepness, return (r2, loocv, arrays)."""
-        w_bl = 1.0 / (1.0 + np.exp(-k_bl * (tau_arr - TAU_C_BL)))
+    def _fit_at(k_bl, tc_bl):
+        """Fit v5+poly3 blend at (k, τc). Return (r2, loocv, w20, b_v5, b_p3, w_bl, pred)."""
+        w_bl = 1.0 / (1.0 + np.exp(-k_bl * (tau_arr - tc_bl)))
         X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
         X_p3_l = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
         b_v5_l = np.linalg.lstsq(X_v5_l, log_sf - log_rhs_base, rcond=None)[0]
@@ -1094,7 +1093,6 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         pp_l = X_p3_l @ b_p3_l
         pred = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
         r2 = 1 - np.sum((log_sf - pred)**2) / ss_tot
-        # LOOCV
         n_loo = len(log_sf)
         sse_loo = 0.0
         for ii in range(n_loo):
@@ -1104,23 +1102,32 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
             pred_ii = (1 - w_bl[ii]) * (X_v5_l[ii] @ bv_) + w_bl[ii] * (X_p3_l[ii] @ bp_) + log_rhs_base[ii]
             sse_loo += (log_sf[ii] - pred_ii)**2
         loocv = 1 - sse_loo / ss_tot
-        # within-20% count
         s_act_l = np.exp(log_sf); s_prd_l = np.exp(pred)
         w20 = int(np.sum(np.abs(s_prd_l - s_act_l) / s_act_l < 0.20))
         return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred
 
-    # Sweep k_blend; pick by best LOOCV
+    # Continuous 2D optimization: maximize LOOCV over (k, τc)
+    from scipy.optimize import minimize
+    def _neg_loocv(p):
+        k_, tc_ = p
+        if k_ <= 0.1 or k_ > 30 or tc_ < 1.2 or tc_ > 3.0:
+            return 1e6
+        return -_fit_at(k_, tc_)[1]
+    res = minimize(_neg_loocv, x0=[5.0, 2.0], method='Nelder-Mead',
+                   options={'xatol': 1e-3, 'fatol': 1e-5, 'maxiter': 200})
+    best_k, best_tc = float(res.x[0]), float(res.x[1])
+    # Coarse sweep for diagnostic visibility
     k_sweep = [1.5, 2.0, 3.0, 5.0, 8.0, 10.0, 15.0]
-    sweep = [(k, *_fit_at_k(k)[:3]) for k in k_sweep]
-    print(f"\n[BLEND-K SWEEP] τc={TAU_C_BL}")
+    print(f"\n[BLEND SWEEP] coarse k scan at τc=2.0")
     print(f"  {'k':>5s}  {'R²':>6s}  {'LOOCV':>6s}  {'±20%':>5s}")
-    for k, r2_k, lo_k, w20_k in sweep:
-        flag = "  ★" if lo_k == max(s[2] for s in sweep) else ""
-        print(f"  {k:5.1f}  {r2_k:.4f}  {lo_k:.4f}  {w20_k:2d}/{len(log_sf):2d}{flag}")
-    best_k = max(sweep, key=lambda s: s[2])[0]
+    for k in k_sweep:
+        r2_k, lo_k, w20_k, *_ = _fit_at(k, 2.0)
+        print(f"  {k:5.1f}  {r2_k:.4f}  {lo_k:.4f}  {w20_k:2d}/{len(log_sf):2d}")
+    r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX = _fit_at(best_k, best_tc)
+    print(f"  → continuous optimum: k={best_k:.2f}, τc={best_tc:.3f}")
+    print(f"    R²={r2_formX:.4f}, LOOCV={loocv_formX:.4f}, ±20%={w20_opt}/{len(log_sf)}")
+    TAU_C_BL = best_tc
     TAU_K_BL = best_k
-    r2_formX, loocv_formX, _, b_v5, b_p3, w_blend, pred_formX = _fit_at_k(best_k)
-    print(f"  → selected k_blend = {best_k}")
 
     X_v5 = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
     X_p3 = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])

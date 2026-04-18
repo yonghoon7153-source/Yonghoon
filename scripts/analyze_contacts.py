@@ -197,6 +197,7 @@ def save_results(results, atoms_raw, contacts_raw, df_atom, df_contact,
         # ── 이온경로: 연결성 ──
         {'지표': '── 이온경로: 연결성 ──', '값': ''},
         {'지표': 'SE-SE CN mean', '값': round(cn['mean'], 2)},
+        {'지표': 'SE-SE CN std', '값': round(cn['std'], 2)},
         {'지표': 'SE Cluster 수', '값': f"{perc.get('n_large_components', '-')}(≥10) / {perc['n_components']}"},
         {'지표': 'SE Percolation(%)', '값': round(perc['percolation_pct'], 1)},
         {'지표': 'Top Reachable(%)', '값': round(perc['top_reachable_pct'], 1)},

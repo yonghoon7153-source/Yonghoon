@@ -68,6 +68,7 @@
       <button class="btn btn-sm btn-secondary sort-btn" onclick="sortCases('name')" id="sort-name">이름순</button>
       <button class="btn btn-sm btn-secondary sort-btn active" onclick="sortCases('date')" id="sort-date">최신순</button>
       <button class="btn btn-sm btn-run" onclick="reanalyzeAll(this)">전체 재분석</button>
+      <button class="btn btn-sm" style="background:#c00;color:#fff;display:none" id="cancel-reanalyze-btn" onclick="cancelReanalyze()">취소</button>
       <button class="btn btn-sm btn-archive" onclick="saveAllToArchive(this)">전체 보관함 저장</button>
     </div>
   </div>
@@ -375,30 +376,51 @@ function showFiles(caseId) {
 }
 
 // Reanalyze all cases (background, with polling)
+let _reanalyzeCancelled = false;
+
 async function reanalyzeAll(btn) {
   const ids = [{% for case in cases %}{% if case.has_results %}'{{ case.id }}',{% endif %}{% endfor %}];
   if (!ids.length) return;
+  _reanalyzeCancelled = false;
   btn.disabled = true;
+  document.getElementById('cancel-reanalyze-btn').style.display = '';
   localStorage.setItem('dem_reanalyze_ids', JSON.stringify(ids));
   localStorage.setItem('dem_reanalyze_idx', '0');
   localStorage.setItem('dem_reanalyze_active', 'true');
   _runSeq(btn, ids, 0);
 }
 
+function cancelReanalyze() {
+  _reanalyzeCancelled = true;
+  localStorage.removeItem('dem_reanalyze_active');
+  localStorage.removeItem('dem_reanalyze_ids');
+  localStorage.removeItem('dem_reanalyze_idx');
+  document.getElementById('cancel-reanalyze-btn').style.display = 'none';
+  const btn = document.querySelector('[onclick*="reanalyzeAll"]');
+  if (btn) { btn.textContent = '전체 재분석'; btn.disabled = false; }
+  showToast('재분석 취소됨');
+}
+
 async function _runSeq(btn, ids, startIdx) {
   for (let i = startIdx; i < ids.length; i++) {
+    if (_reanalyzeCancelled) break;
     btn.textContent = `${i+1}/${ids.length}...`;
     localStorage.setItem('dem_reanalyze_idx', String(i));
     await fetch(`/analyze/${ids[i]}`, { method: 'POST' });
     while (true) {
+      if (_reanalyzeCancelled) break;
       await new Promise(r => setTimeout(r, 3000));
       const res = await fetch(`/analyze-status/${ids[i]}`);
       const data = await res.json();
       if (data.status !== 'running') break;
     }
+    if (_reanalyzeCancelled) break;
   }
-  btn.textContent = '✓ done';
-  showToast('All reanalysis complete!');
+  document.getElementById('cancel-reanalyze-btn').style.display = 'none';
+  if (!_reanalyzeCancelled) {
+    btn.textContent = '✓ done';
+    showToast('All reanalysis complete!');
+  }
   localStorage.removeItem('dem_reanalyze_active');
   localStorage.removeItem('dem_reanalyze_ids');
   localStorage.removeItem('dem_reanalyze_idx');

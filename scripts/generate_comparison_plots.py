@@ -1132,6 +1132,10 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX = _fit_at(best_k, best_tc)
     print(f"  → continuous optimum: k={best_k:.2f}, τc={best_tc:.3f}")
     print(f"    R²={r2_formX:.4f}, LOOCV={loocv_formX:.4f}, ±20%={w20_opt}/{len(log_sf)}")
+    _Ct_chk = float(np.exp(b_v5[0])); _Cn_chk = float(np.exp(b_v5[0] + b_v5[1]))
+    print(f"    Ct={_Ct_chk:.4f} (thick asymptote)  Cn={_Cn_chk:.4f} (thin asymptote)  "
+          f"Ct/Cn={_Ct_chk/_Cn_chk:.2f}")
+    print(f"    poly3 coefs = [{b_p3[0]:+.3f}, {b_p3[1]:+.3f}, {b_p3[2]:+.3f}, {b_p3[3]:+.3f}]")
     TAU_C_BL = best_tc
     TAU_K_BL = best_k
 
@@ -1503,6 +1507,13 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         return 0.5
     p_frac_arr = np.array([_parse_ps(data_list[i]) for i in valid_idx])
 
+    # NEW: AM-side features (previously UNUSED in the model)
+    am_se_cn = np.array([_get(data_list[i], "am_se_cn_mean", 0) for i in valid_idx], dtype=float)
+    am_am_cn = np.array([_get(data_list[i], "am_am_cn", 0) for i in valid_idx], dtype=float)
+    am_am_area = np.array([_get(data_list[i], "am_am_mean_area", 0) for i in valid_idx], dtype=float)
+    # Ratios that might capture "SE clusters not touching AM" morphology:
+    cn_ratio = np.divide(cn_arr, np.maximum(am_se_cn, 0.1))  # se_se/am_se: >>1 means SE isolated from AM
+
     feats = {'log(phi_ex)': np.log(phi_ex_arr), 'log(CN)': np.log(cn_arr),
              'log(tau)': log_tau_arr, 'log(cov)': np.log(cov_arr),
              'log(fp)': np.log(fp_arr),
@@ -1510,8 +1521,12 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
              'log(g_path)': np.log(np.maximum(gp_arr, 1e-10)),
              'log(gp*gb²)': np.log(np.maximum(gp_arr * gb_arr**2, 1e-20)),
              'p_frac (P:S)': p_frac_arr,
-             'p_frac - 0.5': p_frac_arr - 0.5,
-             '(p_frac)²': p_frac_arr**2}
+             '(p_frac)²': p_frac_arr**2,
+             # ── NEW: AM-side morphology ──
+             'log(am_se_cn)':  np.log(np.maximum(am_se_cn, 0.1)),
+             'log(am_am_cn)':  np.log(np.maximum(am_am_cn, 0.1)),
+             'log(am_am_area)': np.log(np.maximum(am_am_area, 1e-10)),
+             'log(se_cn / am_se_cn)': np.log(np.maximum(cn_ratio, 1e-3))}
     print("  residual(log) correlations:")
     for nm, v in feats.items():
         c = np.corrcoef(log_res, v)[0, 1] if np.std(v) > 0 else 0.0

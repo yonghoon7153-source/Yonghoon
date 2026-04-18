@@ -1071,10 +1071,11 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     tau_arr = np.array([tau[i] for i in valid_idx])
     cov_arr = np.array([coverage[i] for i in valid_idx])
 
-    # FORM X v4: CN^1.5 × (φ-φc)^¾ × cov^¼ with sigmoid C(τ)
+    # FORM X v5: CN^1.5 × (φ-φc)^¾ × cov^¼ × fp² with sigmoid C(τ)
     # C(τ) = Ct + (Cn-Ct) × σ(k·(τ-τc)), k=5, τc=2.1
     TAU_C = 2.1; TAU_K = 5.0
-    log_rhs_base = np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + 1.5*np.log(cn_arr) + 0.25*np.log(cov_arr)
+    fp_arr = np.array([max(f_perc[i], 0.01) for i in valid_idx])
+    log_rhs_base = np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + 1.5*np.log(cn_arr) + 0.25*np.log(cov_arr) + 2.0*np.log(fp_arr)
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
     A_design = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
     b_sigmoid = np.linalg.lstsq(A_design, log_sf - log_rhs_base, rcond=None)[0]
@@ -1180,7 +1181,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title(f"Ionic v4: C(τ) × σ_grain × CN^1.5 × (φ−φc)^¾ × ⁴√cov\n"
+    ax.set_title(f"Ionic v5: C(τ) × σ_grain × CN^1.5 × (φ−φc)^¾ × ⁴√cov × fp²\n"
                  f"C(τ)=sigmoid  Ct={C_thick:.4f} Cn={C_thin:.4f}  R²={r2_formX:.3f}",
                  fontsize=10, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
@@ -1252,6 +1253,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
     cn = [_get(d, "se_se_cn", 0) for d in data_list]
     tau = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)) for d in data_list]
     coverage = [(lambda vs: sum(vs)/len(vs)/100 if vs else 0.20)([v for v in [_get(d,"coverage_AM_P_mean",0), _get(d,"coverage_AM_S_mean",0), _get(d,"coverage_AM_mean",0)] if v>0]) for d in data_list]
+    f_perc = [max(_get(d, "percolation_pct", 100) / 100, 0.01) for d in data_list]
     sigma_net = _load_network_sigma(data_list)
 
     # Fit C from data
@@ -1284,7 +1286,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
         if cn[i] > 0 and tau[i] > 0 and coverage[i] > 0:
             w = 1.0 / (1.0 + np.exp(-TAU_K * (tau[i] - TAU_C)))
             C_i = C_thick_ms * np.exp((np.log(C_thin_ms) - np.log(C_thick_ms)) * w)
-            s = C_i * SIGMA_BULK * phi_ex**0.75 * cn[i]**1.5 * coverage[i]**0.25
+            s = C_i * SIGMA_BULK * phi_ex**0.75 * cn[i]**1.5 * coverage[i]**0.25 * f_perc[i]**2
             sigma_ms.append(s)
         else:
             sigma_ms.append(0)
@@ -1308,7 +1310,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     _apply_style(ax, "σ_ionic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
-    ax.set_title(f"FORM X v4: C(τ) × σ_grain × CN^1.5 × (φ−φc)^¾ × ⁴√cov  [Ct={C_thick_ms:.4f} Cn={C_thin_ms:.4f}]",
+    ax.set_title(f"FORM X v5: C(τ) × σ_grain × CN^1.5 × (φ−φc)^¾ × ⁴√cov × fp²  [Ct={C_thick_ms:.4f} Cn={C_thin_ms:.4f}]",
                  fontsize=8, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',
@@ -2206,14 +2208,14 @@ PLOT_REGISTRY = {
         "func": plot_ionic_scaling_fit,
         "file": "ionic_scaling_fit.png",
         "title": "Ionic: FORM X Scaling Law (Predicted vs Actual)",
-        "description": "FORM X v4 (sigmoid regime):\nσ = C(τ) × σ_grain × CN^1.5 × (φ-φc)^¾ × ⁴√cov\nC(τ) = Ct + (Cn−Ct)×σ(5·(τ−2.1))\n\nφ_c=0.185 (percolation threshold)\nR²={formx_r2}, LOOCV={formx_loocv}",
+        "description": "FORM X v5 (sigmoid+perc):\nσ = C(τ) × σ_grain × CN^1.5 × (φ-φc)^¾ × ⁴√cov × fp²\nC(τ) sigmoid: thick→thin at τ≈2.1\nfp²: percolation fraction penalty\n\nφ_c=0.185\nR²={formx_r2}, LOOCV={formx_loocv}",
         "origin_tip": "Scatter (log-log): X=actual (Network solver), Y=predicted (FORM X).\n1:1 line (black dashed), ±20% band (green).",
     },
     "multiscale_sigma": {
         "func": plot_multiscale_sigma,
         "file": "multiscale_sigma.png",
         "title": "Ionic: FORM X Scaling Law",
-        "description": "FORM X v4 (sigmoid regime):\nσ = C(τ) × σ_grain × CN^1.5 × (φ\u2011φc)^¾ × ⁴√cov\nC(τ) sigmoid: thick→thin transition at τ≈2.1\nR²={formx_r2}, w20=49/55",
+        "description": "FORM X v5 (sigmoid+perc):\nσ = C(τ) × σ_grain × CN^1.5 × (φ\u2011φc)^¾ × ⁴√cov × fp²\nC(τ) sigmoid: thick→thin at τ≈2.1\nfp²: SE percolation fraction\nR²={formx_r2}, w20=50/55",
         "origin_tip": "Red: FORM X prediction.\nGreen dashed: Network solver (ground truth).",
     },
     "formx_decomposition": {
@@ -2221,7 +2223,7 @@ PLOT_REGISTRY = {
         "file": "formx_decomposition.png",
         "csv": "formx_decomposition.csv",
         "title": "FORM X Factor Decomposition",
-        "description": "FORM X v4 각 항의 상대 기여도:\n(φ\u2011φc)^¾: percolation\nCN^1.5: network connectivity\n⁴√cov: AM\u2011SE 계면\nC(τ): sigmoid regime (thick↔thin)\nref: 최고 σ case 기준",
+        "description": "FORM X v5 각 항의 상대 기여도:\n(φ\u2011φc)^¾: percolation excess\nCN^1.5: network connectivity\n⁴√cov: AM\u2011SE 계면\nC(τ): sigmoid regime (thick↔thin)\nfp²: SE percolation fraction\nref: 최고 σ case 기준",
         "origin_tip": "Stacked bar (top): factor contributions.\nHorizontal bar (bottom): dominant factor per case.",
     },
 }
@@ -2952,7 +2954,8 @@ def main():
                 _valid = (_phi_se > PHI_C+0.01) & (_cn_se > 0) & (_tau_se > 0) & (_cov_se > 0) & (_snet > 0.01) & (_gb > 0) & (_gp > 0)
                 if _valid.sum() >= 5:
                     _phi_ex = np.clip(_phi_se[_valid] - PHI_C, 0.001, None)
-                    _log_rhs = np.log(SGRAIN) + 0.75*np.log(_phi_ex) + 1.5*np.log(_cn_se[_valid]) + 0.25*np.log(_cov_se[_valid])
+                    _fp_se = np.clip(np.array([_get(d, "percolation_pct", 100) / 100 for d in all_data])[_valid], 0.01, 1.0)
+                    _log_rhs = np.log(SGRAIN) + 0.75*np.log(_phi_ex) + 1.5*np.log(_cn_se[_valid]) + 0.25*np.log(_cov_se[_valid]) + 2.0*np.log(_fp_se)
                     _log_s = np.log(_snet[_valid])
                     _w_sig = 1.0 / (1.0 + np.exp(-5.0 * (_tau_se[_valid] - 2.1)))
                     _A = np.column_stack([np.ones(_valid.sum()), _w_sig])

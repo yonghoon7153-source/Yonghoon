@@ -1109,12 +1109,10 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     log_rhs_base = log_rhs_base_v12.copy()
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
-    def _fit_at(k_bl, tc_bl, k_pf=10.0, pc_pf=0.5, tau_c_win=2.0, sigma_tau_win=0.3):
-        """v26 PRODUCTION: v18 + Gaussian τ-bump × p_frac·(1-p_frac) MIXED regime.
-        Correction amplitude: β · p_frac·(1−p_frac) · w_win(τ)
-        Peaks at p_frac=0.5 (mixed), zero at p=0 (all-solid) and p=1 (all-particulate).
-        Captures: specific over-prediction at "mixed P:S in transition τ" regime,
-        without over-correcting pure-phase cases.
+    def _fit_at(k_bl, tc_bl, k_pf=10.0, pc_pf=0.5, tau_c_win=2.0, sigma_tau_win=0.3,
+                tau_c_ps=2.0, k_ps=10.0):
+        """v30 PRODUCTION: v29 + β_ps·w_thin(τ)·log(area_P/area_S) phase-split.
+        v30.1 refinement: switched from cov to area (cleaner β), joint-opt (τc_ps, k_ps).
         Returns (r2, loocv, w20, b_v5, b_p3, w_bl, pred, β_pf, β_win, w_pf)."""
         w_bl = 1.0 / (1.0 + np.exp(-k_bl * (tau_arr - tc_bl)))
         w_pf = 1.0 / (1.0 + np.exp(-k_pf * (pf_prod - pc_pf)))
@@ -1149,26 +1147,20 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         w_gb = 1.0 / (1.0 + np.exp(-k_gb * (gb_log - gc_gb)))
         mix_term = w_gb
         mix_c = w_gb - w_gb.mean()
-        # v30: phase-split AM_P vs AM_S coverage asymmetry — BIMODAL CASES ONLY
-        # Smooth w_thin = σ(k·(τ-τc)) replaces hard I(τ>1.8). Center τc=1.8 from v30c.
-        # IMPORTANT: monomodal cases (P=10:0 or 0:10) have undefined log(cov_P/cov_S)
-        # → ps_term = 0 AND ps_c = 0 (no correction). Bimodal cases only get
-        # centered by the bimodal-subset mean, so β_ps doesn't leak onto monomodal.
-        _cov_p_fit = np.array([_get(data_list[i], "coverage_AM_P_mean", 0.0) for i in valid_idx], dtype=float)
-        _cov_s_fit = np.array([_get(data_list[i], "coverage_AM_S_mean", 0.0) for i in valid_idx], dtype=float)
-        _bimodal = (_cov_p_fit > 1e-10) & (_cov_s_fit > 1e-10)
-        _log_ps = np.zeros_like(_cov_p_fit)
-        _log_ps[_bimodal] = np.log(_cov_p_fit[_bimodal]) - np.log(_cov_s_fit[_bimodal])
-        TAU_C_PS = 1.8                     # sigmoid center (v30c optimum τ-threshold)
-        K_PS = 10.0                        # steepness — smooth but decisive (~80% at τ=1.98)
-        w_thin = 1.0 / (1.0 + np.exp(-K_PS * (tau_arr - TAU_C_PS)))
-        ps_term = w_thin * _log_ps         # zero for monomodal cases by construction
-        # Center using ONLY bimodal cases; monomodal get ps_c = 0 exactly
-        if _bimodal.any():
-            _ps_mean_bi = float(ps_term[_bimodal].mean())
-        else:
-            _ps_mean_bi = 0.0
-        ps_c = np.where(_bimodal, ps_term - _ps_mean_bi, 0.0)
+        # v30.2: NORMALIZED asymmetry — solves the monomodal problem naturally.
+        #   asym_area = (area_P − area_S) / (area_P + area_S) ∈ [−1, +1]
+        # Monomodal P: +1 (pure primary), monomodal S: −1 (pure secondary), 5:5: ~0.
+        # log(A_P/A_S) was undefined at monomodal — forced to 0 arbitrarily.
+        # Normalized form is defined for ALL cases, carries physical info at extremes.
+        _area_p_fit = np.array([_get(data_list[i], "area_AM_P_SE_mean", 0.0) for i in valid_idx], dtype=float)
+        _area_s_fit = np.array([_get(data_list[i], "area_AM_S_SE_mean", 0.0) for i in valid_idx], dtype=float)
+        _area_sum = _area_p_fit + _area_s_fit
+        _asym_area = np.where(_area_sum > 1e-10,
+                              (_area_p_fit - _area_s_fit) / np.maximum(_area_sum, 1e-10),
+                              0.0)  # only degenerate if BOTH phases missing (shouldn't happen)
+        w_thin = 1.0 / (1.0 + np.exp(-k_ps * (tau_arr - tau_c_ps)))
+        ps_term = w_thin * _asym_area      # well-defined for all cases
+        ps_c = ps_term - ps_term.mean()    # standard centering (no bimodal special case)
         # v30: 4-term residual (β_pf, β_lin, β_gb, β_ps)
         X_corr = np.column_stack([pf_c, lin_c, mix_c, ps_c])
         resid = log_sf - pred_pre
@@ -1189,24 +1181,13 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
             pf_c_mk = w_pf[mk] - w_pf[mk].mean()
             lin_mk = lin_term[mk];  lin_c_mk = lin_mk - lin_mk.mean()
             wgb_mk = w_gb[mk];      wgb_c_mk = wgb_mk - wgb_mk.mean()
-            # v30 monomodal-safe centering: ps_c = 0 for monomodal, bimodal-centered otherwise
-            _bimk = _bimodal[mk]
-            if _bimk.any():
-                _psmean_mk = float(ps_term[mk][_bimk].mean())
-            else:
-                _psmean_mk = 0.0
-            ps_c_mk = np.where(_bimk, ps_term[mk] - _psmean_mk, 0.0)
+            ps_mk = ps_term[mk];    ps_c_mk = ps_mk - ps_mk.mean()
             Xc_mk = np.column_stack([pf_c_mk, lin_c_mk, wgb_c_mk, ps_c_mk])
             bc_mk = np.linalg.lstsq(Xc_mk, (log_sf - pv9)[mk], rcond=None)[0]
-            # For test case ii: apply ps correction only if bimodal
-            if _bimodal[ii]:
-                ps_ii = ps_term[ii] - _psmean_mk
-            else:
-                ps_ii = 0.0
             pred_ii = pv9[ii] + bc_mk[0] * (w_pf[ii] - w_pf[mk].mean()) \
                               + bc_mk[1] * (lin_term[ii] - lin_mk.mean()) \
                               + bc_mk[2] * (w_gb[ii] - wgb_mk.mean()) \
-                              + bc_mk[3] * ps_ii
+                              + bc_mk[3] * (ps_term[ii] - ps_mk.mean())
             sse_loo += (log_sf[ii] - pred_ii)**2
         loocv = 1 - sse_loo / ss_tot
         s_act_l = np.exp(log_sf); s_prd_l = np.exp(pred)
@@ -1216,19 +1197,25 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         _fit_at._beta_ps = beta_ps
         return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred, beta_pf, beta_win, w_pf
 
-    # v25: continuous 6D optimization — (k_bl, τc_bl, k_pf, pc_pf, τ_c_win, σ_τ_win)
+    # v30.1: continuous 8D optimization — v25's 6 params + (τ_c_ps, k_ps)
+    # NEW: τ_c_ps, k_ps are the phase-split sigmoid gate — now data-optimized
+    # instead of fixed at (1.8, 10.0). Let LOOCV pick the honest optimum.
     from scipy.optimize import minimize
     def _neg_loocv(p):
-        k_, tc_, kp_, pc_, tcw_, stw_ = p
+        k_, tc_, kp_, pc_, tcw_, stw_, tcps_, kps_ = p
         if k_ <= 0.1 or k_ > 20 or tc_ < 1.2 or tc_ > 3.0: return 1e6
         if kp_ <= 0.1 or kp_ > 50 or pc_ < 0.1 or pc_ > 0.9: return 1e6
         if tcw_ < 1.2 or tcw_ > 3.0 or stw_ < 0.15 or stw_ > 1.0: return 1e6
-        return -_fit_at(k_, tc_, kp_, pc_, tcw_, stw_)[1]
-    res = minimize(_neg_loocv, x0=[5.0, 2.0, 10.0, 0.5, 2.0, 0.3], method='Nelder-Mead',
-                   options={'xatol': 1e-3, 'fatol': 1e-5, 'maxiter': 600, 'adaptive': True})
-    best_k, best_tc, best_kp, best_pc, best_tcw, best_stw = (float(res.x[0]), float(res.x[1]),
-                                                              float(res.x[2]), float(res.x[3]),
-                                                              float(res.x[4]), float(res.x[5]))
+        if tcps_ < 1.5 or tcps_ > 2.5 or kps_ < 2.0 or kps_ > 30.0: return 1e6
+        return -_fit_at(k_, tc_, kp_, pc_, tcw_, stw_, tcps_, kps_)[1]
+    res = minimize(_neg_loocv, x0=[5.0, 2.0, 10.0, 0.5, 2.0, 0.3, 2.0, 10.0],
+                   method='Nelder-Mead',
+                   options={'xatol': 1e-3, 'fatol': 1e-5, 'maxiter': 800, 'adaptive': True})
+    (best_k, best_tc, best_kp, best_pc, best_tcw, best_stw,
+     best_tcps, best_kps) = (float(res.x[0]), float(res.x[1]),
+                             float(res.x[2]), float(res.x[3]),
+                             float(res.x[4]), float(res.x[5]),
+                             float(res.x[6]), float(res.x[7]))
     # Coarse sweep for diagnostic visibility (k_pf/pc_pf fixed at sane defaults)
     k_sweep = [1.5, 2.0, 3.0, 5.0, 8.0, 10.0, 15.0]
     print(f"\n[BLEND SWEEP] coarse k scan at τc=2.0 (k_pf=10, pc_pf=0.5 fixed)")
@@ -1237,11 +1224,12 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         r2_k, lo_k, w20_k, *_ = _fit_at(k, 2.0, 10.0, 0.5, 2.0, 0.3)
         print(f"  {k:5.1f}  {r2_k:.4f}  {lo_k:.4f}  {w20_k:2d}/{len(log_sf):2d}")
     r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX, beta_pf_prod, beta_win_prod, w_pf_prod = \
-        _fit_at(best_k, best_tc, best_kp, best_pc, best_tcw, best_stw)
+        _fit_at(best_k, best_tc, best_kp, best_pc, best_tcw, best_stw, best_tcps, best_kps)
     kappa_area = 0.0
     print(f"  → continuous optimum: k_bl={best_k:.2f}, τc_bl={best_tc:.3f}  |  "
           f"k_pf={best_kp:.2f}, pc_pf={best_pc:.3f}  |  "
           f"τ_c_win={best_tcw:.3f}, σ_τ_win={best_stw:.3f}")
+    print(f"    v30.1 phase-split gate: τc_ps={best_tcps:.3f}, k_ps={best_kps:.2f} (data-optimized)")
     print(f"    R²={r2_formX:.4f}, LOOCV={loocv_formX:.4f}, ±20%={w20_opt}/{len(log_sf)}")
     _Ct_chk = float(np.exp(b_v5[0])); _Cn_chk = float(np.exp(b_v5[0] + b_v5[1]))
     print(f"    Ct={_Ct_chk:.4f} (thick asymptote)  Cn={_Cn_chk:.4f} (thin asymptote)  "
@@ -1251,7 +1239,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     print(f"    β_pf    = {beta_pf_prod:+.4f}  ← P:S sigmoid amplitude")
     print(f"    β_lin   = {beta_win_prod:+.4f}  ← v28: p_frac × Gaussian bump (linear)")
     print(f"    β_gb    = {float(getattr(_fit_at, '_beta_mix', 0.0)):+.4f}  ← v29: sigmoid(log gb_dens) correction (bounded)")
-    print(f"    β_ps    = {_beta_ps_prod:+.4f}  ← v30: σ(τ-1.8)·log(cov_P/cov_S) phase-split (thin gated)")
+    print(f"    β_ps    = {_beta_ps_prod:+.4f}  ← v30.1: σ(k_ps·(τ-τc_ps))·log(area_P/area_S) — area, joint-opt")
     TAU_C_BL = best_tc
     TAU_K_BL = best_k
 
@@ -1748,19 +1736,19 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     _gb_arr_prod = np.array([max(gb_dens[i], 1e-6) for i in valid_idx])
     _gc_gb_prod = float(np.median(np.log(_gb_arr_prod)))
     _w_gb_prod = 1.0 / (1.0 + np.exp(-4.0 * (np.log(_gb_arr_prod) - _gc_gb_prod)))
-    # v30: extend to 14-tuple — adds β_ps + sigmoid params + ps_term mean for centering
+    # v30.2: normalized asymmetry feature — defined for all cases, no bimodal special case
     _beta_ps_val = float(getattr(_fit_at, '_beta_ps', 0.0))
-    _tau_c_ps_val = 1.8   # sigmoid center (v30c optimum; matches _fit_at internal)
-    _k_ps_val = 10.0      # sigmoid steepness (matches _fit_at internal)
+    _tau_c_ps_val = best_tcps   # data-optimized from Nelder-Mead
+    _k_ps_val = best_kps        # data-optimized from Nelder-Mead
     _w_thin_prod = 1.0 / (1.0 + np.exp(-_k_ps_val * (tau_arr - _tau_c_ps_val)))
-    _cov_p_glob = np.array([_get(data_list[i], "coverage_AM_P_mean", 0.0) for i in valid_idx], dtype=float)
-    _cov_s_glob = np.array([_get(data_list[i], "coverage_AM_S_mean", 0.0) for i in valid_idx], dtype=float)
-    _log_ps_glob = np.zeros_like(_cov_p_glob)
-    _mk_glob = (_cov_p_glob > 1e-10) & (_cov_s_glob > 1e-10)
-    _log_ps_glob[_mk_glob] = np.log(_cov_p_glob[_mk_glob]) - np.log(_cov_s_glob[_mk_glob])
-    _ps_term_prod = _w_thin_prod * _log_ps_glob
-    # v30 FIX: PS_MEAN computed ONLY over bimodal cases (monomodal excluded)
-    _ps_mean_bi_exp = float(_ps_term_prod[_mk_glob].mean()) if _mk_glob.any() else 0.0
+    _area_p_glob = np.array([_get(data_list[i], "area_AM_P_SE_mean", 0.0) for i in valid_idx], dtype=float)
+    _area_s_glob = np.array([_get(data_list[i], "area_AM_S_SE_mean", 0.0) for i in valid_idx], dtype=float)
+    _area_sum_glob = _area_p_glob + _area_s_glob
+    _asym_area_glob = np.where(_area_sum_glob > 1e-10,
+                                (_area_p_glob - _area_s_glob) / np.maximum(_area_sum_glob, 1e-10),
+                                0.0)
+    _ps_term_prod = _w_thin_prod * _asym_area_glob
+    _ps_mean_exp = float(_ps_term_prod.mean())
     _GLOBAL_PS_SIGMOID = (best_kp, best_pc, beta_pf_prod, beta_win_prod, _beta_gb_prod,
                           float(w_pf_prod.mean()),
                           float((pf_prod * _w_win_prod).mean()),
@@ -1768,8 +1756,8 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
                           best_tcw, best_stw,
                           float(_w_gb_prod.mean()),                   # ⟨w_gb⟩
                           _beta_ps_val,                               # v30 β_ps
-                          _tau_c_ps_val, _k_ps_val,                   # v30 sigmoid params
-                          _ps_mean_bi_exp)                            # v30 ⟨ps_term | bimodal⟩
+                          _tau_c_ps_val, _k_ps_val,                   # v30 sigmoid params (data-opt)
+                          _ps_mean_exp)                               # v30 ⟨ps_term⟩ (standard mean)
 
     # Use FORM X v4 as primary
     s_pred = np.exp(pred_formX)
@@ -1784,8 +1772,8 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         _formx_v29_predict(phi_se[i], cn[i], tau_arr[j], coverage[i], f_perc[i],
                            pf_prod[j],
                            _get(data_list[i], "gb_density_mean", 1e-6),
-                           cov_p=_get(data_list[i], "coverage_AM_P_mean", 0.0),
-                           cov_s=_get(data_list[i], "coverage_AM_S_mean", 0.0),
+                           area_p=_get(data_list[i], "area_AM_P_SE_mean", 0.0),
+                           area_s=_get(data_list[i], "area_AM_S_SE_mean", 0.0),
                            params=_p_check)
         for j, i in enumerate(valid_idx)
     ])
@@ -2666,7 +2654,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title(f"Ionic v30: v29 + β_ps·σ(τ-1.8)·log(cov_P/cov_S) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³\n"
+    ax.set_title(f"Ionic v30.2: v29 + β_ps·w_thin·asym_area × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³\n"
                  f"τ-blend(k={best_k:.0f},τc={best_tc:.2f})  P:S(k={best_kp:.0f},pc={best_pc:.2f},β={beta_pf_prod:+.3f})  κ_A={kappa_area:+.3f}  R²={r2_formX:.3f} LOOCV={loocv_formX:.3f}",
                  fontsize=8, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
@@ -2788,11 +2776,12 @@ def _formx_v29_params():
 
 
 def _formx_v29_predict(phi_se, cn, tau, coverage, f_perc, p_frac, gb_dens,
-                        cov_p=0.0, cov_s=0.0, params=None):
-    """Single source of truth for v30 FORM X prediction.
-    cov_p / cov_s: per-phase AM-SE coverage (fraction). 0 → phase-split term inactive.
-    Returns σ (mS/cm); 0 if core inputs invalid. Matches plot_ionic_scaling_fit's
-    internal prediction exactly — guarded by sanity check in the fit function."""
+                        area_p=0.0, area_s=0.0, params=None):
+    """Single source of truth for v30.2 FORM X prediction.
+    area_p / area_s: per-phase AM-SE interface area (μm²). Used via normalized
+    asymmetry asym = (A_P − A_S)/(A_P + A_S) ∈ [−1, +1]. Defined for monomodal
+    (gives ±1) and bimodal alike — no arbitrary zeroing.
+    Returns σ (mS/cm); 0 if core inputs invalid."""
     if not (cn > 0 and tau > 0 and coverage > 0):
         return 0.0
     p = params if params is not None else _formx_v29_params()
@@ -2811,13 +2800,13 @@ def _formx_v29_predict(phi_se, cn, tau, coverage, f_perc, p_frac, gb_dens,
     w_pf = 1.0 / (1.0 + np.exp(-p['K_PF'] * (p_frac - p['PC_PF'])))
     w_win = np.exp(-0.5 * ((tau - p['TAU_C_WIN']) / max(p['SIGMA_TAU_WIN'], 0.05))**2)
     w_gb = 1.0 / (1.0 + np.exp(-4.0 * (np.log(max(gb_dens, 1e-6)) - p['GB_LOG_MEAN'])))
-    # v30: phase-split asymmetry gated by sigmoid in τ — BIMODAL ONLY
-    # Monomodal cases (cov_p=0 or cov_s=0): NO correction (ps_contrib=0 exactly).
-    # This matches _fit_at which centers ps_c only using bimodal cases.
-    if cov_p > 1e-10 and cov_s > 1e-10:
+    # v30.2: normalized area asymmetry — defined everywhere, no bimodal special case.
+    # Monomodal P (area_s=0): asym=+1 natural extreme. Monomodal S: asym=-1.
+    area_sum = area_p + area_s
+    if area_sum > 1e-10:
+        asym_area = (area_p - area_s) / area_sum
         w_thin = 1.0 / (1.0 + np.exp(-p['K_PS'] * (tau - p['TAU_C_PS'])))
-        log_ps = np.log(cov_p) - np.log(cov_s)
-        ps_term_i = w_thin * log_ps
+        ps_term_i = w_thin * asym_area
         ps_contribution = p['B_PS'] * (ps_term_i - p['PS_MEAN'])
     else:
         ps_contribution = 0.0
@@ -2859,8 +2848,8 @@ def plot_multiscale_sigma(data_list, names, outdir):
             phi_se[i], cn[i], tau[i], coverage[i], f_perc[i],
             _ps_fraction(data_list[i]),
             _get(data_list[i], "gb_density_mean", 1e-6),
-            cov_p=_get(data_list[i], "coverage_AM_P_mean", 0.0),
-            cov_s=_get(data_list[i], "coverage_AM_S_mean", 0.0),
+            area_p=_get(data_list[i], "area_AM_P_SE_mean", 0.0),
+            area_s=_get(data_list[i], "area_AM_S_SE_mean", 0.0),
             params=p,
         )
         for i in range(len(data_list))
@@ -2896,7 +2885,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     _apply_style(ax, "σ_ionic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
-    ax.set_title(f"FORM X v30: v29 + β_ps·σ(τ-1.8)·log(cov_P/cov_S) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³",
+    ax.set_title(f"FORM X v30.2: v29 + β_ps·w_thin(τ)·asym_area × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³",
                  fontsize=9, fontweight='bold')
 
     # Unified y-axis: if user/webapp passed --y-max-sigma, use it for cross-run

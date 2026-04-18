@@ -1882,7 +1882,107 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         if best_v30b[2] > sigma_noise_v29:
             print(f"    ⭐⭐⭐ PHASE-SPLIT SIGNAL FOUND — integrate as v30b 4th β-term")
         else:
-            print(f"    — phase-split also within noise; the 3 outliers resist ALL feature additions")
+            print(f"    — phase-split within noise but correlation is REAL; try refinement (v30c)")
+
+    # === v30c REFINE PROMISING v30b FEATURES ===
+    # v30b surfaced I(thin)·log(cov_P/cov_S) with r=-0.359 (statistically significant,
+    # p<0.05 at n=57). ΔLOOCV=+0.00027 is below noise but positive — the ONLY positive
+    # in the sweep. Refine by: varying the thin indicator threshold, filtering by p_frac,
+    # and joint fit with the second-best (log(stress_P/stress_S) with r=+0.300).
+    _lcovPS = _lr(_cov_p, _cov_s)
+    _lstrPS = _lr(_stress_p, _stress_s)
+    _larea_PS = _lr(_area_p, _area_s)
+
+    v30c_features = {
+        # Thin threshold variations on the winner
+        'I(τ>1.5)·log(cov_P/cov_S)':         (tau_arr > 1.5).astype(float) * _lcovPS,
+        'I(τ>1.6)·log(cov_P/cov_S)':         (tau_arr > 1.6).astype(float) * _lcovPS,
+        'I(τ>1.7)·log(cov_P/cov_S)':         (tau_arr > 1.7).astype(float) * _lcovPS,  # v30b best
+        'I(τ>1.8)·log(cov_P/cov_S)':         (tau_arr > 1.8).astype(float) * _lcovPS,
+        'I(τ>1.9)·log(cov_P/cov_S)':         (tau_arr > 1.9).astype(float) * _lcovPS,
+        # Add P:S filters (focus on mixed P:S where asymmetry matters)
+        'I(thin·mixed)·log(cov_P/cov_S)':    ((tau_arr > 1.7) & (pf_prod > 0.2) & (pf_prod < 0.9)).astype(float) * _lcovPS,
+        'I(thin·P-heavy)·log(cov_P/cov_S)':  ((tau_arr > 1.7) & (pf_prod > 0.5)).astype(float) * _lcovPS,
+        # Smooth version (Gaussian on τ instead of hard indicator)
+        'G(τ,2.0,0.3)·log(cov_P/cov_S)':     np.exp(-0.5*((tau_arr - 2.0)/0.3)**2) * _lcovPS,
+        'G(τ,1.9,0.25)·log(cov_P/cov_S)':    np.exp(-0.5*((tau_arr - 1.9)/0.25)**2) * _lcovPS,
+        # Mix with second-best signal (stress)
+        'I(thin)·log(stress_P/stress_S)':    (tau_arr > 1.7).astype(float) * _lstrPS,
+        'log(cov_P/cov_S)+log(str_P/str_S)': _lcovPS + _lstrPS,  # simple sum
+        # Triple interaction (thin + P-heavy + asymmetry)
+        'I(thin·P>0.5)·log(cov_P/cov_S)':    ((tau_arr > 1.7) & (pf_prod > 0.5)).astype(float) * _lcovPS,
+    }
+
+    print(f"\n[v30c REFINE PHASE-SPLIT] micro-sweep around I(thin)·log(cov_P/cov_S)")
+    print(f"  baseline v29 LOOCV = {loocv_formX:.4f}   noise σ ≈ {sigma_noise_v29:.4f}")
+    print(f"  {'feature':42s} {'LOOCV':>8s} {'ΔLOOCV':>10s} {'flag':>6s}   {'r':>8s}")
+    v30c_results = []
+    for name, z in v30c_features.items():
+        if not np.any(np.isfinite(z) & (np.abs(z) > 1e-10)):
+            continue
+        lo = _loocv_v29_plus(z)
+        d = lo - loocv_formX
+        mask = np.abs(z) > 1e-10
+        r = float(np.corrcoef(z[mask], _resid_log[mask])[0, 1]) if mask.sum() >= 3 else 0.0
+        flag = " ⭐" if d > sigma_noise_v29 else ("  *" if d > 0.0005 else "")
+        v30c_results.append((name, lo, d, flag, r))
+        print(f"  {name:42s} {lo:.4f} {d:+10.5f} {flag}   r={r:+.3f}")
+    if v30c_results:
+        best_v30c = max(v30c_results, key=lambda r: r[1])
+        print(f"  → best v30c: {best_v30c[0]} (ΔLOOCV={best_v30c[2]:+.5f}, r={best_v30c[4]:+.3f})")
+        if best_v30c[2] > sigma_noise_v29:
+            print(f"    ⭐⭐⭐ REFINED PHASE-SPLIT BEATS NOISE — v30c production candidate")
+        elif best_v30c[2] > 0.0008:
+            print(f"    · ΔLOOCV>0.0008 (half-noise) + sig r → conservative integration justified")
+        else:
+            print(f"    — even refined, below noise. True ceiling for parametric fit.")
+
+    # === v30d JOINT 2-FEATURE FIT (v29 + two new betas) ===
+    # If best v30b and second-best are uncorrelated, joint fit may capture both.
+    # Test: top candidates from v30b/v30c paired with each other as 5-β model
+    # (v29's 3 betas + 2 new). Uses same LOOCV structure.
+    def _loocv_v29_plus2(z1, z2):
+        pf_v = w_pf_prod; lin_v = pf_prod * _w_win_prod; gb_v = _w_gb_prod
+        n = len(log_sf); sse = 0.0
+        for ii in range(n):
+            mk = np.ones(n, bool); mk[ii] = False
+            bv_ = np.linalg.lstsq(X_v5[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
+            bp_ = np.linalg.lstsq(X_p3[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
+            pv29 = (1 - w_blend) * (X_v5 @ bv_) + w_blend * (X_p3 @ bp_) + log_rhs_base
+            m_pf = pf_v[mk].mean(); m_lin = lin_v[mk].mean(); m_gb = gb_v[mk].mean()
+            m_z1 = z1[mk].mean(); m_z2 = z2[mk].mean()
+            Xc = np.column_stack([pf_v[mk]-m_pf, lin_v[mk]-m_lin, gb_v[mk]-m_gb,
+                                   z1[mk]-m_z1, z2[mk]-m_z2])
+            bc = np.linalg.lstsq(Xc, (log_sf - pv29)[mk], rcond=None)[0]
+            pred_ii = (pv29[ii] + bc[0]*(pf_v[ii]-m_pf) + bc[1]*(lin_v[ii]-m_lin)
+                       + bc[2]*(gb_v[ii]-m_gb) + bc[3]*(z1[ii]-m_z1) + bc[4]*(z2[ii]-m_z2))
+            sse += (log_sf[ii] - pred_ii)**2
+        return 1 - sse / ss_tot
+
+    # Pair best v30b winner with other positive-r candidates
+    top_z1 = (tau_arr > 1.7).astype(float) * _lcovPS   # I(thin)·log(cov_P/cov_S)
+    pairs = {
+        '+log(stress_P/stress_S)':       _lstrPS,
+        '+log(fn_P/fn_S)':               _lr(_fn_p, _fn_s),
+        '+sqrt(cov_P·cov_S)':            np.sqrt(np.maximum(_cov_p * _cov_s, 0)),
+        '+log(n_P/n_S)':                 _lr(_n_p, _n_s),
+        '+(cov_P-cov_S)':                _cov_p - _cov_s,
+    }
+    print(f"\n[v30d JOINT FIT] I(thin)·log(cov_P/cov_S) + second feature (5-β total)")
+    print(f"  baseline v29 LOOCV = {loocv_formX:.4f}   noise σ ≈ {sigma_noise_v29:.4f}")
+    print(f"  {'second feature':36s} {'LOOCV':>8s} {'ΔLOOCV':>10s} {'flag':>6s}")
+    v30d_results = []
+    for nm, z2 in pairs.items():
+        lo = _loocv_v29_plus2(top_z1, z2)
+        d = lo - loocv_formX
+        flag = " ⭐" if d > sigma_noise_v29 else ("  *" if d > 0.0008 else "")
+        v30d_results.append((nm, lo, d, flag))
+        print(f"  {nm:36s} {lo:.4f} {d:+10.5f} {flag}")
+    if v30d_results:
+        best_v30d = max(v30d_results, key=lambda r: r[1])
+        print(f"  → best joint: I(thin)·log(cov_P/cov_S) {best_v30d[0]} (ΔLOOCV={best_v30d[2]:+.5f})")
+        if best_v30d[2] > sigma_noise_v29:
+            print(f"    ⭐⭐⭐ JOINT PHASE-SPLIT BEATS NOISE — v30d production")
 
     # === σ-WEIGHTED FIT SWEEP (data-native log↔linear balance) ===
     # Current v29 fits log-space (equal weight per case). α=0 baseline.

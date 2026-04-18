@@ -13,8 +13,9 @@ set -u
 
 # --- Configuration ---
 # LIGGGHTS launch command — processors auto-distributed (no -processors in script)
-# Default: mpirun -np 10 (10 ranks). Adjust if fewer/more threads available.
-LIGGGHTS_CMD="mpirun -np 10 liggghts"
+# --oversubscribe: allow more MPI ranks than physical cores (needed on WSL/laptops).
+# Default: 10 ranks on 10 threads. Adjust if fewer/more threads available.
+LIGGGHTS_CMD="mpirun --oversubscribe -np 10 liggghts"
 
 # Skip already-completed runs (check for contact dumps)
 SKIP_IF_DONE=true

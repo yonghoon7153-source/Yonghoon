@@ -318,6 +318,7 @@ def _generate_ai_analysis(all_metrics, case_names, title, notes):
         ('SE-SE N', 'area_SE_SE_n'),
         ('SE-SE Mean Area(μm²)', 'area_SE_SE_mean'),
         ('SE-SE CN', 'se_se_cn'),
+        ('SE-SE CN std', 'se_se_cn_std'),
         ('SE Cluster', 'n_components'),
         ('Percolation(%)', 'percolation_pct'),
         ('Top Reachable(%)', 'top_reachable_pct'),
@@ -1041,6 +1042,7 @@ def group():
             ('Coverage S', '(%)', 'coverage_AM_S_mean', '구조/계면'),
             # ── 이온경로 ──
             ('SE-SE CN', '', 'se_se_cn', '이온경로'),
+            ('SE-SE CN std', '', 'se_se_cn_std', '이온경로'),
             ('SE Cluster', '', 'n_components', '이온경로'),
             ('Large(≥10)', '', 'n_large_components', '이온경로'),
             ('Percolation', '(%)', 'percolation_pct', '이온경로'),
@@ -1401,7 +1403,7 @@ def group_report():
         ('Thickness(μm)', 'thickness_um'),
         ('AM-SE Total(μm²)', 'area_AM전체_SE_total'),
         ('SE-SE Total(μm²)', 'area_SE_SE_total'),
-        ('SE-SE CN', 'se_se_cn'), ('SE Cluster', 'n_components'),
+        ('SE-SE CN', 'se_se_cn'), ('SE-SE CN std', 'se_se_cn_std'), ('SE Cluster', 'n_components'),
         ('Percolation(%)', 'percolation_pct'),
         ('Top Reachable(%)', 'top_reachable_pct'),
         ('Tortuosity', 'tortuosity_mean'),
@@ -1727,6 +1729,7 @@ def serve_report(case_id):
     L.append(f'## {section}. Structure & Contact\n')
     struct_items = [
         ('SE-SE CN', metrics.get('se_se_cn')),
+        ('SE-SE CN std', metrics.get('se_se_cn_std')),
         ('AM-SE CN', metrics.get('am_se_cn_mean')),
         ('AM-AM CN', metrics.get('am_am_cn')),
         ('SE Volume Fraction', metrics.get('phi_se')),

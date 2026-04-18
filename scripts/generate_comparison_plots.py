@@ -1107,12 +1107,10 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
     def _fit_at(k_bl, tc_bl, k_pf=10.0, pc_pf=0.5):
-        """v19 (production): v12-clean v3 + smooth P:S sigmoid + τ-modulation.
-        Residual correction is 2-term:
-           β1·(w_pf - ⟨w_pf⟩) + β2·(w_pf·log τ − ⟨⋅⟩)
-        v19 vs v18 LOOCV within noise, but v19 visibly better on 8mAh_85:15
-        (4/4 -15% under-prediction disappeared). Keep v19.
-        Returns (r2, loocv, w20, b_v5, b_p3, w_bl, pred, beta1, beta2, w_pf)."""
+        """v18 (PRODUCTION): v12-clean v3 blend + single smooth P:S sigmoid.
+        Residual correction: β1·(w_pf - ⟨w_pf⟩). β2 (τ-modulation) = 0.
+        Simpler, better LOOCV, visually indistinguishable from v19.
+        Returns 10-tuple for API compatibility: beta2 is always 0."""
         w_bl = 1.0 / (1.0 + np.exp(-k_bl * (tau_arr - tc_bl)))
         w_pf = 1.0 / (1.0 + np.exp(-k_pf * (pf_prod - pc_pf)))
         X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
@@ -1125,13 +1123,11 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         pred_pre = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
 
         pf_c = w_pf - w_pf.mean()
-        pf_t = w_pf * log_tau_arr
-        pf_t_c = pf_t - pf_t.mean()
-        X_corr = np.column_stack([pf_c, pf_t_c])
         resid = log_sf - pred_pre
-        bc = np.linalg.lstsq(X_corr, resid, rcond=None)[0]
-        pred = pred_pre + X_corr @ bc
-        beta1, beta2 = float(bc[0]), float(bc[1])
+        denom = float(np.sum(pf_c**2))
+        beta1 = float(np.sum(resid * pf_c) / denom) if denom > 1e-10 else 0.0
+        beta2 = 0.0
+        pred = pred_pre + beta1 * pf_c
 
         r2 = 1 - np.sum((log_sf - pred)**2) / ss_tot
         n_loo = len(log_sf)
@@ -1142,12 +1138,10 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
             bp_ = np.linalg.lstsq(X_p3_l[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
             pv9 = (1 - w_bl) * (X_v5_l @ bv_) + w_bl * (X_p3_l @ bp_) + log_rhs_base
             pf_c_mk = w_pf[mk] - w_pf[mk].mean()
-            pf_t_mk = (w_pf * log_tau_arr)[mk]
-            pf_t_c_mk = pf_t_mk - pf_t_mk.mean()
-            X_corr_mk = np.column_stack([pf_c_mk, pf_t_c_mk])
-            bc_mk = np.linalg.lstsq(X_corr_mk, (log_sf - pv9)[mk], rcond=None)[0]
-            pred_ii = pv9[ii] + bc_mk[0] * (w_pf[ii] - w_pf[mk].mean()) \
-                              + bc_mk[1] * (w_pf[ii] * log_tau_arr[ii] - pf_t_mk.mean())
+            resid_mk = (log_sf - pv9)[mk]
+            dm = float(np.sum(pf_c_mk**2))
+            beta_mk = float(np.sum(resid_mk * pf_c_mk) / dm) if dm > 1e-10 else 0.0
+            pred_ii = pv9[ii] + beta_mk * (w_pf[ii] - w_pf[mk].mean())
             sse_loo += (log_sf[ii] - pred_ii)**2
         loocv = 1 - sse_loo / ss_tot
         s_act_l = np.exp(log_sf); s_prd_l = np.exp(pred)
@@ -1322,6 +1316,66 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     best_variant = "v13" if loocv13 == max(loocv_formX, loocv12, loocv13) else (
                    "v12" if loocv12 == max(loocv_formX, loocv12, loocv13) else "v9")
     print(f"  → best by LOOCV: {best_variant}")
+
+    # === v20 HINT OVERFIT — Lasso on dense feature basis to reveal hidden patterns ===
+    # Aggressively overfit with Lasso regularization. Top-weighted features
+    # reveal which physics the data WANTS to use. Purely exploratory.
+    from sklearn.linear_model import LassoCV, Lasso
+    # Build comprehensive feature dict (much bigger than v15)
+    am_se_cn_v20 = np.array([_get(data_list[i], "am_se_cn_mean", 0) for i in valid_idx], dtype=float)
+    am_am_cn_v20 = np.array([_get(data_list[i], "am_am_cn", 0) for i in valid_idx], dtype=float)
+    cn_std_v20 = np.array([_get(data_list[i], "se_se_cn_std", 0) for i in valid_idx], dtype=float)
+    tau_std_v20 = np.array([_get(data_list[i], "tortuosity_std", 0) for i in valid_idx], dtype=float)
+    stress_cv_v20 = np.array([_get(data_list[i], "stress_cv", 0) for i in valid_idx], dtype=float)
+    pf_v20 = np.array([_ps_frac(data_list[i]) for i in valid_idx])
+    log_gb_v20 = np.log(np.maximum(np.array([gb_dens[i] for i in valid_idx]), 1e-10))
+    log_gp_v20 = np.log(np.maximum(np.array([g_path[i] for i in valid_idx]), 1e-10))
+    raw_feats = {
+        'log(φ-φc)':   log_phi_ex_np,  'log(CN)':     log_cn_np,
+        'log(τ)':      log_tau_arr,    'log(cov)':    np.log(cov_np),
+        'log(fp)':     np.log(fp_np),  'log(gb)':     log_gb_v20,
+        'log(gp)':     log_gp_v20,     'p_frac':      pf_v20,
+        'log(am_se_cn)': np.log(np.maximum(am_se_cn_v20, 0.1)),
+        'log(am_am_cn)': np.log(np.maximum(am_am_cn_v20, 0.1)),
+        'CN_std':      cn_std_v20,     'τ_std':       tau_std_v20,
+        'stress_cv':   stress_cv_v20,  '(p_frac)²':   pf_v20**2,
+        'I(p>0.5)':    (pf_v20 > 0.5).astype(float),
+    }
+    # Build dense design matrix: base + squares + pairwise products
+    cols_v20 = []
+    names_v20 = []
+    for n, v in raw_feats.items():
+        cols_v20.append(v); names_v20.append(n)
+    for n, v in raw_feats.items():
+        cols_v20.append(v**2); names_v20.append(f"{n}²")
+    kl = list(raw_feats.keys())
+    vl = list(raw_feats.values())
+    for i in range(len(kl)):
+        for j in range(i+1, len(kl)):
+            cols_v20.append(vl[i] * vl[j]); names_v20.append(f"{kl[i]}·{kl[j]}")
+    X20 = np.column_stack(cols_v20)
+    # Standardize (critical for Lasso)
+    X_mean = X20.mean(axis=0); X_std = X20.std(axis=0) + 1e-10
+    X20n = (X20 - X_mean) / X_std
+    resid_base = log_sf - pred_formX   # residuals AFTER v19 production model
+    # Fit LassoCV (5-fold CV auto-picks α)
+    try:
+        lasso = LassoCV(cv=5, max_iter=50000, n_alphas=50, random_state=42).fit(X20n, resid_base)
+        pred_lasso = lasso.predict(X20n)
+        r2_v20 = 1 - np.sum((resid_base - pred_lasso)**2) / max(np.sum(resid_base**2), 1e-10)
+        # Non-zero coefficients
+        nonzero = [(names_v20[i], lasso.coef_[i]) for i in range(len(names_v20)) if abs(lasso.coef_[i]) > 1e-4]
+        nonzero.sort(key=lambda x: -abs(x[1]))
+        print(f"\n[v20 HINT OVERFIT] Lasso on {X20.shape[1]} features (residuals of v19)")
+        print(f"  Best α = {lasso.alpha_:.5f}   |   residual R² = {r2_v20:.4f}   |   nonzero features = {len(nonzero)}")
+        if nonzero:
+            print(f"  Top features (sorted by |coef|):")
+            for nm, c in nonzero[:15]:
+                print(f"    {nm:35s}  coef = {c:+.4f}")
+        else:
+            print(f"  All coefficients zero — v19 residuals are pure noise, no hidden signal")
+    except Exception as e:
+        print(f"\n[v20 HINT OVERFIT] skipped: {e}")
 
     # === v14 INTERACTION FORWARD SELECTION (on top of v12) ===
     # Test each candidate interaction as ONE extra feature added to v12 base.

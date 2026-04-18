@@ -343,7 +343,7 @@ function saveCaseGroupsToStorage() {
 
 // Case Group management
 const GROUP_COLORS = ['#6c8cff', '#ff6b6b', '#51cf66', '#ffd43b', '#cc5de8', '#ff922b', '#20c997', '#e599f7', '#74c0fc', '#f783ac', '#a9e34b', '#ffa94d'];
-const GROUP_LETTERS = 'ABCDEFGHIJKLMNOP';
+const GROUP_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 let caseGroups = [{name: '', cases: []}];  // [{name, cases: [caseId,...]}]
 let activeGroupIdx = 0;
 
@@ -392,7 +392,7 @@ function renderGroupTabs() {
     btn.type = 'button';
     btn.className = 'case-group-tab' + (i === activeGroupIdx ? ' active' : '');
     btn.style.borderBottomColor = GROUP_COLORS[i % GROUP_COLORS.length];
-    btn.textContent = `Case ${GROUP_LETTERS[i]}${g.name ? ` (${g.name})` : ''}`;
+    btn.textContent = `Case ${GROUP_LETTERS[i] || (i+1)}${g.name ? ` (${g.name})` : ''}`;
     btn.onclick = () => switchCaseGroup(i);
     tabs.appendChild(btn);
   });
@@ -477,7 +477,7 @@ function renderPlotGroups() {
       const btn = document.createElement('span');
       btn.className = 'pg-case-btn' + (pg.caseGroupIdxs.includes(ci) ? ' selected' : '');
       btn.style.color = GROUP_COLORS[ci % GROUP_COLORS.length];
-      btn.textContent = g.name || `Case ${GROUP_LETTERS[ci]}`;
+      btn.textContent = g.name || `Case ${GROUP_LETTERS[ci] || (ci+1)}`;
       btn.onclick = () => togglePlotGroupCase(pgIdx, ci);
       casesDiv.appendChild(btn);
     });
@@ -582,7 +582,7 @@ function updateCaseDisplay() {
       if (idx >= 0) {
         found = true;
         el.classList.add('case-selected');
-        badge.textContent = GROUP_LETTERS[gi];
+        badge.textContent = GROUP_LETTERS[gi] || (gi+1);
         badge.style.display = 'flex';
         badge.style.background = GROUP_COLORS[gi];
         num.textContent = idx + 1;
@@ -776,7 +776,7 @@ async function generatePlots() {
       const data = await res.json();
       if (data.error) continue;
 
-      const pgName = pg.name || pg.caseGroupIdxs.map(i => caseGroups[i].name || `Case ${GROUP_LETTERS[i]}`).join(' + ');
+      const pgName = pg.name || pg.caseGroupIdxs.map(i => caseGroups[i].name || `Case ${GROUP_LETTERS[i] || (i+1)}`).join(' + ');
       allResults.push({pgIdx, pgName, session: data.session, plots: data.plots});
     }
 

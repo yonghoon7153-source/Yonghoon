@@ -1289,9 +1289,9 @@ def group_plots():
         cmd += ['--global-c-ion', global_c_ion]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if result.stdout:
-        print(f"[plots] stdout: {result.stdout[-500:]}")
+        print(f"[plots] stdout:\n{result.stdout}")
     if result.stderr:
-        print(f"[plots] stderr: {result.stderr[-500:]}")
+        print(f"[plots] stderr:\n{result.stderr}")
 
     if result.returncode != 0:
         return jsonify({'error': f'Plot 생성 실패: {result.stderr}'}), 500

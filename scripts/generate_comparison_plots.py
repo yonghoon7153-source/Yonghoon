@@ -1130,6 +1130,75 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     TAU_C_BL = best_tc
     TAU_K_BL = best_k
 
+    # === v12 DATA-NATIVE EXPONENT FIT (diagnostic only, does not replace v9) ===
+    # Jointly optimize (α, β, γ, δ, φc, k_bl, τc) where:
+    #   log σ = log(σ_grain) + α·log(φ-φc) + β·log(CN) + γ·log(cov) + δ·log(fp) + C_blend(τ)
+    # v9 fixed (α,β,γ,δ,φc) = (0.75, 1.5, 0.25, 2.0, 0.185). We check if the data
+    # prefers different values by LOOCV. If v12 LOOCV > v9 LOOCV, data disagrees
+    # with Kirkpatrick/Bruggeman priors. If ≈ same, v9 priors are consistent.
+    cn_np = np.array([cn[i] for i in valid_idx], dtype=float)
+    cov_np = np.array([coverage[i] for i in valid_idx], dtype=float)
+    fp_np = np.array([max(f_perc[i], 0.01) for i in valid_idx], dtype=float)
+    phi_np = np.array([phi_se[i] for i in valid_idx], dtype=float)
+    ln_sigma = log_sf
+    ss_tot_local = ss_tot
+
+    def _loocv_at(params):
+        a, b, g, dl, pc, kb, tcb = params
+        if pc < 0.05 or pc > 0.30: return 1e6
+        if a < 0.1 or a > 3.0: return 1e6
+        if b < 0.1 or b > 3.5: return 1e6
+        if g < -1.5 or g > 2.5: return 1e6
+        if dl < 0.1 or dl > 5.0: return 1e6
+        if kb < 0.1 or kb > 20 or tcb < 1.2 or tcb > 3.0: return 1e6
+        phi_ex_v = np.maximum(phi_np - pc, 1e-4)
+        lrhs = (np.log(SIGMA_BULK) + a*np.log(phi_ex_v) + b*np.log(cn_np)
+                + g*np.log(cov_np) + dl*np.log(fp_np))
+        w_bl_v = 1.0 / (1.0 + np.exp(-kb * (tau_arr - tcb)))
+        X_v = np.column_stack([np.ones(len(ln_sigma)), w_sigmoid])
+        X_p = np.column_stack([np.ones(len(ln_sigma)), log_tau_arr,
+                                log_tau_arr**2, log_tau_arr**3])
+        sse = 0.0
+        n_loo = len(ln_sigma)
+        for ii in range(n_loo):
+            mk = np.ones(n_loo, bool); mk[ii] = False
+            bv_ = np.linalg.lstsq(X_v[mk], (ln_sigma - lrhs)[mk], rcond=None)[0]
+            bp_ = np.linalg.lstsq(X_p[mk], (ln_sigma - lrhs)[mk], rcond=None)[0]
+            p_ii = (1 - w_bl_v[ii]) * (X_v[ii] @ bv_) + w_bl_v[ii] * (X_p[ii] @ bp_) + lrhs[ii]
+            sse += (ln_sigma[ii] - p_ii)**2
+        return sse / ss_tot_local   # minimize
+
+    print(f"\n[v12 DATA-NATIVE EXPONENT FIT] optimizing (α, β, γ, δ, φc, k, τc) ...")
+    x0 = [0.75, 1.5, 0.25, 2.0, 0.185, best_k, best_tc]
+    res12 = minimize(_loocv_at, x0=x0, method='Nelder-Mead',
+                     options={'xatol': 1e-4, 'fatol': 1e-6, 'maxiter': 2000, 'adaptive': True})
+    a12, b12, g12, d12, pc12, kb12, tc12 = res12.x
+    loocv12 = 1 - res12.fun
+    # Training R² at optimum
+    phi_ex_opt = np.maximum(phi_np - pc12, 1e-4)
+    lrhs_opt = (np.log(SIGMA_BULK) + a12*np.log(phi_ex_opt) + b12*np.log(cn_np)
+                + g12*np.log(cov_np) + d12*np.log(fp_np))
+    w_bl_opt = 1.0 / (1.0 + np.exp(-kb12 * (tau_arr - tc12)))
+    X_v_f = np.column_stack([np.ones(len(ln_sigma)), w_sigmoid])
+    X_p_f = np.column_stack([np.ones(len(ln_sigma)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
+    bv_f = np.linalg.lstsq(X_v_f, ln_sigma - lrhs_opt, rcond=None)[0]
+    bp_f = np.linalg.lstsq(X_p_f, ln_sigma - lrhs_opt, rcond=None)[0]
+    pred12 = (1 - w_bl_opt) * (X_v_f @ bv_f) + w_bl_opt * (X_p_f @ bp_f) + lrhs_opt
+    r2_12 = 1 - np.sum((ln_sigma - pred12)**2) / ss_tot_local
+    err12 = np.abs(np.exp(pred12) - np.exp(ln_sigma)) / np.exp(ln_sigma) * 100
+    print(f"  {'exponent':12s} {'v9 fixed':>10s} {'v12 fit':>10s} {'Δ':>10s}")
+    for name, v9v, v12v in [('α (φ-φc)', 0.75, a12), ('β (CN)', 1.5, b12),
+                             ('γ (cov)', 0.25, g12), ('δ (fp)', 2.0, d12),
+                             ('φc', 0.185, pc12), ('k_bl', best_k, kb12), ('τc', best_tc, tc12)]:
+        delta = v12v - v9v
+        flag = " *" if abs(delta) > 0.1 * max(abs(v9v), 0.1) else ""
+        print(f"  {name:12s} {v9v:10.4f} {v12v:10.4f} {delta:+10.4f}{flag}")
+    print(f"\n  v9  LOOCV = {loocv_formX:.4f}   R² = {r2_formX:.4f}   ±20%: {w20_opt}/{len(log_sf)}")
+    print(f"  v12 LOOCV = {loocv12:.4f}   R² = {r2_12:.4f}   ±20%: {int((err12<20).sum())}/{len(log_sf)}")
+    verdict = "v12 WINS" if loocv12 > loocv_formX + 0.002 else (
+              "v9 WINS" if loocv_formX > loocv12 + 0.002 else "tied within noise")
+    print(f"  → {verdict}   (LOOCV σ_noise ≈ {np.sqrt(2/len(log_sf))*(1-loocv_formX):.4f})")
+
     X_v5 = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
     X_p3 = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
     ss_res_formX = np.sum((log_sf - pred_formX)**2)

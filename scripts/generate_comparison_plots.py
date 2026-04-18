@@ -1070,7 +1070,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     PHI_C = 0.20  # data-native percolation threshold
     coverage = [(lambda vs: sum(vs)/len(vs)/100 if vs else 0.20)([v for v in [_get(d,"coverage_AM_P_mean",0), _get(d,"coverage_AM_S_mean",0), _get(d,"coverage_AM_mean",0)] if v>0]) for d in data_list]
 
-    phi_ex_arr = np.array([max(phi_se[i] - PHI_C, 0.001) for i in valid_idx])
+    phi_ex_arr = np.array([max(phi_se[i] - PHI_C, 1e-4) for i in valid_idx])
     cn_arr = np.array([cn[i] for i in valid_idx])
     tau_arr = np.array([tau[i] for i in valid_idx])
     cov_arr = np.array([coverage[i] for i in valid_idx])

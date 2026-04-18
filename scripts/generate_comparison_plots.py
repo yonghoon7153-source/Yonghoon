@@ -42,6 +42,7 @@ _GROUP_INFO = None  # Set by main()
 _GLOBAL_RGB = None  # (b, ln_k) from global fit across all plot groups
 _GLOBAL_C_ION = None  # Fitted C for ionic scaling law (from global/ionic_scaling_fit)
 _GLOBAL_FORMX_R2 = None  # (r2, loocv) from FORM X fit
+_GLOBAL_IONIC_SIGMOID = None  # (C_thick, C_thin, tau_c, k) for sigmoid C(τ)
 _ALL_DATA = None  # all_data for _apply_style auto-detect
 
 def _apply_style(ax, ylabel, names, data_list=None):
@@ -1070,29 +1071,40 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     tau_arr = np.array([tau[i] for i in valid_idx])
     cov_arr = np.array([coverage[i] for i in valid_idx])
 
-    # FORM X v3: CN^2 × (φ-φc)^¾ × cov^¼ + CN²=-¼ + φ×τ=+¼
-    log_rhs_formX = np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + 2.0*np.log(cn_arr) + 0.25*np.log(cov_arr) - 0.25*np.log(cn_arr)**2 + 0.25*np.log(phi_ex_arr)*np.log(tau_arr)
-    ln_C_formX = np.mean(log_sf - log_rhs_formX)
-    C_formX = np.exp(ln_C_formX)
-    pred_formX = ln_C_formX + log_rhs_formX
+    # FORM X v4: CN^1.5 × (φ-φc)^¾ × cov^¼ with sigmoid C(τ)
+    # C(τ) = Ct + (Cn-Ct) × σ(k·(τ-τc)), k=5, τc=2.1
+    TAU_C = 2.1; TAU_K = 5.0
+    log_rhs_base = np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + 1.5*np.log(cn_arr) + 0.25*np.log(cov_arr)
+    w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
+    A_design = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
+    b_sigmoid = np.linalg.lstsq(A_design, log_sf - log_rhs_base, rcond=None)[0]
+    ln_Ct, ln_delta = b_sigmoid
+    ln_Cn = ln_Ct + ln_delta
+    C_thick = np.exp(ln_Ct); C_thin = np.exp(ln_Cn)
+    ln_C_arr = ln_Ct + ln_delta * w_sigmoid
+    pred_formX = ln_C_arr + log_rhs_base
     ss_res_formX = np.sum((log_sf - pred_formX)**2)
     r2_formX = 1 - ss_res_formX / ss_tot
+    C_formX = C_thick
 
-    # LOOCV for FORM X
+    # LOOCV for FORM X v4
     n_pts = len(log_sf)
     loocv_errs = []
     for ii in range(n_pts):
         mask = np.ones(n_pts, bool); mask[ii] = False
-        C_loo = float(np.exp(np.mean(log_sf[mask] - log_rhs_formX[mask])))
-        loocv_errs.append((log_sf[ii] - np.log(C_loo) - log_rhs_formX[ii])**2)
+        b_loo = np.linalg.lstsq(A_design[mask], (log_sf - log_rhs_base)[mask], rcond=None)[0]
+        pred_loo = b_loo[0] + b_loo[1] * w_sigmoid[ii] + log_rhs_base[ii]
+        loocv_errs.append((log_sf[ii] - pred_loo)**2)
     loocv_formX = 1 - np.sum(loocv_errs) / np.sum((log_sf - np.mean(log_sf))**2)
 
-    # Save FORM X C and R² to global for multiscale_sigma and description
-    _GLOBAL_C_ION = C_formX
+    # Save to global
+    _GLOBAL_C_ION = C_thick
     global _GLOBAL_FORMX_R2
     _GLOBAL_FORMX_R2 = (r2_formX, loocv_formX)
+    global _GLOBAL_IONIC_SIGMOID
+    _GLOBAL_IONIC_SIGMOID = (C_thick, C_thin, TAU_C, TAU_K)
 
-    # Use FORM X as primary (v3 as secondary reference)
+    # Use FORM X v4 as primary
     s_pred = np.exp(pred_formX)
     r2 = r2_formX
     s_actual = np.array([sigma_net[i] for i in valid_idx])
@@ -1168,8 +1180,8 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title(f"Ionic: {C_formX:.4f} × σ_grain × (φ-φc)^¾ × CN × √cov / √τ\n"
-                 f"R²={r2_formX:.3f} (FORM X) | v3 R²={r2_fixed:.3f}",
+    ax.set_title(f"Ionic v4: C(τ) × σ_grain × CN^1.5 × (φ−φc)^¾ × ⁴√cov\n"
+                 f"C(τ)=sigmoid  Ct={C_thick:.4f} Cn={C_thin:.4f}  R²={r2_formX:.3f}",
                  fontsize=10, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
 
@@ -1249,22 +1261,30 @@ def plot_multiscale_sigma(data_list, names, outdir):
         if phi_ex > 0 and cn[i] > 0 and tau[i] > 0 and coverage[i] > 0 and sigma_net[i] > 0.01:
             valid_fit.append(i)
 
-    if _GLOBAL_C_ION is not None:
-        C_ms = _GLOBAL_C_ION
+    # Sigmoid C(τ) parameters
+    TAU_C = 2.1; TAU_K = 5.0
+    if _GLOBAL_IONIC_SIGMOID is not None:
+        C_thick_ms, C_thin_ms, TAU_C, TAU_K = _GLOBAL_IONIC_SIGMOID
+    elif _GLOBAL_C_ION is not None:
+        C_thick_ms = _GLOBAL_C_ION; C_thin_ms = C_thick_ms * 0.54
     elif len(valid_fit) < 3:
-        C_ms = 0.123
+        C_thick_ms = 0.034; C_thin_ms = 0.019
     else:
         log_rhs = np.array([np.log(SIGMA_BULK) + 0.75*np.log(max(phi_se[i]-PHI_C, 0.001))
-                            + np.log(cn[i]) + 0.5*np.log(coverage[i]) - 0.5*np.log(tau[i])
+                            + 1.5*np.log(cn[i]) + 0.25*np.log(coverage[i])
                             for i in valid_fit])
         log_actual = np.array([np.log(sigma_net[i]) for i in valid_fit])
-        C_ms = np.exp(np.mean(log_actual - log_rhs))
+        C_thick_ms = np.exp(np.mean(log_actual - log_rhs))
+        C_thin_ms = C_thick_ms * 0.54
+    C_ms = C_thick_ms
 
     sigma_ms = []
     for i in range(len(data_list)):
         phi_ex = max(phi_se[i] - PHI_C, 0.001)
         if cn[i] > 0 and tau[i] > 0 and coverage[i] > 0:
-            s = C_ms * SIGMA_BULK * phi_ex**0.75 * cn[i]**2.0 * coverage[i]**0.25 * np.exp(-0.25*np.log(cn[i])**2 + 0.25*np.log(phi_ex)*np.log(tau[i]))
+            w = 1.0 / (1.0 + np.exp(-TAU_K * (tau[i] - TAU_C)))
+            C_i = C_thick_ms * np.exp((np.log(C_thin_ms) - np.log(C_thick_ms)) * w)
+            s = C_i * SIGMA_BULK * phi_ex**0.75 * cn[i]**1.5 * coverage[i]**0.25
             sigma_ms.append(s)
         else:
             sigma_ms.append(0)
@@ -1288,7 +1308,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     _apply_style(ax, "σ_ionic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
-    ax.set_title(f"FORM X v3: {C_ms:.4f} × σ_grain × CN^(2−¼lnCN) × (φ−φc)^(¾+¼lnτ) × cov^¼",
+    ax.set_title(f"FORM X v4: C(τ) × σ_grain × CN^1.5 × (φ−φc)^¾ × ⁴√cov  [Ct={C_thick_ms:.4f} Cn={C_thin_ms:.4f}]",
                  fontsize=8, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',
@@ -1335,8 +1355,8 @@ def plot_v3_fitting(data_list, names, outdir):
 
 
 def plot_formx_decomposition(data_list, names, outdir):
-    """FORM X factor decomposition: (φ-φc)^¾, CN, √cov, 1/√τ."""
-    PHI_C = 0.185
+    """FORM X v4 factor decomposition: (φ-φc)^¾, CN^1.5, ⁴√cov, C(τ)."""
+    PHI_C = 0.185; TAU_C = 2.1; TAU_K = 5.0
     phi_se = [_get(d, "phi_se") for d in data_list]
     cn = [_get(d, "se_se_cn", 0) for d in data_list]
     tau = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)) for d in data_list]
@@ -1344,9 +1364,13 @@ def plot_formx_decomposition(data_list, names, outdir):
 
     n = len(data_list)
     log_phiex = np.array([0.75*np.log(max(phi_se[i]-PHI_C, 0.001)) for i in range(n)])
-    log_cn = np.array([np.log(cn[i]) if cn[i]>0 else 0 for i in range(n)])
-    log_cov = np.array([0.5*np.log(coverage[i]) if coverage[i]>0 else 0 for i in range(n)])
-    log_tau = np.array([-0.5*np.log(tau[i]) if tau[i]>0 else 0 for i in range(n)])
+    log_cn = np.array([1.5*np.log(cn[i]) if cn[i]>0 else 0 for i in range(n)])
+    log_cov = np.array([0.25*np.log(coverage[i]) if coverage[i]>0 else 0 for i in range(n)])
+    if _GLOBAL_IONIC_SIGMOID:
+        Ct, Cn, tc, k = _GLOBAL_IONIC_SIGMOID
+    else:
+        Ct, Cn, tc, k = 0.034, 0.019, TAU_C, TAU_K
+    log_Csig = np.array([np.log(Ct) + (np.log(Cn)-np.log(Ct)) / (1+np.exp(-k*(tau[i]-tc))) for i in range(n)])
 
     # Ref: best case
     sigma_net = _load_network_sigma(data_list)
@@ -1354,9 +1378,9 @@ def plot_formx_decomposition(data_list, names, outdir):
 
     factors = [
         ('(φ−φc)^¾', log_phiex, '#4472C4'),
-        ('CN', log_cn, '#ED7D31'),
-        ('√cov', log_cov, '#A5A5A5'),
-        ('1/√τ', log_tau, '#FFC000'),
+        ('CN^1.5', log_cn, '#ED7D31'),
+        ('⁴√cov', log_cov, '#A5A5A5'),
+        ('C(τ)', log_Csig, '#FFC000'),
     ]
 
     fig, (ax, ax2) = plt.subplots(2, 1, figsize=(max(8, n*0.8), 10), gridspec_kw={'height_ratios': [3, 2]})
@@ -2182,14 +2206,14 @@ PLOT_REGISTRY = {
         "func": plot_ionic_scaling_fit,
         "file": "ionic_scaling_fit.png",
         "title": "Ionic: FORM X Scaling Law (Predicted vs Actual)",
-        "description": "FORM X (v4++ champion):\nσ = C × σ_grain × ⁴√[(φ-φc)³ × CN⁴ × cov² / τ²]\n= C × σ_grain × (φ-φc)^(3/4) × CN × √cov / √τ\n\nφ_c=0.185 (percolation threshold)\nR²={formx_r2}, LOOCV={formx_loocv}, 1 free param",
+        "description": "FORM X v4 (sigmoid regime):\nσ = C(τ) × σ_grain × CN^1.5 × (φ-φc)^¾ × ⁴√cov\nC(τ) = Ct + (Cn−Ct)×σ(5·(τ−2.1))\n\nφ_c=0.185 (percolation threshold)\nR²={formx_r2}, LOOCV={formx_loocv}",
         "origin_tip": "Scatter (log-log): X=actual (Network solver), Y=predicted (FORM X).\n1:1 line (black dashed), ±20% band (green).",
     },
     "multiscale_sigma": {
         "func": plot_multiscale_sigma,
         "file": "multiscale_sigma.png",
         "title": "Ionic: FORM X Scaling Law",
-        "description": "FORM X (v4++ champion):\nσ = C × σ_grain × (φ\u2011φc)^¾ × CN × √cov / √τ\nφc=0.185 (percolation threshold)\nR²={formx_r2}, thick+thin universal",
+        "description": "FORM X v4 (sigmoid regime):\nσ = C(τ) × σ_grain × CN^1.5 × (φ\u2011φc)^¾ × ⁴√cov\nC(τ) sigmoid: thick→thin transition at τ≈2.1\nR²={formx_r2}, w20=49/55",
         "origin_tip": "Red: FORM X prediction.\nGreen dashed: Network solver (ground truth).",
     },
     "formx_decomposition": {
@@ -2197,7 +2221,7 @@ PLOT_REGISTRY = {
         "file": "formx_decomposition.png",
         "csv": "formx_decomposition.csv",
         "title": "FORM X Factor Decomposition",
-        "description": "FORM X 각 항의 상대 기여도:\n(φ\u2011φc)^¾: percolation\nCN: network connectivity\n√cov: AM\u2011SE 계면\n1/√τ: softened tortuosity\nref: 최고 σ case 기준",
+        "description": "FORM X v4 각 항의 상대 기여도:\n(φ\u2011φc)^¾: percolation\nCN^1.5: network connectivity\n⁴√cov: AM\u2011SE 계면\nC(τ): sigmoid regime (thick↔thin)\nref: 최고 σ case 기준",
         "origin_tip": "Stacked bar (top): factor contributions.\nHorizontal bar (bottom): dominant factor per case.",
     },
 }
@@ -2928,10 +2952,13 @@ def main():
                 _valid = (_phi_se > PHI_C+0.01) & (_cn_se > 0) & (_tau_se > 0) & (_cov_se > 0) & (_snet > 0.01) & (_gb > 0) & (_gp > 0)
                 if _valid.sum() >= 5:
                     _phi_ex = np.clip(_phi_se[_valid] - PHI_C, 0.001, None)
-                    _log_rhs = np.log(SGRAIN) + 0.75*np.log(_phi_ex) + 2.0*np.log(_cn_se[_valid]) + 0.25*np.log(_cov_se[_valid]) - 0.25*np.log(_cn_se[_valid])**2 + 0.25*np.log(_phi_ex)*np.log(_tau_se[_valid])
+                    _log_rhs = np.log(SGRAIN) + 0.75*np.log(_phi_ex) + 1.5*np.log(_cn_se[_valid]) + 0.25*np.log(_cov_se[_valid])
                     _log_s = np.log(_snet[_valid])
-                    _lnC = np.mean(_log_s - _log_rhs)
-                    _ss_res = np.sum((_log_s - _lnC - _log_rhs)**2)
+                    _w_sig = 1.0 / (1.0 + np.exp(-5.0 * (_tau_se[_valid] - 2.1)))
+                    _A = np.column_stack([np.ones(_valid.sum()), _w_sig])
+                    _b = np.linalg.lstsq(_A, _log_s - _log_rhs, rcond=None)[0]
+                    _pred = _b[0] + _b[1]*_w_sig + _log_rhs
+                    _ss_res = np.sum((_log_s - _pred)**2)
                     _ss_tot = np.sum((_log_s - np.mean(_log_s))**2)
                     _r2 = 1 - _ss_res / _ss_tot
                     desc = desc.replace("{formx_r2}", f"{_r2:.3f}")

@@ -1814,6 +1814,175 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     else:
         print(f"    — all within noise; v29 IS the LOOCV ceiling for this dataset")
 
+    # === σ-WEIGHTED FIT SWEEP (data-native log↔linear balance) ===
+    # Current v29 fits log-space (equal weight per case). α=0 baseline.
+    # With w_i = σ_act_i^α, larger σ cases get more weight → closer to linear
+    # error minimization. If optimal α > 0, data prefers mid/large-σ accuracy
+    # over small-σ relative errors (1mAh thin small σ cases get less say).
+    # Hyperparams (k_bl, τc_bl, k_pf, pc_pf, τ_c_win, σ_τ_win) stay at v29 opt;
+    # only linear coefs (b_v5, b_p3, 3 β's) refit under weighting.
+    _sig_act_lin = np.exp(log_sf)
+
+    def _weighted_loocv_at_alpha(alpha):
+        w_lin = _sig_act_lin ** alpha
+        w_norm = w_lin / w_lin.mean()
+        w_sq = np.sqrt(w_norm)
+        # Linear feature arrays (reuse production quantities)
+        pf_v = w_pf_prod; lin_v = pf_prod * _w_win_prod; gb_v = _w_gb_prod
+        # Full-data fit (for reporting R², MAE, mean|err%|)
+        bv_f = np.linalg.lstsq(X_v5 * w_sq[:, None], (log_sf - log_rhs_base) * w_sq, rcond=None)[0]
+        bp_f = np.linalg.lstsq(X_p3 * w_sq[:, None], (log_sf - log_rhs_base) * w_sq, rcond=None)[0]
+        pv_f = (1 - w_blend) * (X_v5 @ bv_f) + w_blend * (X_p3 @ bp_f) + log_rhs_base
+        pf_c = pf_v - pf_v.mean(); lin_c = lin_v - lin_v.mean(); gb_c = gb_v - gb_v.mean()
+        Xc_f = np.column_stack([pf_c, lin_c, gb_c])
+        bc_f = np.linalg.lstsq(Xc_f * w_sq[:, None], (log_sf - pv_f) * w_sq, rcond=None)[0]
+        pred_f = pv_f + Xc_f @ bc_f
+        r2_f = 1 - np.sum((log_sf - pred_f)**2) / ss_tot        # UNWEIGHTED — honest
+        s_pred_f = np.exp(pred_f)
+        mae_f = float(np.mean(np.abs(s_pred_f - _sig_act_lin)))
+        mean_relerr = float(np.mean(np.abs((s_pred_f - _sig_act_lin) / _sig_act_lin * 100)))
+        # LOOCV (also UNWEIGHTED out-of-fold SSE — for fair comparison)
+        sse = 0.0; n_loo = len(log_sf)
+        for ii in range(n_loo):
+            mk = np.ones(n_loo, bool); mk[ii] = False
+            ws = w_sq[mk]
+            bv_ = np.linalg.lstsq((X_v5[mk]) * ws[:, None], (log_sf - log_rhs_base)[mk] * ws, rcond=None)[0]
+            bp_ = np.linalg.lstsq((X_p3[mk]) * ws[:, None], (log_sf - log_rhs_base)[mk] * ws, rcond=None)[0]
+            pv_mk = (1 - w_blend) * (X_v5 @ bv_) + w_blend * (X_p3 @ bp_) + log_rhs_base
+            m_pf = pf_v[mk].mean(); m_lin = lin_v[mk].mean(); m_gb = gb_v[mk].mean()
+            Xc_mk = np.column_stack([pf_v[mk]-m_pf, lin_v[mk]-m_lin, gb_v[mk]-m_gb])
+            bc_ = np.linalg.lstsq(Xc_mk * ws[:, None], (log_sf - pv_mk)[mk] * ws, rcond=None)[0]
+            pred_ii = (pv_mk[ii]
+                       + bc_[0] * (pf_v[ii] - m_pf)
+                       + bc_[1] * (lin_v[ii] - m_lin)
+                       + bc_[2] * (gb_v[ii] - m_gb))
+            sse += (log_sf[ii] - pred_ii)**2
+        loocv_f = 1 - sse / ss_tot
+        return loocv_f, r2_f, mae_f, mean_relerr, bc_f
+
+    alphas = [0.0, 0.25, 0.5, 0.75, 1.0]
+    print(f"\n[σ-WEIGHTED FIT SWEEP] w_i = σ_act_i^α — finds log↔linear balance")
+    print(f"  v29 baseline: LOOCV={loocv_formX:.4f}  R²={r2_formX:.4f}  MAE={float(np.mean(np.abs(s_pred - s_actual))):.4f} mS/cm")
+    print(f"  {'α':>6s}  {'LOOCV':>8s}  {'R²':>8s}  {'MAE':>10s}  {'mean|err%|':>11s}  {'β_pf':>7s} {'β_lin':>7s} {'β_gb':>7s}")
+    sweep_results = []
+    for a in alphas:
+        lo_a, r2_a, mae_a, rel_a, bc_a = _weighted_loocv_at_alpha(a)
+        mark = "  (v29)" if a == 0.0 else ""
+        if a > 0 and lo_a > loocv_formX + 1e-4:
+            mark += "  ↑"
+        print(f"  {a:>6.2f}  {lo_a:.4f}  {r2_a:.4f}  {mae_a:.4f} mS/cm  {rel_a:>10.1f}%  "
+              f"{bc_a[0]:+7.3f} {bc_a[1]:+7.3f} {bc_a[2]:+7.3f}{mark}")
+        sweep_results.append((a, lo_a, r2_a, mae_a, rel_a))
+    best_loo = max(sweep_results, key=lambda r: r[1])
+    best_mae = min(sweep_results, key=lambda r: r[3])
+    print(f"  → best LOOCV @ α={best_loo[0]:.2f}  (LOOCV={best_loo[1]:.4f})")
+    print(f"  → best MAE @ α={best_mae[0]:.2f}  (MAE={best_mae[3]:.4f} mS/cm)")
+    if best_loo[0] > 0 and best_loo[1] > loocv_formX + 1e-3:
+        print(f"  ⭐⭐⭐ σ-weighted fit wins: data prefers α={best_loo[0]:.2f} over pure log-space")
+    elif best_mae[0] != 0 and best_mae[3] < float(np.mean(np.abs(s_pred - s_actual))) * 0.90:
+        print(f"  · α={best_mae[0]:.2f} reduces MAE by >10% (trade-off vs LOOCV)")
+    else:
+        print(f"  — current v29 (α=0) is Pareto-optimal across LOOCV + MAE")
+
+    # === HUBER ROBUST FIT SWEEP (clips outliers, IRLS) ===
+    # Huber loss: quadratic inside ±δ (log-space), linear beyond → down-weights
+    # extreme |log resid| outliers (thin_6 +24.8%, thin_9 +24.5%, particulate_12 -21.4%).
+    # If best δ gives better LOOCV or comparable-LOOCV-with-lower-MAE, use it.
+    def _huber_loocv(delta, max_iter=6):
+        pf_v = w_pf_prod; lin_v = pf_prod * _w_win_prod; gb_v = _w_gb_prod
+        n_all = len(log_sf)
+        w = np.ones(n_all)
+        bc_final = np.zeros(3)
+        for _ in range(max_iter):
+            ws = np.sqrt(w)
+            bv = np.linalg.lstsq(X_v5 * ws[:, None], (log_sf - log_rhs_base) * ws, rcond=None)[0]
+            bp = np.linalg.lstsq(X_p3 * ws[:, None], (log_sf - log_rhs_base) * ws, rcond=None)[0]
+            pv = (1 - w_blend) * (X_v5 @ bv) + w_blend * (X_p3 @ bp) + log_rhs_base
+            pf_c = pf_v - pf_v.mean(); lin_c = lin_v - lin_v.mean(); gb_c = gb_v - gb_v.mean()
+            Xc = np.column_stack([pf_c, lin_c, gb_c])
+            bc = np.linalg.lstsq(Xc * ws[:, None], (log_sf - pv) * ws, rcond=None)[0]
+            pred_i = pv + Xc @ bc
+            resid_abs = np.abs(log_sf - pred_i)
+            w_new = np.where(resid_abs < delta, 1.0, delta / np.maximum(resid_abs, 1e-10))
+            if np.max(np.abs(w_new - w)) < 1e-4:
+                w = w_new; bc_final = bc
+                break
+            w = w_new; bc_final = bc
+        # Final full-data metrics (unweighted — honest)
+        ws = np.sqrt(w)
+        bv = np.linalg.lstsq(X_v5 * ws[:, None], (log_sf - log_rhs_base) * ws, rcond=None)[0]
+        bp = np.linalg.lstsq(X_p3 * ws[:, None], (log_sf - log_rhs_base) * ws, rcond=None)[0]
+        pv = (1 - w_blend) * (X_v5 @ bv) + w_blend * (X_p3 @ bp) + log_rhs_base
+        pf_c = pf_v - pf_v.mean(); lin_c = lin_v - lin_v.mean(); gb_c = gb_v - gb_v.mean()
+        Xc = np.column_stack([pf_c, lin_c, gb_c])
+        bc = np.linalg.lstsq(Xc * ws[:, None], (log_sf - pv) * ws, rcond=None)[0]
+        pred_final = pv + Xc @ bc
+        r2 = 1 - np.sum((log_sf - pred_final)**2) / ss_tot
+        s_p = np.exp(pred_final)
+        mae = float(np.mean(np.abs(s_p - _sig_act_lin)))
+        rel_mean = float(np.mean(np.abs((s_p - _sig_act_lin) / _sig_act_lin * 100)))
+        n_clipped = int(np.sum(w < 1.0 - 1e-6))
+        # LOOCV with weights FIXED at converged Huber weights
+        sse = 0.0
+        for ii in range(n_all):
+            mk = np.ones(n_all, bool); mk[ii] = False
+            ws_mk = np.sqrt(w[mk])
+            bv_ = np.linalg.lstsq(X_v5[mk] * ws_mk[:, None], (log_sf - log_rhs_base)[mk] * ws_mk, rcond=None)[0]
+            bp_ = np.linalg.lstsq(X_p3[mk] * ws_mk[:, None], (log_sf - log_rhs_base)[mk] * ws_mk, rcond=None)[0]
+            pv_mk = (1 - w_blend) * (X_v5 @ bv_) + w_blend * (X_p3 @ bp_) + log_rhs_base
+            m_pf = pf_v[mk].mean(); m_lin = lin_v[mk].mean(); m_gb = gb_v[mk].mean()
+            Xc_mk = np.column_stack([pf_v[mk]-m_pf, lin_v[mk]-m_lin, gb_v[mk]-m_gb])
+            bc_ = np.linalg.lstsq(Xc_mk * ws_mk[:, None], (log_sf - pv_mk)[mk] * ws_mk, rcond=None)[0]
+            pred_ii = (pv_mk[ii]
+                       + bc_[0] * (pf_v[ii] - m_pf)
+                       + bc_[1] * (lin_v[ii] - m_lin)
+                       + bc_[2] * (gb_v[ii] - m_gb))
+            sse += (log_sf[ii] - pred_ii)**2
+        loocv = 1 - sse / ss_tot
+        return loocv, r2, mae, rel_mean, bc, n_clipped
+
+    deltas = [0.10, 0.15, 0.20, 0.25, 0.30]
+    print(f"\n[HUBER ROBUST FIT SWEEP] IRLS with log-residual clip at ±δ")
+    print(f"  {'δ':>6s} ({'≈±err%':>6s})  {'LOOCV':>8s}  {'R²':>8s}  {'MAE':>10s}  {'mean|err%|':>11s}  {'clipped':>8s}  "
+          f"{'β_pf':>7s} {'β_lin':>7s} {'β_gb':>7s}")
+    huber_results = []
+    for d in deltas:
+        lo_h, r2_h, mae_h, rel_h, bc_h, nc_h = _huber_loocv(d)
+        pct_eq = (np.exp(d) - 1) * 100
+        mark = ""
+        if lo_h > loocv_formX + 1e-4:
+            mark = "  ↑"
+        print(f"  {d:>6.2f} ({pct_eq:>5.1f}%)  {lo_h:.4f}  {r2_h:.4f}  {mae_h:.4f} mS/cm  {rel_h:>10.1f}%  {nc_h:>5d}/{len(log_sf)}  "
+              f"{bc_h[0]:+7.3f} {bc_h[1]:+7.3f} {bc_h[2]:+7.3f}{mark}")
+        huber_results.append((d, lo_h, r2_h, mae_h, rel_h, nc_h))
+    best_huber_loo = max(huber_results, key=lambda r: r[1])
+    best_huber_mae = min(huber_results, key=lambda r: r[3])
+    print(f"  → best LOOCV @ δ={best_huber_loo[0]:.2f}  (LOOCV={best_huber_loo[1]:.4f})")
+    print(f"  → best MAE @ δ={best_huber_mae[0]:.2f}  (MAE={best_huber_mae[3]:.4f} mS/cm)")
+
+    # === COMBINED VERDICT: v29 (log-space) vs σ-weighted best vs Huber best ===
+    print(f"\n[METHOD COMPARISON] v29 (baseline) vs σ-weighted vs Huber")
+    print(f"  {'method':26s}  {'LOOCV':>8s}  {'R²':>8s}  {'MAE':>10s}  {'mean|err%|':>11s}")
+    v29_mae = float(np.mean(np.abs(s_pred - s_actual)))
+    v29_relmean = float(np.mean(np.abs((s_pred - s_actual) / s_actual * 100)))
+    rows = [
+        ("v29 (α=0, log-space)", loocv_formX, r2_formX, v29_mae, v29_relmean),
+        (f"σ-wt α={best_loo[0]:.2f} (LOOCV opt)", best_loo[1], best_loo[2], best_loo[3], best_loo[4]),
+        (f"σ-wt α={best_mae[0]:.2f} (MAE opt)", best_mae[1], best_mae[2], best_mae[3], best_mae[4]),
+        (f"Huber δ={best_huber_loo[0]:.2f} (LOOCV opt)", best_huber_loo[1], best_huber_loo[2], best_huber_loo[3], best_huber_loo[4]),
+        (f"Huber δ={best_huber_mae[0]:.2f} (MAE opt)", best_huber_mae[1], best_huber_mae[2], best_huber_mae[3], best_huber_mae[4]),
+    ]
+    for name, lo, r2, mae, rel in rows:
+        winner = "  ⭐" if (lo > loocv_formX + 5e-4) else ("  ·" if (mae < v29_mae * 0.95) else "")
+        print(f"  {name:26s}  {lo:.4f}  {r2:.4f}  {mae:.4f} mS/cm  {rel:>10.1f}%{winner}")
+    # Pareto verdict
+    pareto = [r for r in rows[1:] if (r[1] >= loocv_formX - 5e-4) and (r[3] <= v29_mae * 0.98)]
+    if pareto:
+        best_pareto = max(pareto, key=lambda r: r[1] - r[3] * 10)  # LOOCV-weighted
+        print(f"  → Pareto winner: {best_pareto[0]} — keeps LOOCV ≥ v29 AND lowers MAE by >2%")
+    else:
+        print(f"  → v29 dominates: no alternative gives LOOCV ≥ baseline with meaningfully lower MAE")
+
     # v3 prediction for comparison
     s_pred_v3 = np.exp(pred_fixed)
 
@@ -2245,11 +2414,13 @@ def plot_multiscale_sigma(data_list, names, outdir):
     if has_net:
         ax.plot(x, sigma_net, 'D--', color='#2ecc71', markersize=ms-2, linewidth=lw-0.5,
                 alpha=0.7, label="Network solver (mS/cm)")
-        # Subtle outlier mark: small * above plot at |err|>20% positions
+        # Outlier mark: rel>20% OR |Δσ|>0.025 (catches BOTH log-space %
+        # and linear-space absolute outliers — user asked for dual visibility)
         _net_arr = np.array(sigma_net, dtype=float)
         with np.errstate(divide='ignore', invalid='ignore'):
             rel = np.where(_net_arr > 0, np.abs(_ms_arr - _net_arr) / _net_arr, 0.0)
-        out_mask = rel > 0.20
+        abs_gap = np.abs(_ms_arr - _net_arr)
+        out_mask = (rel > 0.20) | (abs_gap > 0.025)
         if np.any(out_mask):
             y_top = max(np.nanmax(_ms_hi), np.nanmax(_net_arr)) * 1.03
             ax.scatter(x[out_mask], [y_top] * int(out_mask.sum()),

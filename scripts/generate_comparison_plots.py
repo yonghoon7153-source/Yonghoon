@@ -1199,6 +1199,75 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
               "v9 WINS" if loocv_formX > loocv12 + 0.002 else "tied within noise")
     print(f"  → {verdict}   (LOOCV σ_noise ≈ {np.sqrt(2/len(log_sf))*(1-loocv_formX):.4f})")
 
+    # === v13 UNIFIED: v12 exponents + Cluster C (CN saturation) ===
+    # log σ = log(σ_grain) + α·log(φ-φc) + β·log(CN) - ε·(log CN)²
+    #       + γ·log(cov) + δ·log(fp) + C_blend(τ)
+    # 8 hyperparams jointly optimized by LOOCV: (α, β, ε, γ, δ, φc, k, τc)
+    log_cn_np = np.log(cn_np)
+
+    def _loocv_v13(params):
+        a, b, e, g, dl, pc, kb, tcb = params
+        if pc < 0.05 or pc > 0.30: return 1e6
+        if a < 0.1 or a > 3.0: return 1e6
+        if b < 0.1 or b > 4.0: return 1e6
+        if e < -0.5 or e > 1.0: return 1e6      # saturation strength
+        if g < -1.5 or g > 2.5: return 1e6
+        if dl < 0.1 or dl > 5.0: return 1e6
+        if kb < 0.1 or kb > 20 or tcb < 1.2 or tcb > 3.0: return 1e6
+        phi_ex_v = np.maximum(phi_np - pc, 1e-4)
+        lrhs = (np.log(SIGMA_BULK) + a*np.log(phi_ex_v) + b*log_cn_np - e*log_cn_np**2
+                + g*np.log(cov_np) + dl*np.log(fp_np))
+        w_bl_v = 1.0 / (1.0 + np.exp(-kb * (tau_arr - tcb)))
+        X_v = np.column_stack([np.ones(len(ln_sigma)), w_sigmoid])
+        X_p = np.column_stack([np.ones(len(ln_sigma)), log_tau_arr,
+                                log_tau_arr**2, log_tau_arr**3])
+        sse = 0.0
+        n_loo = len(ln_sigma)
+        for ii in range(n_loo):
+            mk = np.ones(n_loo, bool); mk[ii] = False
+            bv_ = np.linalg.lstsq(X_v[mk], (ln_sigma - lrhs)[mk], rcond=None)[0]
+            bp_ = np.linalg.lstsq(X_p[mk], (ln_sigma - lrhs)[mk], rcond=None)[0]
+            p_ii = (1 - w_bl_v[ii]) * (X_v[ii] @ bv_) + w_bl_v[ii] * (X_p[ii] @ bp_) + lrhs[ii]
+            sse += (ln_sigma[ii] - p_ii)**2
+        return sse / ss_tot_local
+
+    print(f"\n[v13 UNIFIED FIT] v12 exponents + CN saturation (8 hyperparams) ...")
+    # Initialize from v12 optimum + small positive ε
+    x0_13 = [a12, b12, 0.05, g12, d12, pc12, kb12, tc12]
+    res13 = minimize(_loocv_v13, x0=x0_13, method='Nelder-Mead',
+                     options={'xatol': 1e-4, 'fatol': 1e-6, 'maxiter': 3000, 'adaptive': True})
+    a13, b13, e13, g13, d13, pc13, kb13, tc13 = res13.x
+    loocv13 = 1 - res13.fun
+    # Training R² at v13 optimum
+    phi_ex_13 = np.maximum(phi_np - pc13, 1e-4)
+    lrhs_13 = (np.log(SIGMA_BULK) + a13*np.log(phi_ex_13) + b13*log_cn_np - e13*log_cn_np**2
+               + g13*np.log(cov_np) + d13*np.log(fp_np))
+    w_bl_13 = 1.0 / (1.0 + np.exp(-kb13 * (tau_arr - tc13)))
+    X_v_13 = np.column_stack([np.ones(len(ln_sigma)), w_sigmoid])
+    X_p_13 = np.column_stack([np.ones(len(ln_sigma)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
+    bv_13 = np.linalg.lstsq(X_v_13, ln_sigma - lrhs_13, rcond=None)[0]
+    bp_13 = np.linalg.lstsq(X_p_13, ln_sigma - lrhs_13, rcond=None)[0]
+    pred13 = (1 - w_bl_13) * (X_v_13 @ bv_13) + w_bl_13 * (X_p_13 @ bp_13) + lrhs_13
+    r2_13 = 1 - np.sum((ln_sigma - pred13)**2) / ss_tot_local
+    err13 = np.abs(np.exp(pred13) - np.exp(ln_sigma)) / np.exp(ln_sigma) * 100
+    # CN saturation effective peak: d/dCN [β·log(CN) - ε·(log CN)²] = 0 → log(CN*) = β/(2ε)
+    cn_sat = np.exp(b13 / (2 * e13)) if e13 > 1e-3 else float('inf')
+    print(f"  {'param':12s} {'v12':>10s} {'v13':>10s} {'Δ':>10s}")
+    for name, v12v, v13v in [('α (φ-φc)', a12, a13), ('β (CN lin)', b12, b13),
+                              ('ε (CN²)', 0.0, e13), ('γ (cov)', g12, g13),
+                              ('δ (fp)', d12, d13), ('φc', pc12, pc13),
+                              ('k_bl', kb12, kb13), ('τc', tc12, tc13)]:
+        print(f"  {name:12s} {v12v:10.4f} {v13v:10.4f} {v13v-v12v:+10.4f}")
+    print(f"  CN saturation peak: CN* = exp(β/2ε) = {cn_sat:.2f}  (effective CN cap)")
+    tier_13 = {t: int(np.sum(err13 < t)) for t in [5, 10, 15, 20]}
+    print(f"\n  v9  LOOCV = {loocv_formX:.4f}   R² = {r2_formX:.4f}   ±20%: {w20_opt}/{len(log_sf)}")
+    print(f"  v12 LOOCV = {loocv12:.4f}   R² = {r2_12:.4f}   ±20%: {int((err12<20).sum())}/{len(log_sf)}")
+    print(f"  v13 LOOCV = {loocv13:.4f}   R² = {r2_13:.4f}   ±20%: {tier_13[20]}/{len(log_sf)}"
+          f"  (<5%:{tier_13[5]} <10%:{tier_13[10]} <15%:{tier_13[15]})")
+    best_variant = "v13" if loocv13 == max(loocv_formX, loocv12, loocv13) else (
+                   "v12" if loocv12 == max(loocv_formX, loocv12, loocv13) else "v9")
+    print(f"  → best by LOOCV: {best_variant}")
+
     X_v5 = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
     X_p3 = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
     ss_res_formX = np.sum((log_sf - pred_formX)**2)

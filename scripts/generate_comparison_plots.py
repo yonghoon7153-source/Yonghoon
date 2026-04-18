@@ -1128,18 +1128,14 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         pp_l = X_p3_l @ b_p3_l
         pred_pre = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
 
-        # v28: v25 + log(gb_dens) residual feature (r=-0.21 in v25 residuals).
-        # Captures group-level offset for 1mAh_80:20 (systematic −15% under).
+        # v25 FINAL (revert from v28 — gb_dens addition broke multiscale plot).
         #   β_pf · w_pf           — P:S global sigmoid
         #   β_lin · p·w_win       — linear p × Gaussian τ-bump
-        #   β_gb · log(gb_dens)   — GB-network density correction
         pf_c = w_pf - w_pf.mean()
         lin_term = pf_prod * w_win
         lin_c = lin_term - lin_term.mean()
-        gb_arr_prod = np.array([max(gb_dens[i], 1e-6) for i in valid_idx])
-        gb_log_c = np.log(gb_arr_prod) - np.log(gb_arr_prod).mean()
-        mix_term = lin_term    # unused alias for API compat
-        mix_c = gb_log_c        # alias: 3rd residual column is now log(gb_dens)
+        mix_term = lin_term    # unused alias
+        mix_c = lin_c * 0.0     # zeroed out
         # v28: 3-term residual (β_pf, β_lin, β_gb)
         X_corr = np.column_stack([pf_c, lin_c, mix_c])  # mix_c = log(gb_dens) centered
         resid = log_sf - pred_pre

@@ -1720,6 +1720,25 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     r2 = r2_formX
     s_actual = np.array([sigma_net[i] for i in valid_idx])
 
+    # === SINGLE-SOURCE-OF-TRUTH SANITY CHECK ===
+    # _formx_v29_predict (used by multiscale plot) must match the fit's σ_pred
+    # exactly. If they diverge, the multiscale plot is lying about the fit.
+    _p_check = _formx_v29_params()
+    _s_check = np.array([
+        _formx_v29_predict(phi_se[i], cn[i], tau_arr[j], coverage[i], f_perc[i],
+                           pf_prod[j],
+                           _get(data_list[i], "gb_density_mean", 1e-6),
+                           params=_p_check)
+        for j, i in enumerate(valid_idx)
+    ])
+    _rel_dev = np.abs(_s_check - s_pred) / np.maximum(s_pred, 1e-10)
+    _max_dev = float(_rel_dev.max()) if len(_rel_dev) else 0.0
+    if _max_dev > 1e-3:
+        print(f"    ⚠ multiscale/fit mismatch: max |σ_predict − σ_fit|/σ_fit = {_max_dev:.4%}")
+        print(f"    → check _formx_v29_predict vs _fit_at() residual correction logic")
+    else:
+        print(f"    ✓ multiscale = fit (max deviation {_max_dev:.2e})")
+
     # v3 prediction for comparison
     s_pred_v3 = np.exp(pred_fixed)
 
@@ -1978,12 +1997,101 @@ def plot_network_sigma(data_list, names, outdir):
     return _save(fig, outdir, "network_sigma.png")
 
 
-def plot_multiscale_sigma(data_list, names, outdir):
-    """FORM X v19: v12-clean v3 exponents (α=1/2, β=3/2, γ=2/5, δ=3, φc=0.20)
-    + smooth τ-blend + P:S sigmoid with τ-modulation."""
-    SIGMA_BULK = 3.0
-    PHI_C = 0.20  # v12-clean v3
+# ============================================================================
+# FORM X v29 — SINGLE SOURCE OF TRUTH PREDICTION
+# ============================================================================
+# Shared by plot_multiscale_sigma (and can be reused by predictor_engine etc).
+# Reads hyperparameters from module globals set by plot_ionic_scaling_fit.
+# Any future changes to the v29 formula should ONLY touch this function and
+# the fit function's residual computation — they must stay in lock-step.
 
+def _formx_v29_params():
+    """Load all v29 hyperparameters from module globals with legacy fallbacks.
+    Returns a dict; centralizes the global-unpacking logic."""
+    # C(τ) v5 asymptote + τ-blend coefficients
+    TAU_C, TAU_K = 2.1, 5.0
+    K_BL, TC_BL = 20.0, 2.044
+    C_thick, C_thin = 0.029, 0.017
+    if _GLOBAL_IONIC_SIGMOID is not None:
+        if len(_GLOBAL_IONIC_SIGMOID) >= 6:
+            C_thick, C_thin, TAU_C, TAU_K, K_BL, TC_BL = _GLOBAL_IONIC_SIGMOID[:6]
+        else:
+            C_thick, C_thin, TAU_C, TAU_K = _GLOBAL_IONIC_SIGMOID[:4]
+    elif _GLOBAL_C_ION is not None:
+        C_thick = _GLOBAL_C_ION; C_thin = C_thick * 0.54
+    # poly3 coefs for blend
+    p3 = _GLOBAL_IONIC_POLY3 if _GLOBAL_IONIC_POLY3 is not None \
+         else (-3.80, +2.38, -5.58, +2.81)
+    # P:S sigmoid + τ-bump + gb_dens sigmoid (residual correction)
+    K_PF, PC_PF, B_PF, B_LIN, B_GB = 50.0, 0.598, -0.10, -0.49, 0.043
+    WPF_MEAN, LIN_MEAN, GB_LOG_MEAN = 0.5, 0.05, -5.0
+    TAU_C_WIN, SIGMA_TAU_WIN = 2.0, 0.15
+    W_GB_MEAN = 0.5
+    if _GLOBAL_PS_SIGMOID is not None:
+        n = len(_GLOBAL_PS_SIGMOID)
+        if n == 11:
+            (K_PF, PC_PF, B_PF, B_LIN, B_GB,
+             WPF_MEAN, LIN_MEAN, GB_LOG_MEAN,
+             TAU_C_WIN, SIGMA_TAU_WIN, W_GB_MEAN) = _GLOBAL_PS_SIGMOID
+        elif n == 10:
+            (K_PF, PC_PF, B_PF, B_LIN, B_GB,
+             WPF_MEAN, LIN_MEAN, GB_LOG_MEAN,
+             TAU_C_WIN, SIGMA_TAU_WIN) = _GLOBAL_PS_SIGMOID
+    return dict(
+        SIGMA_BULK=3.0, PHI_C=0.20,
+        C_thick=C_thick, C_thin=C_thin, TAU_C=TAU_C, TAU_K=TAU_K,
+        K_BL=K_BL, TC_BL=TC_BL, p3=p3,
+        K_PF=K_PF, PC_PF=PC_PF, B_PF=B_PF, B_LIN=B_LIN, B_GB=B_GB,
+        WPF_MEAN=WPF_MEAN, LIN_MEAN=LIN_MEAN, GB_LOG_MEAN=GB_LOG_MEAN,
+        TAU_C_WIN=TAU_C_WIN, SIGMA_TAU_WIN=SIGMA_TAU_WIN, W_GB_MEAN=W_GB_MEAN,
+    )
+
+
+def _formx_v29_predict(phi_se, cn, tau, coverage, f_perc, p_frac, gb_dens, params=None):
+    """Single source of truth for v29 FORM X prediction.
+    Returns σ (mS/cm); 0 if inputs invalid. Must match plot_ionic_scaling_fit's
+    internal prediction exactly — guarded by sanity check in the fit function."""
+    if not (cn > 0 and tau > 0 and coverage > 0):
+        return 0.0
+    p = params if params is not None else _formx_v29_params()
+    phi_ex = max(phi_se - p['PHI_C'], 1e-4)
+    # C(τ): v5 sigmoid asymptote ⊕ poly3 blend
+    w_v5 = 1.0 / (1.0 + np.exp(-p['TAU_K'] * (tau - p['TAU_C'])))
+    w_bl = 1.0 / (1.0 + np.exp(-p['K_BL'] * (tau - p['TC_BL'])))
+    ln_C_v5 = np.log(p['C_thick']) + (np.log(p['C_thin']) - np.log(p['C_thick'])) * w_v5
+    lt = np.log(tau)
+    ln_C_p3 = p['p3'][0] + p['p3'][1]*lt + p['p3'][2]*lt**2 + p['p3'][3]*lt**3
+    ln_C = (1 - w_bl) * ln_C_v5 + w_bl * ln_C_p3
+    # Base Kirkpatrick scaling (α=1/2, β=3/2, γ=2/5, δ=3, φc=0.20)
+    s = (np.exp(ln_C) * p['SIGMA_BULK']
+         * phi_ex**0.5 * cn**1.5 * coverage**0.4 * f_perc**3)
+    # Residual correction: β_pf·w_pf + β_lin·p·w_win + β_gb·w_gb (all centered)
+    w_pf = 1.0 / (1.0 + np.exp(-p['K_PF'] * (p_frac - p['PC_PF'])))
+    w_win = np.exp(-0.5 * ((tau - p['TAU_C_WIN']) / max(p['SIGMA_TAU_WIN'], 0.05))**2)
+    w_gb = 1.0 / (1.0 + np.exp(-4.0 * (np.log(max(gb_dens, 1e-6)) - p['GB_LOG_MEAN'])))
+    ps_corr = (p['B_PF']  * (w_pf - p['WPF_MEAN'])
+             + p['B_LIN'] * (p_frac * w_win - p['LIN_MEAN'])
+             + p['B_GB']  * (w_gb - p['W_GB_MEAN']))
+    return s * np.exp(ps_corr)
+
+
+def _ps_fraction(d):
+    """Parse P:S ratio string to fraction of P (carbon). Shared across plots."""
+    ps = (d.get("ps_ratio", "") or "")
+    if ps in ("P only", "10:0"): return 1.0
+    if ps in ("S only", "0:10"): return 0.0
+    if ":" in ps:
+        try:
+            p, s = ps.split(":"); p, s = float(p), float(s)
+            return p / (p + s) if (p + s) > 0 else 0.5
+        except Exception:
+            return 0.5
+    return 0.5
+
+
+def plot_multiscale_sigma(data_list, names, outdir):
+    """FORM X v29: delegates prediction to _formx_v29_predict (single source of
+    truth with plot_ionic_scaling_fit). Reads fitted hyperparams from globals."""
     phi_se = [_get(d, "phi_se") for d in data_list]
     cn = [_get(d, "se_se_cn", 0) for d in data_list]
     tau = [_get(d, "tortuosity_recommended", _get(d, "tortuosity_mean", 1)) for d in data_list]
@@ -1991,82 +2099,17 @@ def plot_multiscale_sigma(data_list, names, outdir):
     f_perc = [max(_get(d, "percolation_pct", 100) / 100, 0.01) for d in data_list]
     sigma_net = _load_network_sigma(data_list)
 
-    # Sigmoid C(τ) + P:S sigmoid — prefer global (from ionic_scaling_fit fit)
-    TAU_C = 2.1; TAU_K = 5.0
-    K_BL, TC_BL = 20.0, 2.044  # v25 default; overridden by export if available
-    if _GLOBAL_IONIC_SIGMOID is not None:
-        if len(_GLOBAL_IONIC_SIGMOID) == 6:
-            C_thick_ms, C_thin_ms, TAU_C, TAU_K, K_BL, TC_BL = _GLOBAL_IONIC_SIGMOID
-        else:
-            C_thick_ms, C_thin_ms, TAU_C, TAU_K = _GLOBAL_IONIC_SIGMOID[:4]
-    elif _GLOBAL_C_ION is not None:
-        C_thick_ms = _GLOBAL_C_ION; C_thin_ms = C_thick_ms * 0.54
-    else:
-        C_thick_ms = 0.029; C_thin_ms = 0.017
-
-    p3_coefs = _GLOBAL_IONIC_POLY3 if _GLOBAL_IONIC_POLY3 is not None else (-3.80, +2.38, -5.58, +2.81)
-
-    # v29 FIX: 11-tuple — adds W_GB_MEAN (actual ⟨w_gb⟩) for correct centering.
-    W_GB_MEAN = 0.5  # sigmoid mean approximation if legacy export
-    if _GLOBAL_PS_SIGMOID is not None:
-        if len(_GLOBAL_PS_SIGMOID) == 11:
-            (K_PF, PC_PF, B_PF, B_LIN, B_GB,
-             WPF_MEAN, LIN_MEAN, GB_LOG_MEAN,
-             TAU_C_WIN, SIGMA_TAU_WIN, W_GB_MEAN) = _GLOBAL_PS_SIGMOID
-        elif len(_GLOBAL_PS_SIGMOID) == 10:
-            (K_PF, PC_PF, B_PF, B_LIN, B_GB,
-             WPF_MEAN, LIN_MEAN, GB_LOG_MEAN,
-             TAU_C_WIN, SIGMA_TAU_WIN) = _GLOBAL_PS_SIGMOID
-        else:
-            K_PF, PC_PF, B_PF, B_LIN, B_GB = 50.0, 0.598, -0.10, -0.49, 0.043
-            WPF_MEAN, LIN_MEAN, GB_LOG_MEAN = 0.5, 0.05, -5.0
-            TAU_C_WIN, SIGMA_TAU_WIN = 2.0, 0.15
-    else:
-        K_PF, PC_PF, B_PF, B_LIN, B_GB = 50.0, 0.598, -0.10, -0.49, 0.043
-        WPF_MEAN, LIN_MEAN, GB_LOG_MEAN = 0.5, 0.05, -5.0
-        TAU_C_WIN, SIGMA_TAU_WIN = 2.0, 0.15
-
-    # Parse P:S fraction per case
-    def _pf_local(d):
-        ps = (d.get("ps_ratio", "") or "")
-        if ps in ("P only", "10:0"): return 1.0
-        if ps in ("S only", "0:10"): return 0.0
-        if ":" in ps:
-            try:
-                p, s = ps.split(":"); p, s = float(p), float(s)
-                return p / (p + s) if (p + s) > 0 else 0.5
-            except Exception:
-                return 0.5
-        return 0.5
-
-    sigma_ms = []
-    for i in range(len(data_list)):
-        phi_ex = max(phi_se[i] - PHI_C, 1e-4)
-        if cn[i] > 0 and tau[i] > 0 and coverage[i] > 0:
-            w_v5 = 1.0 / (1.0 + np.exp(-TAU_K * (tau[i] - TAU_C)))
-            # v29 FIX: use fitted k_bl, tc_bl (was hardcoded 20, 1.92 — off from τc=2.044)
-            w_bl = 1.0 / (1.0 + np.exp(-K_BL * (tau[i] - TC_BL)))
-            ln_C_v5 = np.log(C_thick_ms) + (np.log(C_thin_ms) - np.log(C_thick_ms)) * w_v5
-            lt = np.log(tau[i])
-            ln_C_p3 = p3_coefs[0] + p3_coefs[1]*lt + p3_coefs[2]*lt**2 + p3_coefs[3]*lt**3
-            ln_C = (1 - w_bl) * ln_C_v5 + w_bl * ln_C_p3
-            # v19 exponents: α=1/2, β=3/2, γ=2/5, δ=3
-            s = np.exp(ln_C) * SIGMA_BULK * phi_ex**0.5 * cn[i]**1.5 * coverage[i]**0.4 * f_perc[i]**3
-            # v29: β_pf·w_pf + β_lin·p·w_win + β_gb·w_gb  (sigmoid on log gb_dens)
-            pf = _pf_local(data_list[i])
-            w_pf = 1.0 / (1.0 + np.exp(-K_PF * (pf - PC_PF)))
-            w_win = np.exp(-0.5 * ((tau[i] - TAU_C_WIN) / max(SIGMA_TAU_WIN, 0.05))**2)
-            gb_i = max(_get(data_list[i], "gb_density_mean", 1e-6), 1e-6)
-            # GB_LOG_MEAN now holds median(log gb_dens), use k_gb=4 for sigmoid
-            w_gb_i = 1.0 / (1.0 + np.exp(-4.0 * (np.log(gb_i) - GB_LOG_MEAN)))
-            # v29 FIX: center β_gb by actual ⟨w_gb⟩ (was 0.5 approx — fit uses exact mean)
-            ps_corr = (B_PF * (w_pf - WPF_MEAN)
-                       + B_LIN * (pf * w_win - LIN_MEAN)
-                       + B_GB * (w_gb_i - W_GB_MEAN))
-            s = s * np.exp(ps_corr)
-            sigma_ms.append(s)
-        else:
-            sigma_ms.append(0)
+    # Compute predictions via shared helper (matches fit by construction)
+    p = _formx_v29_params()
+    sigma_ms = [
+        _formx_v29_predict(
+            phi_se[i], cn[i], tau[i], coverage[i], f_perc[i],
+            _ps_fraction(data_list[i]),
+            _get(data_list[i], "gb_density_mean", 1e-6),
+            params=p,
+        )
+        for i in range(len(data_list))
+    ]
 
     has_net = any(s > 0 for s in sigma_net)
 

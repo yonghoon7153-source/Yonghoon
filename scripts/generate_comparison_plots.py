@@ -1072,32 +1072,59 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     tau_arr = np.array([tau[i] for i in valid_idx])
     cov_arr = np.array([coverage[i] for i in valid_idx])
 
-    # FORM X v9 BLEND: (1-w)·v5_sigmoid(τ) + w·poly3(lnτ), w=σ(15·(τ-2.0))
-    # v5 alone: w20=50 | poly3 alone: w20=49 (R²=0.981, LOOCV=0.975, not overfit)
-    # BLEND: w20=51, R²=0.980 — best of both worlds
-    # poly3 handles extreme thin (τ>2.5, thin100_11), v5 handles thick/moderate
-    TAU_C = 2.1; TAU_K = 5.0          # v5 C(τ) sigmoid
-    TAU_C_BL = 2.0; TAU_K_BL = 15.0   # blend sigmoid (sharp at τ=2.0)
+    # FORM X v9 BLEND: (1-w)·v5_sigmoid(τ) + w·poly3(lnτ)
+    # Blend sigmoid steepness k auto-selected by LOOCV (smoother k → fewer outliers
+    # in τ∈[1.9, 2.1] transition band).
+    TAU_C = 2.1; TAU_K = 5.0          # v5 C(τ) sigmoid (fixed)
+    TAU_C_BL = 2.0                    # blend transition center (fixed)
     fp_arr = np.array([max(f_perc[i], 0.01) for i in valid_idx])
     log_tau_arr = np.log(tau_arr)
     log_rhs_base = (np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + 1.5*np.log(cn_arr)
                     + 0.25*np.log(cov_arr) + 2.0*np.log(fp_arr))
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
-    w_blend = 1.0 / (1.0 + np.exp(-TAU_K_BL * (tau_arr - TAU_C_BL)))
 
-    # Fit v5 and poly3 separately (on ALL data), then blend
+    def _fit_at_k(k_bl):
+        """Fit v5+poly3 blend with given blend-sigmoid steepness, return (r2, loocv, arrays)."""
+        w_bl = 1.0 / (1.0 + np.exp(-k_bl * (tau_arr - TAU_C_BL)))
+        X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
+        X_p3_l = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
+        b_v5_l = np.linalg.lstsq(X_v5_l, log_sf - log_rhs_base, rcond=None)[0]
+        b_p3_l = np.linalg.lstsq(X_p3_l, log_sf - log_rhs_base, rcond=None)[0]
+        pv_l = X_v5_l @ b_v5_l
+        pp_l = X_p3_l @ b_p3_l
+        pred = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
+        r2 = 1 - np.sum((log_sf - pred)**2) / ss_tot
+        # LOOCV
+        n_loo = len(log_sf)
+        sse_loo = 0.0
+        for ii in range(n_loo):
+            mk = np.ones(n_loo, bool); mk[ii] = False
+            bv_ = np.linalg.lstsq(X_v5_l[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
+            bp_ = np.linalg.lstsq(X_p3_l[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
+            pred_ii = (1 - w_bl[ii]) * (X_v5_l[ii] @ bv_) + w_bl[ii] * (X_p3_l[ii] @ bp_) + log_rhs_base[ii]
+            sse_loo += (log_sf[ii] - pred_ii)**2
+        loocv = 1 - sse_loo / ss_tot
+        # within-20% count
+        s_act_l = np.exp(log_sf); s_prd_l = np.exp(pred)
+        w20 = int(np.sum(np.abs(s_prd_l - s_act_l) / s_act_l < 0.20))
+        return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred
+
+    # Sweep k_blend; pick by best LOOCV
+    k_sweep = [1.5, 2.0, 3.0, 5.0, 8.0, 10.0, 15.0]
+    sweep = [(k, *_fit_at_k(k)[:3]) for k in k_sweep]
+    print(f"\n[BLEND-K SWEEP] τc={TAU_C_BL}")
+    print(f"  {'k':>5s}  {'R²':>6s}  {'LOOCV':>6s}  {'±20%':>5s}")
+    for k, r2_k, lo_k, w20_k in sweep:
+        flag = "  ★" if lo_k == max(s[2] for s in sweep) else ""
+        print(f"  {k:5.1f}  {r2_k:.4f}  {lo_k:.4f}  {w20_k:2d}/{len(log_sf):2d}{flag}")
+    best_k = max(sweep, key=lambda s: s[2])[0]
+    TAU_K_BL = best_k
+    r2_formX, loocv_formX, _, b_v5, b_p3, w_blend, pred_formX = _fit_at_k(best_k)
+    print(f"  → selected k_blend = {best_k}")
+
     X_v5 = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
-    b_v5 = np.linalg.lstsq(X_v5, log_sf - log_rhs_base, rcond=None)[0]
     X_p3 = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
-    b_p3 = np.linalg.lstsq(X_p3, log_sf - log_rhs_base, rcond=None)[0]
-
-    # Blended prediction
-    pred_v5_log = X_v5 @ b_v5
-    pred_p3_log = X_p3 @ b_p3
-    ln_C_arr = (1 - w_blend) * pred_v5_log + w_blend * pred_p3_log
-    pred_formX = ln_C_arr + log_rhs_base
     ss_res_formX = np.sum((log_sf - pred_formX)**2)
-    r2_formX = 1 - ss_res_formX / ss_tot
 
     ln_Ct, ln_delta = b_v5[0], b_v5[1]
     ln_Cn = ln_Ct + ln_delta
@@ -1107,18 +1134,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     global _GLOBAL_IONIC_POLY3
     _GLOBAL_IONIC_POLY3 = tuple(b_p3)
 
-    # LOOCV for blended model
-    n_pts = len(log_sf)
-    loocv_errs = []
-    for ii in range(n_pts):
-        mask = np.ones(n_pts, bool); mask[ii] = False
-        bv = np.linalg.lstsq(X_v5[mask], (log_sf - log_rhs_base)[mask], rcond=None)[0]
-        bp = np.linalg.lstsq(X_p3[mask], (log_sf - log_rhs_base)[mask], rcond=None)[0]
-        pv = X_v5[ii] @ bv
-        pp = X_p3[ii] @ bp
-        pred_loo = (1 - w_blend[ii]) * pv + w_blend[ii] * pp + log_rhs_base[ii]
-        loocv_errs.append((log_sf[ii] - pred_loo)**2)
-    loocv_formX = 1 - np.sum(loocv_errs) / np.sum((log_sf - np.mean(log_sf))**2)
+    # (LOOCV already computed inside _fit_at_k for the winning k)
 
     # Save to global
     _GLOBAL_C_ION = C_thick

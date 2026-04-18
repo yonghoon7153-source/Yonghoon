@@ -1109,32 +1109,36 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
     def _fit_at(k_bl, tc_bl, k_pf=10.0, pc_pf=0.5):
-        """v22: v18 (single P:S β) + κ·log(hop_area) R_bulk correction.
-        κ·log(hop_area) added to log_rhs_base via lstsq. Physical interpretation:
-        κ ≈ +0.5 means Holm's cylindrical-vs-spherical bias fully captured.
-        Returns (r2, loocv, w20, b_v5, b_p3, w_bl, pred, β_pf, κ_area, w_pf)."""
+        """v24 PRODUCTION: v18 (P:S sigmoid) + smooth τ-window for particulate.
+        v14c winner: p_frac·I(τ∈[1.8,2.2]) gave ΔLOOCV=+0.00545 ⭐.
+        Smooth version: p_frac · σ(k·(τ−1.8)) · σ(−k·(τ−2.2))
+        Two β: β_pf (global particulate) + β_win (τ-window amplifier).
+        Returns (r2, loocv, w20, b_v5, b_p3, w_bl, pred, β_pf, β_win, w_pf)."""
         w_bl = 1.0 / (1.0 + np.exp(-k_bl * (tau_arr - tc_bl)))
         w_pf = 1.0 / (1.0 + np.exp(-k_pf * (pf_prod - pc_pf)))
-        # v22 log_rhs with extra κ·log(hop_area) term (κ fit in closed form below)
-        # Stage A: fit (v5, p3, κ) jointly by augmenting X matrices
-        hop_c = log_hop_area - log_hop_area.mean()
-        X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid, hop_c])
-        X_p3_l = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2,
-                                   log_tau_arr**3, hop_c])
+        # τ-window: smooth sigmoid product around τ=2 (center of transition)
+        K_WIN = 8.0; TAU_LO = 1.8; TAU_HI = 2.2
+        w_win = (1.0 / (1.0 + np.exp(-K_WIN * (tau_arr - TAU_LO)))) * \
+                (1.0 / (1.0 + np.exp(+K_WIN * (tau_arr - TAU_HI))))
+        X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
+        X_p3_l = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
+
         b_v5_l = np.linalg.lstsq(X_v5_l, log_sf - log_rhs_base, rcond=None)[0]
         b_p3_l = np.linalg.lstsq(X_p3_l, log_sf - log_rhs_base, rcond=None)[0]
         pv_l = X_v5_l @ b_v5_l
         pp_l = X_p3_l @ b_p3_l
         pred_pre = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
-        # Effective κ = weighted average of v5 and p3 hop_area coeffs
-        kappa_eff = float((1 - w_bl).mean() * b_v5_l[-1] + w_bl.mean() * b_p3_l[-1])
 
-        # Stage B: single P:S β via residual regression
+        # 2-term residual: β_pf·(w_pf centered) + β_win·(p_frac · w_win centered)
         pf_c = w_pf - w_pf.mean()
+        win_term = pf_prod * w_win   # p_frac × τ-window
+        win_c = win_term - win_term.mean()
+        X_corr = np.column_stack([pf_c, win_c])
         resid = log_sf - pred_pre
-        denom = float(np.sum(pf_c**2))
-        beta_pf = float(np.sum(resid * pf_c) / denom) if denom > 1e-10 else 0.0
-        pred = pred_pre + beta_pf * pf_c
+        bc = np.linalg.lstsq(X_corr, resid, rcond=None)[0]
+        pred = pred_pre + X_corr @ bc
+        beta_pf = float(bc[0])
+        beta_win = float(bc[1])
 
         r2 = 1 - np.sum((log_sf - pred)**2) / ss_tot
         n_loo = len(log_sf)
@@ -1145,15 +1149,17 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
             bp_ = np.linalg.lstsq(X_p3_l[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
             pv9 = (1 - w_bl) * (X_v5_l @ bv_) + w_bl * (X_p3_l @ bp_) + log_rhs_base
             pf_c_mk = w_pf[mk] - w_pf[mk].mean()
-            resid_mk = (log_sf - pv9)[mk]
-            dm = float(np.sum(pf_c_mk**2))
-            beta_mk = float(np.sum(resid_mk * pf_c_mk) / dm) if dm > 1e-10 else 0.0
-            pred_ii = pv9[ii] + beta_mk * (w_pf[ii] - w_pf[mk].mean())
+            win_term_mk = win_term[mk]
+            win_c_mk = win_term_mk - win_term_mk.mean()
+            Xc_mk = np.column_stack([pf_c_mk, win_c_mk])
+            bc_mk = np.linalg.lstsq(Xc_mk, (log_sf - pv9)[mk], rcond=None)[0]
+            pred_ii = pv9[ii] + bc_mk[0] * (w_pf[ii] - w_pf[mk].mean()) \
+                              + bc_mk[1] * (win_term[ii] - win_term_mk.mean())
             sse_loo += (log_sf[ii] - pred_ii)**2
         loocv = 1 - sse_loo / ss_tot
         s_act_l = np.exp(log_sf); s_prd_l = np.exp(pred)
         w20 = int(np.sum(np.abs(s_prd_l - s_act_l) / s_act_l < 0.20))
-        return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred, beta_pf, kappa_eff, w_pf
+        return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred, beta_pf, beta_win, w_pf
 
     # v18: continuous 4D optimization — (k_bl, τc_bl, k_pf, pc_pf)
     from scipy.optimize import minimize
@@ -1172,8 +1178,9 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     for k in k_sweep:
         r2_k, lo_k, w20_k, *_ = _fit_at(k, 2.0, 10.0, 0.5)
         print(f"  {k:5.1f}  {r2_k:.4f}  {lo_k:.4f}  {w20_k:2d}/{len(log_sf):2d}")
-    r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX, beta_pf_prod, kappa_area, w_pf_prod = \
+    r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX, beta_pf_prod, beta_win_prod, w_pf_prod = \
         _fit_at(best_k, best_tc, best_kp, best_pc)
+    kappa_area = 0.0  # placeholder for API (v22 dropped in favor of v24)
     print(f"  → continuous optimum: k_bl={best_k:.2f}, τc_bl={best_tc:.3f}  |  "
           f"k_pf={best_kp:.2f}, pc_pf={best_pc:.3f}")
     print(f"    R²={r2_formX:.4f}, LOOCV={loocv_formX:.4f}, ±20%={w20_opt}/{len(log_sf)}")
@@ -1182,7 +1189,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
           f"Ct/Cn={_Ct_chk/_Cn_chk:.2f}")
     print(f"    poly3 coefs = [{b_p3[0]:+.3f}, {b_p3[1]:+.3f}, {b_p3[2]:+.3f}, {b_p3[3]:+.3f}]")
     print(f"    β_pf    = {beta_pf_prod:+.4f}  ← P:S sigmoid amplitude")
-    print(f"    κ_area  = {kappa_area:+.4f}  ← v22 R_bulk cyl-approx correction (0.5 = Holm exact)")
+    print(f"    β_win   = {beta_win_prod:+.4f}  ← v24: p_frac · τ-window [1.8,2.2] amplifier")
     TAU_C_BL = best_tc
     TAU_K_BL = best_k
 

@@ -1128,21 +1128,29 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         pp_l = X_p3_l @ b_p3_l
         pred_pre = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
 
-        # v25 FINAL (revert from v28 — gb_dens addition broke multiscale plot).
-        #   β_pf · w_pf           — P:S global sigmoid
-        #   β_lin · p·w_win       — linear p × Gaussian τ-bump
+        # v29: v25 + SIGMOID on log(gb_dens) — bounded correction, cross-group safe
+        #   β_pf · w_pf                     — P:S global sigmoid
+        #   β_lin · p·w_win                 — linear p × Gaussian τ-bump
+        #   β_gb · w_gb                     — sigmoid(log gb_dens) NEW
+        # Sigmoid saturates at both ends → no cross-group overflow (v28 bug).
+        # Fixed k_gb=4, gc_gb=median(log gb) — no extra outer params for now.
         pf_c = w_pf - w_pf.mean()
         lin_term = pf_prod * w_win
         lin_c = lin_term - lin_term.mean()
-        mix_term = lin_term    # unused alias
-        mix_c = lin_c * 0.0     # zeroed out
-        # v28: 3-term residual (β_pf, β_lin, β_gb)
-        X_corr = np.column_stack([pf_c, lin_c, mix_c])  # mix_c = log(gb_dens) centered
+        gb_arr_prod = np.array([max(gb_dens[i], 1e-6) for i in valid_idx])
+        gb_log = np.log(gb_arr_prod)
+        gc_gb = float(np.median(gb_log))   # sigmoid center = median
+        k_gb = 4.0                         # steepness (bounded transition)
+        w_gb = 1.0 / (1.0 + np.exp(-k_gb * (gb_log - gc_gb)))
+        mix_term = w_gb
+        mix_c = w_gb - w_gb.mean()
+        # v29: 3-term residual (β_pf, β_lin, β_gb_gated)
+        X_corr = np.column_stack([pf_c, lin_c, mix_c])  # mix_c = w_bl·log(gb_dens) centered
         resid = log_sf - pred_pre
         bc = np.linalg.lstsq(X_corr, resid, rcond=None)[0]
         pred = pred_pre + X_corr @ bc
         beta_pf, beta_lin, beta_gb = float(bc[0]), float(bc[1]), float(bc[2])
-        beta_mix = beta_gb   # alias for API compat
+        beta_mix = beta_gb
         beta_win = beta_lin
 
         r2 = 1 - np.sum((log_sf - pred)**2) / ss_tot
@@ -1155,13 +1163,13 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
             pv9 = (1 - w_bl) * (X_v5_l @ bv_) + w_bl * (X_p3_l @ bp_) + log_rhs_base
             pf_c_mk = w_pf[mk] - w_pf[mk].mean()
             lin_mk = lin_term[mk];  lin_c_mk = lin_mk - lin_mk.mean()
-            gb_mk = np.log(gb_arr_prod)[mk]
-            gb_c_mk = gb_mk - gb_mk.mean()
-            Xc_mk = np.column_stack([pf_c_mk, lin_c_mk, gb_c_mk])
+            wgb_mk = w_gb[mk]
+            wgb_c_mk = wgb_mk - wgb_mk.mean()
+            Xc_mk = np.column_stack([pf_c_mk, lin_c_mk, wgb_c_mk])
             bc_mk = np.linalg.lstsq(Xc_mk, (log_sf - pv9)[mk], rcond=None)[0]
             pred_ii = pv9[ii] + bc_mk[0] * (w_pf[ii] - w_pf[mk].mean()) \
                               + bc_mk[1] * (lin_term[ii] - lin_mk.mean()) \
-                              + bc_mk[2] * (np.log(gb_arr_prod)[ii] - gb_mk.mean())
+                              + bc_mk[2] * (w_gb[ii] - wgb_mk.mean())
             sse_loo += (log_sf[ii] - pred_ii)**2
         loocv = 1 - sse_loo / ss_tot
         s_act_l = np.exp(log_sf); s_prd_l = np.exp(pred)
@@ -1203,7 +1211,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     print(f"    poly3 coefs = [{b_p3[0]:+.3f}, {b_p3[1]:+.3f}, {b_p3[2]:+.3f}, {b_p3[3]:+.3f}]")
     print(f"    β_pf    = {beta_pf_prod:+.4f}  ← P:S sigmoid amplitude")
     print(f"    β_lin   = {beta_win_prod:+.4f}  ← v28: p_frac × Gaussian bump (linear)")
-    print(f"    β_gb    = {float(getattr(_fit_at, '_beta_mix', 0.0)):+.4f}  ← v28: log(gb_density) correction")
+    print(f"    β_gb    = {float(getattr(_fit_at, '_beta_mix', 0.0)):+.4f}  ← v29: sigmoid(log gb_dens) correction (bounded)")
     TAU_C_BL = best_tc
     TAU_K_BL = best_k
 
@@ -1693,14 +1701,14 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     global _GLOBAL_IONIC_SIGMOID
     _GLOBAL_IONIC_SIGMOID = (C_thick, C_thin, TAU_C, TAU_K)
     global _GLOBAL_PS_SIGMOID
-    # v28: 11-tuple export including β_gb and ⟨log(gb_dens)⟩
+    # v29: 10-tuple export. GB_LOG_MEAN is now MEDIAN (sigmoid center gc_gb).
     _w_win_prod = np.exp(-0.5 * ((tau_arr - best_tcw) / max(best_stw, 0.05))**2)
-    _beta_gb_prod = float(getattr(_fit_at, '_beta_mix', 0.0))  # aliased
+    _beta_gb_prod = float(getattr(_fit_at, '_beta_mix', 0.0))
     _gb_arr_prod = np.array([max(gb_dens[i], 1e-6) for i in valid_idx])
     _GLOBAL_PS_SIGMOID = (best_kp, best_pc, beta_pf_prod, beta_win_prod, _beta_gb_prod,
                           float(w_pf_prod.mean()),
                           float((pf_prod * _w_win_prod).mean()),
-                          float(np.log(_gb_arr_prod).mean()),   # gb log mean (was mix_mean)
+                          float(np.median(np.log(_gb_arr_prod))),   # sigmoid center (gc_gb)
                           best_tcw, best_stw)
 
     # Use FORM X v4 as primary
@@ -1903,7 +1911,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title(f"Ionic v28: C_blend(τ)·C_pf(p)·G(τ,p)·gb^β_gb × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³\n"
+    ax.set_title(f"Ionic v29: C_blend(τ)·C_pf(p)·G(τ,p)·C_gb(sigmoid) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³\n"
                  f"τ-blend(k={best_k:.0f},τc={best_tc:.2f})  P:S(k={best_kp:.0f},pc={best_pc:.2f},β={beta_pf_prod:+.3f})  κ_A={kappa_area:+.3f}  R²={r2_formX:.3f} LOOCV={loocv_formX:.3f}",
                  fontsize=8, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
@@ -2023,14 +2031,16 @@ def plot_multiscale_sigma(data_list, names, outdir):
             ln_C = (1 - w_bl) * ln_C_v5 + w_bl * ln_C_p3
             # v19 exponents: α=1/2, β=3/2, γ=2/5, δ=3
             s = np.exp(ln_C) * SIGMA_BULK * phi_ex**0.5 * cn[i]**1.5 * coverage[i]**0.4 * f_perc[i]**3
-            # v28: β_pf·w_pf + β_lin·p·w_win + β_gb·log(gb_dens)
+            # v29: β_pf·w_pf + β_lin·p·w_win + β_gb·w_gb  (sigmoid on log gb_dens)
             pf = _pf_local(data_list[i])
             w_pf = 1.0 / (1.0 + np.exp(-K_PF * (pf - PC_PF)))
             w_win = np.exp(-0.5 * ((tau[i] - TAU_C_WIN) / max(SIGMA_TAU_WIN, 0.05))**2)
             gb_i = max(_get(data_list[i], "gb_density_mean", 1e-6), 1e-6)
+            # GB_LOG_MEAN now holds median(log gb_dens), use k_gb=4 for sigmoid
+            w_gb_i = 1.0 / (1.0 + np.exp(-4.0 * (np.log(gb_i) - GB_LOG_MEAN)))
             ps_corr = (B_PF * (w_pf - WPF_MEAN)
                        + B_LIN * (pf * w_win - LIN_MEAN)
-                       + B_GB * (np.log(gb_i) - GB_LOG_MEAN))
+                       + B_GB * (w_gb_i - 0.5))   # sigmoid mean ≈ 0.5
             s = s * np.exp(ps_corr)
             sigma_ms.append(s)
         else:
@@ -2064,7 +2074,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     _apply_style(ax, "σ_ionic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
-    ax.set_title(f"FORM X v28: C_blend(τ)·C_pf(p)·G(τ,p)·gb^β_gb × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³",
+    ax.set_title(f"FORM X v29: C_blend(τ)·C_pf(p)·G(τ,p)·C_gb(sigmoid) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³",
                  fontsize=9, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',

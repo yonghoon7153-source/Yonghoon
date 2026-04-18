@@ -2684,17 +2684,20 @@ def _formx_v29_predict(phi_se, cn, tau, coverage, f_perc, p_frac, gb_dens,
     w_pf = 1.0 / (1.0 + np.exp(-p['K_PF'] * (p_frac - p['PC_PF'])))
     w_win = np.exp(-0.5 * ((tau - p['TAU_C_WIN']) / max(p['SIGMA_TAU_WIN'], 0.05))**2)
     w_gb = 1.0 / (1.0 + np.exp(-4.0 * (np.log(max(gb_dens, 1e-6)) - p['GB_LOG_MEAN'])))
-    # v30: phase-split asymmetry gated by sigmoid in τ
+    # v30: phase-split asymmetry gated by sigmoid in τ — BIMODAL ONLY
+    # Monomodal cases (cov_p=0 or cov_s=0): NO correction (ps_contrib=0 exactly).
+    # This matches _fit_at which centers ps_c only using bimodal cases.
     if cov_p > 1e-10 and cov_s > 1e-10:
         w_thin = 1.0 / (1.0 + np.exp(-p['K_PS'] * (tau - p['TAU_C_PS'])))
         log_ps = np.log(cov_p) - np.log(cov_s)
         ps_term_i = w_thin * log_ps
+        ps_contribution = p['B_PS'] * (ps_term_i - p['PS_MEAN'])
     else:
-        ps_term_i = 0.0
+        ps_contribution = 0.0
     ps_corr = (p['B_PF']  * (w_pf - p['WPF_MEAN'])
              + p['B_LIN'] * (p_frac * w_win - p['LIN_MEAN'])
              + p['B_GB']  * (w_gb - p['W_GB_MEAN'])
-             + p['B_PS']  * (ps_term_i - p['PS_MEAN']))
+             + ps_contribution)
     return s * np.exp(ps_corr)
 
 

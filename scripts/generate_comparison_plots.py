@@ -1222,25 +1222,20 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
                     point_groups[j] = g_idx
                     break
 
-    # Mark |err|>20% cases with a red X overlay for transparency
+    # Mark |err|>20% cases with a subtle darker edge (no overlay)
     is_outlier = np.abs((s_pred - s_actual) / s_actual) > 0.20
 
     if _GROUP_INFO:
         for j in range(len(valid_idx)):
             gi = point_groups[j]
+            edge = '#444' if is_outlier[j] else 'white'
+            lw = 1.8 if is_outlier[j] else 1.5
             ax.scatter(s_actual[j], s_pred[j], s=100,
                       c=GROUP_COLORS[gi % len(GROUP_COLORS)],
-                      zorder=5, edgecolors='white', linewidth=1.5)
+                      zorder=5, edgecolors=edge, linewidth=lw)
     else:
         ax.scatter(s_actual, s_pred, s=100, c=BLUE, zorder=5,
                   edgecolors='white', linewidth=1.5)
-    # Outlier markers (unfilled red circle + X) - drawn on top
-    if np.any(is_outlier):
-        ax.scatter(s_actual[is_outlier], s_pred[is_outlier],
-                   s=220, facecolors='none', edgecolors='red',
-                   linewidth=2.0, zorder=6, label=f'|err|>20% ({int(is_outlier.sum())})')
-        ax.scatter(s_actual[is_outlier], s_pred[is_outlier],
-                   s=80, marker='x', c='red', linewidth=1.8, zorder=7)
 
     # 1:1 line
     all_vals = np.concatenate([s_pred, s_actual])
@@ -1415,6 +1410,15 @@ def plot_multiscale_sigma(data_list, names, outdir):
     if has_net:
         ax.plot(x, sigma_net, 'D--', color='#2ecc71', markersize=ms-2, linewidth=lw-0.5,
                 alpha=0.7, label="Network solver (mS/cm)")
+        # Subtle outlier mark: small * above plot at |err|>20% positions
+        _net_arr = np.array(sigma_net, dtype=float)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            rel = np.where(_net_arr > 0, np.abs(_ms_arr - _net_arr) / _net_arr, 0.0)
+        out_mask = rel > 0.20
+        if np.any(out_mask):
+            y_top = max(np.nanmax(_ms_hi), np.nanmax(_net_arr)) * 1.03
+            ax.scatter(x[out_mask], [y_top] * int(out_mask.sum()),
+                       marker='*', s=40, color='#888', zorder=3, clip_on=False)
 
     _apply_style(ax, "σ_ionic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')

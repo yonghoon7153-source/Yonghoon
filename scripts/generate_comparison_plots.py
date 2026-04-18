@@ -1189,12 +1189,17 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     hdr = f"  {'#':>3s} {'case (group | id [P:S])':70s} {'σ_act':>7s} {'σ_pred':>7s} {'err%':>7s} {'φ_SE':>5s} {'f_p':>5s} {'τ':>5s} {'CN':>5s} {'cov':>5s}"
     print(hdr); print("  " + "-" * (len(hdr)-2))
     all_sorted = sorted(range(n_total), key=lambda j: -abs_err[j])
+    shown = 0
     for rank, j in enumerate(all_sorted, 1):
+        if abs_err[j] <= 10.0:
+            continue  # only show |err|>10%
         i = valid_idx[j]
         nm = _case_label(i)[:70]
         flag = "  ⚠" if abs_err[j] > 20 else ("  ·" if abs_err[j] > 15 else "")
         print(f"  {rank:3d} {nm:70s} {s_actual[j]:7.4f} {s_pred[j]:7.4f} {rel_err[j]:+6.1f}%"
               f" {phi_se[i]:5.3f} {f_perc[i]:5.3f} {tau[i]:5.2f} {cn[i]:5.2f} {cov_arr[j]:5.3f}{flag}")
+        shown += 1
+    print(f"  ({shown} cases with |err|>10%, remaining {n_total - shown} are within ±10%)")
     # Residual-vs-feature correlation (Pearson on log-residual)
     log_res = np.log(s_pred) - np.log(s_actual)
     gb_arr = np.array([gb_dens[i] for i in valid_idx])

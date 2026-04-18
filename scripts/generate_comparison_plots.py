@@ -1268,6 +1268,72 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
                    "v12" if loocv12 == max(loocv_formX, loocv12, loocv13) else "v9")
     print(f"  → best by LOOCV: {best_variant}")
 
+    # === v14 INTERACTION FORWARD SELECTION (on top of v12) ===
+    # Test each candidate interaction as ONE extra feature added to v12 base.
+    # Uses v12 optimal (α, β, γ, δ, φc, k, τc); the extra feature coefficient
+    # is jointly fit via lstsq at each LOOCV step.
+    gb_np = np.array([max(gb_dens[i], 1e-10) for i in valid_idx], dtype=float)
+    gp_np = np.array([max(g_path[i], 1e-10) for i in valid_idx], dtype=float)
+    log_phi_ex_np = np.log(np.maximum(phi_np - pc12, 1e-4))
+
+    interactions = {
+        'log(CN)·log(τ)':        log_cn_np * log_tau_arr,
+        'log(φ-φc)·log(CN)':     log_phi_ex_np * log_cn_np,
+        'log(φ-φc)·log(τ)':      log_phi_ex_np * log_tau_arr,
+        'log(cov)·log(CN)':      np.log(cov_np) * log_cn_np,
+        '(log τ)²·log(fp)':      log_tau_arr**2 * np.log(fp_np),
+        'log(CN)²':              log_cn_np**2,
+        'log(gb_dens)':          np.log(gb_np),
+        'log(g_path)':           np.log(gp_np),
+    }
+
+    # v12 base log_rhs with optimized exponents
+    v12_base = (np.log(SIGMA_BULK) + a12*log_phi_ex_np + b12*log_cn_np
+                + g12*np.log(cov_np) + d12*np.log(fp_np))
+    w_bl_v12 = 1.0 / (1.0 + np.exp(-kb12 * (tau_arr - tc12)))
+    X_v_base = np.column_stack([np.ones(len(ln_sigma)), w_sigmoid])
+    X_p_base = np.column_stack([np.ones(len(ln_sigma)), log_tau_arr,
+                                 log_tau_arr**2, log_tau_arr**3])
+
+    def _loocv_with_extra(z_extra):
+        """LOOCV when adding one extra feature z_extra with lstsq-fit coefficient,
+        on top of v12's fixed exponents. 7 params in inner lstsq (2 v5 + 4 p3 + 1 z)."""
+        sse = 0.0
+        n_loo = len(ln_sigma)
+        for ii in range(n_loo):
+            mk = np.ones(n_loo, bool); mk[ii] = False
+            # Step 1: v12 base fit (blend C(τ))
+            bv_ = np.linalg.lstsq(X_v_base[mk], (ln_sigma - v12_base)[mk], rcond=None)[0]
+            bp_ = np.linalg.lstsq(X_p_base[mk], (ln_sigma - v12_base)[mk], rcond=None)[0]
+            pv12 = (1 - w_bl_v12) * (X_v_base @ bv_) + w_bl_v12 * (X_p_base @ bp_) + v12_base
+            # Step 2: residual → z coefficient
+            resid_mk = (ln_sigma - pv12)[mk]
+            zm = z_extra[mk]
+            denom = float(np.sum(zm**2))
+            c_z = float(np.sum(resid_mk * zm) / denom) if denom > 1e-12 else 0.0
+            pred_ii = pv12[ii] + c_z * z_extra[ii]
+            sse += (ln_sigma[ii] - pred_ii)**2
+        return 1 - sse / ss_tot_local
+
+    print(f"\n[v14 INTERACTION SELECTION] adding one feature at a time to v12")
+    print(f"  baseline v12 LOOCV = {loocv12:.4f}")
+    print(f"  {'feature':28s} {'LOOCV':>8s} {'ΔLOOCV':>10s} {'flag':>6s}")
+    sigma_noise = np.sqrt(2 / len(ln_sigma)) * (1 - loocv12)
+    results14 = []
+    for name, z_vec in interactions.items():
+        lo = _loocv_with_extra(z_vec)
+        d = lo - loocv12
+        flag = " ⭐" if d > sigma_noise else ("  *" if d > 0.001 else "")
+        results14.append((name, lo, d, flag))
+        print(f"  {name:28s} {lo:.4f} {d:+10.5f} {flag}")
+    # Identify best
+    best_int = max(results14, key=lambda r: r[1])
+    print(f"  → best interaction: {best_int[0]} (LOOCV={best_int[1]:.4f}, Δ={best_int[2]:+.5f})")
+    if best_int[2] > sigma_noise:
+        print(f"    ⭐ EXCEEDS noise σ={sigma_noise:.4f} — candidate for v14 adoption")
+    else:
+        print(f"    — within noise σ={sigma_noise:.4f}, v12 remains the endpoint")
+
     X_v5 = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
     X_p3 = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
     ss_res_formX = np.sum((log_sf - pred_formX)**2)

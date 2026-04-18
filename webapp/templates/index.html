@@ -68,7 +68,7 @@
       <button class="btn btn-sm btn-secondary sort-btn" onclick="sortCases('name')" id="sort-name">이름순</button>
       <button class="btn btn-sm btn-secondary sort-btn active" onclick="sortCases('date')" id="sort-date">최신순</button>
       <button class="btn btn-sm btn-run" onclick="reanalyzeAll(this)">전체 재분석</button>
-      <button class="btn btn-sm" style="background:#c00;color:#fff;display:none" id="cancel-reanalyze-btn" onclick="cancelReanalyze()">취소</button>
+      <button class="btn btn-sm" style="background:#c00;color:#fff" id="cancel-reanalyze-btn" onclick="cancelReanalyze()">전체 취소</button>
       <button class="btn btn-sm btn-archive" onclick="saveAllToArchive(this)">전체 보관함 저장</button>
     </div>
   </div>
@@ -390,15 +390,30 @@ async function reanalyzeAll(btn) {
   _runSeq(btn, ids, 0);
 }
 
-function cancelReanalyze() {
+async function cancelReanalyze() {
   _reanalyzeCancelled = true;
+  // Cancel any currently running cases
+  const ids = JSON.parse(localStorage.getItem('dem_reanalyze_ids') || '[]');
+  const idx = parseInt(localStorage.getItem('dem_reanalyze_idx') || '0');
+  if (ids.length > 0 && idx < ids.length) {
+    await fetch(`/analyze-cancel/${ids[idx]}`, { method: 'POST' });
+  }
+  // Also cancel any individually running cases visible on page
+  document.querySelectorAll('td').forEach(td => {
+    if (td.textContent.includes('실행중') || td.textContent.includes('Network Solver')) {
+      const row = td.closest('tr');
+      if (row) {
+        const caseId = row.querySelector('a[href*="/results/"]')?.href?.split('/results/')[1];
+        if (caseId) fetch(`/analyze-cancel/${caseId}`, { method: 'POST' });
+      }
+    }
+  });
   localStorage.removeItem('dem_reanalyze_active');
   localStorage.removeItem('dem_reanalyze_ids');
   localStorage.removeItem('dem_reanalyze_idx');
-  document.getElementById('cancel-reanalyze-btn').style.display = 'none';
   const btn = document.querySelector('[onclick*="reanalyzeAll"]');
   if (btn) { btn.textContent = '전체 재분석'; btn.disabled = false; }
-  showToast('재분석 취소됨');
+  showToast('재분석 취소됨 — 새로고침 하세요');
 }
 
 async function _runSeq(btn, ids, startIdx) {

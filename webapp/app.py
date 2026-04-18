@@ -728,6 +728,21 @@ def analyze_status(case_id):
         return jsonify({'status': meta.get('status', 'unknown')})
     return jsonify({'status': 'unknown'})
 
+@app.route('/analyze-cancel/<case_id>', methods=['POST'])
+def analyze_cancel(case_id):
+    """Cancel running analysis by setting status to done."""
+    meta_file = os.path.join(get_case_dir(case_id), 'meta.json')
+    if os.path.exists(meta_file):
+        with open(meta_file) as f:
+            meta = json.load(f)
+        if meta.get('status') in ('running', 'network_solving'):
+            meta['status'] = 'done'
+            meta['network_solver_status'] = meta.get('network_solver_status', 'cancelled')
+            with open(meta_file, 'w') as f:
+                json.dump(meta, f, indent=2)
+            return jsonify({'ok': True, 'msg': 'Cancelled'})
+    return jsonify({'ok': False, 'msg': 'Not running'})
+
 @app.route('/retry-network/<case_id>', methods=['POST'])
 def retry_network(case_id):
     """Manually retry network solver for a case."""

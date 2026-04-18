@@ -1063,8 +1063,9 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ss_res_fixed = np.sum((log_sf - pred_fixed)**2)
     r2_fixed = 1 - ss_res_fixed / ss_tot
 
-    # === FORM X v2: CN^1.5 × (φ-φc)^¾ × cov^¼ / τ^¼ × exp(-0.1×lnCN×lnτ) ===
-    PHI_C = 0.185
+    # === v12-CLEAN scaling law (production, since 2026-04-18) ===
+    # σ = C_blend(τ) × σ_grain × √(φ−0.2) × CN^(3/2) × √cov × f_p²
+    PHI_C = 0.20  # data-native percolation threshold (v12 fit: 0.203)
     coverage = [(lambda vs: sum(vs)/len(vs)/100 if vs else 0.20)([v for v in [_get(d,"coverage_AM_P_mean",0), _get(d,"coverage_AM_S_mean",0), _get(d,"coverage_AM_mean",0)] if v>0]) for d in data_list]
 
     phi_ex_arr = np.array([max(phi_se[i] - PHI_C, 0.001) for i in valid_idx])
@@ -1078,8 +1079,13 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     TAU_C = 2.1; TAU_K = 5.0          # v5 C(τ) sigmoid (fixed)
     fp_arr = np.array([max(f_perc[i], 0.01) for i in valid_idx])
     log_tau_arr = np.log(tau_arr)
-    log_rhs_base = (np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + 1.5*np.log(cn_arr)
-                    + 0.25*np.log(cov_arr) + 2.0*np.log(fp_arr))
+    # === v12-CLEAN exponents — rounded half-integer from data-native fit ===
+    # v12 fit gave (α,β,γ,δ) = (0.53, 1.56, 0.41, 1.98). Rounded for elegance:
+    #   α=1/2 (mean-field percolation), β=3/2 (Kirkpatrick),
+    #   γ=1/2 (√cov interface), δ=2 (Bruggeman²)
+    # v9 formula (0.75, 1.5, 0.25, 2; φc=0.185) retained as archive reference.
+    log_rhs_base = (np.log(SIGMA_BULK) + 0.50*np.log(phi_ex_arr) + 1.5*np.log(cn_arr)
+                    + 0.50*np.log(cov_arr) + 2.0*np.log(fp_arr))
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
     def _fit_at(k_bl, tc_bl):

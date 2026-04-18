@@ -119,7 +119,46 @@ Final model: **v9 BLEND** (R²=0.9806, LOOCV=0.9764)
 
 ---
 
-## Final Model Specification (v9 BLEND)
+## 🏆 FINAL PRODUCTION MODEL: v12-clean v3 (2026-04-18)
+
+```
+σ_ionic = C_blend(τ) × σ_grain × √(φ-0.2) × CN^(3/2) × cov^(2/5) × f_p³
+```
+
+**All exponents are simple fractions within 5% of v12 data-native fit:**
+
+| Exponent | Value | Fraction | v12 fit | Δ | Physical meaning |
+|----------|-------|----------|---------|----|------------------|
+| α (φ-φc) | 0.50  | **1/2**  | 0.526   | −5% | Mean-field / quasi-2D percolation |
+| β (CN)   | 1.50  | **3/2**  | 1.480   | +1% | Kirkpatrick |
+| γ (cov)  | 0.40  | **2/5**  | 0.423   | −5% | AM-SE interface coverage (enhanced vs 0.25 prior) |
+| δ (fp)   | 3.00  | **3**    | 2.900   | +3% | **Cubic percolation fraction (new finding)** |
+| φc       | 0.20  | 0.20     | 0.203   | −1% | Percolation threshold |
+
+**Performance (n=57):**
+- R² = 0.9813
+- **LOOCV = 0.9791** (improvement over v9's 0.9764)
+- ±20%: 51/57 (91%)
+- <5%: 24/57 (42%)
+- <10%: 39/57 (68%)
+- median error: 6.2%
+- mean error: 9.6%
+
+**Critical implementation detail:** `phi_ex` clamp = **1e-4** (not 1e-3).
+The production code was using 0.001 floor which caused catastrophic
+over-prediction of sub-threshold cases (input_thin100_15 at φ=0.176 < φc=0.20).
+Unifying with v12 internal fit's 1e-4 clamp was the key fix that
+made the half-integer rounded formula work.
+
+**v9 archive formula (retained for reference):**
+```
+σ = C_blend(τ) × σ_grain × (φ-0.185)^0.75 × CN^1.5 × cov^0.25 × f_p²
+```
+v9 LOOCV = 0.9764 — still works, fully Kirkpatrick prior-based.
+
+---
+
+## Final Model Specification (v9 BLEND — archived)
 
 ```
 σ_ionic = C_blend(τ) × σ_grain × CN^1.5 × (φ−φc)^¾ × cov^¼ × f_p²

@@ -543,30 +543,6 @@ def analyze(case_id):
                         if k in net_data and net_data[k] is not None:
                             met_data[k] = net_data[k]
                     met_data['network_solver_status'] = 'success'
-                    # AM-AM contact mechanics backfill (reanalysis path)
-                    atoms_csv = os.path.join(results_dir, 'atoms.csv')
-                    contacts_csv = os.path.join(results_dir, 'contacts.csv')
-                    if os.path.exists(atoms_csv) and os.path.exists(contacts_csv):
-                        try:
-                            sys.path.insert(0, app.config['SCRIPTS_FOLDER'])
-                            from backfill_am_metrics import calc_am_am_stats, calc_am_am_paths
-                            am_stats = calc_am_am_stats(atoms_csv, contacts_csv,
-                                                        meta['type_map'], scale=meta.get('scale', 1000))
-                            if am_stats:
-                                for k, v in am_stats.items():
-                                    met_data[k] = v
-                                print(f"  [AM-AM] Backfilled: CN={am_stats.get('am_am_cn',0):.2f}")
-                            try:
-                                path_stats = calc_am_am_paths(atoms_csv, contacts_csv,
-                                                              meta['type_map'], scale=meta.get('scale', 1000))
-                                if path_stats:
-                                    for k, v in path_stats.items():
-                                        met_data[k] = v
-                                    print(f"  [AM-AM] Paths: Gd={path_stats.get('am_gb_density_mean',0):.2f}")
-                            except Exception as _pe:
-                                print(f"  [AM-AM] Path analysis failed: {_pe}")
-                        except Exception as _e:
-                            print(f"  [AM-AM] Backfill failed: {_e}")
                     with open(met_json, 'w') as _mf:
                         json.dump(met_data, _mf, indent=2, default=str)
                 meta['network_solver_status'] = 'success'
@@ -574,42 +550,12 @@ def analyze(case_id):
                 with open(meta_file, 'w') as f:
                     json.dump(meta, f, indent=2)
                 print(f"  [Reanalysis] Network solver SKIPPED — restored previous results ({case_id})")
+                generate_report(case_id, meta.get('name', ''))
+                return  # ← EXIT HERE! Don't run network solver again
             else:
                 # No previous network solver results — run it
-                # Clean up backup if exists
                 if _net_backup and os.path.exists(_net_backup):
                     os.unlink(_net_backup)
-
-                # Network conductivity solver (자동 실행)
-                # Skip if already done (reanalysis case)
-                if net_already_done:
-                    print(f"  [Reanalysis] Network solver SKIPPED — restored previous results ({case_id})")
-                    shutil.copy2(_net_backup, net_json_path)
-                    os.unlink(_net_backup)
-                    # Merge network results into new full_metrics
-                    met_json = os.path.join(results_dir, 'full_metrics.json')
-                    if os.path.exists(met_json) and os.path.exists(net_json_path):
-                        with open(net_json_path) as _nf:
-                            net_data = json.load(_nf)
-                        with open(met_json) as _mf:
-                            met_data = json.load(_mf)
-                        for k in ['sigma_full', 'sigma_full_mScm', 'sigma_bulk_net',
-                                  'sigma_bulk_net_mScm', 'R_brug_over_full', 'bulk_resistance_fraction',
-                                  'electronic_sigma_full_mScm', 'electronic_R_brug',
-                                  'electronic_active_fraction', 'electronic_percolating_fraction',
-                                  'thermal_sigma_full_mScm', 'thermal_R_brug',
-                                  'sigma_bruggeman', 'sigma_bruggeman_mScm', 'R_bruggeman_over_full']:
-                            if k in net_data and net_data[k] is not None:
-                                met_data[k] = net_data[k]
-                        met_data['network_solver_status'] = 'success'
-                        with open(met_json, 'w') as _mf:
-                            json.dump(met_data, _mf, indent=2, default=str)
-                    meta['network_solver_status'] = 'success'
-                    meta['status'] = 'done'
-                    with open(meta_file, 'w') as f:
-                        json.dump(meta, f, indent=2)
-                    generate_report(case_id, meta.get('name', ''))
-                    return
 
                 # Semaphore: only 1 network solver at a time to prevent OOM crash
                 meta['status'] = 'network_solving'

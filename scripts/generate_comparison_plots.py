@@ -1343,6 +1343,40 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     else:
         print(f"    — within noise σ={sigma_noise:.4f}, v12 remains the endpoint")
 
+    # === v14b p_frac INTERACTIONS — maximize use of the only flagged signal ===
+    # p_frac² has r=+0.469 with v9 residuals but single-β failed cross-group.
+    # Test whether p_frac × (another feature) captures the conditional trend.
+    pf_centered = np.array([_ps_frac(data_list[i]) for i in valid_idx]) - 0.5
+    pf_base = np.array([_ps_frac(data_list[i]) for i in valid_idx])
+    pf_interactions = {
+        'p_frac·log(τ)':           pf_centered * log_tau_arr,
+        'p_frac·log(CN)':          pf_centered * log_cn_np,
+        'p_frac·log(φ-φc)':        pf_centered * phi_log,
+        'p_frac·log(cov)':         pf_centered * np.log(cov_np),
+        'p_frac·log(fp)':          pf_centered * np.log(fp_np),
+        '(p_frac)²·log(τ)':        (pf_base - 0.5)**2 * log_tau_arr,
+        '(p_frac)²':               pf_base**2 - 0.25,    # baseline — already known r=0.47
+        '(p_frac > 0.5)':          (pf_base > 0.5).astype(float) - 0.3,  # binary threshold
+        'p_frac·(τ>1.8)':          pf_centered * (tau_arr > 1.8).astype(float),
+        'p_frac·(τ<1.5)':          pf_centered * (tau_arr < 1.5).astype(float),
+    }
+    print(f"\n[v14b p_frac INTERACTION SWEEP] — exploiting only flagged feature")
+    print(f"  baseline v12 LOOCV = {loocv12:.4f}")
+    print(f"  {'feature':28s} {'LOOCV':>8s} {'ΔLOOCV':>10s} {'flag':>6s}")
+    pf_results = []
+    for name, z in pf_interactions.items():
+        lo = _loocv_with_extra(z)
+        d = lo - loocv12
+        flag = " ⭐" if d > sigma_noise else ("  *" if d > 0.001 else "")
+        pf_results.append((name, lo, d, flag))
+        print(f"  {name:28s} {lo:.4f} {d:+10.5f} {flag}")
+    best_pf = max(pf_results, key=lambda r: r[1])
+    print(f"  → best p_frac interaction: {best_pf[0]} (ΔLOOCV={best_pf[2]:+.5f})")
+    if best_pf[2] > sigma_noise:
+        print(f"    ⭐⭐⭐ EXCEEDS noise — this is the missing conditional P:S physics!")
+    else:
+        print(f"    — within noise: p_frac is definitively not leverageable globally.")
+
     # === v15 OVERFIT CEILING — all features + squares + interactions, OLS ===
     # Goal: measure the irreducible R²/LOOCV achievable on this dataset.
     # Uses ridge (λ=small) on a dense feature matrix. No physical meaning —
@@ -1507,26 +1541,46 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         return 0.5
     p_frac_arr = np.array([_parse_ps(data_list[i]) for i in valid_idx])
 
-    # NEW: AM-side features (previously UNUSED in the model)
+    # AM-side morphology (previously unused)
     am_se_cn = np.array([_get(data_list[i], "am_se_cn_mean", 0) for i in valid_idx], dtype=float)
     am_am_cn = np.array([_get(data_list[i], "am_am_cn", 0) for i in valid_idx], dtype=float)
     am_am_area = np.array([_get(data_list[i], "am_am_mean_area", 0) for i in valid_idx], dtype=float)
-    # Ratios that might capture "SE clusters not touching AM" morphology:
-    cn_ratio = np.divide(cn_arr, np.maximum(am_se_cn, 0.1))  # se_se/am_se: >>1 means SE isolated from AM
+    cn_ratio = np.divide(cn_arr, np.maximum(am_se_cn, 0.1))
+
+    # ── HETEROGENEITY (std/cv) — mean-field model misses this ──
+    cn_std = np.array([_get(data_list[i], "se_se_cn_std", 0) for i in valid_idx], dtype=float)
+    tau_std = np.array([_get(data_list[i], "tortuosity_std", 0) for i in valid_idx], dtype=float)
+    # coefficient of variation (dimensionless)
+    cn_cv = np.divide(cn_std, np.maximum(cn_arr, 0.1))
+    tau_cv = np.divide(tau_std, np.maximum(tau_arr, 0.1))
+    am_am_cn_std = np.array([_get(data_list[i], "am_am_cn_std", 0) for i in valid_idx], dtype=float)
+
+    # ── MECHANICAL STRESS / FORCE ──
+    stress_cv = np.array([_get(data_list[i], "stress_cv", 0) for i in valid_idx], dtype=float)
+    stress_z = np.array([_get(data_list[i], "stress_z_layer_cv", 0) for i in valid_idx], dtype=float)
 
     feats = {'log(phi_ex)': np.log(phi_ex_arr), 'log(CN)': np.log(cn_arr),
              'log(tau)': log_tau_arr, 'log(cov)': np.log(cov_arr),
              'log(fp)': np.log(fp_arr),
              'log(gb_dens)': np.log(np.maximum(gb_arr, 1e-10)),
              'log(g_path)': np.log(np.maximum(gp_arr, 1e-10)),
-             'log(gp*gb²)': np.log(np.maximum(gp_arr * gb_arr**2, 1e-20)),
              'p_frac (P:S)': p_frac_arr,
              '(p_frac)²': p_frac_arr**2,
-             # ── NEW: AM-side morphology ──
+             # AM-side morphology
              'log(am_se_cn)':  np.log(np.maximum(am_se_cn, 0.1)),
              'log(am_am_cn)':  np.log(np.maximum(am_am_cn, 0.1)),
-             'log(am_am_area)': np.log(np.maximum(am_am_area, 1e-10)),
-             'log(se_cn / am_se_cn)': np.log(np.maximum(cn_ratio, 1e-3))}
+             'log(se_cn/am_se_cn)': np.log(np.maximum(cn_ratio, 1e-3)),
+             # ── NEW HETEROGENEITY (std/CV) ──
+             'CN_cv (std/mean)':    cn_cv,
+             'τ_cv (std/mean)':     tau_cv,
+             'log(CN_std)':         np.log(np.maximum(cn_std, 1e-3)),
+             'log(τ_std)':          np.log(np.maximum(tau_std, 1e-3)),
+             'log(am_am_cn_std)':   np.log(np.maximum(am_am_cn_std, 1e-3)),
+             # ── NEW MECHANICAL ──
+             'stress_cv':           stress_cv,
+             'stress_z_layer_cv':   stress_z,
+             # ── Saturation probe: near-percolation sensitivity ──
+             'log(1-fp)':           np.log(np.maximum(1.0 - fp_arr, 1e-4))}
     print("  residual(log) correlations:")
     for nm, v in feats.items():
         c = np.corrcoef(log_res, v)[0, 1] if np.std(v) > 0 else 0.0

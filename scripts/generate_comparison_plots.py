@@ -1739,6 +1739,80 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     else:
         print(f"    ✓ multiscale = fit (max deviation {_max_dev:.2e})")
 
+    # === v30 FEATURE SWEEP ON v29 RESIDUALS ===
+    # v14/v14b/v14c tested against v12 baseline (LOOCV=0.98). Production is
+    # v29 (0.9903). Re-sweep on v29 residuals to find ANY remaining signal.
+    # Any feature with ΔLOOCV > σ_noise is a candidate for a 4th β-term (v30).
+    _am_am_cn_v30 = np.array([_get(data_list[i], "am_am_cn_mean", 0.01) for i in valid_idx], dtype=float)
+    _tau_std_v30 = np.array([_get(data_list[i], "tortuosity_std", 0) for i in valid_idx], dtype=float)
+    _g_path_v30 = np.array([max(g_path[i], 1e-10) for i in valid_idx], dtype=float)
+    _am_am_cn_std_v30 = np.array([_get(data_list[i], "am_am_cn_std", 0) for i in valid_idx], dtype=float)
+    _tau_cv_v30 = _tau_std_v30 / np.maximum(tau_arr, 1e-10)
+    _log_aacn_v30 = np.log(np.maximum(_am_am_cn_v30, 1e-10))
+    _cov_v30 = np.array([coverage[i] for i in valid_idx], dtype=float)
+
+    v30_candidates = {
+        'log(am_am_cn)':              _log_aacn_v30,                                   # r=+0.120
+        'τ_cv':                       _tau_cv_v30,                                     # r=-0.111
+        'log(am_am_cn_std)':          np.log(np.maximum(_am_am_cn_std_v30, 1e-10)),    # r=+0.086
+        'log(g_path)':                np.log(_g_path_v30),                             # r=-0.072
+        'log(τ_std)':                 np.log(np.maximum(_tau_std_v30, 1e-10)),         # r=-0.066
+        '(log τ)²':                   log_tau_arr**2,
+        'p_frac·log(am_am_cn)':       (pf_prod - 0.5) * _log_aacn_v30,
+        'p_frac·τ_cv':                (pf_prod - 0.5) * _tau_cv_v30,
+        'log(am_am_cn)·w_win':        _log_aacn_v30 * _w_win_prod,
+        '(pf·wwin)·log(am_am_cn)':    pf_prod * _w_win_prod * _log_aacn_v30,
+        'I(thin·P>0.5)':              ((tau_arr > 1.9) & (pf_prod > 0.5)).astype(float) - 0.15,
+        'I(thin·mixed)':              ((tau_arr > 1.85) & (pf_prod > 0.2) & (pf_prod < 0.8)).astype(float) - 0.25,
+        'log(cov)·log(am_am_cn)':     np.log(np.maximum(_cov_v30, 1e-4)) * _log_aacn_v30,
+    }
+
+    # 4-β LOOCV: v29 (β_pf, β_lin, β_gb) + 1 candidate
+    # Reuses production arrays: pf_prod, w_pf_prod, _w_win_prod, _w_gb_prod, w_blend, X_v5, X_p3, log_rhs_base
+    def _loocv_v29_plus(z_ext):
+        pf_v = w_pf_prod
+        lin_v = pf_prod * _w_win_prod
+        gb_v = _w_gb_prod
+        n = len(log_sf)
+        sse = 0.0
+        for ii in range(n):
+            mk = np.ones(n, bool); mk[ii] = False
+            # Step 1: C_blend(τ) fit on mk (v5 asymptote ⊕ poly3)
+            bv_ = np.linalg.lstsq(X_v5[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
+            bp_ = np.linalg.lstsq(X_p3[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
+            pv29 = (1 - w_blend) * (X_v5 @ bv_) + w_blend * (X_p3 @ bp_) + log_rhs_base
+            # Step 2: 4-term residual fit on mk
+            m_pf = pf_v[mk].mean(); m_lin = lin_v[mk].mean()
+            m_gb = gb_v[mk].mean(); m_ze = z_ext[mk].mean()
+            Xc = np.column_stack([pf_v[mk] - m_pf, lin_v[mk] - m_lin,
+                                   gb_v[mk] - m_gb, z_ext[mk] - m_ze])
+            bc = np.linalg.lstsq(Xc, (log_sf - pv29)[mk], rcond=None)[0]
+            pred_ii = (pv29[ii]
+                       + bc[0] * (pf_v[ii] - m_pf)
+                       + bc[1] * (lin_v[ii] - m_lin)
+                       + bc[2] * (gb_v[ii] - m_gb)
+                       + bc[3] * (z_ext[ii] - m_ze))
+            sse += (log_sf[ii] - pred_ii)**2
+        return 1 - sse / ss_tot
+
+    sigma_noise_v29 = np.sqrt(2 / len(log_sf)) * (1 - loocv_formX)
+    print(f"\n[v30 SWEEP ON v29 RESIDUALS] — any signal left on top of v29?")
+    print(f"  baseline v29 LOOCV = {loocv_formX:.4f}   noise σ ≈ {sigma_noise_v29:.4f}")
+    print(f"  {'feature':36s} {'LOOCV':>8s} {'ΔLOOCV':>10s} {'flag':>6s}")
+    v30_results = []
+    for name, z in v30_candidates.items():
+        lo = _loocv_v29_plus(z)
+        d = lo - loocv_formX
+        flag = " ⭐" if d > sigma_noise_v29 else ("  *" if d > 0.0005 else "")
+        v30_results.append((name, lo, d, flag))
+        print(f"  {name:36s} {lo:.4f} {d:+10.5f} {flag}")
+    best_v30 = max(v30_results, key=lambda r: r[1])
+    print(f"  → best v30 feature: {best_v30[0]} (ΔLOOCV={best_v30[2]:+.5f})")
+    if best_v30[2] > sigma_noise_v29:
+        print(f"    ⭐⭐⭐ EXCEEDS noise — integrate as 4th β-term for v30")
+    else:
+        print(f"    — all within noise; v29 IS the LOOCV ceiling for this dataset")
+
     # v3 prediction for comparison
     s_pred_v3 = np.exp(pred_fixed)
 

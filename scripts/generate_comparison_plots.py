@@ -2236,14 +2236,14 @@ PLOT_REGISTRY = {
         "func": plot_ionic_scaling_fit,
         "file": "ionic_scaling_fit.png",
         "title": "Ionic: FORM X Scaling Law (Predicted vs Actual)",
-        "description": "FORM X v5 (regime-dependent):\nσ = C(τ) × σ_grain × CN^(1.5→0.5) × (φ-φc)^¾ × ⁴√cov × fp^(2→0)\nExponents transition via sigmoid at τ≈2.1\nThick: CN^1.5×fp² | Thin: CN^0.5×fp^0\n\nφ_c=0.185\nR²={formx_r2}, LOOCV={formx_loocv}",
+        "description": "FORM X v9 BLEND:\nσ = [(1-w)·C_v5(τ) + w·C_p3(τ)] × σ_grain × CN^1.5 × (φ-φc)^¾ × ⁴√cov × fp²\nw(τ) = σ(15·(τ-2.0))  # sharp transition\nC_v5(τ) = sigmoid(thick→thin) — captures moderate τ\nC_p3(τ) = cubic in lnτ — captures extreme thin (τ>3)\n\nφ_c=0.185, 6 params (2 v5 + 4 poly3)\nR²={formx_r2}, LOOCV={formx_loocv}",
         "origin_tip": "Scatter (log-log): X=actual (Network solver), Y=predicted (FORM X).\n1:1 line (black dashed), ±20% band (green).",
     },
     "multiscale_sigma": {
         "func": plot_multiscale_sigma,
         "file": "multiscale_sigma.png",
         "title": "Ionic: FORM X Scaling Law",
-        "description": "FORM X v5 (regime-dependent):\nσ = C(τ) × σ_grain × CN^(1.5→0.5) × (φ\u2011φc)^¾ × ⁴√cov × fp^(2→0)\nThick: connectivity+percolation dominant\nThin: shorter paths, less CN/fp dependent\nR²={formx_r2}, w20=50/55",
+        "description": "FORM X v9 BLEND:\nσ = C_blend(τ) × σ_grain × CN^1.5 × (φ\u2011φc)^¾ × ⁴√cov × fp²\nv5 sigmoid (τ<2) + poly3(lnτ) (τ≥2), smooth blend at τ=2.0\nv5 handles moderate, poly3 handles extreme thin (τ>3)\nR²={formx_r2}, w20=51/55",
         "origin_tip": "Red: FORM X prediction.\nGreen dashed: Network solver (ground truth).",
     },
     "formx_decomposition": {
@@ -2251,7 +2251,7 @@ PLOT_REGISTRY = {
         "file": "formx_decomposition.png",
         "csv": "formx_decomposition.csv",
         "title": "FORM X Factor Decomposition",
-        "description": "FORM X v5 각 항의 상대 기여도:\n(φ\u2011φc)^¾: percolation excess\nCN^(1.5→0.5): network connectivity\n⁴√cov: AM\u2011SE 계면\nC(τ): sigmoid regime (thick↔thin)\nfp^(2→0): SE percolation\nref: 최고 σ case 기준",
+        "description": "FORM X v9 각 항의 상대 기여도:\n(φ\u2011φc)^¾: percolation excess\nCN^1.5: network connectivity\n⁴√cov: AM\u2011SE 계면\nC_blend(τ): v5 + poly3 혼합 regime\nfp²: SE percolation fraction\nref: 최고 σ case 기준",
         "origin_tip": "Stacked bar (top): factor contributions.\nHorizontal bar (bottom): dominant factor per case.",
     },
 }
@@ -2985,10 +2985,15 @@ def main():
                     _fp_se = np.clip(np.array([_get(d, "percolation_pct", 100) / 100 for d in all_data])[_valid], 0.01, 1.0)
                     _log_rhs = np.log(SGRAIN) + 0.75*np.log(_phi_ex) + 1.5*np.log(_cn_se[_valid]) + 0.25*np.log(_cov_se[_valid]) + 2.0*np.log(_fp_se)
                     _log_s = np.log(_snet[_valid])
+                    _log_tau = np.log(_tau_se[_valid])
                     _w_sig = 1.0 / (1.0 + np.exp(-5.0 * (_tau_se[_valid] - 2.1)))
-                    _A = np.column_stack([np.ones(_valid.sum()), _w_sig])
-                    _b = np.linalg.lstsq(_A, _log_s - _log_rhs, rcond=None)[0]
-                    _pred = _b[0] + _b[1]*_w_sig + _log_rhs
+                    _w_bl = 1.0 / (1.0 + np.exp(-15.0 * (_tau_se[_valid] - 2.0)))
+                    # v9 BLEND fit
+                    _X_v5 = np.column_stack([np.ones(_valid.sum()), _w_sig])
+                    _X_p3 = np.column_stack([np.ones(_valid.sum()), _log_tau, _log_tau**2, _log_tau**3])
+                    _b_v5 = np.linalg.lstsq(_X_v5, _log_s - _log_rhs, rcond=None)[0]
+                    _b_p3 = np.linalg.lstsq(_X_p3, _log_s - _log_rhs, rcond=None)[0]
+                    _pred = (1-_w_bl)*(_X_v5@_b_v5) + _w_bl*(_X_p3@_b_p3) + _log_rhs
                     _ss_res = np.sum((_log_s - _pred)**2)
                     _ss_tot = np.sum((_log_s - np.mean(_log_s))**2)
                     _r2 = 1 - _ss_res / _ss_tot

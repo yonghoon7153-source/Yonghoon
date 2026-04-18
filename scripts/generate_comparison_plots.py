@@ -1071,15 +1071,18 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     tau_arr = np.array([tau[i] for i in valid_idx])
     cov_arr = np.array([coverage[i] for i in valid_idx])
 
-    # FORM X v6: regime-dependent exponents with sigmoid C(τ)
+    # FORM X v7: regime-dependent exponents + CN×τ interaction
     # Thick: CN^1.5 × (φ-φc)^0.75 × cov^0.25 × fp^2
-    # Thin:  CN^0.5 × (φ-φc)^0.75 × cov^0.25 × fp^0
+    # Thin:  CN^0.5 × (φ-φc)^0.75 × cov^0.25 × fp^0.5 × exp(-0.1·lnCN·lnτ)
     TAU_C = 2.1; TAU_K = 8.0
     fp_arr = np.array([max(f_perc[i], 0.01) for i in valid_idx])
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
     cn_exp = 1.5 + (0.5 - 1.5) * w_sigmoid  # 1.5→0.5
-    fp_exp = 2.0 + (0.0 - 2.0) * w_sigmoid  # 2.0→0.0
-    log_rhs_base = np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + cn_exp*np.log(cn_arr) + 0.25*np.log(cov_arr) + fp_exp*np.log(fp_arr)
+    fp_exp = 2.0 + (0.5 - 2.0) * w_sigmoid  # 2.0→0.5
+    cnt_exp = -0.1 * w_sigmoid               # 0→-0.1
+    log_rhs_base = (np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + cn_exp*np.log(cn_arr)
+                    + 0.25*np.log(cov_arr) + fp_exp*np.log(fp_arr)
+                    + cnt_exp*np.log(cn_arr)*np.log(tau_arr))
     A_design = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
     b_sigmoid = np.linalg.lstsq(A_design, log_sf - log_rhs_base, rcond=None)[0]
     ln_Ct, ln_delta = b_sigmoid
@@ -1184,9 +1187,9 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title(f"Ionic v6: C(τ) × σ_grain × CN^(1.5→0.5) × (φ−φc)^¾ × ⁴√cov × fp^(2→0)\n"
+    ax.set_title(f"Ionic v7: C(τ) × σ_grain × CN^(1.5→0.5) × (φ−φc)^¾ × ⁴√cov × fp^(2→0.5) × e^(-0.1w·lnCN·lnτ)\n"
                  f"sigmoid(k={TAU_K:.0f},τc={TAU_C})  Ct={C_thick:.4f} Cn={C_thin:.4f}  R²={r2_formX:.3f}",
-                 fontsize=9, fontweight='bold')
+                 fontsize=8, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
 
     txt = (f"R²={r2:.3f} (n={len(valid_idx)})\n"
@@ -1290,8 +1293,9 @@ def plot_multiscale_sigma(data_list, names, outdir):
             w = 1.0 / (1.0 + np.exp(-TAU_K * (tau[i] - TAU_C)))
             C_i = C_thick_ms * np.exp((np.log(C_thin_ms) - np.log(C_thick_ms)) * w)
             cn_e = 1.5 + (0.5 - 1.5) * w
-            fp_e = 2.0 + (0.0 - 2.0) * w
-            s = C_i * SIGMA_BULK * phi_ex**0.75 * cn[i]**cn_e * coverage[i]**0.25 * f_perc[i]**fp_e
+            fp_e = 2.0 + (0.5 - 2.0) * w
+            cnt_e = -0.1 * w
+            s = C_i * SIGMA_BULK * phi_ex**0.75 * cn[i]**cn_e * coverage[i]**0.25 * f_perc[i]**fp_e * np.exp(cnt_e * np.log(cn[i]) * np.log(tau[i]))
             sigma_ms.append(s)
         else:
             sigma_ms.append(0)
@@ -1315,7 +1319,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     _apply_style(ax, "σ_ionic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
-    ax.set_title(f"FORM X v6: C(τ) × σ_grain × CN^(1.5→0.5) × (φ−φc)^¾ × ⁴√cov × fp^(2→0)",
+    ax.set_title(f"FORM X v7: C(τ) × σ_grain × CN^(1.5→0.5) × (φ−φc)^¾ × ⁴√cov × fp^(2→0.5) × CN×τ",
                  fontsize=8, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',
@@ -2213,14 +2217,14 @@ PLOT_REGISTRY = {
         "func": plot_ionic_scaling_fit,
         "file": "ionic_scaling_fit.png",
         "title": "Ionic: FORM X Scaling Law (Predicted vs Actual)",
-        "description": "FORM X v6 (regime-dependent):\nσ = C(τ) × σ_grain × CN^(1.5→0.5) × (φ-φc)^¾ × ⁴√cov × fp^(2→0)\nExponents transition via sigmoid at τ≈2.1\nThick: CN^1.5×fp² | Thin: CN^0.5×fp^0\n\nφ_c=0.185\nR²={formx_r2}, LOOCV={formx_loocv}",
+        "description": "FORM X v7 (regime-dependent):\nσ = C(τ) × σ_grain × CN^(1.5→0.5) × (φ-φc)^¾ × ⁴√cov × fp^(2→0)\nExponents transition via sigmoid at τ≈2.1\nThick: CN^1.5×fp² | Thin: CN^0.5×fp^0\n\nφ_c=0.185\nR²={formx_r2}, LOOCV={formx_loocv}",
         "origin_tip": "Scatter (log-log): X=actual (Network solver), Y=predicted (FORM X).\n1:1 line (black dashed), ±20% band (green).",
     },
     "multiscale_sigma": {
         "func": plot_multiscale_sigma,
         "file": "multiscale_sigma.png",
         "title": "Ionic: FORM X Scaling Law",
-        "description": "FORM X v6 (regime-dependent):\nσ = C(τ) × σ_grain × CN^(1.5→0.5) × (φ\u2011φc)^¾ × ⁴√cov × fp^(2→0)\nThick: connectivity+percolation dominant\nThin: shorter paths, less CN/fp dependent\nR²={formx_r2}, w20=50/55",
+        "description": "FORM X v7 (regime-dependent):\nσ = C(τ) × σ_grain × CN^(1.5→0.5) × (φ\u2011φc)^¾ × ⁴√cov × fp^(2→0)\nThick: connectivity+percolation dominant\nThin: shorter paths, less CN/fp dependent\nR²={formx_r2}, w20=50/55",
         "origin_tip": "Red: FORM X prediction.\nGreen dashed: Network solver (ground truth).",
     },
     "formx_decomposition": {
@@ -2228,7 +2232,7 @@ PLOT_REGISTRY = {
         "file": "formx_decomposition.png",
         "csv": "formx_decomposition.csv",
         "title": "FORM X Factor Decomposition",
-        "description": "FORM X v6 각 항의 상대 기여도:\n(φ\u2011φc)^¾: percolation excess\nCN^(1.5→0.5): network connectivity\n⁴√cov: AM\u2011SE 계면\nC(τ): sigmoid regime (thick↔thin)\nfp^(2→0): SE percolation\nref: 최고 σ case 기준",
+        "description": "FORM X v7 각 항의 상대 기여도:\n(φ\u2011φc)^¾: percolation excess\nCN^(1.5→0.5): network connectivity\n⁴√cov: AM\u2011SE 계면\nC(τ): sigmoid regime (thick↔thin)\nfp^(2→0): SE percolation\nref: 최고 σ case 기준",
         "origin_tip": "Stacked bar (top): factor contributions.\nHorizontal bar (bottom): dominant factor per case.",
     },
 }

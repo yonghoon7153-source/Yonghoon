@@ -1699,17 +1699,21 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     global _GLOBAL_FORMX_R2
     _GLOBAL_FORMX_R2 = (r2_formX, loocv_formX)
     global _GLOBAL_IONIC_SIGMOID
-    _GLOBAL_IONIC_SIGMOID = (C_thick, C_thin, TAU_C, TAU_K)
+    # v29 FIX: export k_bl, tc_bl too so multiscale plot uses fitted blend (not hardcoded 1.92)
+    _GLOBAL_IONIC_SIGMOID = (C_thick, C_thin, TAU_C, TAU_K, best_k, best_tc)
     global _GLOBAL_PS_SIGMOID
-    # v29: 10-tuple export. GB_LOG_MEAN is now MEDIAN (sigmoid center gc_gb).
+    # v29 FIX: 11-tuple export. Add W_GB_MEAN so multiscale centers β_gb correctly.
     _w_win_prod = np.exp(-0.5 * ((tau_arr - best_tcw) / max(best_stw, 0.05))**2)
     _beta_gb_prod = float(getattr(_fit_at, '_beta_mix', 0.0))
     _gb_arr_prod = np.array([max(gb_dens[i], 1e-6) for i in valid_idx])
+    _gc_gb_prod = float(np.median(np.log(_gb_arr_prod)))
+    _w_gb_prod = 1.0 / (1.0 + np.exp(-4.0 * (np.log(_gb_arr_prod) - _gc_gb_prod)))
     _GLOBAL_PS_SIGMOID = (best_kp, best_pc, beta_pf_prod, beta_win_prod, _beta_gb_prod,
                           float(w_pf_prod.mean()),
                           float((pf_prod * _w_win_prod).mean()),
-                          float(np.median(np.log(_gb_arr_prod))),   # sigmoid center (gc_gb)
-                          best_tcw, best_stw)
+                          _gc_gb_prod,                                # sigmoid center (gc_gb)
+                          best_tcw, best_stw,
+                          float(_w_gb_prod.mean()))                   # NEW: ⟨w_gb⟩ for correct centering
 
     # Use FORM X v4 as primary
     s_pred = np.exp(pred_formX)
@@ -1989,8 +1993,12 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     # Sigmoid C(τ) + P:S sigmoid — prefer global (from ionic_scaling_fit fit)
     TAU_C = 2.1; TAU_K = 5.0
+    K_BL, TC_BL = 20.0, 2.044  # v25 default; overridden by export if available
     if _GLOBAL_IONIC_SIGMOID is not None:
-        C_thick_ms, C_thin_ms, TAU_C, TAU_K = _GLOBAL_IONIC_SIGMOID
+        if len(_GLOBAL_IONIC_SIGMOID) == 6:
+            C_thick_ms, C_thin_ms, TAU_C, TAU_K, K_BL, TC_BL = _GLOBAL_IONIC_SIGMOID
+        else:
+            C_thick_ms, C_thin_ms, TAU_C, TAU_K = _GLOBAL_IONIC_SIGMOID[:4]
     elif _GLOBAL_C_ION is not None:
         C_thick_ms = _GLOBAL_C_ION; C_thin_ms = C_thick_ms * 0.54
     else:
@@ -1998,9 +2006,21 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     p3_coefs = _GLOBAL_IONIC_POLY3 if _GLOBAL_IONIC_POLY3 is not None else (-3.80, +2.38, -5.58, +2.81)
 
-    # v28: 10-tuple (k_pf, pc_pf, β_pf, β_lin, β_gb, ⟨w_pf⟩, ⟨lin⟩, ⟨log gb⟩, τ_c_win, σ_τ_win)
-    if _GLOBAL_PS_SIGMOID is not None and len(_GLOBAL_PS_SIGMOID) == 10:
-        K_PF, PC_PF, B_PF, B_LIN, B_GB, WPF_MEAN, LIN_MEAN, GB_LOG_MEAN, TAU_C_WIN, SIGMA_TAU_WIN = _GLOBAL_PS_SIGMOID
+    # v29 FIX: 11-tuple — adds W_GB_MEAN (actual ⟨w_gb⟩) for correct centering.
+    W_GB_MEAN = 0.5  # sigmoid mean approximation if legacy export
+    if _GLOBAL_PS_SIGMOID is not None:
+        if len(_GLOBAL_PS_SIGMOID) == 11:
+            (K_PF, PC_PF, B_PF, B_LIN, B_GB,
+             WPF_MEAN, LIN_MEAN, GB_LOG_MEAN,
+             TAU_C_WIN, SIGMA_TAU_WIN, W_GB_MEAN) = _GLOBAL_PS_SIGMOID
+        elif len(_GLOBAL_PS_SIGMOID) == 10:
+            (K_PF, PC_PF, B_PF, B_LIN, B_GB,
+             WPF_MEAN, LIN_MEAN, GB_LOG_MEAN,
+             TAU_C_WIN, SIGMA_TAU_WIN) = _GLOBAL_PS_SIGMOID
+        else:
+            K_PF, PC_PF, B_PF, B_LIN, B_GB = 50.0, 0.598, -0.10, -0.49, 0.043
+            WPF_MEAN, LIN_MEAN, GB_LOG_MEAN = 0.5, 0.05, -5.0
+            TAU_C_WIN, SIGMA_TAU_WIN = 2.0, 0.15
     else:
         K_PF, PC_PF, B_PF, B_LIN, B_GB = 50.0, 0.598, -0.10, -0.49, 0.043
         WPF_MEAN, LIN_MEAN, GB_LOG_MEAN = 0.5, 0.05, -5.0
@@ -2024,7 +2044,8 @@ def plot_multiscale_sigma(data_list, names, outdir):
         phi_ex = max(phi_se[i] - PHI_C, 1e-4)
         if cn[i] > 0 and tau[i] > 0 and coverage[i] > 0:
             w_v5 = 1.0 / (1.0 + np.exp(-TAU_K * (tau[i] - TAU_C)))
-            w_bl = 1.0 / (1.0 + np.exp(-20.0 * (tau[i] - 1.92)))
+            # v29 FIX: use fitted k_bl, tc_bl (was hardcoded 20, 1.92 — off from τc=2.044)
+            w_bl = 1.0 / (1.0 + np.exp(-K_BL * (tau[i] - TC_BL)))
             ln_C_v5 = np.log(C_thick_ms) + (np.log(C_thin_ms) - np.log(C_thick_ms)) * w_v5
             lt = np.log(tau[i])
             ln_C_p3 = p3_coefs[0] + p3_coefs[1]*lt + p3_coefs[2]*lt**2 + p3_coefs[3]*lt**3
@@ -2038,9 +2059,10 @@ def plot_multiscale_sigma(data_list, names, outdir):
             gb_i = max(_get(data_list[i], "gb_density_mean", 1e-6), 1e-6)
             # GB_LOG_MEAN now holds median(log gb_dens), use k_gb=4 for sigmoid
             w_gb_i = 1.0 / (1.0 + np.exp(-4.0 * (np.log(gb_i) - GB_LOG_MEAN)))
+            # v29 FIX: center β_gb by actual ⟨w_gb⟩ (was 0.5 approx — fit uses exact mean)
             ps_corr = (B_PF * (w_pf - WPF_MEAN)
                        + B_LIN * (pf * w_win - LIN_MEAN)
-                       + B_GB * (w_gb_i - 0.5))   # sigmoid mean ≈ 0.5
+                       + B_GB * (w_gb_i - W_GB_MEAN))
             s = s * np.exp(ps_corr)
             sigma_ms.append(s)
         else:

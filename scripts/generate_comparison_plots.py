@@ -1206,6 +1206,9 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
                     point_groups[j] = g_idx
                     break
 
+    # Mark |err|>20% cases with a red X overlay for transparency
+    is_outlier = np.abs((s_pred - s_actual) / s_actual) > 0.20
+
     if _GROUP_INFO:
         for j in range(len(valid_idx)):
             gi = point_groups[j]
@@ -1215,6 +1218,13 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     else:
         ax.scatter(s_actual, s_pred, s=100, c=BLUE, zorder=5,
                   edgecolors='white', linewidth=1.5)
+    # Outlier markers (unfilled red circle + X) - drawn on top
+    if np.any(is_outlier):
+        ax.scatter(s_actual[is_outlier], s_pred[is_outlier],
+                   s=220, facecolors='none', edgecolors='red',
+                   linewidth=2.0, zorder=6, label=f'|err|>20% ({int(is_outlier.sum())})')
+        ax.scatter(s_actual[is_outlier], s_pred[is_outlier],
+                   s=80, marker='x', c='red', linewidth=1.8, zorder=7)
 
     # 1:1 line
     all_vals = np.concatenate([s_pred, s_actual])

@@ -1135,6 +1135,31 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     # v3 prediction for comparison
     s_pred_v3 = np.exp(pred_fixed)
 
+    # --- Residual diagnostic: find |err|>20% outliers and dump feature signature ---
+    rel_err = (s_pred - s_actual) / s_actual * 100
+    print(f"\n[IONIC v9 BLEND DIAG] n={len(valid_idx)}, R²={r2_formX:.4f}, LOOCV={loocv_formX:.4f}")
+    print(f"  mean|err|={np.mean(np.abs(rel_err)):.1f}%  median|err|={np.median(np.abs(rel_err)):.1f}%")
+    hdr = f"  {'case':40s} {'σ_act':>7s} {'σ_pred':>7s} {'err%':>6s} {'φ_SE':>5s} {'f_p':>5s} {'τ':>5s} {'CN':>5s} {'cov':>5s}"
+    print(hdr); print("  " + "-" * (len(hdr)-2))
+    outliers = [(j, abs(rel_err[j])) for j in range(len(valid_idx))]
+    outliers.sort(key=lambda x: -x[1])  # largest first
+    for j, ae in outliers[:8]:  # top 8 by abs error
+        i = valid_idx[j]
+        nm = (names[i] if i < len(names) else f"idx{i}")[:40]
+        print(f"  {nm:40s} {s_actual[j]:7.4f} {s_pred[j]:7.4f} {rel_err[j]:+6.1f} "
+              f"{phi_se[i]:5.3f} {f_perc[i]:5.3f} {tau[i]:5.2f} {cn[i]:5.2f} {cov_arr[j]:5.3f}")
+    # Residual-vs-feature correlation (Pearson on log-residual)
+    log_res = np.log(s_pred) - np.log(s_actual)
+    feats = {'log(phi_ex)': np.log(phi_ex_arr), 'log(CN)': np.log(cn_arr),
+             'log(tau)': log_tau_arr, 'log(cov)': np.log(cov_arr),
+             'log(fp)': np.log(fp_arr)}
+    print("  residual(log) correlations:")
+    for nm, v in feats.items():
+        c = np.corrcoef(log_res, v)[0, 1] if np.std(v) > 0 else 0.0
+        flag = " ⚠" if abs(c) > 0.3 else ""
+        print(f"    {nm:12s} r = {c:+.3f}{flag}")
+    print()
+
     fig, ax = plt.subplots(figsize=FIG_SINGLE)
 
     # Group colors

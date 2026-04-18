@@ -1679,9 +1679,13 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     global _GLOBAL_IONIC_SIGMOID
     _GLOBAL_IONIC_SIGMOID = (C_thick, C_thin, TAU_C, TAU_K)
     global _GLOBAL_PS_SIGMOID
-    _GLOBAL_PS_SIGMOID = (best_kp, best_pc, beta_pf_prod, 0.0,
+    # v24: export (k_pf, pc_pf, β_pf, β_win, ⟨w_pf⟩, ⟨p_frac · w_window⟩)
+    _K_WIN_PROD = 8.0; _TAU_LO_PROD = 1.8; _TAU_HI_PROD = 2.2
+    _w_win_prod = (1.0 / (1.0 + np.exp(-_K_WIN_PROD * (tau_arr - _TAU_LO_PROD)))) * \
+                  (1.0 / (1.0 + np.exp(+_K_WIN_PROD * (tau_arr - _TAU_HI_PROD))))
+    _GLOBAL_PS_SIGMOID = (best_kp, best_pc, beta_pf_prod, beta_win_prod,
                           float(w_pf_prod.mean()),
-                          float((w_pf_prod * log_tau_arr).mean()))
+                          float((pf_prod * _w_win_prod).mean()))
 
     # Use FORM X v4 as primary
     s_pred = np.exp(pred_formX)
@@ -1883,7 +1887,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title(f"Ionic v19: C_blend(τ)·C_pf(p) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³\n"
+    ax.set_title(f"Ionic v24: C_blend(τ)·C_pf(p)·C_win(τ,p) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³\n"
                  f"τ-blend(k={best_k:.0f},τc={best_tc:.2f})  P:S(k={best_kp:.0f},pc={best_pc:.2f},β={beta_pf_prod:+.3f})  κ_A={kappa_area:+.3f}  R²={r2_formX:.3f} LOOCV={loocv_formX:.3f}",
                  fontsize=8, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
@@ -1970,11 +1974,12 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     p3_coefs = _GLOBAL_IONIC_POLY3 if _GLOBAL_IONIC_POLY3 is not None else (-3.80, +2.38, -5.58, +2.81)
 
-    # v19 P:S sigmoid params (k_pf, pc_pf, β1, β2, ⟨w_pf⟩, ⟨w_pf·log τ⟩)
+    # v24 P:S + τ-window params (k_pf, pc_pf, β_pf, β_win, ⟨w_pf⟩, ⟨p·w_win⟩)
     if _GLOBAL_PS_SIGMOID is not None:
-        K_PF, PC_PF, B1_PF, B2_PF, WPF_MEAN, PFT_MEAN = _GLOBAL_PS_SIGMOID
+        K_PF, PC_PF, B_PF, B_WIN, WPF_MEAN, PWIN_MEAN = _GLOBAL_PS_SIGMOID
     else:
-        K_PF, PC_PF, B1_PF, B2_PF, WPF_MEAN, PFT_MEAN = 17.77, 0.591, -0.17, 0.0, 0.5, 0.0
+        K_PF, PC_PF, B_PF, B_WIN, WPF_MEAN, PWIN_MEAN = 50.0, 0.598, -0.11, -0.46, 0.5, 0.05
+    K_WIN = 8.0; TAU_LO = 1.8; TAU_HI = 2.2
 
     # Parse P:S fraction per case
     def _pf_local(d):
@@ -2001,10 +2006,12 @@ def plot_multiscale_sigma(data_list, names, outdir):
             ln_C = (1 - w_bl) * ln_C_v5 + w_bl * ln_C_p3
             # v19 exponents: α=1/2, β=3/2, γ=2/5, δ=3
             s = np.exp(ln_C) * SIGMA_BULK * phi_ex**0.5 * cn[i]**1.5 * coverage[i]**0.4 * f_perc[i]**3
-            # v19 P:S sigmoid correction
+            # v24 P:S sigmoid + τ-window correction
             pf = _pf_local(data_list[i])
             w_pf = 1.0 / (1.0 + np.exp(-K_PF * (pf - PC_PF)))
-            ps_corr = B1_PF * (w_pf - WPF_MEAN) + B2_PF * (w_pf * lt - PFT_MEAN)
+            w_win = (1.0 / (1.0 + np.exp(-K_WIN * (tau[i] - TAU_LO)))) * \
+                    (1.0 / (1.0 + np.exp(+K_WIN * (tau[i] - TAU_HI))))
+            ps_corr = B_PF * (w_pf - WPF_MEAN) + B_WIN * (pf * w_win - PWIN_MEAN)
             s = s * np.exp(ps_corr)
             sigma_ms.append(s)
         else:
@@ -2038,7 +2045,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     _apply_style(ax, "σ_ionic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
-    ax.set_title(f"FORM X v19: C_blend(τ)·C_pf(p) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³",
+    ax.set_title(f"FORM X v24: C_blend(τ)·C_pf(p)·C_win(τ,p) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³",
                  fontsize=9, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',

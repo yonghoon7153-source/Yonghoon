@@ -1099,15 +1099,17 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
                 return 0.5
         return 0.5
     pf_prod = np.array([_pfrac_v12(data_list[i]) for i in valid_idx])
-    pf_indicator = (pf_prod > 0.5).astype(float)
+    # v18: replace binary indicator with smooth sigmoid. (k_pf, pc_pf) jointly
+    # optimized by LOOCV alongside (k_bl, τc_bl). Binary is k_pf→∞ limit.
     # log_rhs_base starts with pure v12-clean v3; β added via residual fit later
     log_rhs_base = log_rhs_base_v12.copy()
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
-    def _fit_at(k_bl, tc_bl):
-        """v17: v12-clean v3 blend + (p_frac > 0.5) indicator.
-        Returns (r2, loocv, w20, b_v5, b_p3, w_bl, pred, beta_pf)."""
+    def _fit_at(k_bl, tc_bl, k_pf=10.0, pc_pf=0.5):
+        """v18: v12-clean v3 blend + sigmoid(k_pf, pc_pf) smooth P:S transition.
+        Returns (r2, loocv, w20, b_v5, b_p3, w_bl, pred, beta_pf, w_pf)."""
         w_bl = 1.0 / (1.0 + np.exp(-k_bl * (tau_arr - tc_bl)))
+        w_pf = 1.0 / (1.0 + np.exp(-k_pf * (pf_prod - pc_pf)))   # smooth P:S sigmoid
         X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
         X_p3_l = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
 
@@ -1118,8 +1120,8 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         pp_l = X_p3_l @ b_p3_l
         pred_pre = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
 
-        # Step 2: β · I(p_frac > 0.5) via centered residual regression
-        pf_c = pf_indicator - pf_indicator.mean()
+        # Step 2: β · (w_pf - mean(w_pf)) via centered residual regression
+        pf_c = w_pf - w_pf.mean()
         resid = log_sf - pred_pre
         denom = float(np.sum(pf_c**2))
         beta_pf = float(np.sum(resid * pf_c) / denom) if denom > 1e-10 else 0.0
@@ -1133,43 +1135,44 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
             bv_ = np.linalg.lstsq(X_v5_l[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
             bp_ = np.linalg.lstsq(X_p3_l[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
             pv9 = (1 - w_bl) * (X_v5_l @ bv_) + w_bl * (X_p3_l @ bp_) + log_rhs_base
-            pf_mk = pf_indicator[mk] - pf_indicator[mk].mean()
+            pf_mk = w_pf[mk] - w_pf[mk].mean()
             resid_mk = (log_sf - pv9)[mk]
             dm = float(np.sum(pf_mk**2))
             beta_mk = float(np.sum(resid_mk * pf_mk) / dm) if dm > 1e-10 else 0.0
-            pred_ii = pv9[ii] + beta_mk * (pf_indicator[ii] - pf_indicator[mk].mean())
+            pred_ii = pv9[ii] + beta_mk * (w_pf[ii] - w_pf[mk].mean())
             sse_loo += (log_sf[ii] - pred_ii)**2
         loocv = 1 - sse_loo / ss_tot
         s_act_l = np.exp(log_sf); s_prd_l = np.exp(pred)
         w20 = int(np.sum(np.abs(s_prd_l - s_act_l) / s_act_l < 0.20))
-        return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred, beta_pf
+        return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred, beta_pf, w_pf
 
-    # Continuous 2D optimization: maximize LOOCV over (k, τc)
+    # v18: continuous 4D optimization — (k_bl, τc_bl, k_pf, pc_pf)
     from scipy.optimize import minimize
     def _neg_loocv(p):
-        k_, tc_ = p
-        # k bounded to 20 — sweep showed LOOCV is flat for k>10; prevents bound-hit.
-        if k_ <= 0.1 or k_ > 20 or tc_ < 1.2 or tc_ > 3.0:
-            return 1e6
-        return -_fit_at(k_, tc_)[1]
-    res = minimize(_neg_loocv, x0=[5.0, 2.0], method='Nelder-Mead',
-                   options={'xatol': 1e-3, 'fatol': 1e-5, 'maxiter': 200})
-    best_k, best_tc = float(res.x[0]), float(res.x[1])
-    # Coarse sweep for diagnostic visibility
+        k_, tc_, kp_, pc_ = p
+        if k_ <= 0.1 or k_ > 20 or tc_ < 1.2 or tc_ > 3.0: return 1e6
+        if kp_ <= 0.1 or kp_ > 50 or pc_ < 0.1 or pc_ > 0.9: return 1e6
+        return -_fit_at(k_, tc_, kp_, pc_)[1]
+    res = minimize(_neg_loocv, x0=[5.0, 2.0, 10.0, 0.5], method='Nelder-Mead',
+                   options={'xatol': 1e-3, 'fatol': 1e-5, 'maxiter': 400, 'adaptive': True})
+    best_k, best_tc, best_kp, best_pc = float(res.x[0]), float(res.x[1]), float(res.x[2]), float(res.x[3])
+    # Coarse sweep for diagnostic visibility (k_pf/pc_pf fixed at sane defaults)
     k_sweep = [1.5, 2.0, 3.0, 5.0, 8.0, 10.0, 15.0]
-    print(f"\n[BLEND SWEEP] coarse k scan at τc=2.0")
+    print(f"\n[BLEND SWEEP] coarse k scan at τc=2.0 (k_pf=10, pc_pf=0.5 fixed)")
     print(f"  {'k':>5s}  {'R²':>6s}  {'LOOCV':>6s}  {'±20%':>5s}")
     for k in k_sweep:
-        r2_k, lo_k, w20_k, *_ = _fit_at(k, 2.0)
+        r2_k, lo_k, w20_k, *_ = _fit_at(k, 2.0, 10.0, 0.5)
         print(f"  {k:5.1f}  {r2_k:.4f}  {lo_k:.4f}  {w20_k:2d}/{len(log_sf):2d}")
-    r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX, beta_pf_prod = _fit_at(best_k, best_tc)
-    print(f"  → continuous optimum: k={best_k:.2f}, τc={best_tc:.3f}")
+    r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX, beta_pf_prod, w_pf_prod = \
+        _fit_at(best_k, best_tc, best_kp, best_pc)
+    print(f"  → continuous optimum: k_bl={best_k:.2f}, τc_bl={best_tc:.3f}  |  "
+          f"k_pf={best_kp:.2f}, pc_pf={best_pc:.3f}")
     print(f"    R²={r2_formX:.4f}, LOOCV={loocv_formX:.4f}, ±20%={w20_opt}/{len(log_sf)}")
     _Ct_chk = float(np.exp(b_v5[0])); _Cn_chk = float(np.exp(b_v5[0] + b_v5[1]))
     print(f"    Ct={_Ct_chk:.4f} (thick asymptote)  Cn={_Cn_chk:.4f} (thin asymptote)  "
           f"Ct/Cn={_Ct_chk/_Cn_chk:.2f}")
     print(f"    poly3 coefs = [{b_p3[0]:+.3f}, {b_p3[1]:+.3f}, {b_p3[2]:+.3f}, {b_p3[3]:+.3f}]")
-    print(f"    β_pf = {beta_pf_prod:+.4f}  ← v17: particulate-majority offset (P:S > 0.5)")
+    print(f"    β_pf = {beta_pf_prod:+.4f}  ← v18: smooth P:S sigmoid amplitude")
     TAU_C_BL = best_tc
     TAU_K_BL = best_k
 

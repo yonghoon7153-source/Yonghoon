@@ -1693,6 +1693,13 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     stress_cv = np.array([_get(data_list[i], "stress_cv", 0) for i in valid_idx], dtype=float)
     stress_z = np.array([_get(data_list[i], "stress_z_layer_cv", 0) for i in valid_idx], dtype=float)
 
+    # ── R_BULK CYLINDRICAL-APPROXIMATION PROXY ──
+    # Network solver uses R_cyl ≈ ρ·d/(π·a²); true R_sph = ρ/(2a).
+    # Ratio R_cyl/R_sph ∝ 1/sqrt(A) → small contact area = big σ_net bias.
+    # path_hop_area_mean is the per-hop contact area along percolating paths.
+    hop_area = np.array([_get(data_list[i], "path_hop_area_mean", 0) for i in valid_idx], dtype=float)
+    se_se_area = np.array([_get(data_list[i], "area_SE_SE_mean", 0) for i in valid_idx], dtype=float)
+
     feats = {'log(phi_ex)': np.log(phi_ex_arr), 'log(CN)': np.log(cn_arr),
              'log(tau)': log_tau_arr, 'log(cov)': np.log(cov_arr),
              'log(fp)': np.log(fp_arr),
@@ -1714,7 +1721,11 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
              'stress_cv':           stress_cv,
              'stress_z_layer_cv':   stress_z,
              # ── Saturation probe: near-percolation sensitivity ──
-             'log(1-fp)':           np.log(np.maximum(1.0 - fp_arr, 1e-4))}
+             'log(1-fp)':           np.log(np.maximum(1.0 - fp_arr, 1e-4)),
+             # ── R_BULK CYLINDRICAL APPROXIMATION PROXY ──
+             'log(hop_area)':       np.log(np.maximum(hop_area, 1e-10)),
+             '1/sqrt(hop_area)':    1.0 / np.sqrt(np.maximum(hop_area, 1e-10)),
+             'log(se_se_area)':     np.log(np.maximum(se_se_area, 1e-10))}
     print("  residual(log) correlations:")
     for nm, v in feats.items():
         c = np.corrcoef(log_res, v)[0, 1] if np.std(v) > 0 else 0.0

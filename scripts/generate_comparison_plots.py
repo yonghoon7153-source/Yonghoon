@@ -1814,6 +1814,76 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     else:
         print(f"    — all within noise; v29 IS the LOOCV ceiling for this dataset")
 
+    # === v30b PHASE-SPLIT FEATURE SWEEP ON v29 RESIDUALS ===
+    # Available phase-split metrics: coverage_AM_P/S, area_AM_P/S_SE, fn_AM_P/S_SE,
+    # n_AM_P/S. Exploit AM_P (primary) vs AM_S (secondary) asymmetry.
+    # Hypothesis: at P=7:3 the AM_P dominates geometry, creating SE bottlenecks
+    # that averaged (cov_AM_total) doesn't capture — direct ratio features may.
+    _cov_p = np.array([_get(data_list[i], "coverage_AM_P_mean", 0.0) for i in valid_idx], dtype=float)
+    _cov_s = np.array([_get(data_list[i], "coverage_AM_S_mean", 0.0) for i in valid_idx], dtype=float)
+    _area_p = np.array([_get(data_list[i], "area_AM_P_SE_mean", 0.0) for i in valid_idx], dtype=float)
+    _area_s = np.array([_get(data_list[i], "area_AM_S_SE_mean", 0.0) for i in valid_idx], dtype=float)
+    _fn_p = np.array([_get(data_list[i], "fn_AM_P_SE_mean", 0.0) for i in valid_idx], dtype=float)
+    _fn_s = np.array([_get(data_list[i], "fn_AM_S_SE_mean", 0.0) for i in valid_idx], dtype=float)
+    _n_p = np.array([_get(data_list[i], "n_AM_P", 0.0) for i in valid_idx], dtype=float)
+    _n_s = np.array([_get(data_list[i], "n_AM_S", 0.0) for i in valid_idx], dtype=float)
+    _stress_p = np.array([_get(data_list[i], "stress_ratio_AM_P", 0.0) for i in valid_idx], dtype=float)
+    _stress_s = np.array([_get(data_list[i], "stress_ratio_AM_S", 0.0) for i in valid_idx], dtype=float)
+
+    # Safe log-ratio: only defined when both phases present (mixed P:S cases)
+    def _lr(a, b):
+        ok = (a > 1e-10) & (b > 1e-10)
+        out = np.zeros_like(a)
+        out[ok] = np.log(a[ok]) - np.log(b[ok])
+        return out
+
+    v30b_features = {
+        'log(cov_P/cov_S)':          _lr(_cov_p, _cov_s),
+        'log(area_P/area_S)':         _lr(_area_p, _area_s),
+        'log(fn_P/fn_S)':             _lr(_fn_p, _fn_s),
+        'log(n_P/n_S)':               _lr(_n_p, _n_s),
+        'log(stress_P/stress_S)':     _lr(_stress_p, _stress_s),
+        '(cov_P+cov_S)':              _cov_p + _cov_s,
+        'sqrt(cov_P·cov_S)':          np.sqrt(np.maximum(_cov_p * _cov_s, 0)),  # 0 unless both present
+        '(cov_P-cov_S)':              _cov_p - _cov_s,
+        'p_frac·log(cov_P/cov_S)':    (pf_prod - 0.5) * _lr(_cov_p, _cov_s),
+        'p_frac·log(area_P/area_S)':  (pf_prod - 0.5) * _lr(_area_p, _area_s),
+        'p_frac·log(fn_P/fn_S)':      (pf_prod - 0.5) * _lr(_fn_p, _fn_s),
+        'p_frac·sqrt(cov_P·cov_S)':   (pf_prod - 0.5) * np.sqrt(np.maximum(_cov_p * _cov_s, 0)),
+        'I(mixed)·log(cov_P/cov_S)':  ((pf_prod > 0.1) & (pf_prod < 0.9)).astype(float) * _lr(_cov_p, _cov_s),
+        'I(thin)·log(cov_P/cov_S)':   (tau_arr > 1.7).astype(float) * _lr(_cov_p, _cov_s),
+        'I(thin·mixed)·log(area_P/area_S)': ((tau_arr > 1.7) & (pf_prod > 0.1) & (pf_prod < 0.9)).astype(float) * _lr(_area_p, _area_s),
+    }
+
+    print(f"\n[v30b PHASE-SPLIT SWEEP ON v29 RESIDUALS]  — AM_P vs AM_S asymmetry")
+    print(f"  baseline v29 LOOCV = {loocv_formX:.4f}   noise σ ≈ {sigma_noise_v29:.4f}")
+    print(f"  {'feature':40s} {'LOOCV':>8s} {'ΔLOOCV':>10s} {'flag':>6s}   {'r(residual)':>12s}")
+    v30b_results = []
+    # Compute residuals once for correlation check
+    _resid_log = log_sf - pred_formX
+    for name, z in v30b_features.items():
+        if not np.any(np.isfinite(z) & (np.abs(z) > 1e-10)):
+            print(f"  {name:40s}   (feature missing or constant)")
+            continue
+        lo = _loocv_v29_plus(z)
+        d = lo - loocv_formX
+        # Pearson r with log-residual (only on non-zero entries to avoid bias)
+        mask = np.abs(z) > 1e-10
+        if mask.sum() >= 3:
+            r = float(np.corrcoef(z[mask], _resid_log[mask])[0, 1])
+        else:
+            r = 0.0
+        flag = " ⭐" if d > sigma_noise_v29 else ("  *" if d > 0.0005 else "")
+        v30b_results.append((name, lo, d, flag, r))
+        print(f"  {name:40s} {lo:.4f} {d:+10.5f} {flag}   r={r:+.3f}")
+    if v30b_results:
+        best_v30b = max(v30b_results, key=lambda r: r[1])
+        print(f"  → best v30b feature: {best_v30b[0]} (ΔLOOCV={best_v30b[2]:+.5f}, r={best_v30b[4]:+.3f})")
+        if best_v30b[2] > sigma_noise_v29:
+            print(f"    ⭐⭐⭐ PHASE-SPLIT SIGNAL FOUND — integrate as v30b 4th β-term")
+        else:
+            print(f"    — phase-split also within noise; the 3 outliers resist ALL feature additions")
+
     # === σ-WEIGHTED FIT SWEEP (data-native log↔linear balance) ===
     # Current v29 fits log-space (equal weight per case). α=0 baseline.
     # With w_i = σ_act_i^α, larger σ cases get more weight → closer to linear

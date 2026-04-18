@@ -127,7 +127,13 @@
 <div class="card">
   <div class="card-header-row">
     <h3>비교 플롯</h3>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <label style="font-size:.78rem;color:var(--dim);display:flex;align-items:center;gap:4px"
+             title="multiscale σ plot y축 상한 고정 (mS/cm). 비우면 자동 스케일">
+        σ y-max
+        <input type="number" id="y-max-sigma-input" step="0.05" min="0.01" placeholder="auto"
+               style="width:70px;padding:3px 6px;font-size:.78rem;border:1px solid var(--border);border-radius:4px;background:var(--bg-2);color:var(--text)">
+      </label>
       <button class="btn btn-secondary" onclick="document.querySelectorAll('.plot-checkbox:not([style*=opacity]) input').forEach(c=>c.checked=true)">모두 선택</button>
       <button class="btn btn-primary" onclick="generatePlots()" id="plot-btn">선택 플롯 생성</button>
       <button class="btn btn-secondary" onclick="generateFittingReport()" id="fitting-btn" disabled title="플롯 생성 후 사용 가능" style="opacity:0.5">📊 Fitting Report</button>
@@ -728,6 +734,8 @@ async function generatePlots() {
       const globalPlotList = [];
       globalOnlyTypes.forEach(p => { if (plotTypes.includes(p)) globalPlotList.push(p); });
       console.log(`Global plots: ${globalPlotList.join(', ')} | ${allCaseGroups.length} groups, ${totalCases} cases`);
+      const _yMaxInputG = document.getElementById('y-max-sigma-input');
+      if (_yMaxInputG && _yMaxInputG.value) gform.append('y_max_sigma', _yMaxInputG.value);
       const gres = await fetch('/group/plots', { method: 'POST', body: gform });
       const gdata = await gres.json();
       // Extract b and ln_k from the CSV
@@ -771,6 +779,8 @@ async function generatePlots() {
       groupPlots.forEach(p => form.append('plots', p));
       if (globalRgb) form.append('global_rgb', globalRgb);
       if (globalCIon) form.append('global_c_ion', globalCIon);
+      const yMaxInput = document.getElementById('y-max-sigma-input');
+      if (yMaxInput && yMaxInput.value) form.append('y_max_sigma', yMaxInput.value);
 
       const res = await fetch('/group/plots', { method: 'POST', body: form });
       const data = await res.json();

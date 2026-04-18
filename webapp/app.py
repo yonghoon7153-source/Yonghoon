@@ -1276,6 +1276,7 @@ def group_plots():
 
     global_rgb = request.form.get('global_rgb', '')
     global_c_ion = request.form.get('global_c_ion', '')
+    y_max_sigma = request.form.get('y_max_sigma', '')  # optional unified σ y-axis (mS/cm)
 
     scripts = app.config['SCRIPTS_FOLDER']
     cmd = ['python3', os.path.join(scripts, 'generate_comparison_plots.py'),
@@ -1287,6 +1288,14 @@ def group_plots():
         cmd += ['--global-rgb', global_rgb]
     if global_c_ion:
         cmd += ['--global-c-ion', global_c_ion]
+    if y_max_sigma:
+        try:
+            # Validate it's a positive number before passing
+            _yms = float(y_max_sigma)
+            if _yms > 0:
+                cmd += ['--y-max-sigma', str(_yms)]
+        except ValueError:
+            pass  # invalid → ignore, fall back to auto
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if result.stdout:
         print(f"[plots] stdout:\n{result.stdout}")

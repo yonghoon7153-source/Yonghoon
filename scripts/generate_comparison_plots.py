@@ -39,6 +39,7 @@ GROUP_COLORS = ['#6c8cff', '#ff6b6b', '#51cf66', '#ffd43b', '#cc5de8', '#ff922b'
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 _GROUP_INFO = None  # Set by main()
+_Y_MAX_SIGMA = None  # Override y-axis max (mS/cm) for multiscale σ plots; set by main()
 _GLOBAL_RGB = None  # (b, ln_k) from global fit across all plot groups
 _GLOBAL_C_ION = None  # Fitted C for ionic scaling law (from global/ionic_scaling_fit)
 _GLOBAL_FORMX_R2 = None  # (r2, loocv) from FORM X fit
@@ -2259,6 +2260,20 @@ def plot_multiscale_sigma(data_list, names, outdir):
     ax.set_title(f"FORM X v29: C_blend(τ)·C_pf(p)·G(τ,p)·C_gb(sigmoid) × σ_grain × √(φ−0.2) × CN^(3/2) × cov^(2/5) × f_p³",
                  fontsize=9, fontweight='bold')
 
+    # Unified y-axis: if user/webapp passed --y-max-sigma, use it for cross-run
+    # visual comparison. Otherwise auto-scale to current data (tight view).
+    if _Y_MAX_SIGMA is not None and _Y_MAX_SIGMA > 0:
+        ax.set_ylim(0, _Y_MAX_SIGMA)
+    else:
+        # Auto-compute: 10% headroom above max of (FORM X + ±22%) and network
+        _candidates = [float(np.nanmax(_ms_hi))] if len(_ms_hi) else []
+        if has_net:
+            _net_max = float(np.nanmax(np.array(sigma_net, dtype=float)))
+            if np.isfinite(_net_max):
+                _candidates.append(_net_max)
+        if _candidates:
+            ax.set_ylim(0, max(_candidates) * 1.10)
+
     _write_csv(outdir, 'multiscale_sigma.csv',
                ['φ_SE', 'CN', 'τ', 'coverage', 'σ_FORMX(mS/cm)', 'σ_network(mS/cm)'],
                names, phi_se, cn, tau, sigma_ms, sigma_net)
@@ -3706,6 +3721,8 @@ def main():
     parser.add_argument("--group-names", default="")  # e.g. "Case A,Case B"
     parser.add_argument("--global-rgb", default="")   # e.g. "5.21,0.20" (b,ln_k from global fit)
     parser.add_argument("--global-c-ion", default="")  # e.g. "0.0727" (C from ionic scaling fit)
+    parser.add_argument("--y-max-sigma", type=float, default=None,
+                        help="Fixed y-axis max (mS/cm) for multiscale σ plots; enables cross-run visual comparison")
     args = parser.parse_args()
 
     # Parse group info
@@ -3742,11 +3759,12 @@ def main():
     plot_info = {}
 
     # Set global group info for _apply_style
-    global _GROUP_INFO, _GLOBAL_RGB
+    global _GROUP_INFO, _GLOBAL_RGB, _Y_MAX_SIGMA
     if args.group_sizes_list and len(args.group_sizes_list) > 1:
         _GROUP_INFO = (args.group_sizes_list, args.group_names_list)
     else:
         _GROUP_INFO = None
+    _Y_MAX_SIGMA = args.y_max_sigma  # None = auto, else fixed (cross-run unified)
 
     # Set global R_gb if provided (from combined fit across all plot groups)
     if args.global_rgb:

@@ -1164,7 +1164,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         k_, tc_, kp_, pc_, tcw_, stw_ = p
         if k_ <= 0.1 or k_ > 20 or tc_ < 1.2 or tc_ > 3.0: return 1e6
         if kp_ <= 0.1 or kp_ > 50 or pc_ < 0.1 or pc_ > 0.9: return 1e6
-        if tcw_ < 1.2 or tcw_ > 3.0 or stw_ < 0.05 or stw_ > 1.0: return 1e6
+        if tcw_ < 1.2 or tcw_ > 3.0 or stw_ < 0.15 or stw_ > 1.0: return 1e6
         return -_fit_at(k_, tc_, kp_, pc_, tcw_, stw_)[1]
     res = minimize(_neg_loocv, x0=[5.0, 2.0, 10.0, 0.5, 2.0, 0.3], method='Nelder-Mead',
                    options={'xatol': 1e-3, 'fatol': 1e-5, 'maxiter': 600, 'adaptive': True})

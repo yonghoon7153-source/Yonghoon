@@ -2132,6 +2132,133 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         if best_v30d[2] > sigma_noise_v29:
             print(f"    ⭐⭐⭐ JOINT PHASE-SPLIT BEATS NOISE — v30d production")
 
+    # === v31 BROAD COVERAGE FEATURE SCREENING ===
+    # User asked: exhaust all coverage expressions, overfit OK (fallback=v29).
+    # Tests ~40 candidates spanning:
+    #   A. coverage transformations (cov^α, log, 1/cov, cov(1-cov))
+    #   B. phase-split asymmetry (proportions, diffs, products, ratios)
+    #   C. volume-fraction-weighted coverage (p·cov_P + (1-p)·cov_S)
+    #   D. coverage heterogeneity (std, CV per phase)
+    #   E. coverage × structural interactions (CN, φ, f_perc)
+    #   F. thin-gated variants of above
+    #   G. p_frac × coverage interactions
+    # Each tested as 4-β fit (v29's 3 + 1 new feature) with bimodal-safe centering.
+    _cov_tot_v31 = np.array([coverage[i] for i in valid_idx], dtype=float)
+    _cov_p_std_v31 = np.array([_get(data_list[i], "coverage_AM_P_std", 0.0) for i in valid_idx], dtype=float)
+    _cov_s_std_v31 = np.array([_get(data_list[i], "coverage_AM_S_std", 0.0) for i in valid_idx], dtype=float)
+    _cn_v31 = np.array([cn[i] for i in valid_idx], dtype=float)
+    _phi_v31 = np.array([phi_se[i] for i in valid_idx], dtype=float)
+    _fperc_v31 = np.array([f_perc[i] for i in valid_idx], dtype=float)
+    _all_mask = np.ones(len(log_sf), dtype=bool)
+    _w_thin_v31 = 1.0 / (1.0 + np.exp(-10.0 * (tau_arr - 2.0)))  # v30e best: τc=2.0
+
+    # Safe log / ratio / bimodal-zero helpers
+    def _safelog(a, eps=1e-10):
+        return np.log(np.maximum(a, eps))
+    def _bifeat(fn):
+        """Apply fn(cov_p, cov_s) where bimodal, else 0."""
+        out = np.zeros(len(_cov_p))
+        for i in range(len(_cov_p)):
+            if _is_bi[i]:
+                out[i] = fn(_cov_p[i], _cov_s[i])
+        return out
+    def _ratio(a, b, eps=1e-10):
+        return np.where(b > eps, a / np.maximum(b, eps), 0.0)
+
+    # Volume-weighted coverage (always defined, reduces to cov_P or cov_S at monomodal)
+    _w_cov_vf = pf_prod * _cov_p + (1 - pf_prod) * _cov_s
+    _w_cov_vf_safe = np.maximum(_w_cov_vf, 1e-10)
+
+    v31_features = {
+        # === Category A: coverage transformations ===
+        'A1 sqrt(cov_total)':               (np.sqrt(np.maximum(_cov_tot_v31, 0)), _all_mask),
+        'A2 1/cov_total':                   (1.0 / np.maximum(_cov_tot_v31, 1e-3), _all_mask),
+        'A3 cov·(1-cov)':                   (_cov_tot_v31 * (1 - _cov_tot_v31), _all_mask),
+        'A4 cov^2':                         (_cov_tot_v31**2, _all_mask),
+        'A5 log(cov_total)':                (_safelog(_cov_tot_v31), _all_mask),
+        # === Category B: phase-split asymmetry (bimodal-only) ===
+        'B1 (cov_P+cov_S)':                 (_bifeat(lambda p,s: p+s), _is_bi),
+        'B2 (cov_P-cov_S)²':                (_bifeat(lambda p,s: (p-s)**2), _is_bi),
+        'B3 |cov_P-cov_S|/(cov_P+cov_S)':   (_bifeat(lambda p,s: abs(p-s)/max(p+s,1e-10)), _is_bi),
+        'B4 2·cov_P·cov_S/(cov_P+cov_S)':   (_bifeat(lambda p,s: 2*p*s/max(p+s,1e-10)), _is_bi),
+        'B5 sqrt(cov_P·cov_S)':             (_bifeat(lambda p,s: np.sqrt(max(p*s,0))), _is_bi),
+        'B6 cov_P/(cov_P+cov_S)':           (_bifeat(lambda p,s: p/max(p+s,1e-10)), _is_bi),
+        'B7 (cov_P-cov_S)³':                (_bifeat(lambda p,s: (p-s)**3), _is_bi),
+        # === Category C: volume-fraction-weighted coverage ===
+        'C1 p·cov_P+(1-p)·cov_S':           (_w_cov_vf, _all_mask),
+        'C2 log(p·cov_P+(1-p)·cov_S)':      (_safelog(_w_cov_vf_safe), _all_mask),
+        'C3 (w_cov)^0.4':                   (_w_cov_vf_safe**0.4, _all_mask),
+        'C4 w_cov - cov_total [diff]':      (_w_cov_vf - _cov_tot_v31, _all_mask),
+        'C5 sqrt(p²·cov_P²+(1-p)²·cov_S²)': (np.sqrt(pf_prod**2*_cov_p**2 + (1-pf_prod)**2*_cov_s**2), _all_mask),
+        # === Category D: coverage heterogeneity ===
+        'D1 log(cov_P_std)':                (_safelog(_cov_p_std_v31), _all_mask),
+        'D2 log(cov_S_std)':                (_safelog(_cov_s_std_v31), _all_mask),
+        'D3 cov_P_std/cov_P (CV)':          (_ratio(_cov_p_std_v31, _cov_p), _all_mask),
+        'D4 cov_S_std/cov_S (CV)':          (_ratio(_cov_s_std_v31, _cov_s), _all_mask),
+        'D5 (cov_P_std+cov_S_std)':         (_cov_p_std_v31 + _cov_s_std_v31, _all_mask),
+        # === Category E: coverage × structural ===
+        'E1 cov·CN':                        (_cov_tot_v31 * _cn_v31, _all_mask),
+        'E2 log(cov)·log(CN)':              (_safelog(_cov_tot_v31) * _safelog(_cn_v31), _all_mask),
+        'E3 cov/sqrt(CN)':                  (_cov_tot_v31 / np.sqrt(np.maximum(_cn_v31, 1e-10)), _all_mask),
+        'E4 cov·φ_ex':                      (_cov_tot_v31 * np.maximum(_phi_v31 - 0.20, 1e-4), _all_mask),
+        'E5 cov·f_perc':                    (_cov_tot_v31 * _fperc_v31, _all_mask),
+        'E6 cov/(1-f_perc+0.01)':           (_cov_tot_v31 / np.maximum(1 - _fperc_v31 + 0.01, 1e-4), _all_mask),
+        # === Category F: thin-gated variants ===
+        'F1 w_thin·log(p·cov_P+(1-p)·cov_S)': (_w_thin_v31 * _safelog(_w_cov_vf_safe), _all_mask),
+        'F2 w_thin·(cov_P-cov_S)² [bi]':    (_w_thin_v31 * _bifeat(lambda p,s: (p-s)**2), _is_bi),
+        'F3 w_thin·|Δcov|/sum_cov [bi]':    (_w_thin_v31 * _bifeat(lambda p,s: abs(p-s)/max(p+s,1e-10)), _is_bi),
+        'F4 w_thin·sqrt(cov_P·cov_S) [bi]': (_w_thin_v31 * _bifeat(lambda p,s: np.sqrt(max(p*s,0))), _is_bi),
+        'F5 w_thin·(cov_P-cov_S)':          (_w_thin_v31 * (_cov_p - _cov_s), _is_bi),
+        # === Category G: p_frac × coverage ===
+        'G1 p_frac·cov_P':                  (pf_prod * _cov_p, _all_mask),
+        'G2 (1-p_frac)·cov_S':              ((1 - pf_prod) * _cov_s, _all_mask),
+        'G3 p·log(cov_P)-(1-p)·log(cov_S)': (_bifeat(lambda p_cov, s_cov: 0), _is_bi),  # placeholder
+    }
+    # Fix G3 properly (lambda can't access pf_prod inline cleanly)
+    _g3_arr = np.zeros(len(_cov_p))
+    for i in range(len(_cov_p)):
+        if _is_bi[i]:
+            _g3_arr[i] = pf_prod[i] * _safelog(_cov_p[i:i+1])[0] - (1-pf_prod[i]) * _safelog(_cov_s[i:i+1])[0]
+    v31_features['G3 p·log(cov_P)-(1-p)·log(cov_S)'] = (_g3_arr, _is_bi)
+
+    print(f"\n[v31 BROAD COVERAGE SCREENING] ~35 candidates across 7 categories")
+    print(f"  baseline v29 LOOCV = {loocv_formX:.4f}   noise σ ≈ {sigma_noise_v29:.4f}")
+    print(f"  {'feature':44s} {'LOOCV':>8s} {'ΔLOOCV':>10s} {'flag':>4s}   {'r':>7s}")
+    v31_results = []
+    _resid_v31 = log_sf - pred_formX
+    for name, (z, bimask) in v31_features.items():
+        if not np.any(np.isfinite(z) & (np.abs(z) > 1e-10)):
+            continue
+        try:
+            # _loocv_v29_plus: standard 4-β LOOCV (v29's 3 + raw z_ext as 4th)
+            lo = _loocv_v29_plus(z)
+        except Exception:
+            lo = loocv_formX  # skip on error
+        # Compute r on non-zero entries
+        mask_nz = np.abs(z) > 1e-10
+        if mask_nz.sum() >= 3:
+            r = float(np.corrcoef(z[mask_nz], _resid_v31[mask_nz])[0, 1])
+        else:
+            r = 0.0
+        d = lo - loocv_formX
+        flag = "⭐" if d > sigma_noise_v29 else (" *" if d > 0.0005 else "")
+        v31_results.append((name, lo, d, r, flag))
+        print(f"  {name:44s} {lo:.4f} {d:+10.5f} {flag}   r={r:+.3f}")
+
+    if v31_results:
+        # Top 5 by LOOCV
+        top5 = sorted(v31_results, key=lambda r: -r[1])[:5]
+        print(f"\n  — TOP 5 by LOOCV —")
+        for i, (nm, lo, d, r, fl) in enumerate(top5, 1):
+            print(f"    {i}. {nm:44s} LOOCV={lo:.4f}  Δ={d:+.5f}  r={r:+.3f} {fl}")
+        best_v31 = top5[0]
+        if best_v31[2] > sigma_noise_v29:
+            print(f"  ⭐⭐⭐ BEATS NOISE — candidate for v31 production: {best_v31[0]}")
+        elif best_v31[2] > 0.0008:
+            print(f"  · marginal (>half-noise) — physics review needed for: {best_v31[0]}")
+        else:
+            print(f"  — all within noise. Coverage expressions do not hide more signal.")
+
     # === σ-WEIGHTED FIT SWEEP (data-native log↔linear balance) ===
     # Current v29 fits log-space (equal weight per case). α=0 baseline.
     # With w_i = σ_act_i^α, larger σ cases get more weight → closer to linear

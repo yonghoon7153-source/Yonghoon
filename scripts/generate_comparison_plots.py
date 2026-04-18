@@ -1082,15 +1082,14 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
                     + 0.25*np.log(cov_arr) + 2.0*np.log(fp_arr))
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
-    # v11 physics-motivated residual features (3 clusters):
-    #   A: log(g_path)       — particulate "empty contact" penalty
-    #   B: log(cov)          — AM-rich thin-film regime adjustment
-    #   C: (log CN)²         — CN saturation at high packing
-    g_path_arr = np.array([max(g_path[i], 1e-6) for i in valid_idx])
-    gp_log = np.log(g_path_arr)
+    # v11b physics-motivated residual features (Clusters B + C, A dropped):
+    #   B: log(cov)          — AM-rich thin-film regime adjustment (γ>0)
+    #   C: (log CN)²         — CN saturation at high packing (δ<0)
+    # Cluster A (log g_path) dropped: α=-0.046 in v11 was noise-level and
+    # widened LOOCV gap. Keep only features with strong signal.
     cov_log_arr = np.log(cov_arr)
     cn_log_arr = np.log(cn_arr)
-    X_corr_full = np.column_stack([np.ones(len(log_sf)), gp_log, cov_log_arr, cn_log_arr**2])
+    X_corr_full = np.column_stack([np.ones(len(log_sf)), cov_log_arr, cn_log_arr**2])
 
     def _fit_at(k_bl, tc_bl):
         """v11: v9 blend + 3-feature residual correction (path, cov, CN²).
@@ -1151,11 +1150,10 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX, b_corr = _fit_at(best_k, best_tc)
     print(f"  → continuous optimum: k={best_k:.2f}, τc={best_tc:.3f}")
     print(f"    R²={r2_formX:.4f}, LOOCV={loocv_formX:.4f}, ±20%={w20_opt}/{len(log_sf)}")
-    print(f"  v11 residual correction (Cluster A/B/C):")
+    print(f"  v11b residual correction (Clusters B + C):")
     print(f"    intercept    = {b_corr[0]:+.4f}")
-    print(f"    A: log(g_path) α = {b_corr[1]:+.4f}  (neg → particulate penalty)")
-    print(f"    B: log(cov)    γ = {b_corr[2]:+.4f}  (eff cov exp = 0.25 + γ)")
-    print(f"    C: (log CN)²   δ = {b_corr[3]:+.4f}  (neg → CN saturation)")
+    print(f"    B: log(cov)    γ = {b_corr[1]:+.4f}  (eff cov exp = 0.25 + γ)")
+    print(f"    C: (log CN)²   δ = {b_corr[2]:+.4f}  (neg → CN saturation)")
     TAU_C_BL = best_tc
     TAU_K_BL = best_k
 

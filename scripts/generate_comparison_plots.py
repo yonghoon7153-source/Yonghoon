@@ -1107,23 +1107,23 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
     def _fit_at(k_bl, tc_bl, k_pf=10.0, pc_pf=0.5):
-        """v19: v12-clean v3 + smooth P:S sigmoid + τ-modulated P:S coupling.
+        """v19 (production): v12-clean v3 + smooth P:S sigmoid + τ-modulation.
         Residual correction is 2-term:
            β1·(w_pf - ⟨w_pf⟩) + β2·(w_pf·log τ − ⟨⋅⟩)
+        v19 vs v18 LOOCV within noise, but v19 visibly better on 8mAh_85:15
+        (4/4 -15% under-prediction disappeared). Keep v19.
         Returns (r2, loocv, w20, b_v5, b_p3, w_bl, pred, beta1, beta2, w_pf)."""
         w_bl = 1.0 / (1.0 + np.exp(-k_bl * (tau_arr - tc_bl)))
         w_pf = 1.0 / (1.0 + np.exp(-k_pf * (pf_prod - pc_pf)))
         X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
         X_p3_l = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
 
-        # Step 1: v12-clean v3 blend fit (pre-correction)
         b_v5_l = np.linalg.lstsq(X_v5_l, log_sf - log_rhs_base, rcond=None)[0]
         b_p3_l = np.linalg.lstsq(X_p3_l, log_sf - log_rhs_base, rcond=None)[0]
         pv_l = X_v5_l @ b_v5_l
         pp_l = X_p3_l @ b_p3_l
         pred_pre = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
 
-        # Step 2: 2-term residual regression
         pf_c = w_pf - w_pf.mean()
         pf_t = w_pf * log_tau_arr
         pf_t_c = pf_t - pf_t.mean()
@@ -1146,7 +1146,6 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
             pf_t_c_mk = pf_t_mk - pf_t_mk.mean()
             X_corr_mk = np.column_stack([pf_c_mk, pf_t_c_mk])
             bc_mk = np.linalg.lstsq(X_corr_mk, (log_sf - pv9)[mk], rcond=None)[0]
-            # For ii prediction, use same mean-centering as train set
             pred_ii = pv9[ii] + bc_mk[0] * (w_pf[ii] - w_pf[mk].mean()) \
                               + bc_mk[1] * (w_pf[ii] * log_tau_arr[ii] - pf_t_mk.mean())
             sse_loo += (log_sf[ii] - pred_ii)**2

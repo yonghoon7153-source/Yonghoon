@@ -1,0 +1,12 @@
+flask>=3.0
+pandas
+numpy
+matplotlib
+scipy
+adjustText
+networkx
+markdown
+anthropic
+tabulate
+gunicorn
+requests

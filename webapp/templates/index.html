@@ -1,0 +1,521 @@
+{% extends "base.html" %}
+{% set active = "home" %}
+{% block title %}DEM Analyzer - Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Dashboard</h2>
+  <p>LIGGGHTS 파일을 업로드하고 DEM 분석을 실행하세요</p>
+</div>
+
+<!-- Upload Section -->
+<div class="card upload-card">
+  <h3>새 분석 케이스</h3>
+  <form id="upload-form" enctype="multipart/form-data">
+    <div class="form-row">
+      <div class="form-group">
+        <label>케이스 이름</label>
+        <input type="text" name="case_name" placeholder="예: Real_6_PS_73_SE3" class="input">
+      </div>
+      <div class="form-group">
+        <label>모드</label>
+        <select name="mode" class="input">
+          <option value="auto">자동 감지</option>
+          <option value="standard">Standard (AM+SE)</option>
+          <option value="bimodal">Bimodal (AM_P+AM_S+SE)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Type Map</label>
+        <input type="text" name="type_map" placeholder="자동 (예: 1:AM_P,2:AM_S,3:SE)" class="input">
+      </div>
+      <div class="form-group">
+        <label>P:S 비율</label>
+        <input type="text" name="ps_ratio" placeholder="예: 3:7, S only, P only" class="input" style="width:120px">
+      </div>
+      <div class="form-group">
+        <label>Scale</label>
+        <input type="number" name="scale" value="1000" class="input" style="width:100px">
+      </div>
+    </div>
+
+    <!-- Drag & Drop Zone -->
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone-content">
+        <span class="drop-icon">&#x1F4C2;</span>
+        <p><strong>파일을 여기에 드래그하거나 클릭해서 선택</strong></p>
+        <p class="drop-hint">atom_*.liggghts, contact_*.liggghts, input_*.liggghts, mesh 파일</p>
+      </div>
+      <input type="file" id="file-input" name="files" multiple accept=".liggghts,.stl,.vtk,.csv" hidden>
+    </div>
+
+    <div id="file-list" class="file-list"></div>
+
+    <button type="submit" class="btn btn-primary" id="upload-btn" disabled>
+      업로드
+    </button>
+  </form>
+</div>
+
+<!-- Cases List -->
+<div class="card">
+  <div class="card-header-row">
+    <h3>분석 케이스 목록</h3>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="btn btn-sm btn-secondary sort-btn" onclick="filterCases('all')" id="filter-all" style="background:rgba(108,140,255,.2);color:var(--accent)">전체</button>
+      <button class="btn btn-sm btn-secondary sort-btn" onclick="filterCases('fav')" id="filter-fav">★ 즐겨찾기</button>
+      <span style="width:1px;height:20px;background:var(--border);margin:0 4px"></span>
+      <button class="btn btn-sm btn-secondary sort-btn" onclick="sortCases('name')" id="sort-name">이름순</button>
+      <button class="btn btn-sm btn-secondary sort-btn active" onclick="sortCases('date')" id="sort-date">최신순</button>
+      <button class="btn btn-sm btn-run" onclick="reanalyzeAll(this)">전체 재분석</button>
+      <button class="btn btn-sm" style="background:#c00;color:#fff" id="cancel-reanalyze-btn" onclick="cancelReanalyze()">전체 취소</button>
+      <button class="btn btn-sm btn-archive" onclick="saveAllToArchive(this)">전체 보관함 저장</button>
+    </div>
+  </div>
+  {% if cases %}
+  <div class="table-scroll">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>이름</th>
+        <th>모드</th>
+        <th>상태</th>
+        <th>파일</th>
+        <th>액션</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for case in cases %}
+      <tr data-fav="{{ 'true' if case.favorite else 'false' }}" data-case-id="{{ case.id }}">
+        <td><span class="fav-star" onclick="toggleFav(event, '{{ case.id }}')" title="즐겨찾기" style="cursor:pointer;margin-right:4px;font-size:1.1em;color:{{ '#f59e0b' if case.favorite else 'var(--dim)' }}">{{ '★' if case.favorite else '☆' }}</span><strong class="case-name" ondblclick="editName(this, '{{ case.id }}')" title="더블클릭으로 이름 변경">{{ case.name }}</strong>{% if case.warning_count %} <span class="badge badge-warning" title="{{ case.warning_msgs | join('&#10;') }}">⚠ {{ case.warning_count }}</span>{% endif %}{% if case.network_solver_status in ('failed', 'error', 'timeout', 'no_input', 'no_output') %} <span class="badge badge-error" title="Network Solver: {{ case.network_solver_status }}{% if case.network_solver_error %} - {{ case.network_solver_error[:100] }}{% endif %}">NET ✗</span>{% elif case.network_solver_status == 'success' %} <span class="badge badge-success" title="Network Solver 완료">NET ✓</span>{% endif %}</td>
+        <td><span class="badge badge-{{ case.mode }}">{{ case.mode }}</span></td>
+        <td>
+          <span class="status status-{{ case.status }}">
+            {% if case.status == 'uploaded' %}대기중
+            {% elif case.status == 'running' %}실행중...
+            {% elif case.status == 'network_solving' %}Network Solver 실행중...
+            {% elif case.status == 'done' %}완료
+            {% elif case.status == 'error' %}오류
+            {% else %}{{ case.status }}{% endif %}
+          </span>
+        </td>
+        <td>
+          {% if case.files %}
+          <button class="btn btn-sm btn-secondary" onclick="showFiles('{{ case.id }}')">{{ case.files|length }} 파일</button>
+          {% else %}-{% endif %}
+        </td>
+        <td class="actions">
+          {% if case.status == 'uploaded' %}
+          <button class="btn btn-sm btn-run" onclick="runAnalysis('{{ case.id }}')">분석 실행</button>
+          {% endif %}
+          {% if case.has_results %}
+          <a href="/single/{{ case.id }}" class="btn btn-sm btn-view">결과 보기</a>
+          <button class="btn btn-sm btn-run" onclick="runAnalysis('{{ case.id }}')">재분석</button>
+          <button class="btn btn-sm btn-archive" onclick="quickSave('{{ case.id }}')">보관함 저장</button>
+          {% endif %}
+          <button class="btn btn-sm btn-del" onclick="deleteCase('{{ case.id }}')">삭제</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty-state">아직 업로드된 케이스가 없습니다.</p>
+  {% endif %}
+</div>
+
+<!-- Running Status -->
+<div id="status-panel" class="card" style="display:none">
+  <h3>분석 진행 상황</h3>
+  <div id="status-log" class="log-output"></div>
+</div>
+
+<!-- File List Modal -->
+<div id="files-modal" class="modal" onclick="this.classList.remove('open')">
+  <div class="save-dialog-inner" onclick="event.stopPropagation()" style="width:500px">
+    <h3>업로드 파일</h3>
+    <div id="files-list" style="margin:16px 0"></div>
+    <div style="display:flex;justify-content:space-between">
+      <button class="btn btn-primary" id="download-all-btn" onclick="">모두 다운로드</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('files-modal').classList.remove('open')">닫기</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Sort cases
+let originalRows = [];
+document.addEventListener('DOMContentLoaded', () => {
+  const tbody = document.querySelector('.data-table tbody');
+  if (tbody) originalRows = Array.from(tbody.querySelectorAll('tr'));
+});
+
+function sortCases(mode) {
+  const tbody = document.querySelector('.data-table tbody');
+  if (!tbody) return;
+  let rows;
+  if (mode === 'name') {
+    rows = Array.from(tbody.querySelectorAll('tr'));
+    rows.sort((a, b) => {
+      const na = a.querySelector('.case-name')?.textContent.trim() || '';
+      const nb = b.querySelector('.case-name')?.textContent.trim() || '';
+      return na.localeCompare(nb, undefined, {numeric: true});
+    });
+  } else {
+    rows = [...originalRows];
+  }
+  rows.forEach(r => tbody.appendChild(r));
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('sort-' + mode).classList.add('active');
+}
+
+// Favorite toggle
+async function toggleFav(e, caseId) {
+  e.stopPropagation();
+  const res = await fetch(`/favorite/${caseId}`, {method: 'POST'});
+  const data = await res.json();
+  if (data.success) {
+    const star = e.target;
+    const tr = star.closest('tr');
+    if (data.favorite) {
+      star.textContent = '★';
+      star.style.color = '#f59e0b';
+      tr.dataset.fav = 'true';
+    } else {
+      star.textContent = '☆';
+      star.style.color = 'var(--dim)';
+      tr.dataset.fav = 'false';
+    }
+  }
+}
+
+// Filter: all / favorites
+let currentFilter = 'all';
+function filterCases(mode) {
+  currentFilter = mode;
+  const tbody = document.querySelector('.data-table tbody');
+  if (!tbody) return;
+  tbody.querySelectorAll('tr').forEach(tr => {
+    if (mode === 'fav') {
+      tr.style.display = tr.dataset.fav === 'true' ? '' : 'none';
+    } else {
+      tr.style.display = '';
+    }
+  });
+  document.getElementById('filter-all').style.background = mode === 'all' ? 'rgba(108,140,255,.2)' : '';
+  document.getElementById('filter-all').style.color = mode === 'all' ? 'var(--accent)' : '';
+  document.getElementById('filter-fav').style.background = mode === 'fav' ? 'rgba(245,158,11,.2)' : '';
+  document.getElementById('filter-fav').style.color = mode === 'fav' ? '#f59e0b' : '';
+}
+
+// Drag & Drop
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
+const fileList = document.getElementById('file-list');
+const uploadBtn = document.getElementById('upload-btn');
+let selectedFiles = [];
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  addFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => addFiles(fileInput.files));
+
+function addFiles(files) {
+  for (const f of files) {
+    if (!selectedFiles.find(x => x.name === f.name)) {
+      selectedFiles.push(f);
+    }
+  }
+  renderFileList();
+}
+
+function removeFile(name) {
+  selectedFiles = selectedFiles.filter(f => f.name !== name);
+  renderFileList();
+}
+
+function renderFileList() {
+  fileList.innerHTML = selectedFiles.map(f => `
+    <div class="file-item">
+      <span class="file-name">${f.name}</span>
+      <span class="file-size">${(f.size/1024).toFixed(0)} KB</span>
+      <button class="file-remove" onclick="removeFile('${f.name}')">&times;</button>
+    </div>
+  `).join('');
+  uploadBtn.disabled = selectedFiles.length === 0;
+}
+
+// Upload
+document.getElementById('upload-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = new FormData(e.target);
+  // Remove default files, add our selectedFiles
+  form.delete('files');
+  selectedFiles.forEach(f => form.append('files', f));
+
+  uploadBtn.disabled = true;
+  uploadBtn.textContent = '업로드 중...';
+
+  try {
+    const res = await fetch('/upload', { method: 'POST', body: form });
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+    } else {
+      // Auto-run analysis
+      if (confirm(`업로드 완료 (${data.mode} 모드). 분석을 바로 실행할까요?`)) {
+        await runAnalysis(data.case_id);
+      }
+      location.reload();
+    }
+  } catch (err) {
+    alert('업로드 실패: ' + err.message);
+  }
+  uploadBtn.disabled = false;
+  uploadBtn.textContent = '업로드';
+});
+
+// Run Analysis
+async function runAnalysis(caseId) {
+  const panel = document.getElementById('status-panel');
+  const log = document.getElementById('status-log');
+  panel.style.display = 'block';
+  log.innerHTML = '<p>분석 시작...</p>';
+
+  try {
+    const res = await fetch(`/analyze/${caseId}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) {
+      log.innerHTML += `<p class="log-error">오류: ${data.error}</p>`;
+    } else if (data.log) {
+      // Synchronous response with log
+      data.log.forEach(l => {
+        const cls = l.rc === 0 ? 'log-ok' : 'log-error';
+        log.innerHTML += `<p class="${cls}">[${l.step}] ${l.rc === 0 ? '완료' : '실패'}</p>`;
+        if (l.stderr && l.rc !== 0) {
+          log.innerHTML += `<pre class="log-detail">${l.stderr}</pre>`;
+        }
+      });
+      log.innerHTML += '<p class="log-ok"><strong>분석 완료! 페이지를 새로고침합니다...</strong></p>';
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      // Async background execution — poll for completion
+      log.innerHTML += '<p>⏳ 분석 실행중... (백그라운드)</p>';
+      const poll = setInterval(async () => {
+        try {
+          const sr = await fetch(`/analyze-status/${caseId}`);
+          const sd = await sr.json();
+          if (sd.status === 'done') {
+            clearInterval(poll);
+            log.innerHTML += '<p class="log-ok"><strong>✅ 분석 완료! 새로고침합니다...</strong></p>';
+            setTimeout(() => location.reload(), 1000);
+          } else if (sd.status === 'error') {
+            clearInterval(poll);
+            log.innerHTML += '<p class="log-error">❌ 분석 실패</p>';
+          } else if (sd.status === 'network_solving') {
+            // Update status text once
+            if (!log.dataset.netShown) {
+              log.innerHTML += '<p>⏳ Network Solver 실행중...</p>';
+              log.dataset.netShown = '1';
+            }
+          }
+        } catch(e) {}
+      }, 3000);
+    }
+  } catch (err) {
+    log.innerHTML += `<p class="log-error">네트워크 오류: ${err.message}</p>`;
+  }
+}
+
+// Delete
+async function deleteCase(caseId) {
+  if (!confirm('이 케이스를 삭제할까요?')) return;
+  await fetch(`/delete/${caseId}`, { method: 'POST' });
+  location.reload();
+}
+
+// Case files data
+const caseFiles = {
+  {% for case in cases %}
+  '{{ case.id }}': {{ case.files | default([]) | tojson }},
+  {% endfor %}
+};
+
+// Show uploaded files
+function showFiles(caseId) {
+  const files = caseFiles[caseId] || [];
+  const list = document.getElementById('files-list');
+  list.innerHTML = files.map(f => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span style="font-family:var(--mono);font-size:.85rem">${f}</span>
+      <div style="display:flex;gap:6px">
+        <a href="/download-file/${caseId}/${f}" class="btn btn-sm btn-dl" download>다운로드</a>
+      </div>
+    </div>
+  `).join('');
+  if (!files.length) list.innerHTML = '<p class="dim" style="text-align:center;padding:20px">파일 없음</p>';
+  document.getElementById('download-all-btn').onclick = () => {
+    files.forEach(f => {
+      const a = document.createElement('a');
+      a.href = `/download-file/${caseId}/${f}`;
+      a.download = f;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+  };
+  document.getElementById('files-modal').classList.add('open');
+}
+
+// Reanalyze all cases (background, with polling)
+let _reanalyzeCancelled = false;
+
+async function reanalyzeAll(btn) {
+  const ids = [{% for case in cases %}{% if case.has_results %}'{{ case.id }}',{% endif %}{% endfor %}];
+  if (!ids.length) return;
+  _reanalyzeCancelled = false;
+  btn.disabled = true;
+  document.getElementById('cancel-reanalyze-btn').style.display = '';
+  localStorage.setItem('dem_reanalyze_ids', JSON.stringify(ids));
+  localStorage.setItem('dem_reanalyze_idx', '0');
+  localStorage.setItem('dem_reanalyze_active', 'true');
+  _runSeq(btn, ids, 0);
+}
+
+async function cancelReanalyze() {
+  _reanalyzeCancelled = true;
+  // Cancel any currently running cases
+  const ids = JSON.parse(localStorage.getItem('dem_reanalyze_ids') || '[]');
+  const idx = parseInt(localStorage.getItem('dem_reanalyze_idx') || '0');
+  if (ids.length > 0 && idx < ids.length) {
+    await fetch(`/analyze-cancel/${ids[idx]}`, { method: 'POST' });
+  }
+  // Also cancel any individually running cases visible on page
+  document.querySelectorAll('td').forEach(td => {
+    if (td.textContent.includes('실행중') || td.textContent.includes('Network Solver')) {
+      const row = td.closest('tr');
+      if (row) {
+        const caseId = row.querySelector('a[href*="/results/"]')?.href?.split('/results/')[1];
+        if (caseId) fetch(`/analyze-cancel/${caseId}`, { method: 'POST' });
+      }
+    }
+  });
+  localStorage.removeItem('dem_reanalyze_active');
+  localStorage.removeItem('dem_reanalyze_ids');
+  localStorage.removeItem('dem_reanalyze_idx');
+  const btn = document.querySelector('[onclick*="reanalyzeAll"]');
+  if (btn) { btn.textContent = '전체 재분석'; btn.disabled = false; }
+  showToast('재분석 취소됨 — 새로고침 하세요');
+}
+
+async function _runSeq(btn, ids, startIdx) {
+  for (let i = startIdx; i < ids.length; i++) {
+    if (_reanalyzeCancelled) break;
+    btn.textContent = `${i+1}/${ids.length}...`;
+    localStorage.setItem('dem_reanalyze_idx', String(i));
+    await fetch(`/analyze/${ids[i]}`, { method: 'POST' });
+    while (true) {
+      if (_reanalyzeCancelled) break;
+      await new Promise(r => setTimeout(r, 3000));
+      const res = await fetch(`/analyze-status/${ids[i]}`);
+      const data = await res.json();
+      if (data.status !== 'running') break;
+    }
+    if (_reanalyzeCancelled) break;
+  }
+  document.getElementById('cancel-reanalyze-btn').style.display = 'none';
+  if (!_reanalyzeCancelled) {
+    btn.textContent = '✓ done';
+    showToast('All reanalysis complete!');
+  }
+  localStorage.removeItem('dem_reanalyze_active');
+  localStorage.removeItem('dem_reanalyze_ids');
+  localStorage.removeItem('dem_reanalyze_idx');
+  setTimeout(() => { btn.textContent = '전체 재분석'; btn.disabled = false; }, 3000);
+}
+
+// Resume on page load
+document.addEventListener('DOMContentLoaded', () => {
+  if (localStorage.getItem('dem_reanalyze_active') === 'true') {
+    const ids = JSON.parse(localStorage.getItem('dem_reanalyze_ids') || '[]');
+    const idx = parseInt(localStorage.getItem('dem_reanalyze_idx') || '0');
+    if (ids.length > 0 && idx < ids.length) {
+      const btn = document.querySelector('[onclick*="reanalyzeAll"]');
+      if (btn) { btn.disabled = true; _runSeq(btn, ids, idx); }
+    }
+  }
+});
+
+// Save all to archive
+async function saveAllToArchive(btn) {
+  const ids = [{% for case in cases %}{% if case.has_results %}'{{ case.id }}',{% endif %}{% endfor %}];
+  if (!ids.length) return;
+  btn.disabled = true;
+  for (let i = 0; i < ids.length; i++) {
+    btn.textContent = `${i+1}/${ids.length}...`;
+    const form = new FormData();
+    form.append('case_id', ids[i]);
+    form.append('folder', '');
+    await fetch('/archive/save-case', { method: 'POST', body: form });
+  }
+  btn.textContent = '✓ done';
+  showToast('All cases saved to archive!');
+  setTimeout(() => { btn.textContent = '전체 보관함 저장'; btn.disabled = false; }, 3000);
+}
+
+// Quick save to archive
+async function quickSave(caseId) {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '저장 중...';
+  const form = new FormData();
+  form.append('case_id', caseId);
+  form.append('folder', '');
+  const res = await fetch('/archive/save-case', { method: 'POST', body: form });
+  const data = await res.json();
+  if (data.success) {
+    btn.textContent = '✓ 완료';
+    setTimeout(() => { btn.textContent = '보관함 저장'; btn.disabled = false; }, 1500);
+  } else {
+    btn.textContent = '실패';
+    setTimeout(() => { btn.textContent = '보관함 저장'; btn.disabled = false; }, 1500);
+  }
+}
+
+// Rename (double-click)
+function editName(el, caseId) {
+  const oldName = el.textContent.trim();
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = oldName;
+  input.className = 'input inline-edit';
+  input.style.cssText = 'width:200px;font-weight:600;font-size:inherit;padding:2px 6px';
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+
+  async function save() {
+    const newName = input.value.trim();
+    if (newName && newName !== oldName) {
+      const form = new FormData();
+      form.append('name', newName);
+      await fetch(`/rename/${caseId}`, { method: 'POST', body: form });
+    }
+    location.reload();
+  }
+
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { location.reload(); }
+  });
+}
+</script>
+{% endblock %}

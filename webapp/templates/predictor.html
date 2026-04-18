@@ -1,0 +1,1071 @@
+{% extends "base.html" %}
+{% block title %}ML Predictor - DEM Analyzer{% endblock %}
+
+{% block content %}
+<div class="predictor-page">
+  <div class="page-header">
+    <h2>ML-Based Electrode Property Predictor</h2>
+    <p class="subtitle">2-Stage Hybrid: Gaussian Process Regression + Physics Scaling Laws</p>
+  </div>
+
+  <!-- Data Status Bar -->
+  <div class="status-bar card">
+    <div class="status-info">
+      <span class="status-label">Training Data:</span>
+      <span id="data-count" class="status-value">{{ data_count }} cases</span>
+      <span id="model-status" class="status-badge {{ 'badge-green' if models_ready else 'badge-yellow' }}">
+        {{ 'Models Ready' if models_ready else 'Not Trained' }}
+      </span>
+    </div>
+    <button id="btn-train" class="btn btn-secondary" onclick="trainModels()">
+      <span class="icon">&#x2699;</span> Train Models
+    </button>
+  </div>
+
+  <!-- Input Section -->
+  <div class="card">
+    <h3 class="card-title">Design Parameters</h3>
+    <div class="input-grid">
+
+      <div class="input-group">
+        <label><input type="checkbox" class="fix-check" data-param="d_se" checked> d<sub>SE</sub> (SE diameter)</label>
+        <div class="slider-row">
+          <input type="range" id="d_se" min="0.3" max="3.0" step="0.1" value="1.0">
+          <span class="slider-val" id="d_se_val">1.0 &mu;m</span>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label><input type="checkbox" class="fix-check" data-param="d_am_p" checked> d<sub>AM_P</sub> (대립 AM)</label>
+        <div class="slider-row">
+          <input type="range" id="d_am_p" min="3" max="12" step="1" value="10">
+          <span class="slider-val" id="d_am_p_val">10 &mu;m</span>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label><input type="checkbox" class="fix-check" data-param="d_am_s" checked> d<sub>AM_S</sub> (소립 AM)</label>
+        <div class="slider-row">
+          <input type="range" id="d_am_s" min="1" max="8" step="0.5" value="4">
+          <span class="slider-val" id="d_am_s_val">4 &mu;m</span>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label><input type="checkbox" class="fix-check" data-param="am_pct" checked> AM:SE Ratio (AM%)</label>
+        <div class="slider-row">
+          <input type="range" id="am_pct" min="60" max="90" step="1" value="80">
+          <span class="slider-val" id="am_pct_val">80%</span>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label><input type="checkbox" class="fix-check" data-param="ps_frac" checked> P:S Fraction (0=S, 1=P)</label>
+        <div class="slider-row">
+          <input type="range" id="ps_frac" min="0.0" max="1.0" step="0.1" value="0.5">
+          <span class="slider-val" id="ps_frac_val">0.5</span>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label><input type="checkbox" class="fix-check" data-param="loading" checked> Loading</label>
+        <div class="slider-row">
+          <input type="range" id="loading" min="1" max="10" step="0.5" value="6">
+          <span class="slider-val" id="loading_val">6.0 mAh/cm&sup2;</span>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label><input type="checkbox" class="fix-check" data-param="rve" checked> RVE Size</label>
+        <div class="slider-row">
+          <input type="range" id="rve" min="30" max="100" step="10" value="50">
+          <span class="slider-val" id="rve_val">50 &mu;m</span>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label><input type="checkbox" class="fix-check" data-param="temperature" checked> Temperature</label>
+        <div class="slider-row">
+          <input type="range" id="temperature" min="233" max="373" step="5" value="298">
+          <span class="slider-val" id="temperature_val">298 K (25&deg;C)</span>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label>Conductive Additive</label>
+        <select id="additive" style="width:100%;padding:6px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;margin-top:4px">
+          <option value="none">None (AM-AM only)</option>
+          <option value="vgcf">VGCF 1wt% (sub-perc, σ_el ~0.4)</option>
+          <option value="c65">C65 1wt% (sub-perc, 미미한 효과)</option>
+          <option value="c65_4wt">C65 4wt% (percolation! σ_el ~70, but σ_ion -15%)</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="ptfe_on" style="width:18px;height:18px;accent-color:var(--accent)">
+          PTFE 0.5wt% Binder <span style="color:var(--dim);font-size:0.8rem">(dry process, σ_el ×0.7)</span>
+        </label>
+      </div>
+
+    </div>
+
+    <div class="btn-row">
+      <button id="btn-predict" class="btn btn-primary" onclick="runPrediction()">
+        <span class="icon">&#x26A1;</span> Predict Properties
+      </button>
+      <button id="btn-optimal" class="btn btn-accent" onclick="findOptimal()">
+        <span class="icon">&#x1F50D;</span> Find Optimal Design
+      </button>
+    </div>
+  </div>
+
+  <!-- Results Section -->
+  <div id="results-section" class="results-grid" style="display:none;">
+
+    <!-- Microstructure -->
+    <div class="card result-card">
+      <h3 class="card-title">Microstructure Predictions</h3>
+      <table class="result-table">
+        <thead><tr><th>Property</th><th>Value</th><th>&plusmn;</th></tr></thead>
+        <tbody id="micro-results"></tbody>
+      </table>
+    </div>
+
+    <!-- Conductivity -->
+    <div class="card result-card">
+      <h3 class="card-title">Conductivity Predictions</h3>
+      <div id="conductivity-results" class="cond-cards"></div>
+      <div id="rate-limiting" class="rate-box" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- Optimal Design Section -->
+  <div id="optimal-section" class="card" style="display:none;">
+    <h3 class="card-title">Optimal Design (Top 10 by Performance Score = &sigma;<sub>ionic</sub> × util@1C)</h3>
+    <div class="table-wrap">
+      <table class="result-table optimal-table">
+        <thead id="optimal-header">
+          <tr>
+            <th>#</th>
+            <th>&sigma;<sub>ionic</sub></th>
+            <th>&sigma;<sub>elec</sub></th>
+            <th>&sigma;<sub>therm</sub></th>
+            <th>Rate Limiting</th>
+          </tr>
+        </thead>
+        <tbody id="optimal-results"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Analysis Tools -->
+  <div class="card" id="analysis-section">
+    <h3 class="card-title">Analysis Tools</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      <button class="btn btn-primary" onclick="showHeatmap()">2D Heatmap</button>
+      <button class="btn btn-primary" onclick="showPhaseDiagram()">Phase Diagram</button>
+      <button class="btn btn-primary" onclick="showSensitivity()">Sensitivity</button>
+      <button class="btn btn-accent" onclick="showPareto()">Pareto Front</button>
+      <button class="btn btn-accent" onclick="suggestNext()">Next DEM Suggestion</button>
+      <button class="btn btn-secondary" onclick="exportCSV()">Export CSV</button>
+    </div>
+
+    <!-- Heatmap -->
+    <div id="heatmap-container" style="display:none">
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap">
+        <label style="color:var(--dim);font-size:.85rem">X:</label>
+        <select id="heatmap-x" class="analysis-select">
+          <option value="d_se">d_SE</option>
+          <option value="am_pct">AM%</option>
+          <option value="ps_frac">P:S</option>
+          <option value="loading">Loading</option>
+          <option value="d_am">d_AM</option>
+        </select>
+        <label style="color:var(--dim);font-size:.85rem">Y:</label>
+        <select id="heatmap-y" class="analysis-select">
+          <option value="am_pct">AM%</option>
+          <option value="d_se">d_SE</option>
+          <option value="ps_frac">P:S</option>
+          <option value="loading">Loading</option>
+          <option value="d_am">d_AM</option>
+        </select>
+        <label style="color:var(--dim);font-size:.85rem">Target:</label>
+        <select id="heatmap-z" class="analysis-select">
+          <option value="sigma_ionic">sigma_ionic</option>
+          <option value="sigma_electronic">sigma_electronic</option>
+          <option value="energy">Energy density</option>
+          <option value="performance">Perf Score</option>
+        </select>
+        <button class="btn btn-primary" onclick="generateHeatmap()" style="padding:6px 16px">Generate</button>
+      </div>
+      <div id="heatmap-grid"></div>
+      <div id="heatmap-legend" style="display:none;margin-top:8px;font-size:.75rem;color:var(--dim)">
+        <span style="display:inline-block;width:14px;height:14px;background:#dc2626;vertical-align:middle;border-radius:2px"></span> Low
+        <span style="display:inline-block;width:14px;height:14px;background:#f59e0b;vertical-align:middle;border-radius:2px;margin-left:12px"></span> Mid
+        <span style="display:inline-block;width:14px;height:14px;background:#22c55e;vertical-align:middle;border-radius:2px;margin-left:12px"></span> High
+      </div>
+    </div>
+
+    <!-- Phase Diagram -->
+    <div id="phase-container" style="display:none">
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap">
+        <label style="color:var(--dim);font-size:.85rem">X:</label>
+        <select id="phase-x" class="analysis-select">
+          <option value="d_se">d_SE</option>
+          <option value="am_pct">AM%</option>
+          <option value="ps_frac">P:S</option>
+          <option value="loading">Loading</option>
+          <option value="d_am">d_AM</option>
+        </select>
+        <label style="color:var(--dim);font-size:.85rem">Y:</label>
+        <select id="phase-y" class="analysis-select">
+          <option value="am_pct">AM%</option>
+          <option value="d_se">d_SE</option>
+          <option value="ps_frac">P:S</option>
+          <option value="loading">Loading</option>
+          <option value="d_am">d_AM</option>
+        </select>
+        <button class="btn btn-primary" onclick="generatePhaseDiagram()" style="padding:6px 16px">Generate</button>
+      </div>
+      <div id="phase-grid"></div>
+      <div id="phase-legend" style="display:none;margin-top:10px;font-size:.8rem;color:var(--dim);background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="font-weight:600;margin-bottom:6px;color:var(--text)">Legend</div>
+        <div style="margin-bottom:4px"><span style="display:inline-block;width:24px;height:3px;background:#fff;vertical-align:middle;margin-right:8px"></span> <span style="font-family:var(--mono)">&sigma;<sub>ionic</sub> = 0.1 mS/cm</span> (minimum viable)</div>
+        <div style="margin-bottom:4px"><span style="display:inline-block;width:24px;height:3px;background:#2ecc71;vertical-align:middle;margin-right:8px"></span> <span style="font-family:var(--mono)">&sigma;<sub>ionic</sub> = 0.2 mS/cm</span> (good)</div>
+        <div style="margin-bottom:4px"><span style="display:inline-block;width:24px;height:3px;background:#e74c3c;vertical-align:middle;margin-right:8px"></span> <span style="font-family:var(--mono)">Electronic Active AM = 80%</span> (additive needed below)</div>
+        <div><span style="display:inline-block;width:24px;height:3px;background:#f39c12;vertical-align:middle;margin-right:8px"></span> <span style="font-family:var(--mono)">Utilization @1C = 80%</span> (rate capability limit)</div>
+        <div style="margin-top:8px">
+          <span style="display:inline-block;width:14px;height:14px;background:#dc2626;vertical-align:middle;border-radius:2px"></span> Low &sigma;
+          <span style="display:inline-block;width:14px;height:14px;background:#f59e0b;vertical-align:middle;border-radius:2px;margin-left:12px"></span> Mid &sigma;
+          <span style="display:inline-block;width:14px;height:14px;background:#22c55e;vertical-align:middle;border-radius:2px;margin-left:12px"></span> High &sigma;
+        </div>
+      </div>
+    </div>
+
+    <!-- Sensitivity -->
+    <div id="sensitivity-container" style="display:none"></div>
+
+    <!-- Pareto -->
+    <div id="pareto-container" style="display:none"></div>
+
+    <!-- BO suggestion -->
+    <div id="suggest-container" style="display:none"></div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" style="display:none;">
+    <div class="spinner"></div>
+    <span id="loading-text">Processing...</span>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+  .predictor-page { max-width: 1100px; }
+  .page-header { margin-bottom: 1.5rem; }
+  .page-header h2 { font-size: 1.6rem; font-weight: 700; }
+  .subtitle { color: var(--dim); font-size: 0.9rem; margin-top: 4px; }
+
+  .status-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 20px; margin-bottom: 1.2rem;
+  }
+  .status-info { display: flex; align-items: center; gap: 12px; }
+  .status-label { color: var(--dim); font-size: 0.85rem; }
+  .status-value { font-family: var(--mono); font-weight: 600; }
+  .status-badge {
+    font-size: 0.75rem; padding: 3px 10px; border-radius: 12px; font-weight: 600;
+  }
+  .badge-green { background: rgba(52,211,153,0.15); color: var(--green); }
+  .badge-yellow { background: rgba(251,191,36,0.15); color: var(--yellow); }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; margin-bottom: 1.2rem;
+  }
+  .card-title {
+    font-size: 1.05rem; font-weight: 600; margin-bottom: 1rem;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+
+  .input-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px 32px;
+  }
+  .input-group label {
+    display: block; font-size: 0.85rem; color: var(--dim); margin-bottom: 6px; font-weight: 500;
+  }
+  .slider-row { display: flex; align-items: center; gap: 12px; }
+  .slider-row input[type="range"] { flex: 1; accent-color: var(--accent); }
+  .slider-val {
+    min-width: 80px; text-align: right;
+    font-family: var(--mono); font-size: 0.9rem; font-weight: 600;
+    color: var(--accent);
+  }
+
+  .btn-row { margin-top: 20px; display: flex; gap: 12px; }
+  .btn {
+    padding: 10px 24px; border: none; border-radius: 8px; cursor: pointer;
+    font-family: var(--font); font-size: 0.9rem; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: all 0.15s;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-secondary { background: var(--border); color: var(--text); }
+  .btn-secondary:hover { background: #3a3d5e; }
+  .btn-accent { background: rgba(52,211,153,0.15); color: var(--green); border: 1px solid rgba(52,211,153,0.3); }
+  .btn-accent:hover { background: rgba(52,211,153,0.25); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .results-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem;
+  }
+  .result-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .result-table th {
+    text-align: left; padding: 8px 10px; color: var(--dim); font-weight: 500;
+    border-bottom: 1px solid var(--border); font-size: 0.8rem;
+  }
+  .result-table td {
+    padding: 7px 10px; border-bottom: 1px solid rgba(42,45,62,0.5);
+    font-family: var(--mono); font-size: 0.82rem;
+  }
+  .result-table tr:hover td { background: rgba(108,140,255,0.04); }
+
+  .cond-cards { display: flex; flex-direction: column; gap: 12px; }
+  .cond-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .cond-card .cond-label { font-size: 0.85rem; color: var(--dim); font-weight: 500; }
+  .cond-card .cond-value {
+    font-family: var(--mono); font-size: 1.15rem; font-weight: 700;
+  }
+  .cond-card .cond-unit { font-size: 0.75rem; color: var(--dim); margin-left: 4px; }
+  .cond-card .cond-std { font-size: 0.75rem; color: var(--dim); margin-left: 6px; }
+  .cond-ionic .cond-value { color: var(--accent); }
+  .cond-electronic .cond-value { color: var(--green); }
+  .cond-thermal .cond-value { color: var(--yellow); }
+
+  .rate-box {
+    margin-top: 12px; padding: 10px 16px; border-radius: 8px;
+    font-size: 0.85rem; font-weight: 600;
+    background: rgba(248,113,113,0.1); color: var(--red);
+    border: 1px solid rgba(248,113,113,0.2);
+  }
+
+  .optimal-table th, .optimal-table td { text-align: center; font-size: 0.8rem; }
+  .optimal-table tr.rank-1 td { color: var(--green); font-weight: 700; }
+  .table-wrap { overflow-x: auto; }
+
+  #loading-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15,17,23,0.7); z-index: 1000;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px; color: var(--text); font-size: 1rem;
+  }
+  .spinner {
+    width: 40px; height: 40px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .fix-check { margin-right: 6px; accent-color: var(--primary); cursor: pointer; }
+  .fix-check:not(:checked) + * { color: #ff922b; }
+  label:has(.fix-check:not(:checked)) { color: #ff922b; font-weight: 700; }
+  .sweep-hint { font-size: .75rem; color: var(--dim); margin-top: 4px; }
+  .analysis-select {
+    background: var(--bg2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 8px; font-size: 0.85rem; font-family: var(--font);
+  }
+
+  .phase-table { border-collapse: collapse; font-size: 0.65rem; }
+  .phase-table td {
+    width: 22px; height: 18px; text-align: center;
+    font-family: var(--mono); font-weight: 600; font-size: 0.55rem;
+    border: 1px solid rgba(255,255,255,0.03); padding: 0;
+  }
+  .phase-table .axis-label {
+    background: transparent; color: var(--dim); font-size: 0.65rem;
+    font-weight: 400; border: none; width: auto; padding: 2px 4px;
+  }
+  .phase-cell.boundary-01 { box-shadow: inset 0 0 0 2px #fff; }
+  .phase-cell.boundary-02 { box-shadow: inset 0 0 0 2px #2ecc71; }
+  .phase-cell.boundary-el { box-shadow: inset 0 0 0 2px #e74c3c; }
+  .phase-cell.boundary-util { box-shadow: inset 0 0 0 2px #f39c12; }
+  .phase-cell.boundary-01.boundary-02 { box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 4px #2ecc71; }
+  .phase-cell.boundary-01.boundary-el { box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 4px #e74c3c; }
+  .phase-cell.boundary-02.boundary-el { box-shadow: inset 0 0 0 2px #2ecc71, inset 0 0 0 4px #e74c3c; }
+
+  .heatmap-table { border-collapse: collapse; font-size: 0.65rem; }
+  .heatmap-table td {
+    width: 28px; height: 22px; text-align: center; color: #fff;
+    font-family: var(--mono); font-weight: 600; font-size: 0.6rem;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .heatmap-table .axis-label {
+    background: transparent; color: var(--dim); font-size: 0.65rem;
+    font-weight: 400; border: none; width: auto; padding: 2px 4px;
+  }
+
+  .sensitivity-bar-wrap {
+    margin-bottom: 8px; font-size: 0.85rem;
+  }
+  .sensitivity-bar-label {
+    display: flex; justify-content: space-between; margin-bottom: 2px;
+    color: var(--text); font-weight: 500;
+  }
+  .sensitivity-bar-bg {
+    background: var(--bg2); border-radius: 4px; height: 22px; overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .sensitivity-bar-fill {
+    height: 100%; border-radius: 4px; transition: width 0.3s;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding-right: 6px; font-size: 0.7rem; color: #fff; font-weight: 700;
+  }
+
+  .pareto-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .pareto-table th {
+    text-align: left; padding: 6px 10px; color: var(--dim); font-weight: 500;
+    border-bottom: 1px solid var(--border);
+  }
+  .pareto-table td {
+    padding: 5px 10px; border-bottom: 1px solid rgba(42,45,62,0.5);
+    font-family: var(--mono);
+  }
+  .pareto-table tr:hover td { background: rgba(108,140,255,0.04); }
+
+  .suggest-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; margin-bottom: 10px;
+  }
+  .suggest-rank {
+    font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-right: 10px;
+  }
+  .suggest-params { font-size: 0.82rem; color: var(--text); }
+  .suggest-scores {
+    display: flex; gap: 16px; margin-top: 6px; font-size: 0.8rem; color: var(--dim);
+  }
+  .suggest-scores strong { color: var(--green); }
+
+  @media (max-width: 800px) {
+    .input-grid { grid-template-columns: 1fr; }
+    .results-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<script>
+// Slider value display
+const sliders = [
+  { id: 'd_se', suffix: ' \u00b5m', decimals: 1 },
+  { id: 'd_am_p', suffix: ' \u00b5m', decimals: 0 },
+  { id: 'd_am_s', suffix: ' \u00b5m', decimals: 1 },
+  { id: 'am_pct', suffix: '%', decimals: 0 },
+  { id: 'ps_frac', suffix: '', decimals: 1 },
+  { id: 'loading', suffix: ' mAh/cm\u00b2', decimals: 1 },
+  { id: 'rve', suffix: ' \u00b5m', decimals: 0 },
+  { id: 'temperature', suffix: '', decimals: 0, format: v => `${v} K (${(v-273).toFixed(0)}\u00b0C)` },
+];
+sliders.forEach(s => {
+  const el = document.getElementById(s.id);
+  const val = document.getElementById(s.id + '_val');
+  el.addEventListener('input', () => {
+    if (s.format) val.textContent = s.format(parseFloat(el.value));
+    else val.textContent = parseFloat(el.value).toFixed(s.decimals) + s.suffix;
+  });
+});
+
+function showLoading(text) {
+  document.getElementById('loading-text').textContent = text || 'Processing...';
+  document.getElementById('loading-overlay').style.display = 'flex';
+}
+function hideLoading() {
+  document.getElementById('loading-overlay').style.display = 'none';
+}
+
+function trainModels() {
+  showLoading('Training GPR models...');
+  fetch('/predictor/train')
+    .then(r => r.json())
+    .then(data => {
+      hideLoading();
+      if (data.success) {
+        document.getElementById('data-count').textContent = data.count + ' cases';
+        const badge = document.getElementById('model-status');
+        badge.textContent = 'Models Ready';
+        badge.className = 'status-badge badge-green';
+        // v2.2: Show CV scores summary
+        let cvMsg = 'Models trained on ' + data.count + ' cases (v2.2 GPR+RF)';
+        if (data.cv_scores) {
+          const keys = ['phi_se','tau','cn','porosity','sigma_ion','am_cn'];
+          const cvParts = keys.filter(k => data.cv_scores[k] !== undefined)
+                              .map(k => k + ':' + data.cv_scores[k]);
+          if (cvParts.length) cvMsg += '\nCV_R²: ' + cvParts.join(', ');
+        }
+        showToast(cvMsg);
+      } else {
+        showToast(data.message || 'Training failed');
+      }
+    })
+    .catch(err => { hideLoading(); showToast('Error: ' + err); });
+}
+
+function getParams() {
+  const d_am_p = parseFloat(document.getElementById('d_am_p').value);
+  const d_am_s = parseFloat(document.getElementById('d_am_s').value);
+  return {
+    d_se: parseFloat(document.getElementById('d_se').value),
+    d_am: Math.max(d_am_p, d_am_s),
+    d_am_p: d_am_p,
+    d_am_s: d_am_s,
+    am_pct: parseFloat(document.getElementById('am_pct').value),
+    ps_frac: parseFloat(document.getElementById('ps_frac').value),
+    loading: parseFloat(document.getElementById('loading').value),
+    rve: parseFloat(document.getElementById('rve').value),
+    temperature: parseFloat(document.getElementById('temperature').value),
+    additive: document.getElementById('additive').value,
+    ptfe: document.getElementById('ptfe_on').checked,
+  };
+}
+
+const MICRO_LABELS = {
+  phi_se: ['\u03c6_SE', 'SE volume fraction'],
+  phi_am: ['\u03c6_AM', 'AM volume fraction'],
+  porosity: ['Porosity', '%'],
+  tau: ['\u03c4', 'Tortuosity'],
+  cn: ['CN_SE', 'SE-SE coordination'],
+  gb_d: ['GB_d', 'Grain boundary density'],
+  g_path: ['G_path', 'Path conductance'],
+  hop_area: ['Hop Area', 'Mean hop area'],
+  f_perc: ['f_perc', 'Percolation %'],
+  thickness: ['Thickness', '\u00b5m'],
+  am_cn: ['CN_AM', 'AM-AM coordination'],
+  sigma_brug_ratio: ['\u03c3_brug/\u03c3_grain', 'Bruggeman ratio'],
+};
+
+function runPrediction() {
+  const params = getParams();
+  showLoading('Running prediction...');
+  fetch('/predictor/predict', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+    .then(r => r.json())
+    .then(data => {
+      hideLoading();
+      if (data.error) { showToast(data.error); return; }
+      renderResults(data);
+    })
+    .catch(err => { hideLoading(); showToast('Error: ' + err); });
+}
+
+function renderResults(data) {
+  document.getElementById('results-section').style.display = 'grid';
+
+  // Microstructure table
+  const tbody = document.getElementById('micro-results');
+  tbody.innerHTML = '';
+  const micro = data.microstructure;
+  for (const [key, info] of Object.entries(MICRO_LABELS)) {
+    if (!micro[key]) continue;
+    const v = micro[key];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${info[0]} <span style="color:var(--dim);font-size:0.7rem">${info[1]}</span></td>
+      <td>${v.value.toFixed(4)}</td>
+      <td style="color:var(--dim)">\u00b1${v.std.toFixed(4)}</td>`;
+    tbody.appendChild(tr);
+  }
+
+  // Conductivity cards
+  const cond = data.conductivity;
+  const condDiv = document.getElementById('conductivity-results');
+  condDiv.innerHTML = `
+    <div class="cond-card cond-ionic">
+      <div>
+        <div class="cond-label">\u03c3<sub>ionic</sub> (ensemble)</div>
+        <div style="font-size:0.7rem;color:var(--dim);margin-top:2px">
+          FORM X: ${(cond.sigma_ionic_formX||0).toFixed(4)} | v3: ${(cond.sigma_ionic_v3||0).toFixed(4)} | GPR: ${(cond.sigma_ionic_gpr||0).toFixed(4)}
+        </div>
+      </div>
+      <div>
+        <span class="cond-value">${cond.sigma_ionic.toFixed(4)}</span>
+        <span class="cond-unit">mS/cm</span>
+        <span class="cond-std">\u00b1${cond.sigma_ionic_std.toFixed(4)}</span>
+      </div>
+    </div>
+    <div class="cond-card cond-electronic">
+      <div class="cond-label">\u03c3<sub>electronic</sub></div>
+      <div>
+        <span class="cond-value">${cond.sigma_electronic.toFixed(4)}</span>
+        <span class="cond-unit">mS/cm</span>
+      </div>
+    </div>
+    <div class="cond-card cond-thermal">
+      <div class="cond-label">\u03c3<sub>thermal</sub></div>
+      <div>
+        <span class="cond-value">${cond.sigma_thermal.toFixed(4)}</span>
+        <span class="cond-unit">mS/cm</span>
+      </div>
+    </div>
+  `;
+
+  // Rate limiting
+  const rateBox = document.getElementById('rate-limiting');
+  if (data.rate_limiting) {
+    rateBox.style.display = 'block';
+    const label = data.rate_limiting === 'ionic' ? 'Ionic transport' : 'Electronic transport';
+    const deadAm = data.dead_am_pct !== undefined ? data.dead_am_pct : 0;
+    const activeColor = deadAm > 10 ? '#e74c3c' : deadAm > 3 ? '#f39c12' : '#2ecc71';
+    rateBox.innerHTML = `Rate-limiting: <strong>${label}</strong> | ` +
+      `Electronic Active AM: <span style="color:${activeColor};font-weight:700">${(100-deadAm).toFixed(1)}%</span>` +
+      (deadAm > 1 ? ` (<span style="color:#e74c3c">${deadAm.toFixed(1)}% dead</span>)` : ' (no dead AM)');
+  }
+
+  // Utilization by C-rate
+  if (data.utilization) {
+    let utilHtml = '<div class="cond-card" style="background:var(--card);border:1px solid var(--border);margin-top:12px;padding:12px">';
+    utilHtml += '<div style="font-weight:700;margin-bottom:8px">📊 Utilization by C-rate</div>';
+    utilHtml += '<table style="width:100%;font-size:.85rem"><tr>';
+    for (const [cr, val] of Object.entries(data.utilization)) {
+      const pct = (val * 100).toFixed(1);
+      const color = val > 0.8 ? '#2ecc71' : val > 0.5 ? '#f39c12' : '#e74c3c';
+      utilHtml += `<td style="text-align:center"><div style="color:var(--dim);font-size:.75rem">${cr}</div><div style="color:${color};font-weight:700;font-size:1.1rem">${pct}%</div></td>`;
+    }
+    utilHtml += '</tr></table>';
+    if (data.performance_score !== undefined) {
+      utilHtml += `<div style="margin-top:8px;font-size:.8rem;color:var(--dim)">Performance Score (σ×util@1C): <strong style="color:var(--text)">${data.performance_score.toFixed(4)}</strong></div>`;
+    }
+    utilHtml += '</div>';
+    rateBox.insertAdjacentHTML('afterend', utilHtml);
+  }
+}
+
+function findOptimal() {
+  // Collect fixed vs sweep params
+  const params = getParams();
+  const sweepParams = {};
+  const fixedParams = {};
+  document.querySelectorAll('.fix-check').forEach(cb => {
+    const p = cb.dataset.param;
+    if (cb.checked) {
+      fixedParams[p] = params[p] || parseFloat(document.getElementById(p).value);
+    } else {
+      sweepParams[p] = true;
+    }
+  });
+  const sweepKeys = Object.keys(sweepParams);
+  if (sweepKeys.length === 0) {
+    showToast('체크 해제된 파라미터가 없습니다! sweep할 파라미터의 체크를 풀어주세요.');
+    return;
+  }
+  showLoading(`Sweeping ${sweepKeys.join(' × ')} (${sweepKeys.length}D)...`);
+
+  const qs = new URLSearchParams();
+  qs.set('fixed', JSON.stringify(fixedParams));
+  qs.set('sweep', JSON.stringify(sweepKeys));
+  // Pass current slider values as defaults
+  for (const [k, v] of Object.entries(params)) qs.set(k, v);
+
+  fetch('/predictor/optimal?' + qs.toString())
+    .then(r => r.json())
+    .then(data => {
+      hideLoading();
+      if (data.error) { showToast(data.error); return; }
+      renderOptimal(data);
+    })
+    .catch(err => { hideLoading(); showToast('Error: ' + err); });
+}
+
+function renderOptimal(results) {
+  document.getElementById('optimal-section').style.display = 'block';
+
+  // Detect which param columns exist in results
+  const paramKeys = ['d_se', 'd_am_p', 'd_am_s', 'am_pct', 'ps_frac', 'loading', 'rve'];
+  const paramLabels = {
+    d_se: 'd<sub>SE</sub>', d_am_p: 'd<sub>AM_P</sub>', d_am_s: 'd<sub>AM_S</sub>',
+    am_pct: 'AM%', ps_frac: 'P:S', loading: 'Loading', rve: 'RVE'
+  };
+  const activeParams = paramKeys.filter(k => results.length > 0 && results[0][k] !== undefined);
+
+  // Dynamic header
+  const thead = document.getElementById('optimal-header');
+  thead.innerHTML = '<tr><th>#</th>' +
+    activeParams.map(k => `<th>${paramLabels[k]}</th>`).join('') +
+    '<th>σ<sub>ionic</sub></th><th>util@1C</th><th style="color:#2ecc71">Score</th><th>E(mWh/cm²)</th><th>σ<sub>elec</sub></th><th>Rate Limiting</th></tr>';
+
+  // Rows
+  const tbody = document.getElementById('optimal-results');
+  tbody.innerHTML = '';
+  results.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    if (i === 0) tr.className = 'rank-1';
+    const paramCells = activeParams.map(k => {
+      let v = r[k];
+      if (k === 'am_pct') return `<td>${v}%</td>`;
+      if (k.startsWith('d_')) return `<td>${v} μm</td>`;
+      if (k === 'loading') return `<td>${v}</td>`;
+      return `<td>${v}</td>`;
+    }).join('');
+    const util1c = r.util_1C !== undefined ? (r.util_1C * 100).toFixed(1) + '%' : '-';
+    const perf = r.perf_score !== undefined ? r.perf_score.toFixed(4) : '-';
+    const energy = r.energy_mWh_cm2 !== undefined ? r.energy_mWh_cm2.toFixed(1) : '-';
+    tr.innerHTML = `<td>${i + 1}</td>${paramCells}
+      <td><strong>${r.sigma_ionic.toFixed(4)}</strong></td>
+      <td>${util1c}</td>
+      <td style="color:#2ecc71;font-weight:700">${perf}</td>
+      <td>${energy}</td>
+      <td>${r.sigma_electronic.toFixed(2)}</td>
+      <td>${r.rate_limiting}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ═══ Analysis Tools ═══
+
+function hideAllAnalysis() {
+  ['heatmap-container','phase-container','sensitivity-container','pareto-container','suggest-container'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+}
+
+function showHeatmap() {
+  hideAllAnalysis();
+  document.getElementById('heatmap-container').style.display = 'block';
+  document.getElementById('analysis-section').scrollIntoView({behavior:'smooth'});
+}
+
+function showSensitivity() {
+  hideAllAnalysis();
+  const container = document.getElementById('sensitivity-container');
+  container.style.display = 'block';
+  container.innerHTML = '<div style="color:var(--dim)">Computing sensitivity...</div>';
+  const params = getParams();
+  fetch('/predictor/sensitivity', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(params),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { container.innerHTML = `<div style="color:var(--red)">${data.error}</div>`; return; }
+      renderSensitivity(data);
+    })
+    .catch(err => { container.innerHTML = `<div style="color:var(--red)">Error: ${err}</div>`; });
+}
+
+function renderSensitivity(data) {
+  const container = document.getElementById('sensitivity-container');
+  const sens = data.sensitivities;
+  const maxDelta = Math.max(...sens.map(s => s.delta_sigma), 0.001);
+  const paramLabels = {d_se:'d_SE', am_pct:'AM%', ps_frac:'P:S frac', loading:'Loading'};
+  let html = `<div style="margin-bottom:10px;font-size:.85rem;color:var(--dim)">Base sigma_ionic: <strong style="color:var(--text)">${data.base_sigma.toFixed(4)} mS/cm</strong> &mdash; Variation: +/-30%</div>`;
+  sens.forEach(s => {
+    const pct = Math.min(100, (s.delta_sigma / maxDelta) * 100);
+    const color = pct > 66 ? 'var(--accent)' : pct > 33 ? 'var(--yellow)' : 'var(--dim)';
+    const label = paramLabels[s.param] || s.param;
+    html += `<div class="sensitivity-bar-wrap">
+      <div class="sensitivity-bar-label"><span>${label}</span><span style="font-family:var(--mono);font-size:.8rem">${s.delta_minus >= 0 ? '+' : ''}${s.delta_minus.toFixed(4)} / ${s.delta_plus >= 0 ? '+' : ''}${s.delta_plus.toFixed(4)}</span></div>
+      <div class="sensitivity-bar-bg"><div class="sensitivity-bar-fill" style="width:${pct}%;background:${color}">${s.delta_sigma.toFixed(4)}</div></div>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+function showPareto() {
+  hideAllAnalysis();
+  const container = document.getElementById('pareto-container');
+  container.style.display = 'block';
+  container.innerHTML = '<div style="color:var(--dim)">Computing Pareto front (this may take a moment)...</div>';
+  const params = getParams();
+  fetch('/predictor/pareto', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({d_am: params.d_am, ps_frac: params.ps_frac, rve: params.rve, n_points: 8}),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { container.innerHTML = `<div style="color:var(--red)">${data.error}</div>`; return; }
+      renderPareto(data);
+    })
+    .catch(err => { container.innerHTML = `<div style="color:var(--red)">Error: ${err}</div>`; });
+}
+
+function renderPareto(data) {
+  const container = document.getElementById('pareto-container');
+  const pareto = data.pareto;
+  if (!pareto || pareto.length === 0) {
+    container.innerHTML = '<div style="color:var(--dim)">No Pareto-optimal points found.</div>';
+    return;
+  }
+  let html = `<div style="margin-bottom:10px;font-size:.85rem;color:var(--dim)">Pareto front: ${pareto.length} optimal points from ${data.all_count} evaluated</div>`;
+
+  // Simple scatter visualization using CSS
+  const maxSigma = Math.max(...pareto.map(p => p.sigma_ionic));
+  const maxEnergy = Math.max(...pareto.map(p => p.energy));
+  html += `<div style="position:relative;width:100%;height:220px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;overflow:hidden">`;
+  html += `<div style="position:absolute;bottom:2px;left:50%;transform:translateX(-50%);font-size:.7rem;color:var(--dim)">sigma_ionic (mS/cm) &rarr;</div>`;
+  html += `<div style="position:absolute;left:4px;top:50%;transform:rotate(-90deg) translateX(-50%);font-size:.7rem;color:var(--dim);transform-origin:left center">Energy (mWh/cm2) &rarr;</div>`;
+  pareto.forEach((p, i) => {
+    const x = 30 + (p.sigma_ionic / (maxSigma * 1.1)) * 65;
+    const y = 85 - (p.energy / (maxEnergy * 1.1)) * 75;
+    html += `<div style="position:absolute;left:${x}%;top:${y}%;width:10px;height:10px;background:var(--accent);border-radius:50%;transform:translate(-50%,-50%)" title="sigma=${p.sigma_ionic}, E=${p.energy}, d_se=${p.d_se}, AM=${p.am_pct}%, L=${p.loading}"></div>`;
+  });
+  html += `</div>`;
+
+  // Table
+  html += `<table class="pareto-table"><thead><tr><th>#</th><th>d_SE</th><th>AM%</th><th>Loading</th><th>sigma_ionic</th><th>Energy</th></tr></thead><tbody>`;
+  pareto.forEach((p, i) => {
+    html += `<tr><td>${i+1}</td><td>${p.d_se}</td><td>${p.am_pct}%</td><td>${p.loading}</td><td style="color:var(--accent);font-weight:700">${p.sigma_ionic.toFixed(4)}</td><td style="color:var(--green);font-weight:700">${p.energy.toFixed(4)}</td></tr>`;
+  });
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+}
+
+function suggestNext() {
+  hideAllAnalysis();
+  const container = document.getElementById('suggest-container');
+  container.style.display = 'block';
+  container.innerHTML = '<div style="color:var(--dim)">Computing next best DEM conditions...</div>';
+  fetch('/predictor/suggest')
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { container.innerHTML = `<div style="color:var(--red)">${data.error}</div>`; return; }
+      renderSuggestions(data);
+    })
+    .catch(err => { container.innerHTML = `<div style="color:var(--red)">Error: ${err}</div>`; });
+}
+
+function renderSuggestions(data) {
+  const container = document.getElementById('suggest-container');
+  let html = `<div style="margin-bottom:12px;font-size:.85rem;color:var(--dim)">Best known sigma: <strong style="color:var(--text)">${data.best_known_sigma.toFixed(4)} mS/cm</strong> &mdash; Top 3 suggestions (UCB acquisition)</div>`;
+  data.suggestions.forEach((s, i) => {
+    html += `<div class="suggest-card">
+      <span class="suggest-rank">#${i+1}</span>
+      <span class="suggest-params">d_SE=${s.d_se} um &nbsp; AM=${s.am_pct}% &nbsp; P:S=${s.ps_frac} &nbsp; Loading=${s.loading}</span>
+      <div class="suggest-scores">
+        <span>Predicted: <strong>${s.predicted_sigma.toFixed(4)} mS/cm</strong></span>
+        <span>Uncertainty: <strong style="color:var(--yellow)">&plusmn;${s.uncertainty.toFixed(4)}</strong></span>
+        <span>Acquisition: <strong>${s.acquisition_score.toFixed(4)}</strong></span>
+      </div>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+function exportCSV() {
+  window.location.href = '/predictor/export';
+}
+
+function showPhaseDiagram() {
+  hideAllAnalysis();
+  document.getElementById('phase-container').style.display = 'block';
+  document.getElementById('analysis-section').scrollIntoView({behavior:'smooth'});
+}
+
+function generatePhaseDiagram() {
+  const xParam = document.getElementById('phase-x').value;
+  const yParam = document.getElementById('phase-y').value;
+  if (xParam === yParam) {
+    showToast('X and Y parameters must be different');
+    return;
+  }
+  const grid = document.getElementById('phase-grid');
+  grid.innerHTML = '<div style="color:var(--dim);padding:8px">Generating phase diagram (30x30 grid)... this may take a moment.</div>';
+
+  const params = getParams();
+  const fixed = {};
+  ['d_se','d_am','am_pct','ps_frac','loading','rve'].forEach(k => {
+    if (k !== xParam && k !== yParam) fixed[k] = params[k] || params[k];
+  });
+  if (!fixed.d_am && xParam !== 'd_am' && yParam !== 'd_am') fixed.d_am = params.d_am;
+
+  fetch('/predictor/phase-diagram', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({x_param: xParam, y_param: yParam, fixed: fixed, n_points: 30}),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { grid.innerHTML = `<div style="color:var(--red)">${data.error}</div>`; return; }
+      renderPhaseDiagram(data);
+    })
+    .catch(err => { grid.innerHTML = `<div style="color:var(--red)">Error: ${err}</div>`; });
+}
+
+function renderPhaseDiagram(data) {
+  const grid = document.getElementById('phase-grid');
+  document.getElementById('phase-legend').style.display = 'block';
+
+  const sigma = data.sigma_ionic;
+  const elecActive = data.electronic_active;
+  const util = data.util_1C;
+  const ny = sigma.length;
+  const nx = sigma[0].length;
+
+  // Find sigma range for coloring
+  const allSigma = sigma.flat();
+  const minS = Math.min(...allSigma);
+  const maxS = Math.max(...allSigma);
+
+  // Build boundary lookup: set of "j,i" strings for each boundary type
+  const bSigma01 = new Set();
+  const bSigma02 = new Set();
+  const bElec80 = new Set();
+  const bUtil80 = new Set();
+
+  // Compute boundaries from grid data (check neighbors)
+  function markBoundary(gridData, threshold, bSet) {
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        const val = gridData[j][i];
+        let crosses = false;
+        if (i + 1 < nx) {
+          const nb = gridData[j][i + 1];
+          if ((val < threshold && nb >= threshold) || (val >= threshold && nb < threshold)) crosses = true;
+        }
+        if (j + 1 < ny) {
+          const nb = gridData[j + 1][i];
+          if ((val < threshold && nb >= threshold) || (val >= threshold && nb < threshold)) crosses = true;
+        }
+        if (i > 0) {
+          const nb = gridData[j][i - 1];
+          if ((val < threshold && nb >= threshold) || (val >= threshold && nb < threshold)) crosses = true;
+        }
+        if (j > 0) {
+          const nb = gridData[j - 1][i];
+          if ((val < threshold && nb >= threshold) || (val >= threshold && nb < threshold)) crosses = true;
+        }
+        if (crosses) bSet.add(j + ',' + i);
+      }
+    }
+  }
+
+  markBoundary(sigma, 0.1, bSigma01);
+  markBoundary(sigma, 0.2, bSigma02);
+  markBoundary(elecActive, 80, bElec80);
+  markBoundary(util, 0.8, bUtil80);
+
+  let html = `<div style="margin-bottom:6px;font-size:.8rem;color:var(--dim)">&sigma;<sub>ionic</sub> range: ${minS.toFixed(4)} to ${maxS.toFixed(4)} mS/cm</div>`;
+  html += '<div style="overflow-x:auto"><table class="phase-table">';
+
+  // Header row (x values)
+  html += '<tr><td class="axis-label" style="font-weight:600">' + data.y_label.split('(')[0].trim() + '\\' + data.x_label.split('(')[0].trim() + '</td>';
+  data.x_values.forEach((xv, i) => {
+    if (i % 5 === 0) html += `<td class="axis-label">${typeof xv === 'number' ? xv.toFixed(1) : xv}</td>`;
+    else html += `<td class="axis-label"></td>`;
+  });
+  html += '</tr>';
+
+  // Data rows (y reversed so high values at top)
+  for (let j = ny - 1; j >= 0; j--) {
+    const yLabel = j % 5 === 0 ? (typeof data.y_values[j] === 'number' ? data.y_values[j].toFixed(1) : data.y_values[j]) : '';
+    html += `<tr><td class="axis-label">${yLabel}</td>`;
+    for (let i = 0; i < nx; i++) {
+      const val = sigma[j][i];
+      const bg = heatmapColor(val, minS, maxS);
+      const key = j + ',' + i;
+      let cls = 'phase-cell';
+      if (bSigma01.has(key)) cls += ' boundary-01';
+      else if (bSigma02.has(key)) cls += ' boundary-02';
+      if (bElec80.has(key)) cls += ' boundary-el';
+      if (bUtil80.has(key)) cls += ' boundary-util';
+
+      const elVal = elecActive[j][i];
+      const utVal = util[j][i];
+      const tip = `${data.x_label}=${data.x_values[i]}, ${data.y_label}=${data.y_values[j]}\n\u03c3_ionic=${val.toFixed(4)} mS/cm\nElec Active=${elVal.toFixed(1)}%\nutil@1C=${(utVal*100).toFixed(1)}%`;
+      html += `<td class="${cls}" style="background:${bg}" title="${tip}"></td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</table></div>';
+  grid.innerHTML = html;
+}
+
+function generateHeatmap() {
+  const xParam = document.getElementById('heatmap-x').value;
+  const yParam = document.getElementById('heatmap-y').value;
+  const target = document.getElementById('heatmap-z').value;
+  if (xParam === yParam) {
+    showToast('X and Y parameters must be different');
+    return;
+  }
+  const grid = document.getElementById('heatmap-grid');
+  grid.innerHTML = '<div style="color:var(--dim);padding:8px">Generating heatmap...</div>';
+
+  const params = getParams();
+  const fixed = {};
+  ['d_se','d_am','am_pct','ps_frac','loading','rve'].forEach(k => {
+    if (k !== xParam && k !== yParam) fixed[k] = params[k] || params[k.replace('d_am','d_am')];
+  });
+  // Ensure d_am is set
+  if (!fixed.d_am && xParam !== 'd_am' && yParam !== 'd_am') fixed.d_am = params.d_am;
+
+  fetch('/predictor/heatmap', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({x_param: xParam, y_param: yParam, target: target, fixed: fixed, n_points: 15}),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { grid.innerHTML = `<div style="color:var(--red)">${data.error}</div>`; return; }
+      renderHeatmap(data);
+    })
+    .catch(err => { grid.innerHTML = `<div style="color:var(--red)">Error: ${err}</div>`; });
+}
+
+function heatmapColor(val, minVal, maxVal) {
+  const t = maxVal > minVal ? (val - minVal) / (maxVal - minVal) : 0.5;
+  // Red (low) -> Yellow (mid) -> Green (high)
+  let r, g, b;
+  if (t < 0.5) {
+    const s = t * 2;
+    r = Math.round(220 - s * 60);
+    g = Math.round(38 + s * 197);
+    b = Math.round(38 + s * 0);
+  } else {
+    const s = (t - 0.5) * 2;
+    r = Math.round(160 - s * 126);
+    g = Math.round(235 - s * 38);
+    b = Math.round(38 + s * 59);
+  }
+  return `rgb(${r},${g},${b})`;
+}
+
+function renderHeatmap(data) {
+  const grid = document.getElementById('heatmap-grid');
+  document.getElementById('heatmap-legend').style.display = 'block';
+  const z = data.z_matrix;
+  const allVals = z.flat();
+  const minZ = Math.min(...allVals);
+  const maxZ = Math.max(...allVals);
+
+  let html = `<div style="margin-bottom:6px;font-size:.8rem;color:var(--dim)">${data.z_label} &mdash; range: ${minZ.toFixed(4)} to ${maxZ.toFixed(4)}</div>`;
+  html += '<div style="overflow-x:auto"><table class="heatmap-table">';
+
+  // Header row (x values)
+  html += '<tr><td class="axis-label" style="font-weight:600">' + data.y_label.split(' ')[0] + '\\' + data.x_label.split(' ')[0] + '</td>';
+  data.x_values.forEach((xv, i) => {
+    if (i % 3 === 0) html += `<td class="axis-label">${xv}</td>`;
+    else html += `<td class="axis-label" style="font-size:.5rem">${xv}</td>`;
+  });
+  html += '</tr>';
+
+  // Data rows (y reversed so high values at top)
+  for (let j = z.length - 1; j >= 0; j--) {
+    html += `<tr><td class="axis-label">${data.y_values[j]}</td>`;
+    for (let i = 0; i < z[j].length; i++) {
+      const val = z[j][i];
+      const bg = heatmapColor(val, minZ, maxZ);
+      html += `<td style="background:${bg}" title="${data.x_label}=${data.x_values[i]}, ${data.y_label}=${data.y_values[j]}: ${val.toFixed(4)}">${val > 0 ? val.toFixed(2) : ''}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</table></div>';
+  grid.innerHTML = html;
+}
+</script>
+{% endblock %}

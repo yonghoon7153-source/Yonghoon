@@ -1,0 +1,701 @@
+{% extends "base.html" %}
+{% set active = "single" %}
+{% block title %}{{ case.name }} - DEM Analysis{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <h2 class="case-name" ondblclick="editName(this)" title="더블클릭으로 이름 변경" style="cursor:pointer">{{ case.name }}</h2>
+      <p>
+        <span class="badge badge-{{ case.mode }}">{{ case.mode }}</span>
+        <span class="badge badge-scale">Scale: {{ case.scale }}x</span>
+        {% if case.type_map %}<span class="badge">{{ case.type_map }}</span>{% endif %}
+        {% if metrics %}
+          {% if input_params and input_params.box_x is defined %}<span class="badge">RVE: {{ "%.0f"|format(input_params.box_x * case.scale) }}×{{ "%.0f"|format(input_params.box_y * case.scale) }}μm</span>{% endif %}
+          {% if metrics.porosity is defined %}<span class="badge">Porosity: {{ "%.1f"|format(metrics.porosity) }}%</span>{% endif %}
+          {% if metrics.thickness_um is defined %}<span class="badge">두께: {{ "%.1f"|format(metrics.thickness_um) }}μm</span>{% endif %}
+          {% if metrics.percolation_pct is defined %}<span class="badge">Percolation: {{ "%.1f"|format(metrics.percolation_pct) }}%</span>{% endif %}
+          {% if metrics.ionic_active_pct is defined %}<span class="badge badge-{{ 'standard' if metrics.ionic_active_pct >= 95 else 'bimodal' }}">Ionic Active: {{ "%.1f"|format(metrics.ionic_active_pct) }}%</span>{% endif %}
+          {% if metrics.e_se_eff_gpa is defined %}<span class="badge">E_SE: {{ "%.2f"|format(metrics.e_se_eff_gpa) }} GPa ({{ "%.0f"|format(metrics.e_se_eff_gpa / 1.35 * 24) }} GPa)</span>{% endif %}
+        {% endif %}
+        {% if metrics.warnings is defined and metrics.warnings %}
+        <span class="badge badge-warning" title="{% for w in metrics.warnings %}{{ w.msg }}&#10;{% endfor %}">⚠ {{ metrics.warning_count }}</span>
+        {% endif %}
+      </p>
+      {% if metrics.warnings is defined and metrics.warnings %}
+      <div class="warning-banner">
+        {% for w in metrics.warnings %}
+        <div class="warning-item warning-{{ w.severity }}{% if w.type in (metrics.disabled_warnings or []) %} warning-disabled{% endif %}" id="warn-{{ w.type }}">
+          <span class="warning-icon">{{ '🔴' if w.severity == 'critical' else '🟡' }}</span>
+          <span class="warning-msg" style="flex:1">{{ w.msg }}</span>
+          <button class="btn btn-sm warning-toggle" onclick="toggleWarning('{{ w.type }}')">
+            {{ 'ON' if w.type not in (metrics.disabled_warnings or []) else 'OFF' }}
+          </button>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-archive" onclick="saveToArchive()">보관함에 저장</button>
+      <a href="/results/{{ case.id }}/report?format=pdf" class="btn btn-primary">PDF Report</a>
+      <a href="/results/{{ case.id }}/report" class="btn btn-secondary">MD Report</a>
+      {% if archive_path %}
+      <a href="/archive?folder={{ archive_path|replace('/' ~ archive_path.split('/')[-1], '') }}" class="btn btn-secondary">보관함으로</a>
+      {% else %}
+      <a href="/" class="btn btn-secondary">목록으로</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Summary Tables -->
+{% if tables %}
+<div class="card">
+  <div class="card-header-row">
+    <h3>분석 요약</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      {% if case.ps_ratio %}<span class="badge">P:S = {{ case.ps_ratio }}</span>
+      {% elif metrics and metrics.ps_ratio %}<span class="badge">P:S = {{ metrics.ps_ratio }}</span>{% endif %}
+      {% if metrics and metrics.am_se_ratio %}
+        {% if input_params and input_params.am_se_ratio and input_params.am_se_ratio != metrics.am_se_ratio %}
+        <span class="badge">AM:SE = {{ metrics.am_se_ratio }} ({{ input_params.am_se_ratio }})</span>
+        {% else %}
+        <span class="badge">AM:SE = {{ metrics.am_se_ratio }}</span>
+        {% endif %}
+      {% elif input_params and input_params.am_se_ratio %}
+      <span class="badge">AM:SE = {{ input_params.am_se_ratio }}</span>
+      {% endif %}
+      {% if metrics and metrics.target_pressure_mpa is defined %}<span class="badge">Target: {{ metrics.target_pressure_mpa }} MPa</span>
+      {% elif input_params and input_params.target_press_sim is defined %}<span class="badge">Target: {{ "%.1f"|format(input_params.target_press_sim * 1000) }} MPa</span>{% endif %}
+    </div>
+  </div>
+  <div class="tabs">
+    {% set tab_names = {
+      'atom_statistics': '입자 정보',
+      'contact_summary': '접촉 요약',
+      'coordination_summary': '배위수',
+      'network_summary': '네트워크 지표'
+    } %}
+    {% for name, tbl in tables.items() %}
+    <button class="tab-btn {% if loop.first %}active{% endif %}"
+            onclick="switchTab(this, 'tab-{{ name }}')">
+      {{ tab_names.get(name, name.replace('_', ' ').title()) }}
+    </button>
+    {% endfor %}
+  </div>
+  {% for name, tbl in tables.items() %}
+  <div id="tab-{{ name }}" class="tab-panel {% if loop.first %}active{% endif %}">
+    <div class="table-scroll">
+      <table class="data-table compact">
+        <thead><tr>{% for col in tbl.columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for row in tbl.data %}
+          {% if row[0] is string and row[0].startswith('──') %}
+          <tr class="section-header"><td colspan="{{ tbl.columns|length }}">{{ row[0] }}</td></tr>
+          {% else %}
+          <tr>{% for val in row %}<td{% if loop.first %} class="metric-label" data-metric="{{ val }}"{% endif %}>{{ val }}</td>{% endfor %}</tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if name == 'network_summary' %}
+    <div style="margin-top:10px">
+      <button class="btn btn-primary" id="btn-retry-net" onclick="retryNetwork()">Network Solver 재실행</button>
+      <span id="net-retry-status" style="margin-left:10px;color:#888"></span>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Figures -->
+{% if figures %}
+<div class="card">
+  <h3>Figures ({{ figures|length }})</h3>
+  <div class="figures-grid">
+    {% for fig in figures %}
+    {% set fig_base = '/archive/results/' ~ archive_path if archive_path else '/results/' ~ case.id %}
+    <div class="figure-item" onclick="openModal('{{ fig_base }}/figures/{{ fig }}', '{{ fig }}')">
+      <img src="{{ fig_base }}/figures/{{ fig }}" alt="{{ fig }}" loading="lazy">
+      <span class="figure-label">{{ fig }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- 3D Electrode Viewer -->
+<div class="card">
+  <div class="card-header-row">
+    <h3>3D 전극 구조</h3>
+    <button class="btn btn-primary" onclick="load3DViewer()">3D 뷰어 로드</button>
+  </div>
+  <div id="viewer-container" class="viewer-container" style="display:none">
+  </div>
+</div>
+
+<!-- Image Modal -->
+<div id="modal" class="modal" onclick="this.classList.remove('open')">
+  <div class="modal-inner" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="document.getElementById('modal').classList.remove('open')">&times;</button>
+    <img id="modal-img" src="" alt="">
+    <p id="modal-title"></p>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script>
+let viewer3dLoaded = false;
+
+async function load3DViewer() {
+  const container = document.getElementById('viewer-container');
+  container.style.display = 'block';
+  if (viewer3dLoaded) return;
+  viewer3dLoaded = true;
+  const mod = await import('/static/js/viewer3d.js');
+  {% if archive_path %}
+  mod.initElectrodeViewer('viewer-container', '/archive/results/{{ archive_path }}/3d-data');
+  {% else %}
+  mod.initElectrodeViewer('viewer-container', '/results/{{ case.id }}/3d-data');
+  {% endif %}
+}
+
+function switchTab(btn, id) {
+  btn.closest('.card').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.closest('.card').querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(id).classList.add('active');
+}
+
+function openModal(src, title) {
+  document.getElementById('modal-img').src = src;
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal').classList.add('open');
+}
+
+function copyReport() {
+  const text = document.getElementById('report-content').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.btn-copy');
+    btn.textContent = '복사됨!';
+    setTimeout(() => btn.textContent = '복사', 1500);
+  });
+}
+
+async function retryNetwork() {
+  const btn = document.getElementById('btn-retry-net');
+  const status = document.getElementById('net-retry-status');
+  btn.disabled = true;
+  btn.textContent = '실행중...';
+  status.textContent = '';
+  try {
+    const resp = await fetch('/retry-network/{{ case.id }}', {method: 'POST'});
+    const data = await resp.json();
+    if (data.success) {
+      status.textContent = '⏳ Network Solver 시작됨. 페이지를 새로고침하세요 (1~5분 소요)';
+      // Auto-poll for completion
+      const poll = setInterval(async () => {
+        const sr = await fetch('/analyze-status/{{ case.id }}');
+        const sd = await sr.json();
+        if (sd.status === 'done') {
+          clearInterval(poll);
+          status.textContent = '✅ 완료! 새로고침합니다...';
+          setTimeout(() => location.reload(), 1000);
+        }
+      }, 5000);
+    } else {
+      status.textContent = '❌ ' + (data.error || 'Failed');
+      btn.disabled = false;
+      btn.textContent = 'Network Solver 재실행';
+    }
+  } catch(e) {
+    status.textContent = '❌ ' + e.message;
+    btn.disabled = false;
+    btn.textContent = 'Network Solver 재실행';
+  }
+}
+
+function editName(el) {
+  const oldName = el.textContent.trim();
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = oldName;
+  input.className = 'input';
+  input.style.cssText = 'font-size:1.6rem;font-weight:700;padding:2px 8px;width:400px';
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+
+  async function save() {
+    const newName = input.value.trim();
+    if (newName && newName !== oldName) {
+      const form = new FormData();
+      form.append('name', newName);
+      await fetch('/rename/{{ case.id }}', { method: 'POST', body: form });
+    }
+    location.reload();
+  }
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') location.reload();
+  });
+}
+
+async function toggleWarning(warnType) {
+  const caseId = '{{ case.id }}';
+  const res = await fetch(`/toggle-warning/${caseId}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({warning_type: warnType})
+  });
+  const data = await res.json();
+  if (data.success) {
+    const el = document.getElementById('warn-' + warnType);
+    const btn = el.querySelector('.warning-toggle');
+    if (data.disabled) {
+      el.classList.add('warning-disabled');
+      btn.textContent = 'OFF';
+    } else {
+      el.classList.remove('warning-disabled');
+      btn.textContent = 'ON';
+    }
+  }
+}
+
+async function saveToArchive() {
+  const btn = document.querySelector('.btn-archive');
+  btn.disabled = true; btn.textContent = '폴더 로딩...';
+  // Fetch archive folders
+  try {
+    const res = await fetch('/archive/folders-list');
+    const data = await res.json();
+    const folders = data.folders || [];
+    // Show folder selection prompt
+    let options = ['(최상위)'].concat(folders);
+    let msg = '보관함 폴더 선택:\\n';
+    options.forEach((f, i) => { msg += `${i}: ${f}\\n`; });
+    msg += '\\n번호를 입력하세요:';
+    const choice = prompt(msg, '0');
+    if (choice === null) { btn.textContent = '보관함에 저장'; btn.disabled = false; return; }
+    const idx = parseInt(choice);
+    const folder = idx === 0 ? '' : (folders[idx - 1] || '');
+    btn.textContent = '저장 중...';
+    const form = new FormData();
+    form.append('case_id', '{{ case.id }}');
+    form.append('folder', folder);
+    const saveRes = await fetch('/archive/save-case', { method: 'POST', body: form });
+    const saveData = await saveRes.json();
+    if (saveData.success) {
+      btn.textContent = '✓ 저장 완료';
+    } else {
+      btn.textContent = '저장 실패';
+    }
+  } catch(e) {
+    btn.textContent = '저장 실패';
+  }
+  setTimeout(() => { btn.textContent = '보관함에 저장'; btn.disabled = false; }, 1500);
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    document.getElementById('modal').classList.remove('open');
+    document.getElementById('save-dialog').classList.remove('open');
+  }
+});
+
+/* ── Metric tooltips ── */
+const METRIC_TIPS = {
+  'Porosity(%)': {
+    title: 'Porosity (기공률)',
+    formula: 'ε = (1 − V_particles / V_electrode) × 100',
+    desc: '전극 전체 부피 중 입자가 차지하지 않는 빈 공간의 비율입니다. 입자들의 부피 합을 전극 부피(가로×세로×두께)로 나누어 계산합니다.',
+    meaning: '기공률이 낮으면 입자가 촘촘하게 충전된 것입니다. 전고체전지에서는 기공이 곧 이온/전자가 이동하지 못하는 빈 공간이므로, 기공률이 낮을수록 접촉 면적과 전도 네트워크 형성에 유리합니다. 단, 지나치게 낮으면 응력 집중이나 크랙 위험이 커집니다.'
+  },
+  '전극두께(μm)': {
+    title: '전극 두께',
+    formula: 'T = z_max − z_min  (입자 최상단 − 기판 표면)',
+    desc: '가압 후 전극의 실제 두께(μm)입니다. DEM 시뮬레이션 좌표에서 기판(plate) 위치와 최상단 입자 위치의 차이로 계산됩니다.',
+    meaning: '전극 두께는 에너지 밀도와 출력 밀도의 trade-off를 결정합니다. 두꺼울수록 활물질 양이 많아 용량이 커지지만, 이온 이동 거리가 길어져 rate 특성이 떨어집니다.'
+  },
+  'AM-SE Total(μm²)': {
+    title: 'AM-SE 총 접촉 면적',
+    formula: 'A_AM-SE = Σ (각 AM-SE 접촉쌍의 접촉 면적)',
+    desc: '활물질(AM) 입자와 고체전해질(SE) 입자 사이의 접촉 면적을 모두 합한 값(μm²)입니다. Hertz 접촉역학 기반으로 계산됩니다.',
+    meaning: '이 면적은 전하이동 반응(charge transfer)이 일어나는 전기화학적 활성 면적입니다. AM-SE 접촉이 클수록 리튬이온이 AM↔SE를 넘나들 수 있는 경로가 많아져 저항이 줄어듭니다.'
+  },
+  'SE-SE Total(μm²)': {
+    title: 'SE-SE 총 접촉 면적',
+    formula: 'A_SE-SE = Σ (각 SE-SE 접촉쌍의 접촉 면적)',
+    desc: '고체전해질(SE) 입자끼리의 접촉 면적 총합(μm²)입니다. SE 네트워크 내에서 리튬이온이 이동하는 통로의 총 단면적에 해당합니다.',
+    meaning: 'SE-SE 접촉 면적이 클수록 이온 전도 네트워크가 넓고 저항이 낮습니다. Percolation이 동일해도 이 면적이 작으면 병목이 생겨 실질 이온 전도도가 떨어집니다.'
+  },
+  'Coverage AM_P(%)': {
+    title: 'Coverage AM_P (대립자 피복률)',
+    formula: 'Coverage = (AM 표면 중 SE와 접촉하는 면적 / AM 전체 표면적) × 100',
+    desc: '대입경 활물질(AM_P) 표면이 고체전해질(SE)에 의해 덮인 비율(%)입니다. 각 AM_P 입자별로 계산한 뒤 평균을 냅니다.',
+    meaning: '피복률이 높을수록 AM 표면 전체에서 고르게 전하이동 반응이 일어날 수 있습니다. 피복률이 낮으면 AM의 일부 표면만 반응하여 국부 과전압이 발생하고 열화가 가속됩니다.'
+  },
+  'Coverage AM_S(%)': {
+    title: 'Coverage AM_S (소립자 피복률)',
+    formula: 'Coverage = (AM 표면 중 SE와 접촉하는 면적 / AM 전체 표면적) × 100',
+    desc: '소입경 활물질(AM_S) 표면이 고체전해질(SE)에 의해 덮인 비율(%)입니다.',
+    meaning: '소립자는 비표면적이 크므로 피복률이 낮아지기 쉽습니다. 소립자의 역할은 대립자 사이 빈 공간을 채워 에너지 밀도를 높이는 것이지만, 피복률이 너무 낮으면 ionic inactive가 됩니다.'
+  },
+  'SE-SE CN mean': {
+    title: 'SE-SE Coordination Number (배위수)',
+    formula: 'CN_i = (SE 입자 i가 접촉하고 있는 다른 SE 입자의 수)\nCN_mean = 평균(모든 SE의 CN)',
+    desc: 'SE 입자 하나가 평균적으로 몇 개의 다른 SE 입자와 접촉하고 있는지를 나타냅니다.',
+    meaning: 'CN이 높을수록 SE 네트워크가 조밀하게 연결되어 있습니다. CN ≥ 4이면 3D 공간에서 안정적인 percolation 네트워크가 형성됩니다. CN이 낮으면 끊어지기 쉬운 취약한 네트워크입니다.'
+  },
+  'SE Cluster 수': {
+    title: 'SE Cluster 수 (연결 덩어리)',
+    formula: 'Graph G의 connected components 개수\n유의미(≥10) / 전체',
+    desc: 'SE 접촉 그래프에서 서로 연결된 SE 입자 덩어리(cluster)의 수입니다. ≥10은 10개 이상의 SE로 이루어진 유의미한 클러스터 수입니다.',
+    meaning: '이상적으로는 1개의 거대 클러스터가 전극을 관통해야 합니다. 클러스터가 많으면 SE 네트워크가 분절된 것이며, 고립된 클러스터의 AM은 이온 공급을 받지 못합니다.'
+  },
+  'SE Percolation(%)': {
+    title: 'SE Percolation (관통률)',
+    formula: 'Percolation = (하단 ↔ 상단 연결된 SE 수 / 전체 SE 수) × 100',
+    desc: '전극 하단(기판 근처)과 상단(SE pellet 근처) 양쪽에 모두 연결된 SE 입자의 비율입니다.',
+    meaning: '이온이 전극 전체를 관통하여 이동할 수 있는 연속 경로의 존재 여부를 나타냅니다. 100%에 가까울수록 거의 모든 SE가 이온 전도에 참여합니다. 95% 이상이면 포화 영역이므로 다른 지표(tortuosity, bottleneck)가 더 중요해집니다.'
+  },
+  'Top Reachable(%)': {
+    title: 'Top Reachable (상단 도달률)',
+    formula: 'Top Reachable = (상단 SE에 연결된 SE 수 / 전체 SE 수) × 100',
+    desc: '전극 상단(SE pellet 측)에 연결된 SE 입자의 비율입니다. 하단 연결 여부는 고려하지 않습니다.',
+    meaning: '상단(SE pellet)에서 이온이 도달할 수 있는 SE의 비율입니다. Percolation보다 넓은 개념으로, 하단에 직접 닿지 않아도 AM과 접촉하여 활성 역할을 하는 SE를 포함합니다.'
+  },
+  'Tortuosity mean': {
+    title: 'Tortuosity (굴곡도)',
+    formula: 'τ = L_path / L_direct\nL_path = shortest path 실제 거리\nL_direct = 출발점-도착점 z 방향 직선 거리',
+    desc: '이온이 전극을 관통하는 최단 경로의 실제 길이와 직선 거리의 비율입니다. τ=1이면 완전 직선, 값이 클수록 구불구불한 경로입니다.',
+    meaning: '굴곡도가 낮을수록 이온이 빠르게 이동합니다. τ < 1.5이면 우수, τ > 2이면 경로가 매우 비효율적입니다. 실제 유효 이온 전도도는 σ_eff ∝ σ_bulk / τ² 관계이므로 τ의 영향은 제곱으로 커집니다.'
+  },
+  'Tortuosity median': {
+    title: 'Tortuosity 중앙값',
+    formula: 'median = 경로 τ값들을 정렬했을 때 중앙에 위치하는 값',
+    desc: '극단적 outlier(τ=77 등)에 영향받지 않는 robust한 대표값입니다.',
+    meaning: 'mean과 median이 크게 다르면 outlier가 mean을 왜곡하고 있다는 뜻입니다. 이 경우 median이 실제 경로 품질을 더 잘 대표합니다. std/mean > 0.5이면 자동으로 median을 권장합니다.'
+  },
+  'Tortuosity std': {
+    title: 'Tortuosity 표준편차',
+    formula: 'std = √(Σ(τ_i − τ_mean)² / N)',
+    desc: '여러 경로의 tortuosity 값이 얼마나 퍼져 있는지를 나타냅니다.',
+    meaning: '표준편차가 작으면 경로 품질이 균일합니다. 크면 좋은 경로와 나쁜 경로가 혼재하여 전류 분포가 불균일해지고, 일부 경로에 전류가 집중되어 열화가 가속됩니다.'
+  },
+  'GB Density(hops/μm)': {
+    title: 'Grain Boundary Density (입계 밀도)',
+    formula: 'GB Density = N_hops / L_z\nN_hops = 경로의 SE-SE 접촉 횟수\nL_z = z 방향 이동 거리(μm)',
+    desc: 'μm 당 몇 개의 SE-SE 접촉(grain boundary)을 통과하는지를 나타냅니다. percolating 경로들의 평균값입니다.',
+    meaning: 'SE-SE 접촉은 입계(grain boundary) 저항이 발생하는 곳입니다. GB Density가 높으면 같은 거리를 이동하더라도 더 많은 입계를 통과해야 하므로 저항이 증가합니다. SE 입자 크기가 클수록 GB Density가 낮아집니다.'
+  },
+  'Path Hop Area mean(μm²)': {
+    title: 'Path Hop Area (경로 접촉면적 평균)',
+    formula: 'Hop Area mean = 평균(경로상 각 SE-SE 접촉의 면적)',
+    desc: '이온이 이동하는 경로에서 각 SE-SE 접촉점의 평균 접촉 면적(μm²)입니다.',
+    meaning: '접촉 면적이 클수록 그 지점에서의 이온 전도 저항이 낮습니다. 이 값이 크면 경로 전체가 "넓은 통로"로 구성되어 있다는 뜻입니다.'
+  },
+  'Path Bottleneck(μm²)': {
+    title: 'Path Bottleneck (경로 최소 접촉면적)',
+    formula: 'Bottleneck = 평균(각 경로에서 가장 작은 SE-SE 접촉 면적)',
+    desc: '각 경로에서 가장 좁은 접촉점(병목)의 면적을 경로들에 대해 평균한 값(μm²)입니다.',
+    meaning: '전체 저항은 가장 좁은 지점(bottleneck)에 의해 결정됩니다. 호스에서 가장 좁은 부분이 수압을 결정하는 것과 같은 원리입니다. 이 값이 작으면 경로 평균이 좋아도 실제 전도 성능은 낮습니다.'
+  },
+  'Path Conductance(μm²)': {
+    title: 'Path Conductance (경로 유효 전도 면적)',
+    formula: '1/G_path = Σ(1/A_i)\nG_path = 1 / Σ(1/A_i)\nA_i = i번째 hop의 접촉 면적',
+    desc: '경로의 SE-SE 접촉들을 직렬 저항으로 보고 계산한 유효 전도 면적(μm²)입니다. 각 접촉의 역수를 합한 뒤 다시 역수를 취합니다.',
+    meaning: '직렬 회로에서 가장 작은 저항이 전체를 지배하듯, 이 값은 경로의 실질적 이온 전도 능력을 나타냅니다. Hop Area mean이나 Bottleneck보다 물리적으로 정확한 지표이며, 값이 클수록 이온이 잘 흐릅니다.'
+  },
+  'Ionic Active AM(%)': {
+    title: 'Ionic Active AM (이온 활성 AM 비율)',
+    formula: 'Ionic Active = (상단 도달 SE와 접촉한 AM 수 / 전체 AM 수) × 100',
+    desc: 'SE pellet(상단)까지 연결된 SE 네트워크와 접촉하고 있는 활물질(AM) 입자의 비율입니다.',
+    meaning: '리튬이온을 공급받을 수 있는 AM의 비율입니다. 100%이면 모든 AM이 이온경로에 연결되어 용량을 100% 활용할 수 있습니다. 이 값이 낮으면 일부 AM이 전기화학적으로 "죽은(dead)" 상태가 됩니다.'
+  },
+  'Stress CV(%)': {
+    title: 'Stress CV (응력 변동계수)',
+    formula: 'CV = (σ_VM의 표준편차 / σ_VM의 평균) × 100\nσ_VM = √(σ_xx² + σ_yy² + σ_zz² − σ_xx·σ_yy − σ_yy·σ_zz − σ_xx·σ_zz)',
+    desc: 'Von Mises 등가 응력의 변동계수(%)입니다. 전체 입자들의 응력이 얼마나 불균일하게 분포하는지를 나타냅니다.',
+    meaning: 'CV가 낮으면 응력이 고르게 분산된 것이고, 높으면 특정 입자에 응력이 집중된 것입니다. 응력 집중은 크랙 발생, 접촉 손실, 전극 열화의 원인이 됩니다. 일반적으로 CV < 100%이면 양호합니다.'
+  },
+  'σ_AM_P/σ_mean': {
+    title: 'σ_AM_P / σ_mean (대립자 응력비)',
+    formula: 'σ_ratio = 평균(AM_P의 σ_VM) / 평균(전체 입자의 σ_VM)',
+    desc: '대입경 활물질(AM_P)의 평균 Von Mises 응력을 전체 평균 응력으로 나눈 비율입니다.',
+    meaning: '> 1이면 대립자가 평균보다 높은 응력을 받고 있다는 뜻입니다. 대립자는 하중을 지탱하는 "기둥" 역할을 하므로 높은 응력을 받기 쉽습니다. 지나치게 높으면 입자 파쇄(fracture) 위험이 있습니다.'
+  },
+  'σ_AM_S/σ_mean': {
+    title: 'σ_AM_S / σ_mean (소립자 응력비)',
+    formula: 'σ_ratio = 평균(AM_S의 σ_VM) / 평균(전체 입자의 σ_VM)',
+    desc: '소입경 활물질(AM_S)의 평균 Von Mises 응력을 전체 평균 응력으로 나눈 비율입니다.',
+    meaning: '소립자는 대립자 사이에 끼어 있으므로 응력 상태가 다릅니다. 소립자 응력비가 높으면 대립자 사이에서 과도하게 눌리고 있다는 의미이며, 접촉 손실이나 미세 크랙의 원인이 될 수 있습니다.'
+  },
+  'σ_SE/σ_mean': {
+    title: 'σ_SE / σ_mean (SE 응력비)',
+    formula: 'σ_ratio = 평균(SE의 σ_VM) / 평균(전체 입자의 σ_VM)',
+    desc: '고체전해질(SE)의 평균 Von Mises 응력을 전체 평균 응력으로 나눈 비율입니다.',
+    meaning: 'SE는 AM보다 기계적 강도가 낮은 경우가 많습니다. SE 응력비가 1에 가까우면 고르게 분담하는 것이고, 높으면 SE에 과도한 하중이 걸려 분해/열화 위험이 있습니다.'
+  },
+  'AM Vulnerable(%)': {
+    title: 'AM Vulnerable (취약 AM 비율)',
+    formula: 'Vulnerable = (SE 0개 접촉 AM + SE 1개 접촉 AM) / 전체 AM × 100',
+    desc: 'SE와 접촉이 없거나 1개의 SE와만 접촉한 AM 입자의 비율입니다. SE 1개 접촉 = single point of failure.',
+    meaning: '취약 AM은 하나의 SE-AM 접촉이 끊기면 즉시 ionic dead가 됩니다. 이 비율이 높으면 사이클링 중 접촉 손실에 의한 용량 감소 위험이 큽니다.'
+  },
+  'AM-SE CN mean': {
+    title: 'AM-SE Coordination Number',
+    formula: 'CN = AM 입자 하나가 접촉하고 있는 SE 입자의 수 (평균)',
+    desc: '활물질(AM) 입자가 평균적으로 몇 개의 SE 입자와 접촉하는지를 나타냅니다.',
+    meaning: 'AM-SE CN이 높을수록 이온 공급 경로가 다양하여 안정적입니다. CN ≥ 3이면 한두 개 접촉이 끊겨도 활성 상태를 유지할 수 있습니다.'
+  },
+  'σ_brug/σ_grain (Bruggeman)': {
+    title: 'Bruggeman 추정 비율 (σ_brug/σ_grain)',
+    formula: {% if metrics and metrics.phi_se is defined %}
+      'σ_brug/σ_grain = φ_SE × f_perc / τ²\n'
+      + '= {{ "%.3f"|format(metrics.phi_se) }} × {{ "%.3f"|format(metrics.percolation_pct / 100 if metrics.percolation_pct is defined else 1.0) }} / {{ "%.2f"|format(metrics.tortuosity_recommended if metrics.tortuosity_recommended is defined else (metrics.tortuosity_mean if metrics.tortuosity_mean is defined else 1.0)) }}²\n'
+      + '= {{ "%.4f"|format(metrics.sigma_ratio if metrics.sigma_ratio is defined else 0) }}\n\n'
+      + '⚠ 접촉 저항(constriction) 무시 → 3~10× 과대추정'
+    {% else %}
+      'σ_brug/σ_grain = φ_SE × f_perc / τ²\n⚠ 접촉 저항 무시 → 3~10× 과대추정'
+    {% endif %},
+    desc: 'Bruggeman 관계식 기반 무차원 비율. σ_grain(3.0 mS/cm) 곱하면 σ_Bruggeman.',
+    meaning: 'Network Solver σ_ionic이 ground truth. 이 값은 참고용 상한.'
+  },
+  'σ_ionic (mS/cm)': {
+    title: 'Ionic Conductivity (Kirchhoff Network Solver)',
+    formula: 'Kirchhoff solver: R = R_bulk + R_constriction (Holm 1967) per edge\nσ_grain = 3.0 mS/cm (LPSCl grain interior)',
+    desc: 'DEM-native resistor network solver로 계산한 유효 이온 전도도. Ground truth.',
+    meaning: 'Bruggeman 추정 대비 3~10× 낮은 실측값. 접촉 저항(constriction)이 핵심 원인.'
+  },
+  'Contact-free / Full': {
+    title: 'Contact-free Overestimation Ratio',
+    formula: 'Ratio = σ_contact_free / σ_full\nσ_contact_free: R_constriction=0 (ideal contacts, upper bound)\nσ_full: R_bulk + R_constriction (ground truth)',
+    desc: '접촉 저항이 없다고 가정한 상한값이 실제보다 몇 배 과대추정하는지.',
+    meaning: 'Ratio가 클수록 constriction 저항이 지배적. SE 0.5μm: ~4~10×, SE 1.5μm: ~2~3×.'
+  },
+  'Constriction 비율(%)': {
+    title: 'Constriction Resistance Fraction',
+    formula: 'Constriction % = (1 - bulk_fraction) × 100\nbulk_fraction = R_bulk / (R_bulk + R_constriction)',
+    desc: '전체 이온 전도 저항 중 접촉 목(constriction)이 차지하는 비율.',
+    meaning: '69~81%: SE 0.5μm에서 constriction이 지배. 큰 SE에서는 감소. 이 비율이 높을수록 접촉 품질이 중요.'
+  },
+  'σ_brug / σ_ionic': {
+    title: 'Bruggeman Overestimation vs Network Solver',
+    formula: {% if metrics and metrics.sigma_ratio is defined and metrics.sigma_full_mScm is defined and metrics.sigma_full_mScm %}
+      'σ_brug / σ_ionic = {{ "%.4f"|format(metrics.sigma_ratio * 3.0) }} / {{ "%.4f"|format(metrics.sigma_full_mScm) }}\n'
+      + '= {{ "%.1f"|format(metrics.sigma_ratio * 3.0 / metrics.sigma_full_mScm) }}×\n\n'
+      + 'σ_brug: Bruggeman 추정 (φ×f_perc/τ², constriction 무시)\n'
+      + 'σ_ionic: Network Solver ground truth (R_bulk + R_constriction)'
+    {% else %}
+      'σ_brug / σ_ionic\nBruggeman 추정 / Network Solver 실측'
+    {% endif %},
+    desc: 'Bruggeman이 Network Solver 대비 몇 배 과대추정하는지.',
+    meaning: '3~10×: 접촉 저항이 유효 전도도를 크게 낮춤.\n이 값이 클수록 접촉 품질(contact area) 개선이 중요.'
+  },
+  'σ_electronic (mS/cm)': {
+    title: 'Electronic Conductivity (AM-AM Network)',
+    formula: 'AM-AM 접촉 네트워크의 Kirchhoff solver\nσ_AM = 50 mS/cm (NCM811, discharged)',
+    desc: 'AM-AM 접촉만을 통한 전자 전도도. AM percolation이 없으면 0.',
+    meaning: 'σ_electronic >> σ_ionic이면 이온 전도가 rate-limiting.\n도전재 없이도 AM percolation이 형성되는지 확인.'
+  },
+  'Electronic Active AM (%)': {
+    title: 'Electronic Active AM (Bottom-reachable)',
+    formula: 'Active = (bottom에서 도달 가능한 AM 수) / (전체 AM 수) × 100\n그래프 기반: AM-AM 접촉 네트워크에서 bottom boundary 연결 확인',
+    desc: '전자가 current collector(bottom)에서 도달할 수 있는 AM 비율. 나머지는 Dead AM.',
+    meaning: '100%: 모든 AM이 전자적으로 활성.\n< 80%: Dead AM 존재 → 도전재(VGCF, C65) 추가 필요.\nφ_AM < 30vol%에서 급격히 감소 (percolation threshold).'
+  },
+  'AM Percolation (%)': {
+    title: 'AM Percolation (Top+Bottom Connected)',
+    formula: 'Percolation = (bottom AND top 모두 연결된 AM 수) / (전체 AM 수) × 100',
+    desc: 'Bottom-to-top으로 완전 관통하는 AM 네트워크 비율.',
+    meaning: '100%: 전극 전체를 관통하는 전자 경로 형성.\n0%: AM 네트워크가 끊김 → σ_electronic ≈ 0.\nActive AM ≥ Percolation 항상 성립 (bottom-reachable ⊇ percolating).'
+  },
+  'AM-AM CN mean': {
+    title: 'AM-AM Coordination Number (평균)',
+    formula: 'CN = AM 입자 하나가 접촉하는 다른 AM 입자의 수 (평균)',
+    desc: 'AM-AM 접촉 네트워크에서 각 AM의 평균 배위수.',
+    meaning: 'CN이 높을수록 전자 전도 경로가 다양. CN < 1이면 AM 네트워크가 거의 형성되지 않음.'
+  },
+  'AM-AM 접촉 수': {
+    title: 'AM-AM Total Contact Count',
+    formula: 'N_contacts = Σ (AM-AM 접촉 쌍)',
+    desc: '전체 AM-AM 접촉의 총 개수.',
+    meaning: '접촉 수가 많을수록 전자 전도 네트워크가 밀집. AM 부피분율에 비례하여 증가.'
+  },
+  '평균 접촉 면적(µm²)': {
+    title: 'AM-AM Mean Contact Area',
+    formula: 'A = π × a² (Hertz contact, a = contact radius)',
+    desc: 'AM-AM 접촉 면의 평균 면적 (µm²).',
+    meaning: '접촉 면적이 클수록 전자 전도 저항이 낮아짐. 압축 압력 증가 시 증가.'
+  },
+  '접촉 반경(µm)': {
+    title: 'AM-AM Mean Contact Radius',
+    formula: 'a = √(R* × δ) (Hertz), R* = R₁R₂/(R₁+R₂)',
+    desc: 'AM-AM 접촉원의 평균 반경 (µm).',
+    meaning: '접촉 반경이 constriction 저항을 결정. a가 클수록 전류 흐름이 원활.'
+  },
+  '침투 깊이 δ(µm)': {
+    title: 'AM-AM Mean Penetration Depth (δ)',
+    formula: 'δ = overlap between particles (DEM)',
+    desc: 'AM-AM 접촉에서 입자 간 평균 침투(겹침) 깊이 (µm).',
+    meaning: '압축 압력에 비례. δ가 클수록 접촉 면적과 법선력 증가.'
+  },
+  '법선력(µN)': {
+    title: 'AM-AM Mean Normal Force',
+    formula: 'F = (4/3) × E* × √R* × δ^(3/2) (Hertz)',
+    desc: 'AM-AM 접촉에서의 평균 법선력 (µN).',
+    meaning: '법선력이 클수록 접촉이 안정적. 과도한 힘은 입자 파괴 위험.'
+  },
+  '접촉 압력(MPa)': {
+    title: 'AM-AM Mean Contact Pressure',
+    formula: 'P_mean = F / A',
+    desc: 'AM-AM 접촉면의 평균 압력 (MPa).',
+    meaning: '접촉 압력이 AM 재료의 항복 강도를 초과하면 소성 변형 발생 가능.'
+  },
+  'Hop 거리(µm)': {
+    title: 'AM-AM Mean Hop Distance',
+    formula: 'Hop = center-to-center distance - (R₁ + R₂) + 2×contact_radius',
+    desc: 'AM-AM 접촉 쌍 간의 평균 hop 거리 (µm).',
+    meaning: '전자가 한 AM에서 다음 AM으로 이동하는 경로 길이. 짧을수록 유리.'
+  },
+  'σ_Bruggeman (mS/cm)': {
+    title: 'Bruggeman EMT Prediction',
+    formula: {% if metrics and metrics.phi_se is defined and metrics.sigma_ratio is defined %}
+      'σ_Bruggeman = σ_grain × φ_SE × f_perc / τ²\n'
+      + '= 3.0 × {{ "%.3f"|format(metrics.phi_se) }} × {{ "%.3f"|format(metrics.percolation_pct / 100 if metrics.percolation_pct is defined else 1.0) }} / {{ "%.2f"|format(metrics.tortuosity_recommended if metrics.tortuosity_recommended is defined else (metrics.tortuosity_mean if metrics.tortuosity_mean is defined else 1.0)) }}²\n'
+      + '= {{ "%.4f"|format(metrics.sigma_ratio * 3.0) }} mS/cm\n\n'
+      + 'σ_grain = 3.0 mS/cm (LPSCl grain interior)\n'
+      + 'φ_SE = {{ "%.3f"|format(metrics.phi_se) }}\n'
+      + 'f_perc = {{ "%.1f"|format(metrics.percolation_pct if metrics.percolation_pct is defined else 100) }}%\n'
+      + 'τ = {{ "%.2f"|format(metrics.tortuosity_recommended if metrics.tortuosity_recommended is defined else (metrics.tortuosity_mean if metrics.tortuosity_mean is defined else 0)) }}'
+    {% else %}
+      'σ_Bruggeman = σ_grain × φ_SE × f_perc / τ²\nσ_grain = 3.0 mS/cm (LPSCl)'
+    {% endif %},
+    desc: 'Bruggeman 유효매질이론(EMT) 예측값. 접촉 저항(constriction) 무시.',
+    meaning: 'Network Solver σ_ionic과 비교하면 Bruggeman이 얼마나 과대추정하는지 확인.\n통상 3~10× 과대추정 (접촉 저항이 핵심 원인).'
+  },
+  'σ_thermal (mS/cm equiv)': {
+    title: 'Thermal Conductivity (ALL Contact Network)',
+    formula: 'All contacts (AM-AM, AM-SE, SE-SE) network\nk_AM=4.0, k_SE=0.7 W/(m·K)',
+    desc: 'SE+AM 모든 접촉을 통한 열전도도. mS/cm equivalent 단위.',
+    meaning: '열 관리 설계에 활용. AM과 SE 모두 열을 전도하므로 ionic/electronic보다 높음.'
+  },
+  'SE Volume Fraction': {
+    title: 'SE Volume Fraction (SE 부피 분율)',
+    formula: 'φ_SE = V_SE / V_electrode\nV_SE = Σ(4/3 π r³) for all SE',
+    desc: '전극 전체 부피 중 SE가 차지하는 부피 비율입니다.',
+    meaning: 'SE 부피 분율이 높을수록 이온 전도 네트워크 형성에 유리하지만, 그만큼 AM 비율이 줄어 에너지 밀도가 떨어집니다. 최적의 trade-off를 찾는 것이 핵심입니다.'
+  },
+  'Contact Pressure mean(MPa)': {
+    title: 'Contact Pressure (접촉 압력 평균)',
+    formula: 'P = F_n / A_contact\nF_n = 법선 접촉력\nA_contact = 접촉 면적',
+    desc: '각 접촉점에서의 법선력을 접촉 면적으로 나눈 압력(MPa)의 전체 평균입니다.',
+    meaning: '같은 힘이라도 접촉 면적이 작으면 압력이 높아집니다. 높은 접촉 압력은 SE 분해, 계면 반응층 성장, 미세 크랙의 원인이 됩니다.'
+  },
+  'Contact Pressure max(MPa)': {
+    title: 'Contact Pressure (접촉 압력 최대)',
+    formula: 'P_max = max(F_n / A_contact)',
+    desc: '전체 접촉점 중 가장 높은 접촉 압력(MPa)입니다.',
+    meaning: '최대 압력 지점이 failure의 시작점이 됩니다. 이 값이 SE의 파괴 강도를 초과하면 국부적 크랙이 발생합니다.'
+  },
+  'Overlap δ/R mean(%)': {
+    title: 'Overlap Ratio 평균 (δ/R)',
+    formula: 'δ/R = (입자 겹침량) / min(R₁, R₂) × 100',
+    desc: 'DEM에서 접촉하는 두 입자의 겹침(overlap)을 작은 쪽 반지름으로 나눈 비율(%)입니다.',
+    meaning: 'DEM은 입자가 약간 겹치는 것으로 접촉력을 계산합니다. δ/R < 5%이면 정상, > 5%이면 과도한 변형으로 시뮬레이션 정확도가 떨어질 수 있습니다.'
+  },
+  'Overlap δ/R max(%)': {
+    title: 'Overlap Ratio 최대 (δ/R)',
+    formula: 'δ/R_max = max(δ_i / min(R₁, R₂)_i) × 100',
+    desc: '전체 접촉 중 가장 큰 겹침 비율(%)입니다.',
+    meaning: '최대 overlap이 10%를 넘으면 해당 접촉의 물리적 의미가 약해집니다. DEM 파라미터(강성, 시간 스텝) 검토가 필요합니다.'
+  },
+  'Overlap >5%(%)': {
+    title: 'Overlap > 5% 비율',
+    formula: '(δ/R > 5%인 접촉 수 / 전체 접촉 수) × 100',
+    desc: '과도한 겹침(δ/R > 5%)을 가진 접촉의 비율(%)입니다.',
+    meaning: '이 비율이 0%에 가까우면 DEM 결과가 신뢰할 만합니다. 높으면 전체적으로 과도한 변형이 일어나고 있어 시뮬레이션 조건(가압 속도, 강성 등) 재검토가 필요합니다.'
+  }
+};
+
+// Dynamic tooltip for Fn rows (contact type varies)
+document.querySelectorAll('.metric-label[data-metric]').forEach(td => {
+  const key = td.dataset.metric;
+  if (key.startsWith('Fn ') && key.includes('mean')) {
+    const ct = key.replace('Fn ', '').replace(' mean(μN)', '');
+    METRIC_TIPS[key] = {
+      title: `접촉력 ${ct} (평균)`,
+      formula: `F_n = √(fn_x² + fn_y² + fn_z²)`,
+      desc: `${ct} 접촉쌍의 법선 접촉력 평균(μN)입니다.`,
+      meaning: '접촉력이 크면 접촉 면적도 크지만, 과도하면 입자 파쇄/SE 분해 위험이 있습니다. AM-AM 접촉력이 가장 클 수 있으며, 이는 대립자끼리 직접 하중을 전달하기 때문입니다.'
+    };
+  }
+  if (key.startsWith('Fn ') && key.includes('max')) {
+    const ct = key.replace('Fn ', '').replace(' max(μN)', '');
+    METRIC_TIPS[key] = {
+      title: `접촉력 ${ct} (최대)`,
+      formula: `F_n_max = max(√(fn_x² + fn_y² + fn_z²))`,
+      desc: `${ct} 접촉쌍 중 가장 큰 법선력(μN)입니다.`,
+      meaning: '최대 접촉력 지점이 파손/크랙의 시작점이 될 수 있습니다. AM-AM 최대 접촉력이 높으면 대립자 파쇄 위험을 나타냅니다.'
+    };
+  }
+});
+
+// Inline tooltip: insert/remove a row below on hover
+let activeTooltipRow = null;
+
+document.querySelectorAll('.metric-label[data-metric]').forEach(td => {
+  const key = td.dataset.metric;
+  const tip = METRIC_TIPS[key];
+  if (!tip) return;
+  const tr = td.closest('tr');
+
+  tr.addEventListener('mouseenter', () => {
+    // Remove any existing tooltip row
+    if (activeTooltipRow) { activeTooltipRow.remove(); activeTooltipRow = null; }
+    const colCount = tr.children.length;
+    const ttRow = document.createElement('tr');
+    ttRow.className = 'tooltip-row';
+    ttRow.innerHTML = `<td colspan="${colCount}"><div class="tt-inner">`
+      + `<div class="tt-title">${tip.title}</div>`
+      + `<div class="tt-formula">${tip.formula.replace(/\n/g, '<br>')}</div>`
+      + `<div class="tt-desc">${tip.desc}</div>`
+      + `<div class="tt-meaning">${tip.meaning}</div>`
+      + `</div></td>`;
+    tr.after(ttRow);
+    activeTooltipRow = ttRow;
+  });
+
+  tr.addEventListener('mouseleave', (e) => {
+    // Don't remove if moving into the tooltip row
+    if (activeTooltipRow && e.relatedTarget && activeTooltipRow.contains(e.relatedTarget)) return;
+    if (activeTooltipRow) { activeTooltipRow.remove(); activeTooltipRow = null; }
+  });
+});
+
+// Also remove tooltip when leaving the tooltip row itself
+document.addEventListener('mouseover', (e) => {
+  if (activeTooltipRow && !activeTooltipRow.contains(e.target) &&
+      !activeTooltipRow.previousElementSibling?.contains(e.target)) {
+    activeTooltipRow.remove();
+    activeTooltipRow = null;
+  }
+});
+</script>
+{% endblock %}

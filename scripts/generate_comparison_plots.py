@@ -1128,22 +1128,24 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         pp_l = X_p3_l @ b_p3_l
         pred_pre = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
 
-        # v27 BALANCED: 3-term residual (β_pf + β_lin + β_mix)
+        # v25 FINAL (best balance proven by LOOCV + shape):
         #   β_pf · w_pf                 — P:S global sigmoid
-        #   β_lin · p·w_win             — linear p × τ-bump (v25: sharp fit)
-        #   β_mix · p·(1-p)·w_win       — mixed p·(1-p) × τ-bump (v26: shape-preserving)
-        # Optimizer chooses linear/mixed ratio → balance R² + shape.
+        #   β_lin · p·w_win             — linear p × Gaussian τ-bump
+        # v26 p(1-p): LOOCV -0.0062 regression, shape slightly better
+        # v27 3-term: τ-blend τc_bl hit upper bound 3.0 (degenerate)
+        # v25 linear wins on LOOCV (+0.0013 over v27, +0.0062 over v26).
         pf_c = w_pf - w_pf.mean()
         lin_term = pf_prod * w_win
-        mix_term = pf_prod * (1.0 - pf_prod) * w_win
         lin_c = lin_term - lin_term.mean()
-        mix_c = mix_term - mix_term.mean()
-        X_corr = np.column_stack([pf_c, lin_c, mix_c])
+        mix_term = lin_term  # alias for LOOCV code below (mix_c unused)
+        mix_c = lin_c * 0.0
+        # v25 FINAL: 2-term residual (drop mix column)
+        X_corr = np.column_stack([pf_c, lin_c])
         resid = log_sf - pred_pre
         bc = np.linalg.lstsq(X_corr, resid, rcond=None)[0]
         pred = pred_pre + X_corr @ bc
-        beta_pf, beta_lin, beta_mix = float(bc[0]), float(bc[1]), float(bc[2])
-        # Expose combined amplitude for API compat (return beta_win = β_lin)
+        beta_pf, beta_lin = float(bc[0]), float(bc[1])
+        beta_mix = 0.0
         beta_win = beta_lin
 
         r2 = 1 - np.sum((log_sf - pred)**2) / ss_tot
@@ -1156,12 +1158,10 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
             pv9 = (1 - w_bl) * (X_v5_l @ bv_) + w_bl * (X_p3_l @ bp_) + log_rhs_base
             pf_c_mk = w_pf[mk] - w_pf[mk].mean()
             lin_mk = lin_term[mk];  lin_c_mk = lin_mk - lin_mk.mean()
-            mix_mk = mix_term[mk];  mix_c_mk = mix_mk - mix_mk.mean()
-            Xc_mk = np.column_stack([pf_c_mk, lin_c_mk, mix_c_mk])
+            Xc_mk = np.column_stack([pf_c_mk, lin_c_mk])
             bc_mk = np.linalg.lstsq(Xc_mk, (log_sf - pv9)[mk], rcond=None)[0]
             pred_ii = pv9[ii] + bc_mk[0] * (w_pf[ii] - w_pf[mk].mean()) \
-                              + bc_mk[1] * (lin_term[ii] - lin_mk.mean()) \
-                              + bc_mk[2] * (mix_term[ii] - mix_mk.mean())
+                              + bc_mk[1] * (lin_term[ii] - lin_mk.mean())
             sse_loo += (log_sf[ii] - pred_ii)**2
         loocv = 1 - sse_loo / ss_tot
         s_act_l = np.exp(log_sf); s_prd_l = np.exp(pred)

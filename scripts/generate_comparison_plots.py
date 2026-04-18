@@ -1150,9 +1150,14 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
               f"{phi_se[i]:5.3f} {f_perc[i]:5.3f} {tau[i]:5.2f} {cn[i]:5.2f} {cov_arr[j]:5.3f}")
     # Residual-vs-feature correlation (Pearson on log-residual)
     log_res = np.log(s_pred) - np.log(s_actual)
+    gb_arr = np.array([gb_dens[i] for i in valid_idx])
+    gp_arr = np.array([g_path[i] for i in valid_idx])
     feats = {'log(phi_ex)': np.log(phi_ex_arr), 'log(CN)': np.log(cn_arr),
              'log(tau)': log_tau_arr, 'log(cov)': np.log(cov_arr),
-             'log(fp)': np.log(fp_arr)}
+             'log(fp)': np.log(fp_arr),
+             'log(gb_dens)': np.log(np.maximum(gb_arr, 1e-10)),
+             'log(g_path)': np.log(np.maximum(gp_arr, 1e-10)),
+             'log(gp*gb²)': np.log(np.maximum(gp_arr * gb_arr**2, 1e-20))}
     print("  residual(log) correlations:")
     for nm, v in feats.items():
         c = np.corrcoef(log_res, v)[0, 1] if np.std(v) > 0 else 0.0

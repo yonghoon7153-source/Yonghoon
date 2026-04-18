@@ -1362,7 +1362,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     pf_interactions = {
         'p_frac·log(τ)':           pf_centered * log_tau_arr,
         'p_frac·log(CN)':          pf_centered * log_cn_np,
-        'p_frac·log(φ-φc)':        pf_centered * phi_log,
+        'p_frac·log(φ-φc)':        pf_centered * log_phi_ex_np,
         'p_frac·log(cov)':         pf_centered * np.log(cov_np),
         'p_frac·log(fp)':          pf_centered * np.log(fp_np),
         '(p_frac)²·log(τ)':        (pf_base - 0.5)**2 * log_tau_arr,

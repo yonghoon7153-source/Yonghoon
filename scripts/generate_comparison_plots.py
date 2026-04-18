@@ -1071,15 +1071,13 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     tau_arr = np.array([tau[i] for i in valid_idx])
     cov_arr = np.array([coverage[i] for i in valid_idx])
 
-    # FORM X v5a: CN^(1.5 - ¼w·lnCN) × (φ-φc)^¾ × cov^¼ × fp²
-    # CN² saturation in thin regime — Ct≈Cn so sigmoid C is redundant
-    # v6/v7 memo: regime CN(1.5→0.5)+fp(2→0.5)+CNτ(-0.1) gave w20=51 but broke 80:20 trend
-    TAU_C = 2.1; TAU_K = 8.0
+    # FORM X v5: CN^1.5 × (φ-φc)^¾ × cov^¼ × fp² + sigmoid C(τ)
+    # v5a/v6/v7 memo: CN² or regime exponents improve w20 but break 80:20 thin trend
+    TAU_C = 2.1; TAU_K = 5.0
     fp_arr = np.array([max(f_perc[i], 0.01) for i in valid_idx])
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
     log_rhs_base = (np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + 1.5*np.log(cn_arr)
-                    + 0.25*np.log(cov_arr) + 2.0*np.log(fp_arr)
-                    - 0.25 * w_sigmoid * np.log(cn_arr)**2)
+                    + 0.25*np.log(cov_arr) + 2.0*np.log(fp_arr))
     A_design = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
     b_sigmoid = np.linalg.lstsq(A_design, log_sf - log_rhs_base, rcond=None)[0]
     ln_Ct, ln_delta = b_sigmoid
@@ -1184,7 +1182,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title(f"Ionic v5a: C(τ) × σ_grain × CN^(1.5−¼w·lnCN) × (φ−φc)^¾ × ⁴√cov × fp²\n"
+    ax.set_title(f"Ionic v5: C(τ) × σ_grain × CN^1.5 × (φ−φc)^¾ × ⁴√cov × fp²\n"
                  f"sigmoid(k={TAU_K:.0f},τc={TAU_C})  Ct={C_thick:.4f} Cn={C_thin:.4f}  R²={r2_formX:.3f}",
                  fontsize=9, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
@@ -1289,8 +1287,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
         if cn[i] > 0 and tau[i] > 0 and coverage[i] > 0:
             w = 1.0 / (1.0 + np.exp(-TAU_K * (tau[i] - TAU_C)))
             C_i = C_thick_ms * np.exp((np.log(C_thin_ms) - np.log(C_thick_ms)) * w)
-            cn_sat = np.exp(-0.25 * w * np.log(cn[i])**2) if cn[i] > 0 else 1.0
-            s = C_i * SIGMA_BULK * phi_ex**0.75 * cn[i]**1.5 * coverage[i]**0.25 * f_perc[i]**2 * cn_sat
+            s = C_i * SIGMA_BULK * phi_ex**0.75 * cn[i]**1.5 * coverage[i]**0.25 * f_perc[i]**2
             sigma_ms.append(s)
         else:
             sigma_ms.append(0)
@@ -1314,8 +1311,8 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     _apply_style(ax, "σ_ionic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
-    ax.set_title(f"FORM X v5a: C(τ) × σ_grain × CN^(1.5−¼w·lnCN) × (φ−φc)^¾ × ⁴√cov × fp²",
-                 fontsize=8, fontweight='bold')
+    ax.set_title(f"FORM X v5: C(τ) × σ_grain × CN^1.5 × (φ−φc)^¾ × ⁴√cov × fp²",
+                 fontsize=9, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',
                ['φ_SE', 'CN', 'τ', 'coverage', 'σ_FORMX(mS/cm)', 'σ_network(mS/cm)'],
@@ -2959,10 +2956,7 @@ def main():
                 if _valid.sum() >= 5:
                     _phi_ex = np.clip(_phi_se[_valid] - PHI_C, 0.001, None)
                     _fp_se = np.clip(np.array([_get(d, "percolation_pct", 100) / 100 for d in all_data])[_valid], 0.01, 1.0)
-                    _w_sig = 1.0 / (1.0 + np.exp(-8.0 * (_tau_se[_valid] - 2.1)))
-                    _log_rhs = (np.log(SGRAIN) + 0.75*np.log(_phi_ex) + 1.5*np.log(_cn_se[_valid])
-                                + 0.25*np.log(_cov_se[_valid]) + 2.0*np.log(_fp_se)
-                                - 0.25 * _w_sig * np.log(_cn_se[_valid])**2)
+                    _log_rhs = np.log(SGRAIN) + 0.75*np.log(_phi_ex) + 1.5*np.log(_cn_se[_valid]) + 0.25*np.log(_cov_se[_valid]) + 2.0*np.log(_fp_se)
                     _log_s = np.log(_snet[_valid])
                     _w_sig = 1.0 / (1.0 + np.exp(-5.0 * (_tau_se[_valid] - 2.1)))
                     _A = np.column_stack([np.ones(_valid.sum()), _w_sig])

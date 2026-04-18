@@ -1082,21 +1082,49 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     fp_arr = np.array([max(f_perc[i], 0.01) for i in valid_idx])
     log_tau_arr = np.log(tau_arr)
     # v12-clean v3: α=1/2, β=3/2, γ=2/5, δ=3, φc=0.20
-    # δ=3 (not v9's 2) matches v12 fit of 2.90 — tighter coupling preserved.
-    log_rhs_base = (np.log(SIGMA_BULK) + 0.50*np.log(phi_ex_arr) + 1.5*np.log(cn_arr)
-                    + 0.40*np.log(cov_arr) + 3.0*np.log(fp_arr))
+    # + v17 binary P:S indicator: particulate-majority (P:S > 0.5) offset
+    log_rhs_base_v12 = (np.log(SIGMA_BULK) + 0.50*np.log(phi_ex_arr) + 1.5*np.log(cn_arr)
+                        + 0.40*np.log(cov_arr) + 3.0*np.log(fp_arr))
+    # v17 addition: β·I(p_frac > 0.5) — captures particulate-majority offset
+    # (v14b found ΔLOOCV=+0.00385 ⭐ for this term)
+    def _pfrac_v12(d):
+        ps = (d.get("ps_ratio", "") or "")
+        if ps in ("P only", "10:0"): return 1.0
+        if ps in ("S only", "0:10"): return 0.0
+        if ":" in ps:
+            try:
+                p, s = ps.split(":"); p, s = float(p), float(s)
+                return p / (p + s) if (p + s) > 0 else 0.5
+            except Exception:
+                return 0.5
+        return 0.5
+    pf_prod = np.array([_pfrac_v12(data_list[i]) for i in valid_idx])
+    pf_indicator = (pf_prod > 0.5).astype(float)
+    # log_rhs_base starts with pure v12-clean v3; β added via residual fit later
+    log_rhs_base = log_rhs_base_v12.copy()
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
     def _fit_at(k_bl, tc_bl):
-        """Fit v5+poly3 blend at (k, τc). Return (r2, loocv, w20, b_v5, b_p3, w_bl, pred)."""
+        """v17: v12-clean v3 blend + (p_frac > 0.5) indicator.
+        Returns (r2, loocv, w20, b_v5, b_p3, w_bl, pred, beta_pf)."""
         w_bl = 1.0 / (1.0 + np.exp(-k_bl * (tau_arr - tc_bl)))
         X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
         X_p3_l = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
+
+        # Step 1: v12-clean v3 blend fit
         b_v5_l = np.linalg.lstsq(X_v5_l, log_sf - log_rhs_base, rcond=None)[0]
         b_p3_l = np.linalg.lstsq(X_p3_l, log_sf - log_rhs_base, rcond=None)[0]
         pv_l = X_v5_l @ b_v5_l
         pp_l = X_p3_l @ b_p3_l
-        pred = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
+        pred_pre = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
+
+        # Step 2: β · I(p_frac > 0.5) via centered residual regression
+        pf_c = pf_indicator - pf_indicator.mean()
+        resid = log_sf - pred_pre
+        denom = float(np.sum(pf_c**2))
+        beta_pf = float(np.sum(resid * pf_c) / denom) if denom > 1e-10 else 0.0
+        pred = pred_pre + beta_pf * pf_c
+
         r2 = 1 - np.sum((log_sf - pred)**2) / ss_tot
         n_loo = len(log_sf)
         sse_loo = 0.0
@@ -1104,12 +1132,17 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
             mk = np.ones(n_loo, bool); mk[ii] = False
             bv_ = np.linalg.lstsq(X_v5_l[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
             bp_ = np.linalg.lstsq(X_p3_l[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
-            pred_ii = (1 - w_bl[ii]) * (X_v5_l[ii] @ bv_) + w_bl[ii] * (X_p3_l[ii] @ bp_) + log_rhs_base[ii]
+            pv9 = (1 - w_bl) * (X_v5_l @ bv_) + w_bl * (X_p3_l @ bp_) + log_rhs_base
+            pf_mk = pf_indicator[mk] - pf_indicator[mk].mean()
+            resid_mk = (log_sf - pv9)[mk]
+            dm = float(np.sum(pf_mk**2))
+            beta_mk = float(np.sum(resid_mk * pf_mk) / dm) if dm > 1e-10 else 0.0
+            pred_ii = pv9[ii] + beta_mk * (pf_indicator[ii] - pf_indicator[mk].mean())
             sse_loo += (log_sf[ii] - pred_ii)**2
         loocv = 1 - sse_loo / ss_tot
         s_act_l = np.exp(log_sf); s_prd_l = np.exp(pred)
         w20 = int(np.sum(np.abs(s_prd_l - s_act_l) / s_act_l < 0.20))
-        return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred
+        return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred, beta_pf
 
     # Continuous 2D optimization: maximize LOOCV over (k, τc)
     from scipy.optimize import minimize
@@ -1129,13 +1162,14 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     for k in k_sweep:
         r2_k, lo_k, w20_k, *_ = _fit_at(k, 2.0)
         print(f"  {k:5.1f}  {r2_k:.4f}  {lo_k:.4f}  {w20_k:2d}/{len(log_sf):2d}")
-    r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX = _fit_at(best_k, best_tc)
+    r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX, beta_pf_prod = _fit_at(best_k, best_tc)
     print(f"  → continuous optimum: k={best_k:.2f}, τc={best_tc:.3f}")
     print(f"    R²={r2_formX:.4f}, LOOCV={loocv_formX:.4f}, ±20%={w20_opt}/{len(log_sf)}")
     _Ct_chk = float(np.exp(b_v5[0])); _Cn_chk = float(np.exp(b_v5[0] + b_v5[1]))
     print(f"    Ct={_Ct_chk:.4f} (thick asymptote)  Cn={_Cn_chk:.4f} (thin asymptote)  "
           f"Ct/Cn={_Ct_chk/_Cn_chk:.2f}")
     print(f"    poly3 coefs = [{b_p3[0]:+.3f}, {b_p3[1]:+.3f}, {b_p3[2]:+.3f}, {b_p3[3]:+.3f}]")
+    print(f"    β_pf = {beta_pf_prod:+.4f}  ← v17: particulate-majority offset (P:S > 0.5)")
     TAU_C_BL = best_tc
     TAU_K_BL = best_k
 

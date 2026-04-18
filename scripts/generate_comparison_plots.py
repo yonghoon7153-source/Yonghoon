@@ -1339,6 +1339,69 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     else:
         print(f"    — within noise σ={sigma_noise:.4f}, v12 remains the endpoint")
 
+    # === v15 OVERFIT CEILING — all features + squares + interactions, OLS ===
+    # Goal: measure the irreducible R²/LOOCV achievable on this dataset.
+    # Uses ridge (λ=small) on a dense feature matrix. No physical meaning —
+    # purely upper bound on linear-model predictability.
+    phi_log = np.log(np.maximum(phi_np - 0.20, 1e-4))
+    feats_base = {
+        'log(φ-φc)': phi_log,
+        'log(CN)': log_cn_np,
+        'log(τ)':  log_tau_arr,
+        'log(cov)': np.log(cov_np),
+        'log(fp)': np.log(fp_np),
+        'log(gb)': np.log(np.maximum(gb_np, 1e-10)),
+        'log(gp)': np.log(np.maximum(gp_np, 1e-10)),
+        'p_frac':  np.array([_parse_ps(data_list[i]) for i in valid_idx]),
+    }
+    # Build design matrix: 1 + base + squares + pairwise
+    cols = [np.ones(len(ln_sigma))]
+    names15 = ['1']
+    base_list = list(feats_base.items())
+    for nm, v in base_list:
+        cols.append(v); names15.append(nm)
+    for nm, v in base_list:
+        cols.append(v**2); names15.append(f"{nm}²")
+    for i, (n1, v1) in enumerate(base_list):
+        for j, (n2, v2) in enumerate(base_list):
+            if j > i:
+                cols.append(v1 * v2); names15.append(f"{n1}·{n2}")
+    X15 = np.column_stack(cols)
+    n_feat = X15.shape[1]
+    # OLS fit (with tiny ridge for stability)
+    lam = 1e-4
+    A = X15.T @ X15 + lam * np.eye(n_feat)
+    b15 = np.linalg.solve(A, X15.T @ ln_sigma)
+    pred15 = X15 @ b15
+    r2_15 = 1 - np.sum((ln_sigma - pred15)**2) / ss_tot_local
+    # LOOCV via closed form (Ridge regression LOOCV trick)
+    H = X15 @ np.linalg.solve(A, X15.T)
+    h_diag = np.diag(H)
+    resid15 = ln_sigma - pred15
+    # Guard against h_diag ≈ 1 (saturated fit)
+    h_safe = np.minimum(h_diag, 0.999)
+    loo_res = resid15 / (1 - h_safe)
+    sse_loo_15 = np.sum(loo_res**2)
+    loocv15 = 1 - sse_loo_15 / ss_tot_local
+    err15 = np.abs(np.exp(pred15) - np.exp(ln_sigma)) / np.exp(ln_sigma) * 100
+    t_15 = {t: int(np.sum(err15 < t)) for t in [5, 10, 15, 20]}
+    print(f"\n[v15 OVERFIT CEILING] OLS on {n_feat} features (base + squares + pairwise)")
+    print(f"  n=57, n_feat={n_feat}, dof={max(57-n_feat, 0)}   (ridge λ={lam})")
+    print(f"  R²   = {r2_15:.4f}   <5%:{t_15[5]}  <10%:{t_15[10]}  <15%:{t_15[15]}  <20%:{t_15[20]}")
+    print(f"  LOOCV = {loocv15:.4f}   ← honest generalization of maxed-out feature basis")
+    # Compare against v9, v12, v12-clean v3
+    print(f"\n[CEILING COMPARISON]")
+    print(f"  {'model':30s} {'R²':>8s} {'LOOCV':>8s}")
+    print(f"  {'v9 (Kirkpatrick)':30s} {r2_formX:.4f}  {loocv_formX:.4f}")
+    print(f"  {'v12 (data-native, free α γ δ)':30s} {r2_12:.4f}  {loocv12:.4f}")
+    print(f"  {'v15 (overfit, '+str(n_feat)+' feats)':30s} {r2_15:.4f}  {loocv15:.4f}")
+    if loocv15 < loocv12 - 0.01:
+        print(f"  → v15 OVERFIT confirmed: gains R² but LOOCV crashes — v12 is the real ceiling.")
+    elif loocv15 > loocv12 + 0.01:
+        print(f"  → v15 beats v12 by >0.01 LOOCV! Real structure remains unexplored.")
+    else:
+        print(f"  → v15 ≈ v12 LOOCV: feature-rich basis confirms v12 is at the ceiling.")
+
     X_v5 = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
     X_p3 = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
     ss_res_formX = np.sum((log_sf - pred_formX)**2)

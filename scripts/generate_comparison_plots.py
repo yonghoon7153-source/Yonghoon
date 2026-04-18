@@ -1509,6 +1509,74 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     else:
         print(f"    — within noise: p_frac is definitively not leverageable globally.")
 
+    # === v14c NEW p_frac · (geometric/mechanical feature) sweep ===
+    # Extend v14b with contact-force, bottleneck, and AM-side interactions.
+    hop_min = np.array([_get(data_list[i], "path_hop_area_min_mean", 0) for i in valid_idx], dtype=float)
+    fn_sese = np.array([_get(data_list[i], "fn_SE_SE_mean", 0) for i in valid_idx], dtype=float)
+    cp_mean = np.array([_get(data_list[i], "contact_pressure_mean", 0) for i in valid_idx], dtype=float)
+    se_se_area_v14c = np.array([_get(data_list[i], "area_SE_SE_mean", 0) for i in valid_idx], dtype=float)
+    am_am_area_v14c = np.array([_get(data_list[i], "am_am_mean_area", 0) for i in valid_idx], dtype=float)
+    cn_std_v14c = np.array([_get(data_list[i], "se_se_cn_std", 0) for i in valid_idx], dtype=float)
+    tau_std_v14c = np.array([_get(data_list[i], "tortuosity_std", 0) for i in valid_idx], dtype=float)
+    hop_area_v14c = np.array([_get(data_list[i], "path_hop_area_mean", 0) for i in valid_idx], dtype=float)
+
+    pf14c = pf_base  # from v14b
+    pf_cen = pf_centered
+    pf_interactions2 = {
+        'p_frac·log(hop_area_min)':   pf_cen * np.log(np.maximum(hop_min, 1e-10)),
+        'p_frac·log(hop_area)':       pf_cen * np.log(np.maximum(hop_area_v14c, 1e-10)),
+        'p_frac·log(fn_SE_SE)':       pf_cen * np.log(np.maximum(fn_sese, 1e-10)),
+        'p_frac·log(contact_press)':  pf_cen * np.log(np.maximum(cp_mean, 1e-10)),
+        'p_frac·log(se_se_area)':     pf_cen * np.log(np.maximum(se_se_area_v14c, 1e-10)),
+        'p_frac·log(am_am_area)':     pf_cen * np.log(np.maximum(am_am_area_v14c, 1e-10)),
+        'p_frac·CN_std':              pf_cen * cn_std_v14c,
+        'p_frac·τ_std':               pf_cen * tau_std_v14c,
+        '(p_frac)²·log(hop_area)':    (pf14c - 0.5)**2 * np.log(np.maximum(hop_area_v14c, 1e-10)),
+        'p_frac·I(cov<0.2)':          pf_cen * (cov_np < 0.2).astype(float),
+        'p_frac·I(τ in [1.8,2.2])':   pf_cen * ((tau_arr > 1.8) & (tau_arr < 2.2)).astype(float),
+        'I(p>0.5)·log(hop_area)':     ((pf14c > 0.5).astype(float) - 0.3) * np.log(np.maximum(hop_area_v14c, 1e-10)),
+        'I(p>0.5)·I(cov<0.2)':        ((pf14c > 0.5) & (cov_np < 0.2)).astype(float) - 0.1,
+    }
+    print(f"\n[v14c p_frac × (new features) SWEEP]")
+    print(f"  baseline v12 LOOCV = {loocv12:.4f}   noise σ ≈ {sigma_noise:.4f}")
+    print(f"  {'feature':36s} {'LOOCV':>8s} {'ΔLOOCV':>10s} {'flag':>6s}")
+    pf_results2 = []
+    for name, z in pf_interactions2.items():
+        lo = _loocv_with_extra(z)
+        d = lo - loocv12
+        flag = " ⭐" if d > sigma_noise else ("  *" if d > 0.001 else "")
+        pf_results2.append((name, lo, d, flag))
+        print(f"  {name:36s} {lo:.4f} {d:+10.5f} {flag}")
+    best_pf2 = max(pf_results2, key=lambda r: r[1])
+    print(f"  → best v14c interaction: {best_pf2[0]} (ΔLOOCV={best_pf2[2]:+.5f})")
+    if best_pf2[2] > sigma_noise:
+        print(f"    ⭐⭐⭐ NEW signal found! Candidate for v23 integration")
+    else:
+        print(f"    — all within noise; p_frac + new features don't add info")
+
+    # === v23 HERTZ COMPLETE CYL-BIAS TEST ===
+    # Theoretical: log(R_cyl/R_sph) = log(hop_area) − log(fn_SE_SE) + const
+    # If Holm cyl-sph bias is real and varies across cases, a coefficient
+    # around −1 would fit (σ_true > σ_net for small A/F).
+    log_ratio = np.log(np.maximum(hop_area_v14c, 1e-10)) - np.log(np.maximum(fn_sese, 1e-10))
+    # And variants
+    log_AF = np.log(np.maximum(hop_area_v14c, 1e-10)) + np.log(np.maximum(fn_sese, 1e-10))  # A·F (Hertz energy)
+    log_AFmin = np.log(np.maximum(hop_min, 1e-10)) - np.log(np.maximum(fn_sese, 1e-10))  # bottleneck version
+    hertz_feats = {
+        'log(A/F)  [cyl-bias]':   log_ratio,
+        'log(A·F)  [Hertz-E]':    log_AF,
+        'log(A_min/F)':           log_AFmin,
+        'log(hop_area_min)':      np.log(np.maximum(hop_min, 1e-10)),
+        'log(fn_SE_SE)':          np.log(np.maximum(fn_sese, 1e-10)),
+    }
+    print(f"\n[v23 HERTZ CYL-BIAS SWEEP] — particle-size × contact-force combined")
+    print(f"  {'feature':30s} {'LOOCV':>8s} {'ΔLOOCV':>10s} {'flag':>6s}")
+    for name, z in hertz_feats.items():
+        lo = _loocv_with_extra(z)
+        d = lo - loocv12
+        flag = " ⭐" if d > sigma_noise else ("  *" if d > 0.001 else "")
+        print(f"  {name:30s} {lo:.4f} {d:+10.5f} {flag}")
+
     # === v15 OVERFIT CEILING — all features + squares + interactions, OLS ===
     # Goal: measure the irreducible R²/LOOCV achievable on this dataset.
     # Uses ridge (λ=small) on a dense feature matrix. No physical meaning —

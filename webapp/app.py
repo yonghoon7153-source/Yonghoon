@@ -581,6 +581,36 @@ def analyze(case_id):
                     os.unlink(_net_backup)
 
                 # Network conductivity solver (자동 실행)
+                # Skip if already done (reanalysis case)
+                if net_already_done:
+                    print(f"  [Reanalysis] Network solver SKIPPED — restored previous results ({case_id})")
+                    shutil.copy2(_net_backup, net_json_path)
+                    os.unlink(_net_backup)
+                    # Merge network results into new full_metrics
+                    met_json = os.path.join(results_dir, 'full_metrics.json')
+                    if os.path.exists(met_json) and os.path.exists(net_json_path):
+                        with open(net_json_path) as _nf:
+                            net_data = json.load(_nf)
+                        with open(met_json) as _mf:
+                            met_data = json.load(_mf)
+                        for k in ['sigma_full', 'sigma_full_mScm', 'sigma_bulk_net',
+                                  'sigma_bulk_net_mScm', 'R_brug_over_full', 'bulk_resistance_fraction',
+                                  'electronic_sigma_full_mScm', 'electronic_R_brug',
+                                  'electronic_active_fraction', 'electronic_percolating_fraction',
+                                  'thermal_sigma_full_mScm', 'thermal_R_brug',
+                                  'sigma_bruggeman', 'sigma_bruggeman_mScm', 'R_bruggeman_over_full']:
+                            if k in net_data and net_data[k] is not None:
+                                met_data[k] = net_data[k]
+                        met_data['network_solver_status'] = 'success'
+                        with open(met_json, 'w') as _mf:
+                            json.dump(met_data, _mf, indent=2, default=str)
+                    meta['network_solver_status'] = 'success'
+                    meta['status'] = 'done'
+                    with open(meta_file, 'w') as f:
+                        json.dump(meta, f, indent=2)
+                    generate_report(case_id, meta.get('name', ''))
+                    return
+
                 # Semaphore: only 1 network solver at a time to prevent OOM crash
                 meta['status'] = 'network_solving'
                 meta['network_solver_status'] = 'waiting'

@@ -1071,19 +1071,13 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     tau_arr = np.array([tau[i] for i in valid_idx])
     cov_arr = np.array([coverage[i] for i in valid_idx])
 
-    # FORM X v8: v5 base + regime-dependent CN, fp via HIGH sigmoid (τc=2.2)
-    # Thick: CN^1.5 × fp^2.0 | Thin: CN^0.75 × fp^0.5
-    # τc=2.2, k=8 → w@1.92=0.096 (80:20 safe!)
-    TAU_C_BASE = 2.1; TAU_K_BASE = 5.0  # for C(τ) sigmoid
-    TAU_C_EXP = 2.2; TAU_K_EXP = 8.0    # for exponent transition (higher → 80:20 safe)
+    # FORM X v5 FINAL: CN^1.5 × (φ-φc)^¾ × cov^¼ × fp² + sigmoid C(τ)
+    # v6-v8 tested regime exponents — all break 80:20 thin trend
+    TAU_C = 2.1; TAU_K = 5.0
     fp_arr = np.array([max(f_perc[i], 0.01) for i in valid_idx])
-    w_c = 1.0 / (1.0 + np.exp(-TAU_K_BASE * (tau_arr - TAU_C_BASE)))  # C sigmoid
-    w_exp = 1.0 / (1.0 + np.exp(-TAU_K_EXP * (tau_arr - TAU_C_EXP)))  # exponent sigmoid
-    cn_exp = 1.5 + (0.75 - 1.5) * w_exp   # 1.5→0.75
-    fp_exp = 2.0 + (0.5 - 2.0) * w_exp    # 2.0→0.5
-    log_rhs_base = (np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + cn_exp*np.log(cn_arr)
-                    + 0.25*np.log(cov_arr) + fp_exp*np.log(fp_arr))
-    w_sigmoid = w_c  # C sigmoid for fitting
+    w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
+    log_rhs_base = (np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + 1.5*np.log(cn_arr)
+                    + 0.25*np.log(cov_arr) + 2.0*np.log(fp_arr))
     A_design = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
     b_sigmoid = np.linalg.lstsq(A_design, log_sf - log_rhs_base, rcond=None)[0]
     ln_Ct, ln_delta = b_sigmoid
@@ -1188,7 +1182,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title(f"Ionic v8: C(τ) × σ_grain × CN^(1.5→0.75) × (φ−φc)^¾ × ⁴√cov × fp^(2→0.5)\n"
+    ax.set_title(f"Ionic v5: C(τ) × σ_grain × CN^1.5 × (φ−φc)^¾ × ⁴√cov × fp²\n"
                  f"sigmoid(k={TAU_K:.0f},τc={TAU_C})  Ct={C_thick:.4f} Cn={C_thin:.4f}  R²={r2_formX:.3f}",
                  fontsize=9, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
@@ -1291,12 +1285,9 @@ def plot_multiscale_sigma(data_list, names, outdir):
     for i in range(len(data_list)):
         phi_ex = max(phi_se[i] - PHI_C, 0.001)
         if cn[i] > 0 and tau[i] > 0 and coverage[i] > 0:
-            w_c = 1.0 / (1.0 + np.exp(-5.0 * (tau[i] - 2.1)))   # C sigmoid
-            w_e = 1.0 / (1.0 + np.exp(-8.0 * (tau[i] - 2.2)))   # exponent sigmoid
-            C_i = C_thick_ms * np.exp((np.log(C_thin_ms) - np.log(C_thick_ms)) * w_c)
-            cn_e = 1.5 + (0.75 - 1.5) * w_e
-            fp_e = 2.0 + (0.5 - 2.0) * w_e
-            s = C_i * SIGMA_BULK * phi_ex**0.75 * cn[i]**cn_e * coverage[i]**0.25 * f_perc[i]**fp_e
+            w = 1.0 / (1.0 + np.exp(-TAU_K * (tau[i] - TAU_C)))
+            C_i = C_thick_ms * np.exp((np.log(C_thin_ms) - np.log(C_thick_ms)) * w)
+            s = C_i * SIGMA_BULK * phi_ex**0.75 * cn[i]**1.5 * coverage[i]**0.25 * f_perc[i]**2
             sigma_ms.append(s)
         else:
             sigma_ms.append(0)
@@ -1320,8 +1311,8 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     _apply_style(ax, "σ_ionic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
-    ax.set_title(f"FORM X v8: C(τ) × CN^(1.5→0.75) × (φ−φc)^¾ × ⁴√cov × fp^(2→0.5)",
-                 fontsize=8, fontweight='bold')
+    ax.set_title(f"FORM X v5: C(τ) × σ_grain × CN^1.5 × (φ−φc)^¾ × ⁴√cov × fp²",
+                 fontsize=9, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',
                ['φ_SE', 'CN', 'τ', 'coverage', 'σ_FORMX(mS/cm)', 'σ_network(mS/cm)'],

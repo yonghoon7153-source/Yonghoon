@@ -43,6 +43,7 @@ _GLOBAL_RGB = None  # (b, ln_k) from global fit across all plot groups
 _GLOBAL_C_ION = None  # Fitted C for ionic scaling law (from global/ionic_scaling_fit)
 _GLOBAL_FORMX_R2 = None  # (r2, loocv) from FORM X fit
 _GLOBAL_IONIC_SIGMOID = None  # (C_thick, C_thin, tau_c, k) for sigmoid C(τ)
+_GLOBAL_IONIC_POLY3 = None  # (a0, a1, a2, a3) for poly3 part of v9 BLEND
 _ALL_DATA = None  # all_data for _apply_style auto-detect
 
 def _apply_style(ax, ylabel, names, data_list=None):
@@ -1071,31 +1072,51 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     tau_arr = np.array([tau[i] for i in valid_idx])
     cov_arr = np.array([coverage[i] for i in valid_idx])
 
-    # FORM X v5 FINAL: CN^1.5 × (φ-φc)^¾ × cov^¼ × fp² + sigmoid C(τ)
-    # v6-v8 tested regime exponents — all break 80:20 thin trend
-    TAU_C = 2.1; TAU_K = 5.0
+    # FORM X v9 BLEND: (1-w)·v5_sigmoid(τ) + w·poly3(lnτ), w=σ(15·(τ-2.0))
+    # v5 alone: w20=50 | poly3 alone: w20=49 (R²=0.981, LOOCV=0.975, not overfit)
+    # BLEND: w20=51, R²=0.980 — best of both worlds
+    # poly3 handles extreme thin (τ>2.5, thin100_11), v5 handles thick/moderate
+    TAU_C = 2.1; TAU_K = 5.0          # v5 C(τ) sigmoid
+    TAU_C_BL = 2.0; TAU_K_BL = 15.0   # blend sigmoid (sharp at τ=2.0)
     fp_arr = np.array([max(f_perc[i], 0.01) for i in valid_idx])
-    w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
+    log_tau_arr = np.log(tau_arr)
     log_rhs_base = (np.log(SIGMA_BULK) + 0.75*np.log(phi_ex_arr) + 1.5*np.log(cn_arr)
                     + 0.25*np.log(cov_arr) + 2.0*np.log(fp_arr))
-    A_design = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
-    b_sigmoid = np.linalg.lstsq(A_design, log_sf - log_rhs_base, rcond=None)[0]
-    ln_Ct, ln_delta = b_sigmoid
-    ln_Cn = ln_Ct + ln_delta
-    C_thick = np.exp(ln_Ct); C_thin = np.exp(ln_Cn)
-    ln_C_arr = ln_Ct + ln_delta * w_sigmoid
+    w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
+    w_blend = 1.0 / (1.0 + np.exp(-TAU_K_BL * (tau_arr - TAU_C_BL)))
+
+    # Fit v5 and poly3 separately (on ALL data), then blend
+    X_v5 = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
+    b_v5 = np.linalg.lstsq(X_v5, log_sf - log_rhs_base, rcond=None)[0]
+    X_p3 = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
+    b_p3 = np.linalg.lstsq(X_p3, log_sf - log_rhs_base, rcond=None)[0]
+
+    # Blended prediction
+    pred_v5_log = X_v5 @ b_v5
+    pred_p3_log = X_p3 @ b_p3
+    ln_C_arr = (1 - w_blend) * pred_v5_log + w_blend * pred_p3_log
     pred_formX = ln_C_arr + log_rhs_base
     ss_res_formX = np.sum((log_sf - pred_formX)**2)
     r2_formX = 1 - ss_res_formX / ss_tot
-    C_formX = C_thick
 
-    # LOOCV for FORM X v4
+    ln_Ct, ln_delta = b_v5[0], b_v5[1]
+    ln_Cn = ln_Ct + ln_delta
+    C_thick = np.exp(ln_Ct); C_thin = np.exp(ln_Cn)
+    C_formX = C_thick
+    # Store poly3 coefficients for multiscale plot
+    global _GLOBAL_IONIC_POLY3
+    _GLOBAL_IONIC_POLY3 = tuple(b_p3)
+
+    # LOOCV for blended model
     n_pts = len(log_sf)
     loocv_errs = []
     for ii in range(n_pts):
         mask = np.ones(n_pts, bool); mask[ii] = False
-        b_loo = np.linalg.lstsq(A_design[mask], (log_sf - log_rhs_base)[mask], rcond=None)[0]
-        pred_loo = b_loo[0] + b_loo[1] * w_sigmoid[ii] + log_rhs_base[ii]
+        bv = np.linalg.lstsq(X_v5[mask], (log_sf - log_rhs_base)[mask], rcond=None)[0]
+        bp = np.linalg.lstsq(X_p3[mask], (log_sf - log_rhs_base)[mask], rcond=None)[0]
+        pv = X_v5[ii] @ bv
+        pp = X_p3[ii] @ bp
+        pred_loo = (1 - w_blend[ii]) * pv + w_blend[ii] * pp + log_rhs_base[ii]
         loocv_errs.append((log_sf[ii] - pred_loo)**2)
     loocv_formX = 1 - np.sum(loocv_errs) / np.sum((log_sf - np.mean(log_sf))**2)
 
@@ -1182,7 +1203,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     ax.set_yscale('log')
     ax.set_xlabel("σ_actual (Network solver, mS/cm)", fontsize=11)
     ax.set_ylabel("σ_predicted (Scaling law, mS/cm)", fontsize=11)
-    ax.set_title(f"Ionic v5: C(τ) × σ_grain × CN^1.5 × (φ−φc)^¾ × ⁴√cov × fp²\n"
+    ax.set_title(f"Ionic v9 BLEND: [(1-w)·v5 + w·poly3] × σ_grain × CN^1.5 × (φ−φc)^¾ × ⁴√cov × fp²\n"
                  f"sigmoid(k={TAU_K:.0f},τc={TAU_C})  Ct={C_thick:.4f} Cn={C_thin:.4f}  R²={r2_formX:.3f}",
                  fontsize=9, fontweight='bold')
     ax.legend(fontsize=9, loc='upper left')
@@ -1281,13 +1302,19 @@ def plot_multiscale_sigma(data_list, names, outdir):
         C_thin_ms = C_thick_ms * 0.54
     C_ms = C_thick_ms
 
+    # v9 BLEND: (1-w_bl)·v5_sigmoid + w_bl·poly3
+    p3_coefs = _GLOBAL_IONIC_POLY3 if _GLOBAL_IONIC_POLY3 is not None else (-3.7318, 3.0684, -6.3596, 3.0123)
     sigma_ms = []
     for i in range(len(data_list)):
         phi_ex = max(phi_se[i] - PHI_C, 0.001)
         if cn[i] > 0 and tau[i] > 0 and coverage[i] > 0:
-            w = 1.0 / (1.0 + np.exp(-TAU_K * (tau[i] - TAU_C)))
-            C_i = C_thick_ms * np.exp((np.log(C_thin_ms) - np.log(C_thick_ms)) * w)
-            s = C_i * SIGMA_BULK * phi_ex**0.75 * cn[i]**1.5 * coverage[i]**0.25 * f_perc[i]**2
+            w_v5 = 1.0 / (1.0 + np.exp(-TAU_K * (tau[i] - TAU_C)))
+            w_bl = 1.0 / (1.0 + np.exp(-15.0 * (tau[i] - 2.0)))
+            ln_C_v5 = np.log(C_thick_ms) + (np.log(C_thin_ms) - np.log(C_thick_ms)) * w_v5
+            lt = np.log(tau[i])
+            ln_C_p3 = p3_coefs[0] + p3_coefs[1]*lt + p3_coefs[2]*lt**2 + p3_coefs[3]*lt**3
+            ln_C = (1 - w_bl) * ln_C_v5 + w_bl * ln_C_p3
+            s = np.exp(ln_C) * SIGMA_BULK * phi_ex**0.75 * cn[i]**1.5 * coverage[i]**0.25 * f_perc[i]**2
             sigma_ms.append(s)
         else:
             sigma_ms.append(0)
@@ -1311,7 +1338,7 @@ def plot_multiscale_sigma(data_list, names, outdir):
 
     _apply_style(ax, "σ_ionic (mS/cm)", names)
     ax.legend(fontsize=9, loc='upper left')
-    ax.set_title(f"FORM X v5: C(τ) × σ_grain × CN^1.5 × (φ−φc)^¾ × ⁴√cov × fp²",
+    ax.set_title(f"FORM X v9: C_blend(τ) × σ_grain × CN^1.5 × (φ−φc)^¾ × ⁴√cov × fp²",
                  fontsize=9, fontweight='bold')
 
     _write_csv(outdir, 'multiscale_sigma.csv',

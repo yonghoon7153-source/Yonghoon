@@ -1083,7 +1083,9 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     fp_arr = np.array([max(f_perc[i], 0.01) for i in valid_idx])
     log_tau_arr = np.log(tau_arr)
     # v12-clean v3: α=1/2, β=3/2, γ=2/5, δ=3, φc=0.20
-    # + v17 binary P:S indicator: particulate-majority (P:S > 0.5) offset
+    # + v22: κ·log(hop_area) correction for R_bulk cylindrical-approx bias
+    hop_area_prod = np.array([max(_get(data_list[i], "path_hop_area_mean", 0), 1e-10) for i in valid_idx])
+    log_hop_area = np.log(hop_area_prod)
     log_rhs_base_v12 = (np.log(SIGMA_BULK) + 0.50*np.log(phi_ex_arr) + 1.5*np.log(cn_arr)
                         + 0.40*np.log(cov_arr) + 3.0*np.log(fp_arr))
     # v17 addition: β·I(p_frac > 0.5) — captures particulate-majority offset
@@ -1107,30 +1109,32 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
     def _fit_at(k_bl, tc_bl, k_pf=10.0, pc_pf=0.5):
-        """v21: v12-clean v3 + bilinear P:S (thin & thick-specific β).
-        Correction: (β_thin · w_bl + β_thick · (1-w_bl)) · (w_pf - ⟨w_pf⟩)
-        β_thin targets thin+particulate cases (thin_9/8_AMP/6).
-        Returns (r2, loocv, w20, b_v5, b_p3, w_bl, pred, β_thin, β_thick, w_pf)."""
+        """v22: v18 (single P:S β) + κ·log(hop_area) R_bulk correction.
+        κ·log(hop_area) added to log_rhs_base via lstsq. Physical interpretation:
+        κ ≈ +0.5 means Holm's cylindrical-vs-spherical bias fully captured.
+        Returns (r2, loocv, w20, b_v5, b_p3, w_bl, pred, β_pf, κ_area, w_pf)."""
         w_bl = 1.0 / (1.0 + np.exp(-k_bl * (tau_arr - tc_bl)))
         w_pf = 1.0 / (1.0 + np.exp(-k_pf * (pf_prod - pc_pf)))
-        X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
-        X_p3_l = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
-
+        # v22 log_rhs with extra κ·log(hop_area) term (κ fit in closed form below)
+        # Stage A: fit (v5, p3, κ) jointly by augmenting X matrices
+        hop_c = log_hop_area - log_hop_area.mean()
+        X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid, hop_c])
+        X_p3_l = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2,
+                                   log_tau_arr**3, hop_c])
         b_v5_l = np.linalg.lstsq(X_v5_l, log_sf - log_rhs_base, rcond=None)[0]
         b_p3_l = np.linalg.lstsq(X_p3_l, log_sf - log_rhs_base, rcond=None)[0]
         pv_l = X_v5_l @ b_v5_l
         pp_l = X_p3_l @ b_p3_l
         pred_pre = (1 - w_bl) * pv_l + w_bl * pp_l + log_rhs_base
+        # Effective κ = weighted average of v5 and p3 hop_area coeffs
+        kappa_eff = float((1 - w_bl).mean() * b_v5_l[-1] + w_bl.mean() * b_p3_l[-1])
 
+        # Stage B: single P:S β via residual regression
         pf_c = w_pf - w_pf.mean()
-        # Bilinear: separate β for thin (w_bl high) vs thick (w_bl low)
-        col_thin = w_bl * pf_c
-        col_thick = (1 - w_bl) * pf_c
-        X_corr = np.column_stack([col_thin, col_thick])
         resid = log_sf - pred_pre
-        bc = np.linalg.lstsq(X_corr, resid, rcond=None)[0]
-        pred = pred_pre + X_corr @ bc
-        beta_thin, beta_thick = float(bc[0]), float(bc[1])
+        denom = float(np.sum(pf_c**2))
+        beta_pf = float(np.sum(resid * pf_c) / denom) if denom > 1e-10 else 0.0
+        pred = pred_pre + beta_pf * pf_c
 
         r2 = 1 - np.sum((log_sf - pred)**2) / ss_tot
         n_loo = len(log_sf)
@@ -1141,17 +1145,15 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
             bp_ = np.linalg.lstsq(X_p3_l[mk], (log_sf - log_rhs_base)[mk], rcond=None)[0]
             pv9 = (1 - w_bl) * (X_v5_l @ bv_) + w_bl * (X_p3_l @ bp_) + log_rhs_base
             pf_c_mk = w_pf[mk] - w_pf[mk].mean()
-            ct_mk = w_bl[mk] * pf_c_mk
-            ck_mk = (1 - w_bl[mk]) * pf_c_mk
-            Xc_mk = np.column_stack([ct_mk, ck_mk])
-            bc_mk = np.linalg.lstsq(Xc_mk, (log_sf - pv9)[mk], rcond=None)[0]
-            pf_ii = w_pf[ii] - w_pf[mk].mean()
-            pred_ii = pv9[ii] + bc_mk[0] * w_bl[ii] * pf_ii + bc_mk[1] * (1 - w_bl[ii]) * pf_ii
+            resid_mk = (log_sf - pv9)[mk]
+            dm = float(np.sum(pf_c_mk**2))
+            beta_mk = float(np.sum(resid_mk * pf_c_mk) / dm) if dm > 1e-10 else 0.0
+            pred_ii = pv9[ii] + beta_mk * (w_pf[ii] - w_pf[mk].mean())
             sse_loo += (log_sf[ii] - pred_ii)**2
         loocv = 1 - sse_loo / ss_tot
         s_act_l = np.exp(log_sf); s_prd_l = np.exp(pred)
         w20 = int(np.sum(np.abs(s_prd_l - s_act_l) / s_act_l < 0.20))
-        return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred, beta_thin, beta_thick, w_pf
+        return r2, loocv, w20, b_v5_l, b_p3_l, w_bl, pred, beta_pf, kappa_eff, w_pf
 
     # v18: continuous 4D optimization — (k_bl, τc_bl, k_pf, pc_pf)
     from scipy.optimize import minimize
@@ -1170,7 +1172,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     for k in k_sweep:
         r2_k, lo_k, w20_k, *_ = _fit_at(k, 2.0, 10.0, 0.5)
         print(f"  {k:5.1f}  {r2_k:.4f}  {lo_k:.4f}  {w20_k:2d}/{len(log_sf):2d}")
-    r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX, beta1_prod, beta2_prod, w_pf_prod = \
+    r2_formX, loocv_formX, w20_opt, b_v5, b_p3, w_blend, pred_formX, beta_pf_prod, kappa_area, w_pf_prod = \
         _fit_at(best_k, best_tc, best_kp, best_pc)
     print(f"  → continuous optimum: k_bl={best_k:.2f}, τc_bl={best_tc:.3f}  |  "
           f"k_pf={best_kp:.2f}, pc_pf={best_pc:.3f}")
@@ -1179,8 +1181,8 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     print(f"    Ct={_Ct_chk:.4f} (thick asymptote)  Cn={_Cn_chk:.4f} (thin asymptote)  "
           f"Ct/Cn={_Ct_chk/_Cn_chk:.2f}")
     print(f"    poly3 coefs = [{b_p3[0]:+.3f}, {b_p3[1]:+.3f}, {b_p3[2]:+.3f}, {b_p3[3]:+.3f}]")
-    print(f"    β1 (P:S base)   = {beta1_prod:+.4f}  ← P:S sigmoid amplitude")
-    print(f"    β2 (P:S × log τ) = {beta2_prod:+.4f}  ← τ-modulation of P:S effect")
+    print(f"    β_pf    = {beta_pf_prod:+.4f}  ← P:S sigmoid amplitude")
+    print(f"    κ_area  = {kappa_area:+.4f}  ← v22 R_bulk cyl-approx correction (0.5 = Holm exact)")
     TAU_C_BL = best_tc
     TAU_K_BL = best_k
 

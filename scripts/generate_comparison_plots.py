@@ -1110,7 +1110,8 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     from scipy.optimize import minimize
     def _neg_loocv(p):
         k_, tc_ = p
-        if k_ <= 0.1 or k_ > 30 or tc_ < 1.2 or tc_ > 3.0:
+        # k bounded to 20 — sweep showed LOOCV is flat for k>10; prevents bound-hit.
+        if k_ <= 0.1 or k_ > 20 or tc_ < 1.2 or tc_ > 3.0:
             return 1e6
         return -_fit_at(k_, tc_)[1]
     res = minimize(_neg_loocv, x0=[5.0, 2.0], method='Nelder-Mead',

@@ -1082,11 +1082,34 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
                     + 0.25*np.log(cov_arr) + 2.0*np.log(fp_arr))
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
+    # v10: P:S particulate-fraction correction
+    # p_frac ∈ [0,1]; diagnostic showed (p_frac)² correlates with residual (r=+0.33).
+    # Add both linear and quadratic terms to both v5 and p3 design matrices.
+    def _ps_frac(d):
+        ps = (d.get("ps_ratio", "") or "")
+        if ps in ("P only", "10:0"): return 1.0
+        if ps in ("S only", "0:10"): return 0.0
+        if ":" in ps:
+            try:
+                p, s = ps.split(":")
+                p, s = float(p), float(s)
+                return p / (p + s) if (p + s) > 0 else 0.5
+            except Exception:
+                return 0.5
+        return 0.5
+    pf_arr = np.array([_ps_frac(data_list[i]) for i in valid_idx])
+    pf_c = pf_arr - 0.5         # centered linear
+    pf_q = (pf_arr - 0.5)**2    # centered quadratic
+
     def _fit_at(k_bl, tc_bl):
-        """Fit v5+poly3 blend at (k, τc). Return (r2, loocv, w20, b_v5, b_p3, w_bl, pred)."""
+        """Fit v5+poly3 blend + P:S correction at (k, τc).
+        X_v5: [1, w_sigmoid, pf_c, pf_q]   (4 params)
+        X_p3: [1, lnτ, lnτ², lnτ³, pf_c, pf_q]   (6 params)
+        """
         w_bl = 1.0 / (1.0 + np.exp(-k_bl * (tau_arr - tc_bl)))
-        X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
-        X_p3_l = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
+        X_v5_l = np.column_stack([np.ones(len(log_sf)), w_sigmoid, pf_c, pf_q])
+        X_p3_l = np.column_stack([np.ones(len(log_sf)), log_tau_arr,
+                                   log_tau_arr**2, log_tau_arr**3, pf_c, pf_q])
         b_v5_l = np.linalg.lstsq(X_v5_l, log_sf - log_rhs_base, rcond=None)[0]
         b_p3_l = np.linalg.lstsq(X_p3_l, log_sf - log_rhs_base, rcond=None)[0]
         pv_l = X_v5_l @ b_v5_l
@@ -1130,9 +1153,13 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     TAU_C_BL = best_tc
     TAU_K_BL = best_k
 
-    X_v5 = np.column_stack([np.ones(len(log_sf)), w_sigmoid])
-    X_p3 = np.column_stack([np.ones(len(log_sf)), log_tau_arr, log_tau_arr**2, log_tau_arr**3])
+    X_v5 = np.column_stack([np.ones(len(log_sf)), w_sigmoid, pf_c, pf_q])
+    X_p3 = np.column_stack([np.ones(len(log_sf)), log_tau_arr,
+                             log_tau_arr**2, log_tau_arr**3, pf_c, pf_q])
     ss_res_formX = np.sum((log_sf - pred_formX)**2)
+    # Log the P:S correction coefficients (v5 + p3)
+    print(f"  v10 P:S correction:  v5·pf_c={b_v5[2]:+.3f}  v5·pf_q={b_v5[3]:+.3f}"
+          f"  |  p3·pf_c={b_p3[4]:+.3f}  p3·pf_q={b_p3[5]:+.3f}")
 
     ln_Ct, ln_delta = b_v5[0], b_v5[1]
     ln_Cn = ln_Ct + ln_delta

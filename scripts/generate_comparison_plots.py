@@ -1177,17 +1177,24 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
         return f"{grp} | {case_id} [{lbl}]" if grp or case_id else lbl
 
     rel_err = (s_pred - s_actual) / s_actual * 100
-    print(f"\n[IONIC v9 BLEND DIAG] n={len(valid_idx)}, R²={r2_formX:.4f}, LOOCV={loocv_formX:.4f}")
-    print(f"  mean|err|={np.mean(np.abs(rel_err)):.1f}%  median|err|={np.median(np.abs(rel_err)):.1f}%")
-    hdr = f"  {'case (group | id [P:S])':70s} {'σ_act':>7s} {'σ_pred':>7s} {'err%':>6s} {'φ_SE':>5s} {'f_p':>5s} {'τ':>5s} {'CN':>5s} {'cov':>5s}"
+    abs_err = np.abs(rel_err)
+    n_total = len(valid_idx)
+    print(f"\n[IONIC v9 BLEND DIAG] n={n_total}, R²={r2_formX:.4f}, LOOCV={loocv_formX:.4f}")
+    print(f"  mean|err|={np.mean(abs_err):.1f}%  median|err|={np.median(abs_err):.1f}%")
+    # Tier counts
+    tiers = [5, 10, 15, 20, 30]
+    cnt = {t: int(np.sum(abs_err < t)) for t in tiers}
+    print(f"  tiers:  <5%:{cnt[5]}/{n_total}   <10%:{cnt[10]}/{n_total}   <15%:{cnt[15]}/{n_total}"
+          f"   <20%:{cnt[20]}/{n_total}   <30%:{cnt[30]}/{n_total}")
+    hdr = f"  {'#':>3s} {'case (group | id [P:S])':70s} {'σ_act':>7s} {'σ_pred':>7s} {'err%':>7s} {'φ_SE':>5s} {'f_p':>5s} {'τ':>5s} {'CN':>5s} {'cov':>5s}"
     print(hdr); print("  " + "-" * (len(hdr)-2))
-    outliers = [(j, abs(rel_err[j])) for j in range(len(valid_idx))]
-    outliers.sort(key=lambda x: -x[1])  # largest first
-    for j, ae in outliers[:8]:  # top 8 by abs error
+    all_sorted = sorted(range(n_total), key=lambda j: -abs_err[j])
+    for rank, j in enumerate(all_sorted, 1):
         i = valid_idx[j]
         nm = _case_label(i)[:70]
-        print(f"  {nm:70s} {s_actual[j]:7.4f} {s_pred[j]:7.4f} {rel_err[j]:+6.1f} "
-              f"{phi_se[i]:5.3f} {f_perc[i]:5.3f} {tau[i]:5.2f} {cn[i]:5.2f} {cov_arr[j]:5.3f}")
+        flag = "  ⚠" if abs_err[j] > 20 else ("  ·" if abs_err[j] > 15 else "")
+        print(f"  {rank:3d} {nm:70s} {s_actual[j]:7.4f} {s_pred[j]:7.4f} {rel_err[j]:+6.1f}%"
+              f" {phi_se[i]:5.3f} {f_perc[i]:5.3f} {tau[i]:5.2f} {cn[i]:5.2f} {cov_arr[j]:5.3f}{flag}")
     # Residual-vs-feature correlation (Pearson on log-residual)
     log_res = np.log(s_pred) - np.log(s_actual)
     gb_arr = np.array([gb_dens[i] for i in valid_idx])

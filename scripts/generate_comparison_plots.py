@@ -1079,13 +1079,18 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     TAU_C = 2.1; TAU_K = 5.0          # v5 C(τ) sigmoid (fixed)
     fp_arr = np.array([max(f_perc[i], 0.01) for i in valid_idx])
     log_tau_arr = np.log(tau_arr)
-    # === v12-CLEAN exponents — rounded half-integer from data-native fit ===
-    # v12 fit gave (α,β,γ,δ) = (0.53, 1.56, 0.41, 1.98). Rounded for elegance:
-    #   α=1/2 (mean-field percolation), β=3/2 (Kirkpatrick),
-    #   γ=1/2 (√cov interface), δ=2 (Bruggeman²)
-    # v9 formula (0.75, 1.5, 0.25, 2; φc=0.185) retained as archive reference.
+    # === v12-CLEAN exponents — simple fractions from data-native fit ===
+    # v12 fit gave (α,β,γ,δ) = (0.526, 1.56, 0.411, 1.98). Rounded:
+    #   α=1/2 (mean-field percolation)     — v12 0.526, Δ=−5%
+    #   β=3/2 (Kirkpatrick CN)             — v12 1.56,  Δ=−4%
+    #   γ=2/5 (interface coverage)         — v12 0.411, Δ=−3%
+    #   δ=2   (Bruggeman²)                 — v12 1.98,  Δ=+1%
+    #   φc=0.20                            — v12 0.203, Δ=−1%
+    # (First attempt used γ=1/2 — catastrophic LOOCV drop because 0.5 vs 0.411
+    #  is +22% relative. Fixed to 2/5.)
+    # v9 archive: (0.75, 1.5, 0.25, 2; φc=0.185) — Kirkpatrick 3D priors.
     log_rhs_base = (np.log(SIGMA_BULK) + 0.50*np.log(phi_ex_arr) + 1.5*np.log(cn_arr)
-                    + 0.50*np.log(cov_arr) + 2.0*np.log(fp_arr))
+                    + 0.40*np.log(cov_arr) + 2.0*np.log(fp_arr))
     w_sigmoid = 1.0 / (1.0 + np.exp(-TAU_K * (tau_arr - TAU_C)))
 
     def _fit_at(k_bl, tc_bl):

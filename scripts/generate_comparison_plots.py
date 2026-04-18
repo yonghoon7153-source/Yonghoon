@@ -1672,7 +1672,7 @@ def plot_ionic_scaling_fit(data_list, names, outdir):
     global _GLOBAL_IONIC_SIGMOID
     _GLOBAL_IONIC_SIGMOID = (C_thick, C_thin, TAU_C, TAU_K)
     global _GLOBAL_PS_SIGMOID
-    _GLOBAL_PS_SIGMOID = (best_kp, best_pc, beta1_prod, beta2_prod,
+    _GLOBAL_PS_SIGMOID = (best_kp, best_pc, beta_pf_prod, 0.0,
                           float(w_pf_prod.mean()),
                           float((w_pf_prod * log_tau_arr).mean()))
 

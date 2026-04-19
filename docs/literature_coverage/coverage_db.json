@@ -1,0 +1,210 @@
+{
+  "schema_version": "1.0",
+  "description": "Literature coverage/contact-area database for k_spread calibration of plastic_coverage.py against DEM outputs. Each entry captures exact process conditions needed to decide comparability with our single-compression pellet setup.",
+  "our_baseline": {
+    "process": "single-compression pellet",
+    "pressure_MPa": 300,
+    "cathode": "NMC + LPSCl or equivalent",
+    "metric_type": "3D surface area coverage (DEM contact-area / AM surface)",
+    "dem_raw_coverage_frac": 0.85,
+    "dem_plastic_capped_coverage_frac": 0.22,
+    "note": "DEM value is BEFORE k_spread calibration to physical coverage"
+  },
+  "entries": [
+    {
+      "id": "lee_2024_natcomm",
+      "citation": "Lee et al., Nature Communications 15, 2024 — Shear force effect of the dry process on cathode contact coverage in all-solid-state batteries",
+      "doi_or_url": "Nature Communications 2024 (user-supplied text + SI)",
+      "tier": 1,
+      "process": {
+        "type": "single-compression pellet (our-match)",
+        "mixing": [
+          {"label": "Hand-mixed", "method": "mortar-and-pestle, low-shear"},
+          {"label": "Wet-process",  "method": "NMP-slurry + coating + drying"},
+          {"label": "Dry-process",  "method": "high-shear dry mixing (planetary/Nobilta-like)"}
+        ],
+        "pelletization_pressure_TON": 7,
+        "pellet_diameter_mm": 13,
+        "pelletization_pressure_MPa_approx": 520,
+        "SE_separator": {"mass_mg": 150, "press_TON": 1.4}
+      },
+      "cathode_composition_wt": {"NCM": 80.0, "LPSCl": 18.5, "CNT": 1.5},
+      "active_material": "NCM532",
+      "solid_electrolyte": "LPSCl",
+      "mass_loading_mg_per_cm2": 23.5,
+      "areal_capacity_mAh_per_cm2": 4.23,
+      "counter_electrode": "Li-In",
+      "coverage_metric": {
+        "type": "2D SEM perimeter",
+        "definition": "coverage = (SE-touching AM perimeter) / (total AM perimeter); yellow=AM edge, red=void edge, remainder=SE contact",
+        "dimensionality_warning": "2D perimeter != 3D surface-area; under-estimates 3D coverage",
+        "image_source": "cross-section SEM"
+      },
+      "coverage_values_pct": {
+        "Hand-mixed": 30.6,
+        "Wet":        33.3,
+        "Dry":        67.2
+      },
+      "AM_particle_size": {
+        "radius_um_range": [2, 10],
+        "representative_R_um": 10,
+        "source": "SI Table S1 (DEM modeling)"
+      },
+      "SE_particle_size_um_range": [0.5, 2.0],
+      "si_highlights": [
+        {
+          "item": "Table S1 — DEM modeling parameters",
+          "why_useful": "Direct comparison base for our contact-model constants",
+          "extracted": {
+            "E_NCM_GPa_assumed": 140.0,
+            "E_LPSCl_GPa_assumed": 24.0,
+            "poisson_NCM": 0.30,
+            "poisson_LPSCl": 0.30,
+            "mu_friction": 0.5,
+            "density_NCM_kg_m3": 4800,
+            "density_LPSCl_kg_m3": 1900,
+            "particle_radius_NCM_um": [2, 10],
+            "particle_radius_LPSCl_um": [0.5, 2]
+          }
+        },
+        {
+          "item": "SEM image analysis methodology",
+          "why_useful": "Confirms coverage = perimeter ratio (2D), not 3D surface area; lower bound vs our 3D DEM value",
+          "impact_on_our_k_spread": "Cannot directly equate 30.6% (2D perimeter) to our 22% (3D surface). Need perimeter-to-surface geometric factor (~1.3-1.5x for spherical AM)."
+        },
+        {
+          "item": "Cell assembly & pressure sequence",
+          "why_useful": "Matches our single-compression pellet assumption",
+          "extracted": {
+            "assembly_order": ["SE powder pressed at 1.4 TON", "cathode pressed at 7 TON on SE", "Li-In attached"],
+            "cell_format": "pellet-type (Swagelok or similar)",
+            "operating_pressure_during_cycling_MPa": "not-reported (assumed stack pressure only)"
+          }
+        },
+        {
+          "item": "Electrochemistry",
+          "why_useful": "Performance vs coverage trend establishes coverage as dominant variable",
+          "extracted": {
+            "capacity_retention_after_100_cycles_pct": {"Hand": null, "Wet": null, "Dry": "highest"},
+            "rate_capability_C_rates_tested": [0.1, 0.2, 0.5, 1.0],
+            "note": "Dry > Wet > Hand for rate capability, correlating with coverage"
+          }
+        },
+        {
+          "item": "DEM simulation validation",
+          "why_useful": "Their DEM also uses Hooke/Hysteresis or Hertz — can reuse as benchmark",
+          "extracted": {
+            "contact_model": "Hertz-Mindlin (not explicitly Hooke-Hysteresis)",
+            "box_size_um": "~100-500 scale",
+            "n_particles_order": "1e4-1e5",
+            "gives_force_distribution": true,
+            "gives_coverage_distribution": true
+          }
+        }
+      ],
+      "comparability_with_ours": {
+        "process_match":   "YES (Hand-mixed single-compression pellet)",
+        "pressure_match":  "PARTIAL (their 520 MPa vs our 300 MPa — ~73% pressure, expect slightly lower coverage)",
+        "chemistry_match": "CLOSE (NCM532 vs our NCM, LPSCl vs our LPSCl)",
+        "metric_match":    "NO (2D perimeter vs our 3D surface)"
+      },
+      "k_spread_implication": {
+        "target_coverage_if_equivalent_metric": 0.306,
+        "dem_raw_ceiling": 0.85,
+        "dem_plastic_capped": 0.22,
+        "naive_k_spread_ratio": "sqrt(0.306/0.22) ≈ 1.18",
+        "caveat": "2D-to-3D correction needed first; true target likely 0.35-0.45 in 3D terms → k_spread ≈ 1.26-1.43"
+      }
+    },
+    {
+      "id": "bielefeld_2019_jpcc",
+      "citation": "Bielefeld, Weber, Janek. J. Phys. Chem. C 2019, 123, 1626-1634 — Microstructural Modeling of Composite Cathodes for All-Solid-State Batteries",
+      "doi_or_url": "10.1021/acs.jpcc.8b11043",
+      "tier": 1,
+      "kind": "microstructural_modeling_not_experiment",
+      "caveat_upfront": "Does NOT report coverage (%) directly. Reports specific active interface area A_spec,a (m²/m³) and utilization level. Also does NOT give τ(composition) or σ_eff(composition) curves despite earlier expectation. Still Tier 1 because it validates percolation exponent and optimal composition for our scaling law.",
+      "process": {
+        "type": "purely computational (GeoDict software)",
+        "pressure_match_with_ours": "NO (no physical pressure, just geometric packing)",
+        "overlap_treatment": "AM spheres = NO overlap (hard-sphere packing, <1e-5 vol% residual); SE polyhedra = WITH overlap; merge step assigns overlap to AM (SE loses volume), AM stays spherical"
+      },
+      "materials": {
+        "AM": "NCM (NMC-622 implicitly)",
+        "SE": "LPS (Li3PS4-type thiophosphate)",
+        "E_SE_GPa": 25,
+        "conductive_agent": "none (carbon-free modeled)",
+        "binder": "none"
+      },
+      "geometry": {
+        "structure_dims_um": [80, 80, 140],
+        "voxel_resolution_um": 0.2,
+        "AM_shape": "spherical",
+        "AM_size_distribution": "uniform (monodisperse per run)",
+        "AM_diameters_um_studied": [3, 4, 5, 6, 7, 8, 9, 10, 15],
+        "SE_shape": "convex polyhedra",
+        "SE_diameter_um": 3,
+        "SE_distribution": "uniform"
+      },
+      "key_results": {
+        "percolation_exponent_beta": 0.41,
+        "beta_comparison": "Matches Sur et al. 1976 3D site-percolation simple-cubic lattice — VALIDATES our scaling law using percolation-like exponents (CN^1.5, √(φ-0.2), etc.)",
+        "percolation_threshold_fit": {
+          "formula": "pc [vol%] = 7.83 * ln(d_AM/μm) + 36.67",
+          "relationship": "logarithmic in AM particle size",
+          "example_thresholds": {
+            "3_um":  41.28,
+            "5_um":  49.27,
+            "10_um": 54.70,
+            "15_um": 57.85
+          }
+        },
+        "transition_region_5um": {"lower_vol_pct": 48, "upper_vol_pct": 52, "mean_utilization_at_pc": 0.40},
+        "transition_region_3um":  [41, 46],
+        "transition_region_15um": [52, 57],
+        "optimal_composition_by_porosity": {
+          "5_pct_porosity":  {"AM_SE_vol_ratio": "62/38",  "AM_SE_wt_ratio_NCM622_LPS": "80/20"},
+          "10_pct_porosity": {"AM_SE_vol_ratio": "66/34",  "AM_SE_wt_ratio_NCM622_LPS": "82/18"},
+          "20_pct_porosity": {"AM_SE_vol_ratio": "72/28",  "AM_SE_wt_ratio_NCM622_LPS": "86/14"}
+        },
+        "operating_window_at_20pct_porosity": {
+          "electronic_limited_below_vol_pct_AM": 69,
+          "ionic_limited_above_vol_pct_AM":     79,
+          "well_performing_band_vol_pct":       [69, 79]
+        },
+        "electrode_thickness_effect": {
+          "thicknesses_um_tested": [20, 40, 60, 80, 100, 120, 140],
+          "effect_on_optimal_composition": "none (same optimum)",
+          "effect_on_thin_electrode_percolation": "thin electrodes appear to percolate at lower AM vol% — FINITE SIZE ARTIFACT, not real advantage"
+        }
+      },
+      "coverage_equivalent_derivation": {
+        "reported_metric": "A_spec,a (m²/m³) — volumetric active interface area",
+        "how_to_convert_to_coverage_frac": "coverage ≈ A_spec,a / A_spec,geo, where A_spec,geo = g_AM^V · 6/d_AM (eq 7)",
+        "example_5um_70_30_vol_pct_porosity_20pct": {
+          "g_AM_V":                 0.56,
+          "A_spec_geo_m2_per_m3":   "6 * 0.56 / 5e-6 = 6.72e5",
+          "A_spec_a_read_from_fig7_order": "~2-3e5 m²/m³ peak",
+          "implied_coverage_frac":  "0.30-0.45 range (read from figures, not tabulated)"
+        },
+        "confidence": "LOW — requires reading plot values; authors did not tabulate"
+      },
+      "comparability_with_ours": {
+        "process_match":     "NO (no physical pressure — purely geometric)",
+        "pressure_match":    "NA",
+        "chemistry_match":   "CLOSE (NCM + LPS thiophosphate, like our NMC+LPSCl)",
+        "metric_match":      "PARTIAL (3D volumetric — can be converted to 3D surface fraction with geometric factor)",
+        "usefulness_for_us": [
+          "VALIDATES our scaling law percolation exponent ~sqrt(phi-0.2) and CN^1.5 forms",
+          "PROVIDES optimal composition anchors (80/20 wt at 5% porosity) consistent with our dataset peak",
+          "OFFERS particle-size / percolation-threshold relationship that can test CN(d) dependence",
+          "DOES NOT directly calibrate k_spread — no headline coverage value"
+        ]
+      },
+      "open_questions": [
+        "How to map their (AM-no-overlap + SE-polyhedra-with-overlap) to our (hard-sphere + plastic delta overlap) geometry? Their overlap-reassignment to AM already mimics plastic-like contact area expansion.",
+        "Their β=0.41 comes from electronic cluster percolation; does ionic cluster (SE-mediated) obey same exponent?",
+        "Can we regenerate their A_spec,a vs composition curves with our DEM + network solver as validation?"
+      ]
+    }
+  ]
+}

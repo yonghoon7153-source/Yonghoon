@@ -115,25 +115,50 @@ def parse_contact_dump(path: str) -> list[dict]:
 # =============================================================
 #   Plastic coverage computation
 # =============================================================
-def film_area_from_overlap(delta: float, R_star: float) -> tuple[float, str]:
-    """Return (contact film area in m², regime label)."""
+def film_area_from_overlap(delta: float, R_star: float,
+                            R_min: float = None,
+                            ligg_area: float = None,
+                            mode: str = "capped") -> tuple[float, str]:
+    """Return (contact film area in m², regime label).
+    mode:
+      'hertzian'  — pure elastic Hertzian (π R* δ). Underestimates plastic.
+      'liggghts'  — use LIGGGHTS-reported contactArea directly. DEM-native.
+      'capped'    — physics model with geometric cap a² ≤ R_min² (recommended).
+    """
     dr = delta / R_star if R_star > 0 else 0.0
     if dr <= 0:
         return 0.0, "none"
+
+    elastic_area = np.pi * R_star * delta   # Hertzian point contact (small overlap)
+
+    if mode == "hertzian":
+        regime = ("elastic" if dr < DR_YIELD_ONSET else
+                  "transition" if dr < DR_FULLY_PLASTIC else "plastic")
+        return elastic_area, regime
+
+    if mode == "liggghts":
+        regime = ("elastic" if dr < DR_YIELD_ONSET else
+                  "transition" if dr < DR_FULLY_PLASTIC else "plastic")
+        if ligg_area is not None and ligg_area > 0:
+            return ligg_area, regime
+        return elastic_area, regime
+
+    # Default: 'capped' physics model
+    # Geometric ceiling: film radius² can't exceed smaller particle's projected area
+    cap_a2 = (R_min * R_min) if R_min else (R_star * R_star)
+
     if dr < DR_YIELD_ONSET:
-        # Elastic Hertzian:  a² = R* · δ
-        return np.pi * R_star * delta, "elastic"
+        return elastic_area, "elastic"
+
     if dr < DR_FULLY_PLASTIC:
-        # Transition: linear interpolation between elastic and plastic formulas
+        # Smooth transition: interpolate elastic → capped plastic
         f = (dr - DR_YIELD_ONSET) / (DR_FULLY_PLASTIC - DR_YIELD_ONSET)
-        elastic   = np.pi * R_star * delta
-        # Fully-plastic film radius²  ∝  R*² · δ/R* · (dr / DR_FULLY_PLASTIC)
-        plastic_scale = dr / DR_FULLY_PLASTIC
-        plastic_a2 = R_star * R_star * dr * plastic_scale
-        return (1 - f) * elastic + f * np.pi * plastic_a2, "transition"
-    # Fully plastic: pancake area grows with overlap beyond threshold
-    plastic_scale = dr / DR_FULLY_PLASTIC
-    plastic_a2 = R_star * R_star * dr * plastic_scale
+        plastic_a2 = min(R_star * R_star * dr / DR_FULLY_PLASTIC, cap_a2)
+        return (1 - f) * elastic_area + f * np.pi * plastic_a2, "transition"
+
+    # Fully plastic: area grows linearly with dr BEYOND threshold, but capped
+    scale = dr / DR_FULLY_PLASTIC
+    plastic_a2 = min(R_star * R_star * scale, cap_a2)
     return np.pi * plastic_a2, "plastic"
 
 

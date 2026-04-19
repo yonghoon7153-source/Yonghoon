@@ -163,8 +163,11 @@ def film_area_from_overlap(delta: float, R_star: float,
 
 
 def compute_coverage(atom_path: str, contact_path: str,
-                     se_type: int = SE_ATOM_TYPE) -> dict:
-    """Compute elastic + plastic coverage per AM particle for a single snapshot."""
+                     se_type: int = SE_ATOM_TYPE,
+                     mode: str = "capped",
+                     dump_contacts: bool = False) -> dict:
+    """Compute elastic + plastic coverage per AM particle for a single snapshot.
+    If dump_contacts=True, includes per-contact list (for network solver input)."""
     atoms    = parse_atom_dump(atom_path)
     contacts = parse_contact_dump(contact_path)
 
@@ -180,13 +183,13 @@ def compute_coverage(atom_path: str, contact_path: str,
     plastic_sum  = defaultdict(float)
     regime_count = defaultdict(int)
     delta_stats  = []
+    per_contact: list[dict] = []   # only populated if dump_contacts
 
     for c in contacts:
         a1, a2 = atoms.get(c["id1"]), atoms.get(c["id2"])
         if a1 is None or a2 is None:
             continue
         t1, t2 = a1["type"], a2["type"]
-        # AM-SE only (one AM and one SE)
         is_se1, is_se2 = (t1 == se_type), (t2 == se_type)
         if is_se1 == is_se2:
             continue
@@ -194,8 +197,10 @@ def compute_coverage(atom_path: str, contact_path: str,
         am_atom = a2 if is_se1 else a1
         am_id   = c["id2"] if is_se1 else c["id1"]
         se_atom = a1 if is_se1 else a2
+        se_id   = c["id1"] if is_se1 else c["id2"]
 
         R_star = (am_atom["r"] * se_atom["r"]) / (am_atom["r"] + se_atom["r"])
+        R_min  = min(am_atom["r"], se_atom["r"])
         delta  = c["delta"]
         if delta <= 0 or R_star <= 0:
             continue
@@ -204,11 +209,26 @@ def compute_coverage(atom_path: str, contact_path: str,
         delta_stats.append(dr)
 
         elastic_area = np.pi * R_star * delta  # Hertzian baseline
-        plastic_area, regime = film_area_from_overlap(delta, R_star)
+        plastic_area, regime = film_area_from_overlap(
+            delta, R_star, R_min=R_min,
+            ligg_area=c.get("contactArea"), mode=mode)
 
         elastic_sum[am_id] += elastic_area
         plastic_sum[am_id] += plastic_area
         regime_count[regime] += 1
+
+        if dump_contacts:
+            per_contact.append({
+                "am_id": am_id, "se_id": se_id,
+                "R_am": am_atom["r"], "R_se": se_atom["r"],
+                "R_star": R_star, "R_min": R_min,
+                "delta": delta, "delta_over_R": dr,
+                "regime": regime,
+                "elastic_area": elastic_area,
+                "ligg_area":    c.get("contactArea", 0.0),
+                "plastic_area": plastic_area,
+                "amp":          plastic_area / elastic_area if elastic_area > 0 else 0.0,
+            })
 
     elastic_cov = []
     plastic_cov = []
@@ -217,7 +237,8 @@ def compute_coverage(atom_path: str, contact_path: str,
             elastic_cov.append(min(elastic_sum[aid] / surf, 1.0))
             plastic_cov.append(min(plastic_sum[aid] / surf, 1.0))
 
-    return {
+    out = {
+        "mode":               mode,
         "n_am":               len(am_surface),
         "n_am_with_contact":  len(elastic_cov),
         "n_contacts_am_se":   sum(regime_count.values()),
@@ -232,6 +253,9 @@ def compute_coverage(atom_path: str, contact_path: str,
         "cov_amplification":  (float(np.mean(plastic_cov) / np.mean(elastic_cov))
                                if elastic_cov and np.mean(elastic_cov) > 0 else 0.0),
     }
+    if dump_contacts:
+        out["contacts"] = per_contact
+    return out
 
 
 # =============================================================

@@ -1,138 +1,201 @@
 # v29 FINAL Formula — 각 항의 물리적 의미와 함수 형태
 
-> 정확한 functional form은 `scripts/generate_comparison_plots.py`의 `_formx_v29_predict()`에서 검증 필요.
+> 구현 single source of truth: `scripts/generate_comparison_plots.py`의
+> `_formx_v29_predict()` (line 2740) 및 `_fit_at()` (line 1112).
+> 이 문서는 코드 재검증 완료(2026-04-20).
 
 ---
 
-## 1. $f_p^{3}$ — Fine-particle volume fraction cube
+## 전체 공식
 
-### 물리 의미 (Furnas–McGeary 패킹 이론)
+$$
+\sigma_{\mathrm{ionic}} = e^{C_{\mathrm{corr}}}\,\cdot\,C_{\mathrm{blend}}(\tau)\,\cdot\,\sigma_{\mathrm{grain}}\,\cdot\,(\phi_{SE}-\phi_c)^{1/2}\,\cdot\,\mathrm{CN}^{3/2}\,\cdot\,\mathrm{cov}^{2/5}\,\cdot\,f_{\mathrm{perc}}^{3}
+$$
 
-Bimodal 입자 시스템에서 **작은 입자(fine)가 큰 입자 사이 interstitial void를 채우는** 구조.
+여기서 $C_{\mathrm{corr}}$는 3-term residual correction (P:S sigmoid + τ-bump × p + gb sigmoid).
 
-- 크기비 $d_L/d_S > 4{-}6$: fine 입자가 큰 입자 접촉을 방해하지 않고 void만 채움 → **최대 packing density 상승**
-- 최적 fine fraction: $f_p^{*} \approx 0.25{-}0.30$ (McGeary 1961 실험값)
+**고정 상수** (v12-clean v3, `_formx_v29_params`):
+
+| 상수 | 값 | 비고 |
+|---|---|---|
+| $\sigma_{\mathrm{grain}}$ | 3.0 mS/cm | Li₆PS₅Cl grain interior |
+| $\phi_c$ | 0.20 | Percolation threshold (data-native) |
+| $\alpha$ (φ 지수) | 1/2 | Mean-field / quasi-2D percolation |
+| $\beta$ (CN 지수) | 3/2 | Kirkpatrick |
+| $\gamma$ (cov 지수) | 2/5 | AM-SE interface |
+| $\delta$ ($f_{\mathrm{perc}}$ 지수) | 3 | v12 free fit 2.90 → 3 반올림 |
+
+---
+
+## 1. $f_{\mathrm{perc}}^{3}$ — Percolation fraction cube
+
+### 정의
+
+$$
+f_{\mathrm{perc}} = \frac{\text{percolating cluster에 속한 SE 개수}}{\text{전체 SE 개수}}
+$$
+
+코드: `f_perc = percolation_pct / 100`, `max(f_perc, 0.01)` floor 적용.
+
+### 물리 의미
+
+**percolation 네트워크의 fragmentation penalty**.
+
+- $f_{\mathrm{perc}} = 1$: SE가 완전히 연결된 하나의 cluster — penalty 없음
+- $f_{\mathrm{perc}} = 0.5$: 절반만 percolating — $(0.5)^3 = 0.125$로 세제곱 급감
+- $f_{\mathrm{perc}} \to 0$: SE fragmented, 이온 경로 차단 — σ → 0 ✓
+
+### monomodal에서 문제 없는 이유
+
+$f_{\mathrm{perc}}$는 **fine fraction이 아니라 percolation fraction**. monomodal AM + SE 시스템에서도 SE가 percolate하면 $f_{\mathrm{perc}} \approx 1$. monomodal ↔ bimodal 구분은 이 항이 아니라 residual correction의 $p_{\mathrm{frac}}$(P:S ratio) 항이 담당.
 
 ### 왜 3제곱?
 
-**3D 연결성의 기하학적 해석** 3가지:
+**경험적**. v12 데이터-네이티브 free fit에서 δ=2.90 추정, 단순 분수로 반올림하여 3. "v12 자유도 7개 재fit 시 3이 1/2·1/2의 noise 범위 내 최적" (`ionic_scaling_law_experiments.md:135`).
 
-1. **Path connectivity**: 한 percolating path가 fine phase를 통과하려면 3연속 접촉이 fine 이어야 → 확률 $\sim f_p^{3}$
-2. **Volume-weighted stiffness**: Hertzian 접촉 강성 $\sim \delta^{3/2}$, 그리고 $\delta$ 자체가 부피분율에 비례 → $\sim f_p^{3/2 \cdot 2} = f_p^{3}$
-3. **Empirical fit**: DEM 53 cases에 대해 지수 1~4 sweep 시 $f_p^{3}$이 LOOCV 최적
-
-### 함수 형태
-
-$$
-f_p \equiv \frac{V_{\mathrm{fine}}}{V_{\mathrm{AM,total}}}, \qquad \mathrm{term} = f_p^{3}
-$$
-
-$f_p = 0$ (fine 없음) → 0, $f_p = 1$ → 1. 단순 멱함수.
+물리적 해석 시도:
+- 3D cluster size distribution: finite cluster의 평균 크기 $\sim f_{\mathrm{perc}}^{\nu d}$ with $\nu d \approx 3$ (3D lattice percolation)
+- 연속 Monte-Carlo가 이 지수를 $2.5{-}3.0$으로 확인하긴 함 — 확정적 derivation은 아님
 
 ---
 
-## 2. $C_{\mathrm{blend}}(\tau)$ — Bimodal tortuosity blending
+## 2. $C_{\mathrm{blend}}(\tau)$ — Tortuosity blend (regime-aware)
+
+### 구조
+
+**두 개의 서로 다른 τ-함수를 smooth blend**:
+
+$$
+\ln C_{\mathrm{blend}}(\tau) = (1-w_{\mathrm{bl}}(\tau))\cdot \ln C_{v5}(\tau) + w_{\mathrm{bl}}(\tau)\cdot \ln C_{p3}(\tau)
+$$
+
+#### $C_{v5}(\tau)$ — thick↔thin asymptote (내부 sigmoid)
+
+$$
+\ln C_{v5}(\tau) = \ln C_t + (\ln C_n - \ln C_t)\cdot\sigma_{k_\tau}(\tau - \tau_{0})
+$$
+
+- $\tau_0 = 2.1$, $k_\tau = 5.0$ (고정)
+- $C_t$, $C_n$: thick/thin asymptote, LOOCV fit (≈ 0.035 / 0.020)
+
+#### $C_{p3}(\tau)$ — 극단 thin의 poly3 in $\ln\tau$
+
+$$
+\ln C_{p3}(\tau) = a_0 + a_1\ln\tau + a_2(\ln\tau)^2 + a_3(\ln\tau)^3
+$$
+
+계수 (기본): $(-3.80,\ +2.38,\ -5.58,\ +2.81)$.
+
+#### Blending weight
+
+$$
+w_{\mathrm{bl}}(\tau) = \sigma_{k_{\mathrm{bl}}}(\tau - \tau_{c,\mathrm{bl}}) = \frac{1}{1+e^{-k_{\mathrm{bl}}(\tau - \tau_{c,\mathrm{bl}})}}
+$$
+
+- $k_{\mathrm{bl}}, \tau_{c,\mathrm{bl}}$: Nelder-Mead로 LOOCV 최대화
+- 실측 최적 ≈ $k_{\mathrm{bl}}\sim 5$, $\tau_{c,\mathrm{bl}}\sim 2.0$
 
 ### 물리 의미
 
-Bimodal 분포 시스템에서 $\tau$가 **두 regime 사이 급격히 전이**:
-
-- $\tau < \tau_c$: 잘 연결된 mixed regime (fine이 void를 채워 이온 경로 단축)
-- $\tau > \tau_c$: segregated regime (large-small 분리, 경로 긴 우회)
-- **전이 임계** $\tau_c \approx 2.04$: DEM에서 정해짐 (Hlushkou 실험 $\tau=1.74$와 같은 order)
-
-### 함수 형태 (sigmoid)
-
-$$
-C_{\mathrm{blend}}(\tau) = 1 + \alpha_{\mathrm{blend}} \cdot \sigma_k(\tau_c - \tau)
-$$
-
-$$
-\sigma_k(x) = \frac{1}{1 + e^{-k x}}, \quad k = 20
-$$
-
-- $\tau \ll \tau_c$: $\sigma \to 1$, $C_{\mathrm{blend}} \to 1 + \alpha$ (연결 좋음, bonus)
-- $\tau \gg \tau_c$: $\sigma \to 0$, $C_{\mathrm{blend}} \to 1$ (no correction)
-- $k=20$: 전이 폭 $\Delta\tau \approx 2/k = 0.1$ — 날카로운 전이
+- **moderate τ** ($\tau < \tau_{c,\mathrm{bl}}$): $C_{v5}$가 thick↔thin 전이 담당
+- **extreme thin** ($\tau > \tau_{c,\mathrm{bl}}$): poly3가 $\ln\tau$에 대한 큰 곡률 커버
+- 두 함수 어느 쪽도 전 영역에서 단독으로 fit 불가 → 경계 sigmoid로 부드럽게 이음
 
 ---
 
-## 3. $C_{\mathrm{pf}}(p)$ — P:S ratio correction
+## 3. Residual correction 3항
 
-### 물리 의미
-
-$p = P{:}S$ 질량비 (Primary:Secondary AM).
-
-- 최적 $p_c \approx 0.55$: P와 S 부피가 균형 → 최밀 bimodal packing
-- $p < p_c$: S 과다 → interstitial 초과 → void 남음
-- $p > p_c$: P 과다 → S가 void 못 채움 → void 남음
-- **$\beta = -0.108$ (음수)**: 최적 넘어서면 penalty (~10.8% reduction)
-
-### 함수 형태
+최종 $C_{\mathrm{corr}}$는 아래 3항의 **합** (linear regression on residual):
 
 $$
-C_{\mathrm{pf}}(p) = 1 + \beta \cdot \sigma_k(p - p_c)
+C_{\mathrm{corr}} = \beta_{pf}(w_{pf}-\bar{w}_{pf}) + \beta_{\mathrm{lin}}(p\cdot w_{\mathrm{win}} - \overline{p\cdot w_{\mathrm{win}}}) + \beta_{gb}(w_{gb}-\bar{w}_{gb})
 $$
 
-$$
-k = 30, \quad p_c = 0.55, \quad \beta = -0.108
-$$
+각 항은 "평균값 빼기"로 centering — 기존 prefactor에 영향 없이 순수 residual만 fit.
 
-- $p \ll p_c$: $\sigma \to 0$, $C_{\mathrm{pf}} \to 1$ (unaffected)
-- $p \gg p_c$: $\sigma \to 1$, $C_{\mathrm{pf}} \to 1 + \beta = 0.892$ (~10.8% 감소)
-- $k=30$: $\Delta p \approx 0.067$, 매우 날카로운 전이
-
-혹은 exp form (log-space에서 fit 시):
+### 3.1 $\beta_{pf}\cdot w_{pf}$ — P:S ratio sigmoid
 
 $$
-C_{\mathrm{pf}}(p) = \exp\bigl(\beta \cdot \sigma_k(p - p_c)\bigr)
+w_{pf}(p) = \sigma_{k_{pf}}(p - p_c) = \frac{1}{1+e^{-k_{pf}(p-p_c)}}
 $$
 
----
+- $p = p_{\mathrm{frac}} = P/(P+S)$, P:S 질량비에서 유도
+- 기본값: $k_{pf}=50$, $p_c = 0.598$, $\beta_{pf} \approx -0.10$
+- 해석: P가 많으면 ($p > p_c$) 모델이 과대예측 → $\exp(\beta_{pf}) = 0.905$만큼 깎음
+- "P 입자 많음 = particulate 접촉 empty contact 많음" 보정
 
-## 4. $G(\tau, p)$ — τ-p cross interaction
-
-### 물리 의미
-
-$\tau$와 $p$가 **독립적이 아니라 상호작용**하는 보정항:
-
-- $p$가 최적이면 tortuosity 효과가 완화 (fine이 빈틈을 잘 채움 → 긴 경로 덜 해로움)
-- $p$가 최적을 벗어나면 $\tau$ 효과가 증폭 (세그리게이션 상태에서 $\tau$가 더 치명적)
-
-즉 "**bimodal packing 품질이 나쁘면 tortuosity penalty가 곱해져 커진다**"는 coupling.
-
-### 함수 형태 (bilinear sigmoid coupling)
+### 3.2 $\beta_{\mathrm{lin}}\cdot p\cdot w_{\mathrm{win}}$ — Mixed-regime τ-bump
 
 $$
-G(\tau, p) = \exp\bigl[\gamma_{\tau p} \cdot \sigma_{k_\tau}(\tau - \tau_c) \cdot \sigma_{k_p}(p - p_c)\bigr]
+w_{\mathrm{win}}(\tau) = \exp\left[-\frac{1}{2}\left(\frac{\tau-\tau_{c,\mathrm{win}}}{\sigma_{\tau,\mathrm{win}}}\right)^2\right]
 $$
 
-또는 더 간단하게:
+- Gaussian bump, center $\tau_{c,\mathrm{win}} \approx 2.0$, width $\sigma_{\tau,\mathrm{win}} \approx 0.15$
+- $p_{\mathrm{frac}}$와 곱해서 "τ≈2 근처 + P-heavy"일 때만 활성
+- $\beta_{\mathrm{lin}} \approx -0.49$
+- 해석: thin regime 전이 구간에서 particulate 케이스가 특히 과대예측
+
+### 3.3 $\beta_{gb}\cdot w_{gb}$ — gb_density sigmoid (v29 신규)
 
 $$
-G(\tau, p) = 1 + \gamma_{\tau p} \cdot (\tau - \tau_c)(p - p_c)
+w_{gb}(\rho_{gb}) = \sigma_{k_{gb}}(\ln\rho_{gb} - \overline{\ln\rho_{gb}})
 $$
 
-- 두 변수 모두 임계값 근처에서만 교차항 활성화
-- $\gamma_{\tau p}$ 부호 및 크기는 DEM 데이터에서 결정
+- log-space sigmoid, center = $\ln\rho_{gb}$의 **median** (데이터 의존)
+- $k_{gb} = 4.0$ (고정)
+- $\beta_{gb} \approx +0.043$ (작은 값, bounded)
+- 해석: GB density가 높으면 constriction resistance 증가 — Bruggeman이 놓치는 $R_{\mathrm{constr}}$ 보정
 
 ---
 
 ## 요약 표
 
-| 항 | 물리 기원 | 수식 핵심 | 파라미터 수 |
+| 항 | 정의 | 형태 | 파라미터 |
 |---|---|---|---|
-| $f_p^{3}$ | Furnas–McGeary fine 침투 | 단순 멱함수 | 0 (지수 고정) |
-| $C_{\mathrm{blend}}(\tau)$ | Bimodal τ 전이 | $1 + \alpha\,\sigma_k(\tau_c{-}\tau)$ | 2 ($k, \tau_c$) + 1 ($\alpha$) |
-| $C_{\mathrm{pf}}(p)$ | P:S packing 최적점 | $1 + \beta\,\sigma_k(p{-}p_c)$ | 3 ($k, p_c, \beta$) |
-| $G(\tau,p)$ | 교차 coupling | $\exp[\gamma\,\sigma_\tau\,\sigma_p]$ | 1 ($\gamma$) |
+| $(\phi_{SE}-\phi_c)^{1/2}$ | SE 부피분율 excess | 멱함수 | $\phi_c=0.20$ 고정, 지수 1/2 |
+| $\mathrm{CN}^{3/2}$ | SE-SE 접촉 수 | 멱함수 | 지수 3/2 (Kirkpatrick) |
+| $\mathrm{cov}^{2/5}$ | AM-SE 표면 coverage | 멱함수 | 지수 2/5 (0.25→0.40 enhanced) |
+| $f_{\mathrm{perc}}^{3}$ | SE percolation fraction | 멱함수 | 지수 3 (v12 free fit 2.90 반올림) |
+| $C_{\mathrm{blend}}(\tau)$ | v5 sigmoid ⊕ poly3 blend | 이중 sigmoid blend | $k_{\mathrm{bl}}, \tau_{c,\mathrm{bl}}$ + v5 asymptote 2개 + poly3 계수 4개 |
+| $\beta_{pf}\cdot w_{pf}$ | P:S ratio 보정 | sigmoid | $k_{pf}, p_c, \beta_{pf}$ |
+| $\beta_{\mathrm{lin}}\cdot p\cdot w_{\mathrm{win}}$ | thin 전이 + P-heavy | Gaussian × linear | $\tau_{c,\mathrm{win}}, \sigma_{\tau,\mathrm{win}}, \beta_{\mathrm{lin}}$ |
+| $\beta_{gb}\cdot w_{gb}$ | GB density 보정 | log-sigmoid | $k_{gb}=4, \beta_{gb}$ |
 
-**총 자유 파라미터 ≈ 7개** (물리적으로 해석 가능한 sigmoid 모양 변수).
+**총 free parameter** (LOOCV 최적화 대상): $k_{\mathrm{bl}}, \tau_{c,\mathrm{bl}}, k_{pf}, p_c, \tau_{c,\mathrm{win}}, \sigma_{\tau,\mathrm{win}}$ 6개 + residual $\beta$ 3개 + v5 asymptote ($C_t, C_n$) 2개 + poly3 계수 4개. 나머지($\phi_c$, 4개 멱지수, $k_{gb}$)는 **고정**.
 
-확인하려면:
+**성능** (n=57): R² = 0.9813, LOOCV = 0.9791, ±20% = 51/57, median |err| = 6.2%.
 
-```bash
-grep -n "C_blend\|C_pf\|sigmoid\|tau_c\|pc\s*=" scripts/generate_comparison_plots.py
+---
+
+## 물리적 해석 요점
+
+1. **Base Kirkpatrick scaling** (네 멱함수 곱): $(\phi-\phi_c)^{1/2}\,\mathrm{CN}^{3/2}\,\mathrm{cov}^{2/5}\,f_{\mathrm{perc}}^3$
+   — percolation theory + 접촉 역학 + SE 네트워크 연결성 반영
+2. **$C_{\mathrm{blend}}(\tau)$**: 단일 $\tau$-멱함수로는 moderate/thin regime 동시 커버 불가 → 두 함수 blend. τ² (Bruggeman)는 thin 과벌점, τ^(1/2)는 thick 과소벌점 → regime-aware 필수
+3. **3-term residual**: base formula의 잔차에서 **통계적으로 유의한 신호 3개만** 남김 (v30 phase-split은 noise σ=0.0018 아래로 기각)
+
+---
+
+## 확인 방법
+
+```python
+# 구현 확인
+grep -n "_formx_v29_predict\|_fit_at\|PHI_C\|K_PF\|B_PF\|B_LIN\|B_GB" \
+  scripts/generate_comparison_plots.py
+
+# 파라미터 기본값
+grep -A 5 "_formx_v29_params" scripts/generate_comparison_plots.py | head -30
 ```
 
-에서 실제 구현 확인 가능.
+---
+
+## 변경 이력
+
+- **2026-04-20**: 전면 개정. 원 문서의 오류 수정:
+  - `f_p^3` 라벨을 "fine-particle volume fraction"(틀림) → "percolation fraction"(맞음)으로 정정
+  - Furnas-McGeary 해석 제거 (이 항의 물리 아님 — `docs/Packing_Regime_Analysis.md`의 porosity 해석과 혼동)
+  - $C_{\mathrm{blend}}(\tau)$를 단일 sigmoid 보정(틀림) → v5 sigmoid ⊕ poly3 blend(맞음)로 재기술
+  - $G(\tau,p)$ 라벨을 "bilinear sigmoid coupling"(틀림) → "Gaussian τ-bump × linear $p$"(맞음)로 정정
+  - $C_{gb}$ 항 추가 (v29의 신규 항, 원 문서 누락)
+  - $\phi_c$ 값을 0.185 → 0.20으로 수정 (v9 → v12-clean v3 production)
+  - 기본 상수값을 코드와 일치시킴 ($\beta_{pf}=-0.10$, $p_c=0.598$, $k_{pf}=50$ 등)

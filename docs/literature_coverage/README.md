@@ -137,9 +137,23 @@ under-estimate** at this porosity.
 **Revised k_spread range: 1.55-1.90** (up from earlier 1.30-1.50 at fixed
 20% porosity assumption).
 
+### 4. Zhou 2019 ACS Energy Lett (σ_SE baseline, NOT coverage)
+**Kind: σ_SE reference for scaling law σ_grain anchoring.**
+
+Argyrodite SEs from solution-engineered synthesis:
+| Material              | σ_ion (mS/cm) | σ_e (mS/cm) |
+|-----------------------|---------------|-------------|
+| Li6PS5Cl              | **2.4**       | 5.1e-6      |
+| Li6PS5Br              | 1.9           | 4.4e-6      |
+| Li6PS5Cl0.5Br0.5      | 3.9           | 1.4e-5      |
+| Li5.5PS4.5Cl1.5       | 3.9           | 1.4e-5      |
+
+**For our scaling law:** σ_grain anchor for LPSCl = **2.4 mS/cm at 300 K**
+(= 0.24 S/m). Electronic σ is 6 orders lower — negligible in σ_eff.
+
 ## Pending entries (priority order)
-- Tier 1: Strauss 2018 ACS Energy Lett (NCM622/argyrodite size vs inactive fraction)
-- Tier 2: Minnmann/Neumann (NCM/LPSCl 3D FIB-SEM — chemistry-exact match)
+- Tier 1: Strauss 2018 ACS Energy Lett (NCM622/argyrodite size vs inactive fraction — chemistry-exact COVERAGE anchor)
+- Tier 2: Minnmann/Neumann (NCM/LPSCl 3D FIB-SEM)
 - Tier 2: Shi 2020 JMCA (porosity-coverage correlation)
 - Tier 3: Minnmann 2021 JECS (rate vs coverage)
 - Tier 4: Review papers for cross-checks

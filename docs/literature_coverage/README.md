@@ -60,6 +60,38 @@ optimal composition anchors that match our dataset.
   coverage ≈ A_spec,a / (g_AM^V · 6 / d_AM)
 but requires reading plot values (not tabulated).
 
+**AM-SE interface coverage (digitized Fig 7, 8, 10):**
+| Porosity | Peak A_spec,a | Peak composition | Coverage |
+|----------|---------------|------------------|----------|
+| 5%       | 5.8e5 m²/m³   | 65/35 vol%       | **78%**  |
+| 10%      | 5.0e5 m²/m³   | 65/35 vol%       | **71%**  |
+| 20%      | 3.3e5 m²/m³   | 70/30 vol%       | **49%**  |
+
+Thickness (Fig 10, 20-140 μm) does NOT change peak coverage.
+
+**Porosity sweep at 70/30 vol% composition (Fig 9, 5μm AM):**
+| Porosity | AM total vol% | A_spec,a | Coverage |
+|----------|---------------|----------|----------|
+| 43%      | 40            | 0.01e5   | 0.2%     |
+| 30%      | 49            | 0.50e5   | 8.5%     |
+| 25%      | 52.5          | 2.00e5   | 31.7%    |
+| 20%      | 56            | 3.30e5   | 49.1%    |
+| 15%      | 59.5          | 4.30e5   | 60.2%    |
+| 10%      | 63            | 5.20e5   | 68.8%    |
+| 5%       | 66.5          | 5.90e5   | 73.9%    |
+| 3%       | 67.9          | 6.00e5   | 73.6%    |
+
+Regimes: ionic+electronic limited above φ≈34%; electronic-only limited
+21-34%; well-connected below 21%. Monotonic coverage increase with
+densification.
+
+**k_spread calibration anchor (20% porosity, 5μm):**
+- Our DEM plastic-capped: 22%
+- Bielefeld 20%-porosity peak: 49%
+- Ratio: 2.2× under-estimate → **k_spread ≈ 1.49**
+- Cross-check with Lee 2024 hand-mixed (30.6% 2D → ~39% 3D): same order
+- **Final k_spread range: 1.30-1.50**
+
 ## Pending entries (priority order)
 - Tier 1: **ACS AMI 2018 (Dewald et al.)** — X-CT 84% coverage, 3D metric (direct k_spread target)
 - Tier 2: Strauss 2020 ACS AMI (mechanical stability vs coverage)

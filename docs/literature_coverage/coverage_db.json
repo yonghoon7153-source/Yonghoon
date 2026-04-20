@@ -555,6 +555,107 @@
         "Pellet sintered at 550°C — our composite cathodes are RT-pressed only (different densification)",
         "Pellet pressure in tons not MPa — cannot directly compare to our 300 MPa pellet"
       ]
+    },
+    {
+      "id": "strauss_2018_acs_energy_lett",
+      "citation": "Strauss, Bartsch, de Biasi, Kim, Janek, Hartmann, Brezesinski. ACS Energy Lett. 2018, 3, 992-996 — Impact of Cathode Material Particle Size on the Capacity of Bulk-Type All-Solid-State Batteries",
+      "doi_or_url": "10.1021/acsenergylett.8b00275",
+      "tier": 1,
+      "kind": "experimental_AM_AM_electronic_coverage_via_inactive_fraction_NOT_AM_SE_ionic_coverage",
+      "chemistry_match_with_ours": "GOOD (NCM622 matches our NCM; β-Li3PS4 vs our LPSCl — same sulfide family but different halide — LPSCl σ 2.4 mS/cm vs β-Li3PS4 0.2 mS/cm)",
+      "metric_caveat_upfront": "This paper reports INACTIVE CAM fraction (AM-AM electronic disconnection), NOT AM-SE ionic interface coverage. In carbon-free composites, σ_e is dominated by AM-AM percolation. In our scaling law, we need AM-SE interface (ionic coverage). These are COMPLEMENTARY metrics — electronic coverage = 1 - inactive_frac.",
+      "materials": {
+        "AM": "NCM622 (Li1+x(Ni0.6Co0.2Mn0.2)1-xO2), no protective coating",
+        "SE": "β-Li3PS4",
+        "SE_sigma_ion_approx_mS_per_cm": 0.2,
+        "conductive_additive": "NONE (carbon-free)",
+        "binder": "NONE",
+        "wt_ratio_CAM_SE": [7, 3],
+        "vol_ratio_CAM_SE_approx": [47.2, 52.8],
+        "vol_calculation_note": "CAM density ~4.8, SE density ~1.84 → 70/30 wt ≈ 47.2/52.8 vol"
+      },
+      "particle_sizes": {
+        "NCM_L": {"d50_um": 15.6, "d90_um": 26.1, "label": "large"},
+        "NCM_M": {"d50_um": 8.3,  "d90_um": 13.0, "label": "medium"},
+        "NCM_S": {"d50_um": 4.0,  "d90_um": 4.8,  "label": "small"}
+      },
+      "process": {
+        "type": "cold-pressed ASSB cell (our-match)",
+        "custom_setup_cited_SI": true,
+        "rest_time_before_cycling_h": 1,
+        "voltage_range_V_vs_InLi": [2.3, 3.8],
+        "voltage_range_V_vs_Li": [2.9, 4.4],
+        "C_rates_tested": ["C/10", "C/30", "C/50"],
+        "C_10_mA_per_g": 180,
+        "temperature": "room temperature",
+        "anode": "In"
+      },
+      "inactive_CAM_fraction_Rietveld_exsitu_XRD": {
+        "measurement_method": "ex-situ XRD on charged cathode (3.8 V vs In/InLi), Rietveld refinement of 003 reflection splitting into active (delithiated) + inactive (pristine SOC=0) fractions",
+        "NCM_L_inactive_pct": 31,
+        "NCM_M_inactive_pct": 27,
+        "NCM_S_inactive_pct": 2,
+        "electronic_coverage_frac_derived": {
+          "NCM_L": 0.69,
+          "NCM_M": 0.73,
+          "NCM_S": 0.98
+        },
+        "interpretation": "In carbon-free composites, CAM that cannot be electronically addressed remains in pristine state (inactive). Small particles provide dense AM-AM contact network → high electronic coverage. Large particles are electronically isolated → inactive."
+      },
+      "capacity_results_mAh_per_g": {
+        "liquid_electrolyte_baseline_all_sizes": 200,
+        "C_10": {"NCM_S": 162, "NCM_M": 95, "NCM_L": 84},
+        "C_50": {"NCM_S": 190, "NCM_M": 120, "NCM_L": 110},
+        "first_cycle_CE_pct": {"NCM_S": 70, "NCM_M": 50, "NCM_L": 55}
+      },
+      "conductivity_partial_from_fig4": {
+        "method": "ion-blocking / electron-blocking electrodes on composite cathode pellet",
+        "sigma_ion_composite_S_per_cm_all_sizes": 1e-6,
+        "sigma_e_composite_S_per_cm": {"NCM_L": 1e-6, "NCM_M": 1e-5, "NCM_S": 1e-3},
+        "sigma_e_size_dependence_orders_of_magnitude": 3,
+        "interpretation": [
+          "Ionic σ ~10^-6 S/cm is ~200x lower than bare β-Li3PS4 (2e-4 S/cm) → consistent with τ ≈ 10-20 effective reduction through composite — high tortuosity at 47 vol% NCM (near percolation threshold per Bielefeld)",
+          "Electronic σ spans 3 orders → particle-size-driven electronic percolation is the performance-limiting factor in carbon-free composites"
+        ]
+      },
+      "relevance_to_our_scaling_law": {
+        "electronic_coverage_values_for_NCM": {
+          "NCM_S_d50_4um": 0.98,
+          "NCM_M_d50_8um": 0.73,
+          "NCM_L_d50_16um": 0.69
+        },
+        "cross_check_with_bielefeld_pc_formula": {
+          "bielefeld_pc_vol_pct_fn": "pc = 7.83 ln(d/um) + 36.67",
+          "pc_at_4um":  "7.83·ln(4) + 36.67  = 47.52 vol% — Strauss at 47.2 vol% → at threshold → high variability → Strauss NCM-S coverage 0.98 seems optimistic",
+          "pc_at_8um":  "7.83·ln(8) + 36.67  = 52.96 vol% — Strauss at 47.2 vol% → SUB-critical → low electronic coverage predicted. Strauss NCM-M 0.73 ≈ transition regime. CONSISTENT.",
+          "pc_at_16um": "7.83·ln(16) + 36.67 = 58.39 vol% — Strauss at 47.2 vol% → DEEP SUB-critical → very low coverage predicted. Strauss NCM-L 0.69 suggests above-pc behavior. MODEST DISAGREEMENT (could be due to wide d90 distribution including small particles that percolate).",
+          "verdict": "Bielefeld prediction qualitatively matches Strauss: smaller particles → higher electronic coverage. Quantitative mismatch for NCM-L likely due to polydispersity (d90=26.1 vs d50=15.6 → wide distribution)."
+        },
+        "how_this_constrains_our_bimodal_AM": {
+          "our_DEM_AM_P_radius_m": 5.0e-3,
+          "our_DEM_AM_S_radius_m": 2.5e-3,
+          "note": "Our DEM radii (5 mm, 2.5 mm) are 1000x larger than Strauss NCM-S (2 μm radius). Coverage is dimensionless, so scale doesn't matter — but our bimodal (P+S) mix should behave like Strauss NCM-M polydisperse (where d50 ≈ 2x smaller in distribution)."
+        }
+      },
+      "comparability_with_ours": {
+        "process_match":     "YES (cold-pressed ASSB pellet, RT, 7:3 wt AM:SE)",
+        "pressure_match":    "UNKNOWN (not reported in main text — SI check needed)",
+        "chemistry_match":   "GOOD (NCM622 + sulfide SE — closest yet in our DB)",
+        "metric_match":      "COMPLEMENTARY (electronic coverage vs our target ionic coverage)",
+        "particle_size_range": "Our NCM equiv d50 range (if scaled) would bracket Strauss NCM-S through NCM-L"
+      },
+      "what_we_still_need_from_this_paper": [
+        "Actual pellet pressure (MPa) — main text doesn't state; check SI",
+        "SEM cross-section images (Figure S7) of composite structure — could back-estimate AM-SE coverage visually",
+        "Sulfur EDX maps mentioned (Fig S7) — SE distribution around NCM particles",
+        "Operando XRD supplementary data (Figure S3) — SOC vs cycle progression",
+        "AM-SE ionic interface coverage — NOT provided (chemistry/pressure match but wrong metric)"
+      ],
+      "takeaway_for_k_spread": {
+        "conclusion": "Strauss 2018 does NOT give direct AM-SE ionic coverage. It gives AM-AM electronic coverage (inactive fraction) which is a proxy for AM-AM connectivity.",
+        "implication_for_k_spread": "No direct k_spread target value from this paper. However, the ionic σ ~10^-6 S/cm for composite vs 2e-4 for bare SE implies τ_effective ≈ 200 — much higher than Hlushkou 1.74. This is because Strauss is near-percolation (47 vol% AM at 47-58% pc range). Our DEM should avoid this sub-percolation regime.",
+        "revised_DB_gaps": "Still need direct chemistry-exact ionic AM-SE coverage. Best candidate: Minnmann-group or Zeier-group FIB-SEM on NCM/LPSCl composite (post-2020 papers)."
+      }
     }
   ]
 }

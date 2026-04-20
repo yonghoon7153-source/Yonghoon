@@ -151,6 +151,31 @@ Argyrodite SEs from solution-engineered synthesis:
 **For our scaling law:** σ_grain anchor for LPSCl = **2.4 mS/cm at 300 K**
 (= 0.24 S/m). Electronic σ is 6 orders lower — negligible in σ_eff.
 
+### 5. Strauss 2018 ACS Energy Lett (Tier 1, electronic coverage not ionic)
+**Kind: AM-AM electronic coverage via inactive CAM fraction.**
+
+NCM622 + β-Li3PS4 (NOT LPSCl), carbon-free, 7:3 wt (≈47:53 vol):
+
+| Size | d50 (μm) | d90 (μm) | Inactive % | Electronic cov | C/10 cap (mAh/g) |
+|------|----------|----------|------------|----------------|------------------|
+| S    | 4.0      | 4.8      | **2%**     | 98%            | 162              |
+| M    | 8.3      | 13.0     | 27%        | 73%            | 95               |
+| L    | 15.6     | 26.1     | 31%        | 69%            | 84               |
+
+**σ_ion composite ≈ 10⁻⁶ S/cm (all sizes)** → τ ≈ 200 vs bare β-Li3PS4 2e-4.
+**σ_e composite spans 3 orders** across sizes → electronic percolation limits.
+
+**Critical caveat:** This is AM-AM electronic coverage, NOT AM-SE ionic
+coverage. Complementary to Bielefeld/Hlushkou but different metric.
+
+**Cross-check with Bielefeld pc formula (pc = 7.83·ln(d)+36.67):**
+- d=4 μm → pc=47.5 vol%, Strauss at 47.2 vol% → borderline, cov 98% optimistic
+- d=8 μm → pc=53.0 vol%, Strauss sub-critical → cov 73% consistent
+- d=16 μm → pc=58.4 vol%, Strauss deep sub-critical → cov 69% mildly high (polydispersity effect)
+
+**k_spread implication:** Still no direct AM-SE ionic coverage for NCM/LPSCl.
+Need Minnmann/Zeier-group post-2020 FIB-SEM work.
+
 ## Pending entries (priority order)
 - Tier 1: Strauss 2018 ACS Energy Lett (NCM622/argyrodite size vs inactive fraction — chemistry-exact COVERAGE anchor)
 - Tier 2: Minnmann/Neumann (NCM/LPSCl 3D FIB-SEM)

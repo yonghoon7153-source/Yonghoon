@@ -781,13 +781,76 @@
         "ref_36_37_NCM_3_5um_connectivity": "Strauss 2018 + Bielefeld 2019 (both in our DB)",
         "ref_58_NCM_LPSCl_carbon":          "unknown Minnmann/Strauss earlier paper — candidate for our next DB addition"
       },
-      "what_we_still_need_from_remaining_13_pages": [
-        "Sections 3.2-3.4: particle-level and interface-level design principles",
-        "Section 4: future outlook / CAM requirements summary",
-        "Figures 4-10+: specific schematics of coating, gradient, etc.",
-        "Tables (if any) summarizing optimal parameters",
-        "Reference 58 details — likely NCM/LPSCl primary paper we're missing"
-      ]
+      "pages_6_to_10_additions": {
+        "section_3_2_CAM_particle_level": {
+          "equation_1_max_particle_size": "L ≤ sqrt(3·D̃_Li / C-rate)",
+          "interpretation": "For 83% of theoretical capacity at given C-rate",
+          "fig4_practical_sizes": {
+            "NCM_at_0.1C_um_max": 10,
+            "NCM_at_1C_um_max": 3,
+            "NCM_at_5C_um_max": 1,
+            "D_ion_NCM_range_cm2_per_s": [1e-12, 1e-10],
+            "D_el_LFP_range_cm2_per_s":  [1e-14, 1e-12]
+          },
+          "small_particle_tradeoff": "smaller L → better rate, but more SE-CAM interface → more CEI/degradation"
+        },
+        "fig5_chemomechanical_volume_change_CRITICAL": {
+          "measurement": "Maximum radius change Δr_max vs initial r_0 for each CAM",
+          "NCM811_at_4.3V_vs_Li": "ΔV_max/V ≈ -5% (CONTRACTION)",
+          "NCM_family_ranking_by_contraction_at_4.3V": ["NCM111 ~-0.1μm", "NCM532 ~-0.2μm", "NCM622 ~-0.3μm", "NCM811 ~-0.5μm"],
+          "LCO_behavior": "EXPANSION (+0.1μm at r_0=10μm) — OPPOSITE of NCM",
+          "LFP_LNMO_behavior": "contraction like NCM",
+          "c_axis_vs_a_axis_in_NCM811": {
+            "c_axis_at_low_SOC": "expands up to ~4V (Coulombic repulsion of O layers)",
+            "c_axis_at_high_SOC_above_4V": "collapses (sharp contraction)",
+            "a_axis": "monotonic shrinkage with delithiation",
+            "anisotropic_strain_consequence": "internal stress, SC CAM facet contact loss"
+          },
+          "implication_for_our_scaling_law": "NCM Ni-content → contraction magnitude. Our NMC data set should show coverage LOSS systematically, varying with Ni content. This is the chemomechanical dynamic layer Koerver 2017 introduced."
+        },
+        "fig6_CAM_SE_PSD_matrix_DESIGN_GUIDELINE": {
+          "large_CAM_large_SE":    {"pros": ["interfacial degradation low"], "cons": ["CAM distribution poor", "long diffusion paths"]},
+          "large_CAM_small_SE":    {"pros": ["ionic percolation"],           "cons": ["diffusion paths", "electronic percolation (no carbon)", "GB effects"]},
+          "small_CAM_large_SE":    {"pros": ["diffusion paths", "electronic percolation", "ionic percolation"], "cons": []},
+          "small_CAM_small_SE":    {"pros": ["diffusion paths", "electronic percolation", "ionic percolation"], "cons": ["interfacial degradation", "GB effects"]},
+          "TAILORED_PSD_best":     {"pros": ["all above advantages", "minimized GB effects"], "cons": []},
+          "our_DEM_placement":     "Our bimodal P+S (d_P=10mm, d_S=5mm, ratio 2) is intermediate. True 'tailored' would need d_P/d_S > 4 per McGeary-Bielefeld ratio optimum."
+        },
+        "section_3_3_interface_coatings": {
+          "typical_coatings": ["LiNbO3", "LiTaO3", "Li2ZrO3", "LNTO (Li-Nb-Ta oxide)"],
+          "thickness_nm": "few (nanometer scale)",
+          "function_requirements": ["electron-blocking", "Li+ conducting", "high oxidative stability"],
+          "ALD_vs_sol_gel": "ALD = uniform but costly; sol-gel = widely used but poor coverage quality",
+          "Ni_rich_NCM_surface_residuals": ["Li2CO3", "LiOH"],
+          "surface_residuals_role": "may contribute to SE/CAM interface stabilization"
+        },
+        "fig7_SC_vs_PC_NCM_strategies": {
+          "PC_NCM_cycling": "large capacity fade due to intergranular cracking",
+          "SC_NCM_cycling_retention_88_pct_Ni": "96.8% after 200 cycles, 210 mAh/g specific capacity",
+          "FCG_full_concentration_gradient": "radially oriented rod-shaped primary crystallites, mitigates cracking",
+          "SC_NCM_residual_issue": "still susceptible to contact loss with SE due to unit-cell anisotropic changes",
+          "SE_Li3YCl6_vs_Li6PS5Cl_SC_vs_PC_comparison_fig7a": "data exists but not fully digitized in visible pages"
+        },
+        "section_4_1_intercalation_CAMs": {
+          "class_formula": "LiMO2 (NCM, NCA)",
+          "primary_issues": [
+            "(1) oxidative CEI growth at high potential with sulfide SE",
+            "(2) large volume changes causing mechanical degradation"
+          ],
+          "NCM811_volume_change_at_4.3V_pct": -5,
+          "NCM_anisotropic_axes": "c vs a axis different → internal stress → crystallographic damage",
+          "rock_salt_transformation_at_high_SOC": "active layered → inactive rock-salt (irreversible)",
+          "molecular_O2_release": "additional SE reaction trigger"
+        }
+      },
+      "consolidated_takeaways_from_full_paper_visible": {
+        "1_NCM_particle_size_optimum": "3-5 μm secondary particles (confirmed in multiple sections)",
+        "2_NCM_Ni_content_coverage_tradeoff": "higher Ni → more capacity but more contraction → more dynamic coverage loss",
+        "3_tailored_PSD_best_but_underexplored": "d_CAM/d_SE ratio optimization is an open area",
+        "4_SC_NCM_future_direction": "reduces PC cracking but doesn't solve CAM-SE contact loss",
+        "5_FCG_radial_architecture": "promising for mitigating NCM contact loss with SE",
+        "6_pressure_constraint": "lab 2-50 MPa, commercial <1 MPa target → materials must compensate"
+      }
     },
     {
       "id": "koerver_2017_chem_mater",

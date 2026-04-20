@@ -588,19 +588,61 @@
         "C_rates_tested": ["C/10", "C/30", "C/50"],
         "C_10_mA_per_g": 180,
         "temperature": "room temperature",
-        "anode": "In"
+        "anode": "In (100 μm foil, 8 mm diameter)",
+        "assembly_pressures_MPa": {
+          "SE_layer_initial":      125,
+          "cathode_attach":        375,
+          "indium_anode_press":    125,
+          "operating_cycling":     55,
+          "exsitu_XRD":            55,
+          "electronic_sigma_meas": 375,
+          "ionic_sigma_meas":      [250, 250, 375],
+          "source": "SI Section: 'Electrochemical testing and cell assembly'"
+        },
+        "SE_layer_mass_mg": 60,
+        "SE_layer_thickness_um": 400,
+        "cathode_composite_mass_mg": [10, 12],
+        "cathode_composite_thickness_um": 90,
+        "cathode_loading_mAh_per_cm2": 1.9,
+        "mixing": "planetary ball mill 140 rpm, 30 min, Ar atmosphere, 10 × ZrO2 10 mm balls"
       },
       "inactive_CAM_fraction_Rietveld_exsitu_XRD": {
         "measurement_method": "ex-situ XRD on charged cathode (3.8 V vs In/InLi), Rietveld refinement of 003 reflection splitting into active (delithiated) + inactive (pristine SOC=0) fractions",
-        "NCM_L_inactive_pct": 31,
-        "NCM_M_inactive_pct": 27,
-        "NCM_S_inactive_pct": 2,
+        "NCM_L_inactive_pct":       {"value": 31, "uncertainty_abs": 3},
+        "NCM_M_inactive_pct":       {"value": 27, "uncertainty_abs": 3},
+        "NCM_S_inactive_pct":       {"value": 2,  "uncertainty_abs": 11, "note": "large rel error due to XRD detection limit"},
         "electronic_coverage_frac_derived": {
           "NCM_L": 0.69,
           "NCM_M": 0.73,
           "NCM_S": 0.98
         },
+        "x_Li_at_full_charge_from_operando_XRD": {
+          "NCM_L": 0.53,
+          "NCM_M": 0.56,
+          "NCM_S": 0.46,
+          "note": "Lower x(Li) = more delithiated; lithium content of active fraction at 3.8 V vs InLi"
+        },
+        "lattice_params_Table_S1_charged": {
+          "NCM_L": {"a_A": 2.823, "c_A": 14.509, "V_A3": 100.10},
+          "NCM_M": {"a_A": 2.823, "c_A": 14.486, "V_A3": 100.00},
+          "NCM_S": {"a_A": 2.817, "c_A": 14.501, "V_A3": 99.68}
+        },
+        "lattice_params_Table_S1_inactive_fraction_pristine_like": {
+          "NCM_L": {"a_A": 2.872, "c_A": 14.240, "V_A3": 101.73},
+          "NCM_M": {"a_A": 2.868, "c_A": 14.229, "V_A3": 101.34},
+          "NCM_S": {"a_A": 2.869, "c_A": 14.227, "V_A3": 101.43}
+        },
         "interpretation": "In carbon-free composites, CAM that cannot be electronically addressed remains in pristine state (inactive). Small particles provide dense AM-AM contact network → high electronic coverage. Large particles are electronically isolated → inactive."
+      },
+      "ncm_sieving_note_from_SI": {
+        "NCM_L_origin": "NCM-M sieved through 20 μm sieve, collected remainder (oversize)",
+        "implication": "NCM-L and NCM-M are SAME base material, different size fractions. Surface chemistry identical, only morphology differs → isolates pure size effect."
+      },
+      "pressure_comparison_with_ours": {
+        "our_pellet_pressure_MPa": 300,
+        "strauss_cathode_attach_MPa": 375,
+        "strauss_cycling_MPa": 55,
+        "verdict": "Our 300 MPa is CLOSE to Strauss cathode-attach (375 MPa). Strauss operating pressure 55 MPa is much lower — likely causes different coverage evolution during cycling vs initial."
       },
       "capacity_results_mAh_per_g": {
         "liquid_electrolyte_baseline_all_sizes": 200,

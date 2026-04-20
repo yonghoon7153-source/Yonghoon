@@ -92,9 +92,54 @@ densification.
 - Cross-check with Lee 2024 hand-mixed (30.6% 2D → ~39% 3D): same order
 - **Final k_spread range: 1.30-1.50**
 
+### 3. Hlushkou 2018 JPS (Tier 1, user-supplied main + SI)
+**Kind: experimental 3D FIB-SEM reconstruction + random-walk simulation.**
+
+| Property                         | Value               |
+|----------------------------------|---------------------|
+| Pressure (electrochemistry)      | **276 MPa** (≈ our 300 MPa) |
+| Chemistry                        | LCO/LPSI (partial NMC/LPSCl match) |
+| AM                               | 5 μm LCO, LiNbO3-coated, irregular shape |
+| SE                               | 0.67(0.75Li2S-0.25P2S5)-0.33LiI, σ=0.7 mS/cm |
+| Initial mixture (vol)            | 38% LCO / 62% SE / 0% void |
+| Reconstructed (vol)              | 33.1% LCO / 53.7% SE / **13.2% void** |
+| τ_cond (EIS)                     | 1.6 ± 0.1           |
+| τ_diff (FIB-SEM)                 | 1.74                |
+| τ_Bruggeman at ε=0.537           | 1.34 (under-predicts) |
+| Void-free τ_diff                 | 1.27                |
+| D_eff / D_electrolyte (actual)   | 0.574               |
+| D_eff / D_electrolyte (void-free)| 0.786               |
+
+**Critical insight:** 276 MPa pressing ≠ full densification — **13.2% voids
+remain**. Our DEM should target ~13% porosity, not ~20%, as our-match anchor.
+
+**Coverage back-estimate (isotropic assumption):**
+coverage_AM-SE ≈ V_SE/(V_SE+V_void) = 0.537/0.669 = **80.3%**
+(upper bound — true value lower if voids cling to AM surface).
+
+**Bruggeman failure:** τ=1.74 vs τ_B=1.34 → voids redistribute SE into
+tortuous paths, not just reduce volume. Our C_blend(τ) term should allow
+deviation from ε^(-0.5) at high void content.
+
+## k_spread summary so far
+| Source             | Porosity | Coverage | Method                    |
+|--------------------|----------|----------|---------------------------|
+| Lee 2024 (hand)    | ~unknown | 30.6% 2D | SEM perimeter (2D→3D ~39%) |
+| Bielefeld 2019     | 20%      | 49%      | Computational GeoDict      |
+| Bielefeld 2019     | 13%      | ~65%     | interpolated from Fig 9    |
+| Hlushkou 2018      | 13.2%    | ~80% (UB)| FIB-SEM, isotropic bound   |
+| **Our DEM plastic**| ~13-20%? | 22%      | DEM+δ/R cap                |
+
+At 13% porosity: Bielefeld 65% vs Hlushkou 80% (UB) — real pressed pellet
+matches or exceeds computational estimate. Our 22% DEM is **3-3.6×
+under-estimate** at this porosity.
+
+**Revised k_spread range: 1.55-1.90** (up from earlier 1.30-1.50 at fixed
+20% porosity assumption).
+
 ## Pending entries (priority order)
-- Tier 1: **ACS AMI 2018 (Dewald et al.)** — X-CT 84% coverage, 3D metric (direct k_spread target)
-- Tier 2: Strauss 2020 ACS AMI (mechanical stability vs coverage)
+- Tier 1: Strauss 2018 ACS Energy Lett (NCM622/argyrodite size vs inactive fraction)
+- Tier 2: Minnmann/Neumann (NCM/LPSCl 3D FIB-SEM — chemistry-exact match)
 - Tier 2: Shi 2020 JMCA (porosity-coverage correlation)
 - Tier 3: Minnmann 2021 JECS (rate vs coverage)
 - Tier 4: Review papers for cross-checks

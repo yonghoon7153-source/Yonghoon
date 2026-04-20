@@ -354,6 +354,121 @@
         "Their β=0.41 comes from electronic cluster percolation; does ionic cluster (SE-mediated) obey same exponent?",
         "Can we regenerate their A_spec,a vs composition curves with our DEM + network solver as validation?"
       ]
+    },
+    {
+      "id": "hlushkou_2018_jps",
+      "citation": "Hlushkou, Reising, Kaiser, Spannenberger, Schlabach, Kato, Roling, Tallarek. J. Power Sources 2018, 396, 363-370 — The influence of void space on ion transport in a composite cathode for all-solid-state batteries",
+      "doi_or_url": "10.1016/j.jpowsour.2018.06.041",
+      "tier": 1,
+      "kind": "experimental_3D_FIB_SEM_reconstruction_PLUS_random_walk_simulation",
+      "headline_finding": "Tortuosity τ_cond=1.6±0.1 (EIS) ≈ τ_diff=1.74 (FIB-SEM + random walk). Bruggeman (τ_B=1.34) UNDER-predicts because 13.2% voids reshape SE topology into highly tortuous paths — not just reduce volume.",
+      "pressure_match_with_ours": "EXCELLENT (276 MPa electrochemistry vs our 300 MPa)",
+      "chemistry_match_with_ours": "PARTIAL (LCO/LPSI vs our NMC/LPSCl; both sulfide SE family)",
+      "process": {
+        "type": "cold-pressed pellet (single compression) — our-match",
+        "electrochemistry_cell_pressure_MPa": 276,
+        "press_duration_min": 30,
+        "FIB_sample_pressure_MPa_approx": 392,
+        "FIB_sample_press_duration_h": 14,
+        "symmetric_cell_assembly_pressure_MPa_approx": 392,
+        "final_lithium_lamination_MPa_approx": 98,
+        "temperature": "room temperature",
+        "atmosphere": "Ar-glovebox (H2O<1 ppm, O2<1 ppm)"
+      },
+      "materials": {
+        "AM": "LiCoO2 (LCO), LiNbO3-coated (~12 nm)",
+        "AM_avg_particle_size_um": 5.0,
+        "AM_particle_shape": "irregular (k=3.64 vs spherical k~12 at 15% rel.stdev → highly non-spherical)",
+        "SE": "0.67·(0.75 Li2S - 0.25 P2S5) - 0.33 LiI (LPSI, amorphous)",
+        "SE_sigma_ion_mS_per_cm_25C": 0.7,
+        "density_LCO_g_per_cm3": 5.1,
+        "density_SE_g_per_cm3":  2.2,
+        "LCO_coating": {"material": "LiNbO3", "thickness_nm": 12, "purpose": "prevent LCO-sulfide decomposition"}
+      },
+      "cathode_composition_initial_mixture": {
+        "LCO_wt_pct": 59,
+        "SE_wt_pct":  41,
+        "LCO_vol_pct": 38,
+        "SE_vol_pct":  62,
+        "porosity_assumed_at_preparation": "not explicitly stated — inferred as nominally zero (fully dense target)"
+      },
+      "reconstructed_volume_table3": {
+        "LCO":            {"vol_pct": 33.1, "mu_um": 3.3, "k": 3.64, "note": "irregular LCO shape"},
+        "SE":             {"vol_pct": 53.7, "mu_um": 5.2, "k": 1.54, "note": "very heterogeneous"},
+        "void":           {"vol_pct": 13.2, "mu_um": 1.3, "k": 2.48, "note": "fine, distributed"},
+        "interparticle_SE_plus_void":  {"vol_pct": 66.9, "mu_um": 9.4, "k": 1.43}
+      },
+      "volume_fraction_shift_from_mixture_to_reconstruction": {
+        "LCO_initial_vol_pct": 38,
+        "LCO_reconstructed_vol_pct": 33.1,
+        "SE_initial_vol_pct": 62,
+        "SE_reconstructed_vol_pct": 53.7,
+        "void_gained_vol_pct": 13.2,
+        "interpretation": "Both solids lose ~5-8 vol% to voids during pressing — NOT fully densified despite 276+392 MPa pressure"
+      },
+      "FIB_SEM_reconstruction_details": {
+        "voxel_size_nm":        [35.6, 35.6, 100.0],
+        "reconstructed_volume_um": [55.9, 38.9, 58.1],
+        "image_stack_size":     [2048, 1768, 590],
+        "slicing_beam":         "30 kV Ga+ ion, 6.5 nA",
+        "imaging_voltage_kV":   5,
+        "restoration_steps":    "autocorrelation alignment, intensity-gradient correction, stripe removal (Xlib filter), 3D max/min smoothing, manual error correction",
+        "segmentation":         "MorphoLibJ morphological segmentation (gradient radius=3px, tolerance=8); minimum filter r=22px for LCO markers",
+        "finite_size_check":    "μ and k reach asymptotic values at ~70% of max edge (Fig S1) — volume is representative"
+      },
+      "key_results": {
+        "tortuosity_EIS_tau_cond":      {"value": 1.6,  "uncertainty": 0.1},
+        "tortuosity_FIB_tau_diff":      {"value": 1.74, "method": "random-walk particle tracking, 10^7 tracers"},
+        "tortuosity_Bruggeman_e_minus_0_5_at_actual_epsilon": {"value": 1.34, "verdict": "under-predicts — Bruggeman relation fails when voids redistribute SE into tortuous paths"},
+        "normalized_Deff_actual":       0.574,
+        "normalized_Deff_void_free":    0.786,
+        "Deff_increase_from_removing_voids_pct": 37,
+        "void_free_tau_diff":           1.27,
+        "void_free_Bruggeman":          1.22,
+        "void_free_tau_agreement":      "GOOD — Bruggeman valid for void-free composite with near-spherical AM"
+      },
+      "coverage_back_estimate": {
+        "method": "Paper does NOT report AM-SE interface coverage. Isotropic-contact approximation: coverage_AM_SE = V_SE / (V_SE + V_void) assuming random distribution",
+        "V_SE_frac":     0.537,
+        "V_void_frac":   0.132,
+        "V_interparticle_frac": 0.669,
+        "coverage_AM_SE_isotropic_estimate": 0.803,
+        "caveat": "Upper bound — assumes voids randomly distributed in interparticle space. If voids preferentially form AT LCO surface (wetting failure), true coverage is LOWER.",
+        "lower_bound_if_voids_adhere_to_AM": "coverage ≈ 1 - 2·V_void_frac/V_LCO_frac ≈ 1 - 2·0.132/0.331 = 0.20 (very pessimistic)",
+        "confidence": "LOW — needs explicit AM-SE interface area from their reconstruction (not reported)"
+      },
+      "comparability_with_ours": {
+        "process_match":   "YES (single-compression pellet, same pressure class)",
+        "pressure_match":  "EXCELLENT (276 vs 300 MPa)",
+        "chemistry_match": "PARTIAL (LCO vs NMC — both layered oxide AM, LPSI vs LPSCl — both halide-sulfide SE)",
+        "metric_match":    "DIFFERENT (they report τ, not coverage) — but coverage back-derivable",
+        "usefulness_for_us": [
+          "VALIDATES that ~13% voids form even at 276 MPa pressing → our DEM should target ~13% porosity (not 20%)",
+          "SHOWS Bruggeman under-predicts τ by 20-25% in real composites → our scaling law should allow deviation from ideal ε^-0.5",
+          "CONFIRMS tortuosity ≈ 1.6-1.74 for LCO/LPSI at ~54% SE vol, useful C_blend(τ) anchor",
+          "DEMONSTRATES void elimination ↔ large σ_eff improvement (0.574 → 0.786 = 37% gain from 13% densification)"
+        ]
+      },
+      "tortuosity_vs_our_scaling_law": {
+        "our_C_blend_tau_term": "C_blend(τ) accounts for conductor-phase tortuosity via τ^(-1)",
+        "their_tau_at_our_pressure_class": 1.74,
+        "our_dataset_typical_tau_range": "[1.3, 2.2] — to verify",
+        "verdict": "Hlushkou τ=1.74 falls in our typical range — consistent"
+      },
+      "SI_content_extracted": {
+        "image_restoration_pipeline": ["autocorrelation displacement", "intensity gradient correction (linear)", "stripe filter Xlib damping [3,6,12,24]", "3D max/min smoothing", "manual error correction"],
+        "LCO_segmentation_pipeline":  ["Gaussian blur sigma=2px", "MorphoLibJ morphological segmentation", "minimum filter r=22px", "manual marker editing"],
+        "void_segmentation":          "intensity threshold <65 (8-bit) → void/resin",
+        "finite_size_verification":   "chord length μ, k reach asymptote at ~70% of max edge — reconstruction volume is representative",
+        "no_new_quantitative_values_beyond_main_text": true
+      },
+      "what_we_still_need_from_this_paper": [
+        "Explicit AM-SE interface area (not reported, only chord lengths and volume fractions)",
+        "Particle size DISTRIBUTION (only 'average 5 μm' given)",
+        "Pressure history during cycling (only assembly pressure given)",
+        "Temperature of EIS measurement (implied room temperature)",
+        "Author email for raw reconstruction voxel data (would allow direct coverage extraction)"
+      ]
     }
   ]
 }

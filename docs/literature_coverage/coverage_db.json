@@ -705,7 +705,7 @@
       "doi_or_url": "10.1021/acsami.7b01137",
       "tier": 1,
       "kind": "experimental_composite_microstructure_AND_composition_sweep_EDX_based_coverage_observation",
-      "status": "PARTIAL — first 4 pages only (pp 17835-17838). Need remaining pages 17839-17845 for quantitative coverage, impedance breakdown, rate performance.",
+      "status": "COMPLETE — main text + SI fully parsed",
       "chemistry_match_with_ours": "FAIR (LCO/LGPS — LCO ≠ our NCM but layered oxide; LGPS σ=5 mS/cm vs LPSCl 2.4 mS/cm)",
       "pressure_match_with_ours": "CLOSE (437 MPa cathode press vs our 300 MPa)",
       "materials": {
@@ -783,14 +783,88 @@
         "implication_for_our_C_blend_tau_term": "At low SE fraction, σ_ion dominates cell power limit → τ(composition) matters more than σ_SE itself. Our C_blend(τ) term should have stronger weight at low-SE compositions.",
         "implication_for_our_covered_term": "Zhang explicitly states LCO-SE contact area DECREASES at high LCO loading → our coverage^(2/5) term captures exactly this dependency."
       },
-      "what_we_still_need_from_remaining_pages": [
-        "Quantitative rate capability curves (Fig 3-4) — capacity vs C-rate for each composition",
-        "Impedance full breakdown — R_SE-LCO interface vs composition (key for our coverage term calibration)",
-        "Long-cycle stability (100 cycles) data",
-        "Tortuosity or effective σ_ion vs composition values — Fig 8 mentioned in-text for 'diffusion length'",
-        "Any DIRECT coverage metric (EDX maps are qualitative in first 4 pages)",
-        "SI content — SEM of LGPS separator, LNTO coating XRD, CV curves, cell casing design"
-      ],
+      "impedance_breakdown_fig5": {
+        "during_charge_3.3_to_3.6V": {
+          "R_HF_SE_bulk_plus_GB_ohm": {"range": [17, 20], "behavior": "stable"},
+          "R_MF_cathode_SE_interface_ohm": {"start": 25, "end_of_charge": 40, "behavior": "rises by factor ~2"},
+          "R_LF_In_SE_interface_ohm":      {"range": [20, 50], "behavior": "slow increase"}
+        },
+        "during_discharge_back_to_3.2V": {
+          "R_HF_ohm": "stable ~17",
+          "R_MF_ohm": "constant until 50% discharge, then mild rise",
+          "R_LF_ohm": {"early": 20, "end_of_discharge": 800, "behavior": "dramatic rise — Li-In alloy kinetic hindrance at low Li"}
+        },
+        "capacitance_fig6": {
+          "C_HF_uF": 0.3,
+          "C_MF_uF": [6, 9],
+          "C_LF_mF": "mF range (In-SE 'neck' contact)"
+        }
+      },
+      "diffusion_length_fig8_CRITICAL": {
+        "method": "Q = Q_1C - (1/3)(d²/D_Li)·j analysis; D_Li(LCO) = 1.5e-10 m²/s assumed constant across samples",
+        "extracted_d_nm": {
+          "cell_A_50_50_wt": 52,
+          "cell_B_60_40_wt": 51,
+          "cell_C_70_30_wt": 60,
+          "cell_D_80_20_wt": 100
+        },
+        "ratio_D_to_C": 1.67,
+        "interpretation_as_coverage_proxy": "d = average Li+ path length through AM before reaching SE. Longer d → less AM-SE contact area → worse ionic coverage. Cell D (80:20 wt) has 1.67× longer d than Cell C (70:30) despite only 27% more AM vol → STRONG coverage DECREASE at high AM loading.",
+        "relative_coverage_estimate": {
+          "note": "If coverage ∝ 1/d² (geometric reasoning for area available vs path squared): cov_D/cov_C ≈ (60/100)² = 0.36 → Cell D has ~36% of Cell C's AM-SE coverage",
+          "alternative_estimate": "If coverage ∝ 1/d: cov_D/cov_C = 0.60 → 60% of Cell C's coverage",
+          "our_dataset_implication": "High-AM-loading cases in our DEM should show ~0.36-0.60× coverage of optimal composition, consistent with our plastic-capped 22% at typical loading"
+        }
+      },
+      "rate_capability_fig7": {
+        "current_density_range_mA_per_g": [10, 1050],
+        "C_rates": [0.1, 0.2, 0.5, 1, 2, 5, 10],
+        "at_0.1C": {"cell_A": 110, "cell_B": 125, "cell_C": 130, "cell_D": 135, "units": "mAh/g"},
+        "at_5C":   {"cell_A": 20,  "cell_B": 25,  "cell_C": "moderate", "cell_D": 33, "units": "mAh/g"},
+        "at_10C":  {"cell_A": 20,  "cell_B": 20,  "cell_C": "fails",    "cell_D": "fails"},
+        "40_60_wt_only_25_mAh_per_g_at_0.1C": true,
+        "interpretation": "Low-SE cells (D) have high initial cap but fail at high C. High-SE cells (A, B) maintain moderate cap across all rates. Cell C (70:30) optimal balance."
+      },
+      "cycle_stability_fig9": {
+        "cycles_tested": 100,
+        "C_rate": 0.1,
+        "retention_pct_at_100_cycles": {
+          "cell_A_50_50": 50,
+          "cell_B_60_40": 85,
+          "cell_C_70_30": 80,
+          "cell_D_80_20": "high initial cap then fast fade"
+        },
+        "coulombic_efficiency_after_first_cycle_pct": {"B": 99.6, "C": 99.6, "D": 97.5},
+        "cell_D_failure_mechanism": "AM particles without direct SE contact → overcharge → capacity loss. Cited with Raman evidence from Otoyama 2016 (Strauss ref 35)",
+        "cell_A_low_capacity_50_pct_drop_attributed_to": "SE excess → poor electronic percolation, unreachable LCO"
+      },
+      "SI_additional_content": {
+        "Fig_S2_LNTO_coating": "XRD shows LNTO coating is amorphous (no diffraction peaks added to bare LCO)",
+        "Fig_S3_cell_casing": {
+          "torque_Nm": 10,
+          "materials": ["stainless steel current collectors", "PEEK insulator"],
+          "screw_applies_continuous_pressure": true
+        },
+        "Fig_S4_S5_coating_necessity": {
+          "bare_LCO_R_MF_start_ohm": 90,
+          "bare_LCO_R_MF_end_of_charge_ohm": 138,
+          "LNTO_coated_R_MF_start_ohm": 25,
+          "LNTO_coated_R_MF_end_ohm": 40,
+          "ratio_improvement": 3,
+          "bare_LCO_cyclability": "cannot cycle reversibly (no CV peaks for LiCoO2 redox)"
+        },
+        "Fig_S9_40_60_wt_too_SE_rich": {
+          "capacity_at_0.1_C_mAh_per_g": 25,
+          "reason": "electronic percolation failure — LCO particles separated by SE"
+        },
+        "Fig_S11_impedance_comparison_cells_A_to_D": "Same SE bulk R, varying cathode/SE and In/SE semicircles — used as composition-dependent microstructure indicator",
+        "Fig_S13_LGPS_XPS_after_100_cycles": "S 2p peak broadening toward higher BE → LGPS oxidation during cycling",
+        "Fig_S14_symmetric_cells": "Confirms cathode-only and anode-only resistance breakdown"
+      },
+      "cross_reference_with_our_dem_outlier_cases": {
+        "hypothesis": "Our thin_6, thin_9, particulate_12 outliers may correspond to Zhang's extreme compositions (near A or D) where coverage transitions happen",
+        "action_item": "After full dataset re-run with plastic-corrected coverage, check if outlier cases cluster near Zhang's Cell A/D regime (low SE or low AM vol fraction)"
+      },
       "comparability_with_ours": {
         "process_match":     "YES (cold-pressed pellet, single compression class)",
         "pressure_match":    "CLOSE (437 MPa vs 300 MPa — 1.46× higher)",

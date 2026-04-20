@@ -176,6 +176,29 @@ coverage. Complementary to Bielefeld/Hlushkou but different metric.
 **k_spread implication:** Still no direct AM-SE ionic coverage for NCM/LPSCl.
 Need Minnmann/Zeier-group post-2020 FIB-SEM work.
 
+### 6. Zhang 2017 ACS AMI (Tier 1, LCO/LGPS composition sweep)
+**Kind: experimental composite cathode microstructure + diffusion length coverage proxy.**
+
+LCO (LNTO-coated) + LGPS (σ=5 mS/cm, E=10.5 GPa), carbon-free,
+437 MPa cathode press (≈ our 300 MPa):
+
+| Cell | wt   | vol    | d_diff (nm) | Ret% @100 | Role       |
+|------|------|--------|-------------|-----------|------------|
+| A    | 50:50| 29:71  | 52          | 50%       | SE-rich    |
+| B    | 60:40| 38:62  | 51          | 85%       | balanced   |
+| C    | 70:30| 49:51  | **60**      | **80%**   | **optimal**|
+| D    | 80:20| 62:38  | **100**     | fast fade | AM-rich    |
+
+**Fig 8 Li+ diffusion length as coverage proxy:** d_D/d_C = 1.67 → Cell D
+has 60-36% of Cell C's AM-SE coverage (depending on 1/d vs 1/d² scaling).
+
+**Impedance (Fig 5):** R_MF (cathode/SE) rises 25→40 Ω on charge; LNTO
+coating reduces this 3× vs bare LCO (90→138 Ω).
+
+**Key finding:** 80:20 wt (62:38 vol) has **AM particles without SE contact**
+→ overcharge → capacity fade. Directly validates our coverage^(2/5) term
+and coverage-decreases-at-high-AM-loading intuition.
+
 ## Pending entries (priority order)
 - Tier 1: Strauss 2018 ACS Energy Lett (NCM622/argyrodite size vs inactive fraction — chemistry-exact COVERAGE anchor)
 - Tier 2: Minnmann/Neumann (NCM/LPSCl 3D FIB-SEM)

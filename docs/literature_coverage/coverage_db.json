@@ -698,6 +698,111 @@
         "implication_for_k_spread": "No direct k_spread target value from this paper. However, the ionic σ ~10^-6 S/cm for composite vs 2e-4 for bare SE implies τ_effective ≈ 200 — much higher than Hlushkou 1.74. This is because Strauss is near-percolation (47 vol% AM at 47-58% pc range). Our DEM should avoid this sub-percolation regime.",
         "revised_DB_gaps": "Still need direct chemistry-exact ionic AM-SE coverage. Best candidate: Minnmann-group or Zeier-group FIB-SEM on NCM/LPSCl composite (post-2020 papers)."
       }
+    },
+    {
+      "id": "zhang_2017_acs_ami",
+      "citation": "Zhang, Weber, Weigand, Arlt, Manke, Schröder, Koerver, Leichtweiss, Hartmann, Zeier, Janek. ACS Appl. Mater. Interfaces 2017, 9, 17835-17845 — Interfacial Processes and Influence of Composite Cathode Microstructure Controlling the Performance of All-Solid-State Lithium Batteries",
+      "doi_or_url": "10.1021/acsami.7b01137",
+      "tier": 1,
+      "kind": "experimental_composite_microstructure_AND_composition_sweep_EDX_based_coverage_observation",
+      "status": "PARTIAL — first 4 pages only (pp 17835-17838). Need remaining pages 17839-17845 for quantitative coverage, impedance breakdown, rate performance.",
+      "chemistry_match_with_ours": "FAIR (LCO/LGPS — LCO ≠ our NCM but layered oxide; LGPS σ=5 mS/cm vs LPSCl 2.4 mS/cm)",
+      "pressure_match_with_ours": "CLOSE (437 MPa cathode press vs our 300 MPa)",
+      "materials": {
+        "AM": "LiCoO2 (LCO), LiNb0.5Ta0.5O3 (LNTO) coated ~1.4 wt%",
+        "LNTO_coating_method": "sol-gel (Li acetate + Nb ethoxide + Ta butoxide in ethanol, anneal 300°C overnight + 450°C 1 min)",
+        "SE": "Li10GeP2S12 (LGPS)",
+        "SE_synthesis": "solid-state ball mill (Li2S+P2S5+GeS+S, 500 rpm 24 h, ZrO2) + seal in quartz ampule + 500°C 30 h anneal",
+        "sigma_SE_total_mS_per_cm": 5,
+        "sigma_SE_electronic_nS_per_cm": 9,
+        "t_electronic": 1.8e-6,
+        "Young_modulus_SE_GPa": 10.5,
+        "conductive_additive": "NONE (carbon-free, electronic percolation via direct LCO-LCO cold-press contact)",
+        "anode": "In (8 mm, 0.125 mm) + Li foil (1:60 wt ratio Li:In)"
+      },
+      "composition_sweep": {
+        "wt_ratios_LCO_LGPS": [[40,60], [50,50], [60,40], [70,30], [80,20]],
+        "vol_ratios_LCO_LGPS": [[21,79], [29,71], [38,62], [49,51], [62,38]],
+        "density_LCO_approx_g_cm3": 5.1,
+        "density_LGPS_approx_g_cm3": 2.0,
+        "note": "5 compositions spanning SE-rich to AM-rich"
+      },
+      "process": {
+        "type": "cold-pressed pellet",
+        "SE_layer_mass_mg": 80,
+        "SE_layer_hand_press_then_uniaxial": true,
+        "pellet_die_diameter_mm": 10,
+        "cathode_composite_mass_mg": 10,
+        "cathode_composite_thickness_um": 90,
+        "cathode_press_force_tons": 3.5,
+        "cathode_press_pressure_MPa_calculated": 437,
+        "cathode_press_duration_min": 2,
+        "In_anode_press_force_tons": 1.5,
+        "In_anode_press_pressure_MPa_calculated": 187,
+        "In_anode_press_duration_min": 2,
+        "operating_pressure": "Al framework 10 N·m torque during cycling — continuous",
+        "temperature": "room temperature",
+        "SE_separator_thickness_um": 600,
+        "assembly_atmosphere": "Ar glovebox"
+      },
+      "coverage_observation_from_EDX_fig2": {
+        "method": "cross-sectional SEM + Co (LCO) and S (LGPS) EDX elemental maps; visual inspection of phase distribution",
+        "cell_A_50_50_wt_LCO_LGPS":  {"vol": "29/71", "observation": "LCO mostly SEPARATED by SE — low LCO-LCO electronic paths but ABUNDANT LCO-SE interface"},
+        "cell_B_60_40_wt":           {"vol": "38/62", "observation": "balanced distribution — good LCO-SE coverage AND growing LCO-LCO contact"},
+        "cell_C_70_30_wt_OPTIMAL":   {"vol": "49/51", "observation": "well-balanced homogeneous distribution — cited as BEST for electrochemical performance"},
+        "cell_D_80_20_wt":           {"vol": "62/38", "observation": "LCO-LCO overlap abundant (good electronic) but LCO-SE contact area LIMITED — 'restricts Li+ conductivity' (authors' direct quote)"},
+        "qualitative_coverage_trend": "Higher LCO fraction → more LCO-LCO (electronic) → less LCO-SE (ionic). Inflection around 70:30 wt = 49:51 vol.",
+        "anchor_for_our_dataset": "Our cases with higher NCM loading should predict reduced ionic coverage — consistent with Zhang's Cell D qualitative observation."
+      },
+      "impedance_partial_from_pages_1_to_4": {
+        "R_SE_bulk_ohm": 15,
+        "R_HF_grain_boundary_ohm": 2,
+        "R_HF_frequency_kHz": 518,
+        "R_HF_capacitance_uF": 0.79,
+        "R_LF_In_SE_interface": "fitted semicircle, capacitance 7.64 mF",
+        "implied_SE_conductivity_check_mS_per_cm": 5,
+        "SE_thickness_from_impedance_um": 590
+      },
+      "performance_partial_from_pages_1_to_4": {
+        "initial_charge_capacity_70_30_wt_mAh_per_g": 136,
+        "first_cycle_efficiency_pct": 91.1,
+        "C_rates_tested": [0.05, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0],
+        "1C_mA_per_cm2_at_7.64_mg_LCO_per_cm2": 1.045,
+        "theoretical_LCO_capacity_mAh_per_g_Li0.5": 137
+      },
+      "tomography_details": {
+        "method": "X-ray tomography, W anode, 80 kV, 125 μA, 1200 projections over 360°",
+        "pixel_size_um": 50,
+        "reconstructed_voxel_um": 6.25,
+        "cell_dimensions_mm": [8.1, 7.0, 1.2],
+        "detector_pixels": [2316, 2316],
+        "reconstructs": "layer thicknesses, no voids in SE separator, composite/SE interface"
+      },
+      "abstract_takeaway_for_scaling_law": {
+        "key_finding": "Ionic percolation → high POWER; electronic percolation → high ENERGY. Low SE fraction sufficient for high energy, higher SE fraction required for high power.",
+        "implication_for_our_C_blend_tau_term": "At low SE fraction, σ_ion dominates cell power limit → τ(composition) matters more than σ_SE itself. Our C_blend(τ) term should have stronger weight at low-SE compositions.",
+        "implication_for_our_covered_term": "Zhang explicitly states LCO-SE contact area DECREASES at high LCO loading → our coverage^(2/5) term captures exactly this dependency."
+      },
+      "what_we_still_need_from_remaining_pages": [
+        "Quantitative rate capability curves (Fig 3-4) — capacity vs C-rate for each composition",
+        "Impedance full breakdown — R_SE-LCO interface vs composition (key for our coverage term calibration)",
+        "Long-cycle stability (100 cycles) data",
+        "Tortuosity or effective σ_ion vs composition values — Fig 8 mentioned in-text for 'diffusion length'",
+        "Any DIRECT coverage metric (EDX maps are qualitative in first 4 pages)",
+        "SI content — SEM of LGPS separator, LNTO coating XRD, CV curves, cell casing design"
+      ],
+      "comparability_with_ours": {
+        "process_match":     "YES (cold-pressed pellet, single compression class)",
+        "pressure_match":    "CLOSE (437 MPa vs 300 MPa — 1.46× higher)",
+        "chemistry_match":   "FAIR (LCO/LGPS vs NCM/LPSCl — both layered oxide + sulfide family, different in detail)",
+        "metric_match":      "QUALITATIVE ONLY (EDX observation, no τ or explicit coverage tabulated in visible pages)",
+        "usefulness_for_us": [
+          "CONFIRMS our coverage term intuition (LCO-SE area decreases at high AM loading)",
+          "CONFIRMS tortuosity/τ term importance at low SE fraction",
+          "PROVIDES composition sweep (5 points) for potential quantitative validation if full paper available",
+          "DIFFERENT SE (LGPS) — coverage definition metric should be SE-agnostic for transfer"
+        ]
+      }
     }
   ]
 }

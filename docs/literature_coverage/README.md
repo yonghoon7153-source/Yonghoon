@@ -257,6 +257,37 @@ coverage < 100% assumption, validates scaling law coverage term.**
 Our scaling law currently captures STATIC coverage only. For cycled
 performance prediction, may need coverage_dynamic(SOC) term.
 
+### 8. Minnmann 2022 AEM Perspective (Tier 1, design guidelines)
+**Kind: review/perspective (NOT primary data).**
+
+Authors include Strauss, Bielefeld, Janek — synthesizes our entire DB lineage.
+
+**Quantitative guidelines consolidated:**
+| Parameter | Recommended | Source |
+|-----------|-------------|--------|
+| NCM secondary d | **3-5 μm** | Strauss 2018, Bielefeld 2019 |
+| CAM vol% (percolation) | ≥50 | Bielefeld 2019 |
+| CAM vol% (geometric optimum) | **60-70** | multiple |
+| CAM vol% (commercial target) | ≥70 | perspective |
+| CAM vol% (carbon-free) | ≥60 | Strauss 2018 |
+| Lab operating pressure | **2-50 MPa** | Koerver, Strauss |
+| Sulfide SE σ max | 25 mS/cm | LGPS literature |
+| Halide SE σ (cold-press) | 1 mS/cm | Zhou 2019 |
+
+**Key framing (Figure 1):**
+- Macro: material/PSD/percolation
+- Micro: chemo-mechanics/voids/pressure
+- Nano: SE decomposition/interphase
+
+**Figure 2 LE vs SE tortuosity:** SE composite inherently high-τ due to
+grain boundaries + porosity → **directly validates our C_blend(τ) need**.
+
+**Takeaway for our scaling law:**
+- Variable choices (vol_AM, τ, coverage, CN) confirmed as primary
+- 3-5 μm AM optimal matches our fine-particle (P) size class
+- CAM 60-70 vol% target matches Bielefeld optimum
+- Dynamic coverage framework (from Koerver 2017) is the field's consensus
+
 ## Pending entries (priority order)
 - Tier 1: Strauss 2018 ACS Energy Lett (NCM622/argyrodite size vs inactive fraction — chemistry-exact COVERAGE anchor)
 - Tier 2: Minnmann/Neumann (NCM/LPSCl 3D FIB-SEM)

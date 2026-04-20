@@ -700,6 +700,96 @@
       }
     },
     {
+      "id": "minnmann_2022_aem_perspective",
+      "citation": "Minnmann, Strauss, Bielefeld, Ruess, Adelhelm, Burkhardt, Dreyer, Trevisanello, Ehrenberg, Brezesinski, Richter, Janek. Adv. Energy Mater. 2022, 12, 2201425 — Designing Cathodes and Cathode Active Materials for Solid-State Batteries",
+      "doi_or_url": "10.1002/aenm.202201425",
+      "tier": 1,
+      "kind": "perspective_review_design_guidelines_NOT_primary_data",
+      "status": "PARTIAL — first 5 pages parsed (pp 1-5 of 18). Need remaining pages for CAM coating design, particle engineering guidelines.",
+      "important_distinction": "This is a PERSPECTIVE paper consolidating literature. Does NOT provide new coverage measurements. Useful for framing our scaling law in the established design guideline context.",
+      "authorship_connection_to_our_DB": "Minnmann + Strauss (Strauss 2018 author) + Bielefeld (Bielefeld 2019 author) + Janek (Koerver/Strauss/Zhang/Hlushkou author) = this perspective synthesizes the entire lineage we've catalogued.",
+      "pages_visible": [1, 2, 3, 4, 5],
+      "key_quantitative_guidelines": {
+        "CAM_secondary_particle_diameter_optimal_um": [3, 5],
+        "CAM_secondary_particle_citation": "Refs 36, 37 = Strauss 2018 + Bielefeld 2019",
+        "CAM_vol_pct_minimum_for_percolation": 50,
+        "CAM_vol_pct_geometric_optimum_range": [60, 70],
+        "CAM_vol_pct_commercial_target": "≥70",
+        "CAM_vol_pct_carbon_free_threshold": 60,
+        "lab_operating_pressure_MPa_range": [2, 50],
+        "commercial_pressure_constraint": "high-pressure unsuitable for large-scale — must be minimized via materials design",
+        "sulfide_SE_sigma_max_mS_per_cm": 25,
+        "halide_SE_sigma_cold_pressed_mS_per_cm": 1
+      },
+      "figure_1_length_scale_framework": {
+        "macrostructure_level": ["material distribution", "particle size distribution", "percolation pathways"],
+        "microstructure_level": ["chemo-mechanics", "void formation", "pressure evolution"],
+        "nanostructure_level": ["solid electrolyte decomposition", "interphase formation"]
+      },
+      "figure_2_LE_vs_SE_tortuosity": {
+        "LE_composite_cathode": {
+          "pore_filling": "liquid penetrates pores uniformly",
+          "tortuosity": "LOW (uniform pathway)",
+          "charge_transport": "uniform distribution"
+        },
+        "SE_composite_cathode": {
+          "pore_filling": "porosity + grain boundaries remain",
+          "tortuosity": "HIGH (tortuous pathway through SE)",
+          "charge_transport": "non-uniform",
+          "relevance_to_our_C_blend_tau": "DIRECTLY validates our need for C_blend(τ) term — SE composite requires explicit tortuosity correction beyond Bruggeman"
+        }
+      },
+      "chemomechanics_guidelines": {
+        "Ni_rich_NCM_contraction": "confirmed issue — leads to contact loss + SE cracking (consistent with Koerver 2017)",
+        "conversion_CAMs_volume_change": "up to 100% (morphology change beyond intercalation)",
+        "intercalation_CAMs_volume_change": "several percent (NCM-811 ~2%)",
+        "SE_rigidity_problem": "SEs cannot flow into new pores (unlike LE) → contact loss irreversible",
+        "external_pressure_compensation": "few to tens of MPa applied in lab to maintain contact; not commercially viable",
+        "direct_quote": "Clearly, such high pressures are not suitable for large-scale commercial applications"
+      },
+      "interfacial_compatibility_guidelines": {
+        "sulfide_SE_oxidation_by_CAM": "narrow stability window → passivating coating required (LiNbO3, LNTO)",
+        "halide_SE_oxidation_stability": "high → can contact uncoated NCM directly",
+        "coating_function": "electron-blocker but Li+ conductor; prevents SE oxidation",
+        "halide_SE_advantage_highlighted": "Li3InCl6, Li6PS5Cl, Li3YCl6 — moderate σ (1 mS/cm) + high oxidation stability",
+        "halide_SE_disadvantage": "rare-earth or resource-critical metals (In, Y) — commercial concern"
+      },
+      "cathode_level_design_guidelines": {
+        "PSD_matching": "SE PSD should be matched to CAM PSD for maximum packing density (large CAM/SE size ratio favorable)",
+        "NCM_3_to_5_um_justification": "provides sufficient specific surface area + many contact points with other NCM particles for electronic percolation",
+        "CAM_fraction_above_60_vol_pct": "may enable carbon-free cathode if CAM σ_e sufficiently high",
+        "fabrication_method_preference": "slurry-based tape casting most cost-effective; SE already in slurry",
+        "gradient_cathode_concept": "high σ_e at current collector side; high σ_ion at separator side; compensates for heterogeneity of network resistance",
+        "implication_for_our_DEM": "Our DEM bimodal P+S with d_P/d_S ≈ 2 (10mm/5mm radius) represents intermediate ratio. True PSD optimization would use d_P/d_S > 4 per McGeary-Bielefeld."
+      },
+      "comparability_with_ours": {
+        "process_match":     "COMPLEMENTARY (perspective on best practice, not specific process)",
+        "pressure_match":    "N/A (discusses range 2-50 MPa lab, not our 300 MPa pressing)",
+        "chemistry_match":   "COVERS (NCM + sulfide + halide SE landscape)",
+        "metric_match":      "FRAMEWORK (validates our scaling law variables, not values)",
+        "usefulness_for_us": [
+          "VALIDATES our choice of vol_AM, tortuosity, coverage, CN as primary variables",
+          "CONFIRMS 3-5 μm optimal AM size (matches Strauss 2018 NCM-S)",
+          "PROVIDES target CAM vol% 60-70 bracket for our DEM datasets",
+          "SYNTHESIZES Koerver chemomechanical story — our dynamic coverage framework justified",
+          "CITES 62+ references — useful citation backbone for our paper introduction"
+        ]
+      },
+      "key_reference_crosslinks_within_our_DB": {
+        "ref_13_14_48_chemomechanics":     "Koerver 2017, Koerver 2018, Ishidzu 2016 (our DB has Koerver 2017)",
+        "ref_30_37_PSD_optimization":      "Strauss 2018 (in our DB), Bielefeld 2019 (in our DB)",
+        "ref_36_37_NCM_3_5um_connectivity": "Strauss 2018 + Bielefeld 2019 (both in our DB)",
+        "ref_58_NCM_LPSCl_carbon":          "unknown Minnmann/Strauss earlier paper — candidate for our next DB addition"
+      },
+      "what_we_still_need_from_remaining_13_pages": [
+        "Sections 3.2-3.4: particle-level and interface-level design principles",
+        "Section 4: future outlook / CAM requirements summary",
+        "Figures 4-10+: specific schematics of coating, gradient, etc.",
+        "Tables (if any) summarizing optimal parameters",
+        "Reference 58 details — likely NCM/LPSCl primary paper we're missing"
+      ]
+    },
+    {
       "id": "koerver_2017_chem_mater",
       "citation": "Koerver, Aygün, Leichtweiss, Dietrich, Zhang, Binder, Hartmann, Zeier, Janek. Chem. Mater. 2017, 29, 5574-5582 — Capacity Fade in Solid-State Batteries: Interphase Formation and Chemomechanical Processes in Nickel-Rich Layered Oxide Cathodes and Lithium Thiophosphate Solid Electrolytes",
       "doi_or_url": "10.1021/acs.chemmater.7b00931",

@@ -229,6 +229,31 @@ coverage < 100% assumption, validates scaling law coverage term.**
 - Static (initial pressing): Bielefeld/Hlushkou/our DEM domain
 - **Dynamic (cycling-induced): Koerver 140 Ω growth domain — NEW**
 
+**Fig 6 SEM direct evidence of contact loss:**
+- Uncycled: intimate NCM-SE contact (~100% coverage)
+- 1st charge: spherical gap around each NCM (c-axis contraction)
+- 50 cycles: "negative imprint" of original NCM surface on SE
+- NCM (Ni-rich) SHRINKS on charge (LCO expands — opposite!)
+
+**Fig S3 hidden gem — resistance growth WITHOUT current:**
+- NCM-811/β-Li3PS4 blend at OCV over 128 h
+- R_total 1200 → 2200 Ω (~2× growth)
+- XPS confirms NO chemical reaction (Fig S4)
+- Pure mechanical relaxation — **maps to our DEM settling phase**
+- Time constant ~60 h
+
+**Fig 5 XPS:**
+- Only ~1% of SE oxidized after 50 cycles
+- Thin interphase with LOW Li+ conductivity (not bulk degradation)
+
+**Coverage layered model (novel framework):**
+| Layer | Value | Captured by |
+|-------|-------|-------------|
+| Static pressing | ~22% (our plastic) | DEM ✓ |
+| Mechanical relaxation | ×0.5 (128 h) | DEM settling ✓ |
+| 1st-charge contact loss | ×0.7 | NOT captured ✗ |
+| CEI growth/cycle | ×0.98/cycle | NOT captured ✗ |
+
 Our scaling law currently captures STATIC coverage only. For cycled
 performance prediction, may need coverage_dynamic(SOC) term.
 

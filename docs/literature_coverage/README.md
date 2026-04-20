@@ -199,6 +199,39 @@ coating reduces this 3× vs bare LCO (90→138 Ω).
 → overcharge → capacity fade. Directly validates our coverage^(2/5) term
 and coverage-decreases-at-high-AM-loading intuition.
 
+### 7. Koerver 2017 Chem Mater (Tier 1, NCM-811 + β-Li3PS4 first-cycle impedance)
+**Kind: in-situ EIS evolution + chemomechanical contact loss.**
+
+NCM-811 (uncoated) + β-Li3PS4, 70:30 wt (47:53 vol), carbon-free,
+**446 MPa assembly / 64 MPa operating**:
+
+| Resistance       | SOC-dep | 1st cycle |
+|------------------|---------|-----------|
+| R_SE,bulk        | none    | ~450 Ω stable |
+| R_SE,gb          | small   | 50 Ω increase |
+| **R_SE,Cathode** | strong  | **+140 Ω = 180 Ω·cm² IRREVERSIBLE** |
+| R_SE,Anode       | reversible | 40 → 800 Ω @ end discharge |
+
+**Most critical:** R_SE,Cathode growth of 140 Ω during 1st charge (OCV
+3.2-3.4 V) → interpreted as ~50% dynamic coverage LOSS from
+chemomechanical contraction + CEI formation.
+
+**Performance:** 1st cycle CE 70.5% SSB vs 85.9% LE (15.4% excess loss
+attributed to interface). Catastrophic rate capability: 0.1C→124, 0.5C→4,
+1C→0 mAh/g. 65% retention @ 50 cycles.
+
+**Direct quote from paper:** "solid cathode composites are not 100%
+dense, and thus, not every NCM particle is ionically and electronically
+well addressed when using two-phase composites" → **confirms our
+coverage < 100% assumption, validates scaling law coverage term.**
+
+**k_spread dual dimension:**
+- Static (initial pressing): Bielefeld/Hlushkou/our DEM domain
+- **Dynamic (cycling-induced): Koerver 140 Ω growth domain — NEW**
+
+Our scaling law currently captures STATIC coverage only. For cycled
+performance prediction, may need coverage_dynamic(SOC) term.
+
 ## Pending entries (priority order)
 - Tier 1: Strauss 2018 ACS Energy Lett (NCM622/argyrodite size vs inactive fraction — chemistry-exact COVERAGE anchor)
 - Tier 2: Minnmann/Neumann (NCM/LPSCl 3D FIB-SEM)

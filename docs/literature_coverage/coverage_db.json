@@ -700,6 +700,124 @@
       }
     },
     {
+      "id": "koerver_2017_chem_mater",
+      "citation": "Koerver, Aygün, Leichtweiss, Dietrich, Zhang, Binder, Hartmann, Zeier, Janek. Chem. Mater. 2017, 29, 5574-5582 — Capacity Fade in Solid-State Batteries: Interphase Formation and Chemomechanical Processes in Nickel-Rich Layered Oxide Cathodes and Lithium Thiophosphate Solid Electrolytes",
+      "doi_or_url": "10.1021/acs.chemmater.7b00931",
+      "tier": 1,
+      "kind": "experimental_impedance_evolution_first_cycle_NCM811_beta_Li3PS4",
+      "status": "PARTIAL — first 5 pages (5574-5578). Need remaining pages for XPS full results, Fig 5 spectra, cyclability detail, SI.",
+      "chemistry_match_with_ours": "STRONG (NCM-811 = our NMC family; β-Li3PS4 vs LPSCl — same Li3PS4-based sulfide class)",
+      "pressure_match_with_ours": "CLOSE (446 MPa assembly vs our 300 MPa; 64 MPa operating)",
+      "headline_findings": [
+        "First-cycle CE only 70.5% in SSB vs 85.9% in LE → 15.4% irreversible loss attributed to cathode/SE interphase + chemomechanical contact loss",
+        "R_SE,Cathode grows 140 Ω (= 180 Ω·cm²) irreversibly during FIRST charge, most growth between OCV 3.2-3.4 V",
+        "SEM reveals 'severe morphological changes' in cathode microstructure after cycling — mechanical contact loss during NCM delithiation contraction",
+        "Authors directly state: 'solid cathode composites are not 100% dense, and thus, not every NCM particle is ionically and electronically well addressed'",
+        "SE has 'quite limited plasticity' → cannot flow into pores formed by AM volume change"
+      ],
+      "materials": {
+        "AM": "NCM-811 (LiNi0.8Co0.1Mn0.1O2), NO coating, from BASF",
+        "AM_drying": "250°C vacuum Büchi oven overnight",
+        "SE": "β-Li3PS4 (space group Pmna, crystalline)",
+        "SE_composition_from_XPS": "96 at% PS4³⁻ + 4% bridging S (P2S7⁴⁻-type), may have amorphous component",
+        "conductive_additive": "NONE (carbon-free)",
+        "binder": "NONE",
+        "anode_SSB": "In foil 0.125 mm, 6 mm diameter (~7.7 mAh/cm²)",
+        "anode_alternative": "Li4Ti5O12 (LTO) composite (tested in SI to confirm cathode-side R increase)"
+      },
+      "composition": {
+        "wt_ratio_NCM811_Li3PS4": [70, 30],
+        "vol_ratio_NCM811_Li3PS4": [47, 53],
+        "cathode_composite_mass_mg": 12,
+        "SE_layer_mass_mg": 60,
+        "SE_layer_thickness_um": 400,
+        "cathode_areal_loading_mg_per_cm2": 10.7,
+        "mixing": "agate mortar, 15 min"
+      },
+      "process": {
+        "type": "cold-pressed SSB pellet",
+        "assembly_force_kN": 35,
+        "assembly_pressure_MPa_calculated": 446,
+        "operating_force_kN": 5,
+        "operating_pressure_MPa_calculated": 64,
+        "temperature_C": 25,
+        "voltage_range_V_vs_Li": [2.7, 4.3],
+        "voltage_range_V_vs_In_InLi": [2.1, 3.7],
+        "assembly_atmosphere": "Ar glovebox (H2O<0.1, O2<0.1 ppm)"
+      },
+      "electrochemistry": {
+        "theoretical_capacity_mAh_per_g": 200,
+        "current_density_at_0.1C_uA_per_cm2": 214,
+        "first_charge_mAh_per_g": 176,
+        "first_discharge_mAh_per_g": 124,
+        "first_cycle_CE_pct_SSB": 70.5,
+        "first_cycle_CE_pct_LE_reference": 85.9,
+        "irreversible_loss_pct_attributable_to_SSB_only": 15.4,
+        "avg_CE_after_first_cycle_pct": 99.1,
+        "capacity_loss_per_cycle_pct": [1, 2],
+        "capacity_after_50_cycles_mAh_per_g": 81,
+        "retention_50_cycles_pct": 65,
+        "rate_capability_test_pattern": "5 cycles each at 0.1/0.25/0.5/1 C, then ≥30 cycles at 0.1 C",
+        "rate_capacity_mAh_per_g": {
+          "0.1_C": 124,
+          "0.25_C": 66,
+          "0.5_C": 4,
+          "1.0_C": 0
+        },
+        "verdict": "NCM-811/β-Li3PS4 at 47:53 vol barely functions above 0.25 C — high-C performance catastrophically poor"
+      },
+      "impedance_fit_model": {
+        "equivalent_circuit": "(RQ)(RQ)(RQ)(RQ)",
+        "four_resistance_components": [
+          {"symbol": "R_SE,bulk",    "typical_ohm": 450,  "frequency_range": "MHz",   "SOC_dependence": "virtually none"},
+          {"symbol": "R_SE,gb",      "typical_ohm": 100,  "frequency_range": "~1 MHz", "SOC_dependence": "small +50 Ω/cycle (mechanical relaxation)"},
+          {"symbol": "R_SE,Cathode", "typical_ohm_start": 120, "typical_ohm_after_1st_charge": 260, "frequency_range": "kHz",    "SOC_dependence": "IRREVERSIBLE +140 Ω in 1st charge, strongest 3.2-3.4 V OCV"},
+          {"symbol": "R_SE,Anode",   "typical_ohm_start": 40,  "typical_ohm_end_discharge": 800, "frequency_range": "Hz",     "SOC_dependence": "reversible but extreme at low Li-In alloy"}
+        ],
+        "capacitances": {
+          "C_SE_bulk_pF":       40,
+          "C_SE_gb_nF":         161,
+          "C_SE_Cathode_uF":    1.1,
+          "C_SE_Anode_mF":      0.4
+        }
+      },
+      "CRITICAL_cathode_SE_interface_resistance_growth": {
+        "delta_R_ohm_irreversible_first_charge":    140,
+        "delta_R_ohm_cm2_normalized":               180,
+        "IR_drop_at_0.1C_cathode_interface_mV":     25,
+        "most_growth_OCV_range_V":                  [3.2, 3.4],
+        "second_charge_additional_growth":          "smaller than first, partially reversible",
+        "mechanism_proposed": "irreversible cathode/SE interphase (CEI) from SE oxidation + chemomechanical contact loss from NCM anisotropic delithiation contraction",
+        "SE_decomposition_threshold_V_vs_Li": "~3.8 (electrochemical window)",
+        "direct_coverage_implication": "140 Ω increase corresponds to ~50% reduction in effective AM-SE ionic contact (if R ∝ 1/coverage). This is DYNAMIC coverage LOSS during cycling — distinct from initial pressing coverage."
+      },
+      "chemomechanical_mechanism": {
+        "NCM811_delithiation_volume_contraction_pct": "~2 (c-axis expansion + a-axis shrinkage, net contraction at high SOC)",
+        "SE_plasticity": "quite limited — β-Li3PS4 cannot flow into newly formed pores as AM contracts",
+        "consequence": "gaps form between NCM and SE during charging → increased R_cathode/SE → capacity fade",
+        "SEM_evidence": "severe morphological changes after cycling (image referenced in Fig 5, not on visible pages)",
+        "relevance_to_our_DEM": "Our DEM captures INITIAL coverage (static pressing), not DYNAMIC coverage evolution during cycling. Koerver shows 140 Ω increase in first charge alone — cycling reduces effective coverage significantly even from initial state."
+      },
+      "comparability_with_ours": {
+        "process_match":     "YES (cold-pressed pellet, RT)",
+        "pressure_match":    "EXCELLENT (446 MPa vs our 300 MPa, 1.49× higher)",
+        "chemistry_match":   "STRONG (NCM-811 AM + sulfide β-Li3PS4; same chemistry family as our NMC/LPSCl)",
+        "metric_match":      "INTERFACE RESISTANCE not coverage directly — but mappable via R ∝ 1/(coverage × σ_SE)",
+        "usefulness_for_us": [
+          "Direct quantification of cathode/SE interfacial resistance = 180 Ω·cm² baseline (our scaling law σ_eff should incorporate this)",
+          "Confirms our C_blend(τ) and coverage terms need to reflect BOTH static geometric and dynamic chemomechanical effects",
+          "Sets upper bound on achievable coverage in cold-pressed pellets: even at 446 MPa, NCM particles are not fully addressed",
+          "Provides rate-capability collapse benchmark: 0.5 C → 4 mAh/g even at optimal composition → τ + coverage limits are severe"
+        ]
+      },
+      "what_we_still_need_from_remaining_pages": [
+        "XPS S 2p and P 2p evolution with cycling (Fig 5) — quantitative CEI thickness",
+        "Post-cycling SEM (Fig 5) — direct visualization of contact loss",
+        "NCM-811 lattice parameter evolution operando",
+        "SI content — LTO anode control experiment confirming cathode-side R increase"
+      ]
+    },
+    {
       "id": "zhang_2017_acs_ami",
       "citation": "Zhang, Weber, Weigand, Arlt, Manke, Schröder, Koerver, Leichtweiss, Hartmann, Zeier, Janek. ACS Appl. Mater. Interfaces 2017, 9, 17835-17845 — Interfacial Processes and Influence of Composite Cathode Microstructure Controlling the Performance of All-Solid-State Lithium Batteries",
       "doi_or_url": "10.1021/acsami.7b01137",
